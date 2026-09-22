@@ -174,10 +174,23 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    else{$q=$db->prepare('INSERT INTO products(name,price) VALUES (?,?)');$q->execute([$name,(int)round($price*100)]);}
   }
   if($action==='customer'){
+   $customerId=(int)($_POST['id']??0);
    $customerName=trim($_POST['name']??'');$customerPhone=trim($_POST['phone']??'');$customerAddress=trim($_POST['address']??'');
    if(!$customerName || strlen($customerName)>160 || strlen($customerPhone)>40 || strlen($customerAddress)>2000)throw new Exception('Check the customer details and try again.');
-   $q=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
-   $q->execute([$customerName,$customerPhone,$customerAddress,gmdate('c')]);
+   if($customerId){
+    $q=$db->prepare('SELECT * FROM customers WHERE id=?');$q->execute([$customerId]);$oldCustomer=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$oldCustomer)throw new Exception('Customer could not be found.');
+    $q=$db->prepare('SELECT id FROM customers WHERE lower(trim(name))=lower(trim(?)) AND trim(phone)=trim(?) AND id<>? LIMIT 1');
+    $q->execute([$customerName,$customerPhone,$customerId]);
+    if($q->fetchColumn())throw new Exception('A customer with that name and phone already exists.');
+    $db->beginTransaction();
+    $db->prepare('UPDATE customers SET name=?,phone=?,address=? WHERE id=?')->execute([$customerName,$customerPhone,$customerAddress,$customerId]);
+    $db->prepare('UPDATE orders SET customer=?,phone=? WHERE lower(trim(customer))=lower(trim(?)) AND trim(phone)=trim(?)')->execute([$customerName,$customerPhone,$oldCustomer['name'],$oldCustomer['phone']]);
+    $db->commit();
+   }else{
+    $q=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
+    $q->execute([$customerName,$customerPhone,$customerAddress,gmdate('c')]);
+   }
   }
   if($action==='status'){
    if(!in_array($_POST['status']??'',$statuses,true))throw new Exception('Choose a valid status.');
@@ -212,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?'Customer saved.':($action==='sheets_settings'?'Google Sheets connection saved.':''))));
+ $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
@@ -224,7 +237,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile9"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile10"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -304,12 +317,18 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <p>4. Choose <strong>Deploy → New deployment → Web app</strong>, execute as yourself, allow access to anyone, then copy the URL ending in <strong>/exec</strong> into the box above.</p>
 </section>
 <?php else:?>
-<div class="heading"><div><h1>Customers</h1><p class="muted">Save customers here before they place an order, or view their order history.</p></div></div>
-<form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><h2>Add customer</h2><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><button>+ Add customer</button></form>
+<div class="heading customer-heading"><div><h1>Customers</h1><p class="muted">Save customers here before they place an order, or view their order history.</p></div><button type="button" id="show-add-customer" class="customer-plus" aria-expanded="false" aria-controls="add-customer-panel">+ Add customer</button></div>
+<form method="post" class="panel customer-form" id="add-customer-panel" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><div class="customer-form-title"><h2>Add customer</h2><button type="button" class="quiet customer-form-close" data-close-customer-form>Cancel</button></div><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><button>Save customer</button></form>
 <?php foreach($storedCustomers as $c):$customerKey=strtolower(trim((string)$c['name'])).'|'.trim((string)$c['phone']);$history=$customerOrderHistory[$customerKey]??[];?>
-<details class="order"><summary><div><h2><?=e($c['name'])?></h2><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><span><?=count($history)?> <?=count($history)===1?'order':'orders'?></span></summary><div class="detail"><?php if($c['address']):?><p class="address"><?=nl2br(e($c['address']))?></p><?php endif;?><?php foreach($history as $o):?><div class="line"><span>ANK-<?=$o['id']?> · <?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?><?php if(!$history):?><p class="muted">No orders yet. This customer will appear in New Order search.</p><?php endif;?></div></details>
-<?php endforeach;if(!$storedCustomers):?><p class="empty">No customers yet. Add your first customer above.</p><?php endif;endif;?>
+<details class="order customer-card"><summary><div><h2><?=e($c['name'])?></h2><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><span><?=count($history)?> <?=count($history)===1?'order':'orders'?></span></summary><div class="detail"><?php if($c['address']):?><p class="address"><?=nl2br(e($c['address']))?></p><?php endif;?><button type="button" class="quiet edit-customer-button" data-edit-customer="<?=$c['id']?>" aria-expanded="false">Edit customer</button><form method="post" class="customer-edit-form" data-customer-form="<?=$c['id']?>" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><input type="hidden" name="id" value="<?=$c['id']?>"><div class="two"><label>Name<input name="name" maxlength="160" required value="<?=e($c['name'])?>"></label><label>Phone<input name="phone" maxlength="40" type="tel" value="<?=e($c['phone'])?>"></label></div><label>Address<textarea name="address" maxlength="2000"><?=e($c['address'])?></textarea></label><div class="customer-edit-actions"><button>Save changes</button><button type="button" class="quiet" data-cancel-customer-edit="<?=$c['id']?>">Cancel</button></div></form><?php foreach($history as $o):?><div class="line"><span>ANK-<?=$o['id']?> · <?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?><?php if(!$history):?><p class="muted">No orders yet. This customer will appear in New Order search.</p><?php endif;?></div></details>
+<?php endforeach;if(!$storedCustomers):?><p class="empty">No customers yet. Tap + Add customer to add your first one.</p><?php endif;endif;?>
 </main><script>
+const addCustomerButton=document.querySelector('#show-add-customer'),addCustomerPanel=document.querySelector('#add-customer-panel');
+addCustomerButton?.addEventListener('click',()=>{const open=addCustomerPanel.hidden;addCustomerPanel.hidden=!open;addCustomerButton.setAttribute('aria-expanded',open?'true':'false');if(open)addCustomerPanel.querySelector('input[name="name"]')?.focus()});
+document.querySelectorAll('[data-close-customer-form]').forEach(b=>b.addEventListener('click',()=>{if(addCustomerPanel){addCustomerPanel.hidden=true;addCustomerButton?.setAttribute('aria-expanded','false')}}));
+document.querySelectorAll('[data-edit-customer]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.editCustomer,form=document.querySelector('[data-customer-form="'+id+'"]');if(!form)return;const open=form.hidden;form.hidden=!open;b.setAttribute('aria-expanded',open?'true':'false');b.textContent=open?'Hide edit':'Edit customer';if(open)form.querySelector('input[name="name"]')?.focus()}));
+document.querySelectorAll('[data-cancel-customer-edit]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.cancelCustomerEdit,form=document.querySelector('[data-customer-form="'+id+'"]'),toggle=document.querySelector('[data-edit-customer="'+id+'"]');if(form)form.hidden=true;if(toggle){toggle.setAttribute('aria-expanded','false');toggle.textContent='Edit customer'}}));
+
 const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
 const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
 function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}customerSearch?.focus()}
