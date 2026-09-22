@@ -207,7 +207,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile7"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile8"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -216,6 +216,18 @@ $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchA
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'])));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'])?$o['total']:0,$orders));
+$customerSuggestions=[];
+foreach($orders as $customerOrder){
+ $customerKey=strtolower(trim((string)$customerOrder['customer'])).'|'.trim((string)$customerOrder['phone']);
+ if(!isset($customerSuggestions[$customerKey])){
+  $customerSuggestions[$customerKey]=[
+   'name'=>(string)$customerOrder['customer'],
+   'phone'=>(string)$customerOrder['phone'],
+   'address'=>(string)$customerOrder['address']
+  ];
+ }
+}
+$customerSuggestions=array_values($customerSuggestions);
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
@@ -241,7 +253,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show. Create an order to get started.</p>
 <?php elseif($view==='new'):?>
-<h1>New order</h1><p class="muted">Customer → products → save. That's it.</p><form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="order"><h2 class="step">1. Customer</h2><div class="two"><label>Customer name<input name="customer" maxlength="160" required autocomplete="name" value="<?=e($_POST['customer']??'')?>"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" value="<?=e($_POST['phone']??'')?>"></label></div><label>Referrer <span class="muted">(optional)</span><input name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist><label>Delivery address<textarea name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??'')?></textarea></label><h2 class="step">2. Products</h2><p class="muted">Start typing a product, then tap it to add it to this order.</p>
+<h1>New order</h1><p class="muted">Customer → products → save. That's it.</p><form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="order"><h2 class="step">1. Customer</h2><div class="two"><div class="customer-search-wrap"><label>Customer name<input id="customer-search" name="customer" maxlength="160" required autocomplete="off" placeholder="Start typing name or phone…" value="<?=e($_POST['customer']??'')?>"></label><div id="customer-results" class="customer-results" role="listbox" hidden></div></div><label>Phone<input id="customer-phone" name="phone" maxlength="40" type="tel" autocomplete="tel" value="<?=e($_POST['phone']??'')?>"></label></div><label>Referrer <span class="muted">(optional)</span><input name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist><label>Delivery address<textarea id="customer-address" name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??'')?></textarea></label><h2 class="step">2. Products</h2><p class="muted">Start typing a product, then tap it to add it to this order.</p>
 <div class="product-search-wrap"><label for="product-search">Find a peptide or product<input id="product-search" type="search" placeholder="e.g. BPC-157, CJC-1295, Retatrutide…" autocomplete="off" aria-autocomplete="list" aria-controls="product-results"></label><div id="product-results" class="product-results" role="listbox" hidden></div></div>
 <div id="strength-picker" class="strength-picker" hidden><div class="strength-picker-head"><div><span class="muted">Choose strength</span><strong id="strength-product-name"></strong></div><button type="button" id="close-strength-picker" class="strength-close" aria-label="Close strength choices">×</button></div><div id="strength-options" class="strength-options"></div></div>
 <div id="selected-products">
@@ -281,6 +293,14 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <details class="order"><summary><div><h2><?=e($c['name'])?></h2><span class="muted"><?=e($c['phone'])?></span></div><span><?=count($c['orders'])?> orders</span></summary><div class="detail"><?php foreach($c['orders'] as $o):?><div class="line"><span>ANK-<?=$o['id']?> · <?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?></div></details>
 <?php endforeach;if(!$customers):?><p class="empty">Customers appear here when you create orders.</p><?php endif;endif;?>
 </main><script>
+const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
+const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
+function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}customerSearch?.focus()}
+function showCustomerResults(){if(!customerSearch||!customerResults)return;const term=customerSearch.value.toLowerCase().trim();customerResults.replaceChildren();if(term.length<1){customerResults.hidden=true;return}const matches=customerSuggestions.filter(c=>(c.name||'').toLowerCase().includes(term)||(c.phone||'').toLowerCase().includes(term)).slice(0,8);if(!matches.length){customerResults.hidden=true;return}matches.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='customer-result';b.setAttribute('role','option');const main=document.createElement('strong');main.textContent=c.name||'Customer';const detail=document.createElement('span');detail.textContent=c.phone||'';b.append(main,detail);if(c.address){const addr=document.createElement('small');addr.textContent=c.address.replace(/\s+/g,' ').trim();b.append(addr)}b.addEventListener('click',()=>chooseCustomer(c));customerResults.append(b)});customerResults.hidden=false}
+customerSearch?.addEventListener('input',showCustomerResults);
+customerSearch?.addEventListener('focus',showCustomerResults);
+document.addEventListener('click',e=>{if(customerResults&&!e.target.closest('.customer-search-wrap'))customerResults.hidden=true});
+
 const search=document.querySelector('#search'),filter=document.querySelector('#filter');
 function applyFilters(){let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});document.querySelector('#empty').hidden=visible>0}
 search?.addEventListener('input',applyFilters);filter?.addEventListener('change',applyFilters);
