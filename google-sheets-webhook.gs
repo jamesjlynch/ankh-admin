@@ -17,11 +17,20 @@ function doPost(e) {
       return json_({ ok: true, message: 'ANKH Sheets webhook is ready' });
     }
 
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    if (data.event === 'order_delete') {
+      const reference = String(data.reference || '').trim();
+      if (!reference) return json_({ ok: false, error: 'Order reference is missing' });
+      deleteOrder_(ss, reference);
+      SpreadsheetApp.flush();
+      return json_({ ok: true, deleted: reference });
+    }
+
     if (data.event !== 'order_upsert' || !data.order) {
       return json_({ ok: false, error: 'Unsupported event' });
     }
 
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     upsertOrder_(ss, data.order);
     SpreadsheetApp.flush();
 
@@ -75,6 +84,16 @@ function upsertOrder_(ss, order) {
   if (itemRows.length) {
     items.getRange(items.getLastRow() + 1, 1, itemRows.length, 6).setValues(itemRows);
   }
+}
+
+function deleteOrder_(ss, reference) {
+  const orders = ss.getSheetByName(ORDERS_SHEET);
+  const items = ss.getSheetByName(ITEMS_SHEET);
+  if (!orders || !items) throw new Error('Orders sheets are missing');
+
+  const row = findOrderRow_(orders, reference);
+  if (row) orders.deleteRow(row);
+  removeExistingItems_(items, reference);
 }
 
 function findOrderRow_(sheet, reference) {
