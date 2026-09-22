@@ -605,3 +605,40 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
   .wizard-progress>i{flex:1;min-width:14px;max-width:none}
   .wizard-progress>span>span{font-size:8px;top:36px}
 }
+
+/* Keep iOS date inputs inside their cards */
+input[type="date"]{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  overflow:hidden;
+}
+.todo-action,.todo-date,.order-date-field,.order-dates-form,.order-dates-form label{
+  min-width:0;
+  max-width:100%;
+}
+.todo-date input[type="date"],
+.order-date-field input[type="date"],
+.order-dates-form input[type="date"]{
+  width:100%;
+  max-width:100%;
+  min-width:0;
+}
+@media(max-width:760px){
+  input[type="date"]{
+    display:block;
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    padding-left:12px;
+    padding-right:12px;
+  }
+  .todo-card{overflow:hidden}
+  .todo-action{width:100%;min-width:0}
+  .todo-date{width:100%;min-width:0;display:block}
+  .todo-date input[type="date"]{margin-top:7px}
+  .order-date-editor{overflow:hidden}
+  .order-dates-form .two{min-width:0}
+  .order-dates-form label{width:100%;min-width:0}
+}
