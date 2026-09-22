@@ -390,6 +390,226 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
  }
 }
 
+if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='realtime-token'){
+ try{
+  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
+  if(!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  if($testingNoAuth)voiceJson(['ok'=>false,'error'=>'ANKH Live Voice is locked until the app PIN has been set.'],403);
+  if($openAiKey==='')voiceJson(['ok'=>false,'error'=>'OpenAI is not connected yet.'],503);
+
+  $tools=[
+   [
+    'type'=>'function','name'=>'lookup_product',
+    'description'=>'Look up current ANKH product retail prices, pen price, supplier cost and stock. Use this for any question about how much a product is, how much it costs ANKH, how much it is in a pen, or how many are in stock. Reta means Retatrutide.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>['query'=>['type'=>'string','description'=>'Product name and strength if known, e.g. Reta 10mg or BPC-157 10mg.']],
+     'required'=>['query']
+    ]
+   ],
+   [
+    'type'=>'function','name'=>'get_business_metrics',
+    'description'=>'Get ANKH sales and gross profit for a time period. Gross profit is sales minus saved product costs, pen costs and postage.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>[
+      'period'=>['type'=>'string','enum'=>['today','week','month','months','days','all']],
+      'months'=>['type'=>'integer','minimum'=>1,'maximum'=>36],
+      'days'=>['type'=>'integer','minimum'=>1,'maximum'=>365]
+     ],
+     'required'=>['period']
+    ]
+   ],
+   [
+    'type'=>'function','name'=>'get_outstanding_payments',
+    'description'=>'List current ANKH orders with outstanding payment and the total amount outstanding.',
+    'parameters'=>['type'=>'object','additionalProperties'=>false,'properties'=>(object)[]]
+   ],
+   [
+    'type'=>'function','name'=>'get_deliveries',
+    'description'=>'List current paid, packed or dispatched orders still needing delivery. Can filter to James or Tony.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>['assignee'=>['type'=>'string','enum'=>['','James','Tony']]]
+    ]
+   ],
+   [
+    'type'=>'function','name'=>'get_low_stock',
+    'description'=>'List active products currently at or below their configured low-stock level.',
+    'parameters'=>['type'=>'object','additionalProperties'=>false,'properties'=>(object)[]]
+   ],
+   [
+    'type'=>'function','name'=>'lookup_customer_last_order',
+    'description'=>'Find a customer and return their most recent ANKH order. Ask for clarification if multiple customer names match.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>['customer_name'=>['type'=>'string']],
+     'required'=>['customer_name']
+    ]
+   ],
+   [
+    'type'=>'function','name'=>'lookup_order',
+    'description'=>'Look up an ANKH order by ANK reference, order number, or customer name.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>['query'=>['type'=>'string']],
+     'required'=>['query']
+    ]
+   ]
+  ];
+
+  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payments or deliveries, ALWAYS use the appropriate tool rather than guessing. Product retail price means the selling price. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
+
+  $sessionConfig=[
+   'session'=>[
+    'type'=>'realtime',
+    'model'=>'gpt-realtime-2.1',
+    'output_modalities'=>['audio'],
+    'instructions'=>$instructions,
+    'audio'=>[
+     'input'=>['turn_detection'=>['type'=>'semantic_vad']],
+     'output'=>['voice'=>'marin']
+    ],
+    'tools'=>$tools,
+    'tool_choice'=>'auto'
+   ]
+  ];
+  $safetyId=hash('sha256','ankh-admin|'.session_id());
+  $secret=openAiCurlJson(
+   'https://api.openai.com/v1/realtime/client_secrets',
+   ['Content-Type: application/json','OpenAI-Safety-Identifier: '.$safetyId],
+   json_encode($sessionConfig,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)
+  );
+  $value=(string)($secret['value']??'');
+  if($value==='')throw new Exception('OpenAI did not return a Realtime client secret.');
+  voiceJson(['ok'=>true,'value'=>$value,'expires_at'=>$secret['expires_at']??null]);
+ }catch(Throwable $ex){
+  voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Could not start ANKH Live Voice.'],500);
+ }
+}
+
+if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'){
+ try{
+  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
+  $payload=json_decode((string)file_get_contents('php://input'),true);
+  if(!is_array($payload))voiceJson(['ok'=>false,'error'=>'Invalid assistant request.'],400);
+  if(!hash_equals($_SESSION['csrf'],(string)($payload['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  if($testingNoAuth)voiceJson(['ok'=>false,'error'=>'ANKH Live Voice is locked until the app PIN has been set.'],403);
+
+  $tool=(string)($payload['name']??'');$args=is_array($payload['args']??null)?$payload['args']:[];
+  $moneyTool=fn(int $pence)=>'£'.number_format($pence/100,2);
+  $aliasProduct=function(string $value):string{
+   return preg_replace('/\\b(?:reta|reeta|rita|rayta)\\b/i','Retatrutide',$value)??$value;
+  };
+  $normProduct=function(string $value)use($aliasProduct):string{
+   return preg_replace('/[^a-z0-9]+/','',strtolower($aliasProduct($value)))??'';
+  };
+  $result=[];
+
+  if($tool==='lookup_product'){
+   $query=trim((string)($args['query']??''));if($query==='')throw new Exception('Tell me which product to look up.');
+   $query=$aliasProduct($query);$qNorm=$normProduct($query);
+   $rows=$db->query('SELECT id,name,price,cost,stock_qty,low_stock_at,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+   $ranked=[];
+   foreach($rows as $row){
+    $nNorm=$normProduct((string)$row['name']);$score=0;
+    if($nNorm===$qNorm)$score=10000;
+    elseif($qNorm!==''&&str_contains($nNorm,$qNorm))$score=8000-abs(strlen($nNorm)-strlen($qNorm));
+    elseif($nNorm!==''&&str_contains($qNorm,$nNorm))$score=7000-abs(strlen($nNorm)-strlen($qNorm));
+    else{$distance=levenshtein($qNorm,$nNorm);$score=4000-($distance*100);}
+    $ranked[]=['score'=>$score,'row'=>$row];
+   }
+   usort($ranked,fn($a,$b)=>$b['score']<=>$a['score']);
+   $bestScore=(int)($ranked[0]['score']??-9999);$matches=[];
+   foreach(array_slice($ranked,0,6) as $entry){
+    if($entry['score']<max(2000,$bestScore-900))continue;
+    $row=$entry['row'];$base=(int)$row['price'];$cost=$row['cost']===null?null:(int)$row['cost'];$penCostRaw=setting($db,'pen_cost_pence','');$penUnitCost=$penCostRaw===''?null:(int)$penCostRaw;
+    $canFf=(bool)preg_match('/\\d+(?:\\.\\d+)?\\s*mg$/i',(string)$row['name']);
+    $matches[]=[
+     'name'=>(string)$row['name'],
+     'retail_vial'=>$moneyTool($base),
+     'retail_cartridge'=>$moneyTool($base),
+     'retail_pen'=>$moneyTool($base+2000),
+     'family_friends_vial'=>$canFf?$moneyTool(max(0,$base-500)):null,
+     'family_friends_pen'=>$canFf?$moneyTool(max(0,$base-500)+2000):null,
+     'supplier_product_cost'=>$cost===null?null:$moneyTool($cost),
+     'pen_unit_cost'=>$penUnitCost===null?null:$moneyTool($penUnitCost),
+     'supplier_cost_with_pen'=>($cost!==null&&$penUnitCost!==null)?$moneyTool($cost+$penUnitCost):null,
+     'stock_qty'=>$row['stock_qty']===null?null:(int)$row['stock_qty'],
+     'low_stock_at'=>$row['stock_qty']===null?null:(int)$row['low_stock_at']
+    ];
+   }
+   if(!$matches)$result=['found'=>false,'query'=>$query,'message'=>'No matching active ANKH product was found.'];
+   else$result=['found'=>true,'query'=>$query,'ambiguous'=>count($matches)>1,'matches'=>$matches];
+  }elseif($tool==='get_business_metrics'){
+   $period=(string)($args['period']??'month');$months=max(1,min(36,(int)($args['months']??1)));$days=max(1,min(365,(int)($args['days']??1)));
+   $tzTool=new DateTimeZone('Europe/London');$nowTool=new DateTimeImmutable('now',$tzTool);$start=null;$label='all time';
+   if($period==='today'){$start=$nowTool->setTime(0,0);$label='today';}
+   elseif($period==='week'){$start=$nowTool->modify('monday this week')->setTime(0,0);$label='this week';}
+   elseif($period==='month'){$start=$nowTool->modify('first day of this month')->setTime(0,0);$label='this month';}
+   elseif($period==='months'){$start=$nowTool->modify('-'.$months.' months');$label='the last '.$months.' month'.($months===1?'':'s');}
+   elseif($period==='days'){$start=$nowTool->modify('-'.$days.' days');$label='the last '.$days.' day'.($days===1?'':'s');}
+   $rows=$db->query("SELECT o.id,o.created,o.payment_date,o.postage_cost,
+    COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,
+    COALESCE((SELECT SUM((COALESCE(i.cost,0)+COALESCE(i.presentation_cost,0))*i.quantity) FROM items i WHERE i.order_id=o.id),0) cogs,
+    COALESCE((SELECT COUNT(*) FROM items i WHERE i.order_id=o.id AND i.cost IS NULL),0) missing_cost
+    FROM orders o WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
+   $sales=0;$profit=0;$count=0;$missing=0;
+   foreach($rows as $row){
+    $dateText=(string)(($row['payment_date']??'')?:$row['created']);$ts=strtotime($dateText)?:0;
+    if($start&&$ts<$start->getTimestamp())continue;
+    $revenue=(int)$row['total'];$sales+=$revenue;$profit+=$revenue-(int)$row['cogs']-(int)($row['postage_cost']??0);$count++;if((int)$row['missing_cost']>0)$missing++;
+   }
+   $result=['period'=>$label,'sales'=>$moneyTool($sales),'gross_profit'=>$moneyTool($profit),'completed_orders'=>$count,'orders_with_missing_cost'=>$missing];
+  }elseif($tool==='get_outstanding_payments'){
+   $rows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total
+    FROM orders o LEFT JOIN items i ON i.order_id=o.id
+    WHERE o.status IN ('New','Awaiting payment')
+    GROUP BY o.id ORDER BY datetime(o.created) ASC,o.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+   $total=0;$orders=[];foreach($rows as $row){$total+=(int)$row['total'];$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'amount'=>$moneyTool((int)$row['total']),'created'=>(string)$row['created']];}
+   $result=['count'=>count($orders),'total_outstanding'=>$moneyTool($total),'orders'=>$orders];
+  }elseif($tool==='get_deliveries'){
+   $assignee=(string)($args['assignee']??'');$sql="SELECT id,customer,status,assigned_to,delivery_method,created FROM orders WHERE status IN ('Paid','Packed','Dispatched')";$params=[];
+   if(in_array($assignee,['James','Tony'],true)){$sql.=" AND assigned_to=?";$params[]=$assignee;}
+   $sql.=" ORDER BY datetime(created) ASC,id ASC";$q=$db->prepare($sql);$q->execute($params);$rows=$q->fetchAll(PDO::FETCH_ASSOC);$orders=[];
+   foreach($rows as $row)$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'status'=>(string)$row['status'],'assigned_to'=>(string)($row['assigned_to']?:'Unassigned'),'delivery_method'=>(string)($row['delivery_method']?:'Not set'),'created'=>(string)$row['created']];
+   $result=['assignee'=>$assignee?:'All','count'=>count($orders),'orders'=>$orders];
+  }elseif($tool==='get_low_stock'){
+   $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+   $products=[];foreach($rows as $row)$products[]=['name'=>(string)$row['name'],'stock_qty'=>(int)$row['stock_qty'],'low_stock_at'=>(int)$row['low_stock_at']];
+   $result=['count'=>count($products),'products'=>$products];
+  }elseif($tool==='lookup_customer_last_order'){
+   $customer=trim((string)($args['customer_name']??''));if($customer==='')throw new Exception('Tell me the customer name.');
+   $q=$db->prepare("SELECT DISTINCT customer FROM orders WHERE lower(customer) LIKE lower(?) ORDER BY customer COLLATE NOCASE LIMIT 8");$q->execute(['%'.$customer.'%']);$names=$q->fetchAll(PDO::FETCH_COLUMN);
+   if(!$names)$result=['found'=>false,'customer_query'=>$customer];
+   else{
+    $exact=array_values(array_filter($names,fn($n)=>strtolower(trim((string)$n))===strtolower($customer)));
+    if(count($names)>1&&!$exact)$result=['found'=>true,'ambiguous'=>true,'customer_query'=>$customer,'customer_matches'=>array_values($names)];
+    else{
+     $chosen=(string)($exact[0]??$names[0]);$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.customer=? GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 1");$q->execute([$chosen]);$row=$q->fetch(PDO::FETCH_ASSOC);
+     if(!$row)$result=['found'=>false,'customer_query'=>$customer];
+     else{$iq=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$iq->execute([(int)$row['id']]);$items=[];foreach($iq->fetchAll(PDO::FETCH_ASSOC) as $it){if(strtolower(trim((string)$it['name']))==='pen')continue;$items[]=['name'=>(string)$it['name'],'quantity'=>(int)$it['quantity'],'presentation'=>(string)$it['presentation']];}
+      $result=['found'=>true,'ambiguous'=>false,'customer'=>(string)$row['customer'],'reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'created'=>(string)$row['created'],'status'=>(string)$row['status'],'total'=>$moneyTool((int)$row['total']),'delivery_method'=>(string)($row['delivery_method']??''),'assigned_to'=>(string)($row['assigned_to']??''),'items'=>$items];
+     }
+    }
+   }
+  }elseif($tool==='lookup_order'){
+   $query=trim((string)($args['query']??''));if($query==='')throw new Exception('Tell me which order to look up.');
+   $digits=preg_replace('/\\D+/','',$query);$rows=[];
+   if($digits!==''){$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.id=? GROUP BY o.id LIMIT 1");$q->execute([(int)$digits]);$one=$q->fetch(PDO::FETCH_ASSOC);if($one)$rows=[$one];}
+   if(!$rows){$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE lower(o.customer) LIKE lower(?) GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 5");$q->execute(['%'.$query.'%']);$rows=$q->fetchAll(PDO::FETCH_ASSOC);}
+   $orders=[];foreach($rows as $row){$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'status'=>(string)$row['status'],'total'=>$moneyTool((int)$row['total']),'created'=>(string)$row['created'],'assigned_to'=>(string)($row['assigned_to']??''),'delivery_method'=>(string)($row['delivery_method']??'')];}
+   $result=['found'=>count($orders)>0,'query'=>$query,'orders'=>$orders];
+  }else{
+   voiceJson(['ok'=>false,'error'=>'Unknown ANKH Assistant tool.'],400);
+  }
+
+  voiceJson(['ok'=>true,'result'=>$result]);
+ }catch(Throwable $ex){
+  voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Could not read ANKH data.'],500);
+ }
+}
+
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-assistant'){
  try{
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
@@ -695,7 +915,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile41"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile42"></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1169,27 +1389,31 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
 <?php endif;?>
 </main>
-<button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Ask ANKH Assistant">
- <span class="assistant-button-ring" aria-hidden="true"></span><span class="assistant-button-icon" aria-hidden="true">🎙</span><span class="assistant-button-label">Ask ANKH</span>
+<button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
+ <span class="assistant-button-ring" aria-hidden="true"></span><span class="assistant-button-icon" aria-hidden="true">🎙</span><span class="assistant-button-label">Talk to ANKH</span>
 </button>
 <div id="ankh-assistant-overlay" class="ankh-assistant-overlay" hidden>
- <section class="ankh-assistant-card" role="dialog" aria-modal="true" aria-labelledby="ankh-assistant-title">
-  <button type="button" id="ankh-assistant-close" class="ankh-assistant-close" aria-label="Close assistant">×</button>
-  <div class="ankh-assistant-orb" id="ankh-assistant-orb"><span>☥</span></div>
+ <section class="ankh-assistant-card realtime-card" role="dialog" aria-modal="true" aria-labelledby="ankh-assistant-title">
+  <button type="button" id="ankh-assistant-close" class="ankh-assistant-close" aria-label="End voice conversation">×</button>
+  <div class="assistant-live-badge"><i></i><span id="ankh-assistant-live-label">LIVE VOICE</span></div>
+  <button type="button" class="ankh-assistant-orb realtime-orb" id="ankh-assistant-orb" aria-label="Voice assistant status"><span>☥</span><b class="realtime-wave wave-a"></b><b class="realtime-wave wave-b"></b></button>
   <p class="eyebrow">ANKH ASSISTANT</p>
-  <h2 id="ankh-assistant-title">What would you like to know?</h2>
-  <p id="ankh-assistant-message">Ask about profit, payments, deliveries, stock or customer orders.</p>
-  <div id="ankh-assistant-timer" class="ankh-assistant-timer" hidden>00:00</div>
-  <div id="ankh-assistant-answer" class="ankh-assistant-answer" hidden></div>
-  <div id="ankh-assistant-items" class="ankh-assistant-items" hidden></div>
-  <div class="ankh-assistant-examples" id="ankh-assistant-examples">
-   <span>Try asking</span>
-   <button type="button" disabled>“What payments are outstanding?”</button>
-   <button type="button" disabled>“How much profit in the last 3 months?”</button>
-   <button type="button" disabled>“What has Tony got to deliver?”</button>
+  <h2 id="ankh-assistant-title">Connecting…</h2>
+  <p id="ankh-assistant-message">Starting a live conversation with ANKH.</p>
+  <div id="ankh-assistant-live-log" class="ankh-assistant-live-log" hidden></div>
+  <div class="ankh-assistant-examples realtime-examples" id="ankh-assistant-examples">
+   <span>You can ask naturally</span>
+   <p>“How much is Reta 10mg in a pen?”</p>
+   <p>“What does it cost us?”</p>
+   <p>“How much profit have we made in the last 3 months?”</p>
+   <p>“What does Tony still need to deliver?”</p>
   </div>
-  <button type="button" id="ankh-assistant-action" class="ankh-assistant-action">🎙 Start talking</button>
-  <small id="ankh-assistant-help">I’ll speak the answer back to you</small>
+  <div class="assistant-live-controls">
+   <button type="button" id="ankh-assistant-mute" class="quiet assistant-mute" disabled>Mute mic</button>
+   <button type="button" id="ankh-assistant-retry" class="quiet assistant-retry" hidden>Reconnect</button>
+   <button type="button" id="ankh-assistant-end" class="assistant-end">End conversation</button>
+  </div>
+  <small id="ankh-assistant-help">Once connected, just speak — ANKH will answer and keep listening.</small>
  </section>
 </div>
 <script>
@@ -1197,51 +1421,125 @@ const orderDraftKey='ankh-order-draft-v2';
 if(document.querySelector('#order-saved-marker')){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
 document.querySelectorAll('[data-copy-text]').forEach(button=>button.addEventListener('click',async()=>{const value=button.dataset.copyText||'';try{await navigator.clipboard.writeText(value);const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}catch(_){const area=document.createElement('textarea');area.value=value;document.body.append(area);area.select();document.execCommand('copy');area.remove()}}));
 
-const ankhAssistantButton=document.querySelector('#ankh-assistant-button'),ankhAssistantOverlay=document.querySelector('#ankh-assistant-overlay'),ankhAssistantClose=document.querySelector('#ankh-assistant-close'),ankhAssistantOrb=document.querySelector('#ankh-assistant-orb'),ankhAssistantTitle=document.querySelector('#ankh-assistant-title'),ankhAssistantMessage=document.querySelector('#ankh-assistant-message'),ankhAssistantTimer=document.querySelector('#ankh-assistant-timer'),ankhAssistantAnswer=document.querySelector('#ankh-assistant-answer'),ankhAssistantItems=document.querySelector('#ankh-assistant-items'),ankhAssistantExamples=document.querySelector('#ankh-assistant-examples'),ankhAssistantAction=document.querySelector('#ankh-assistant-action'),ankhAssistantHelp=document.querySelector('#ankh-assistant-help');
-let ankhAssistantRecorder=null,ankhAssistantStream=null,ankhAssistantChunks=[],ankhAssistantTimeout=null,ankhAssistantTick=null,ankhAssistantStarted=0;
-function assistantSpeak(text){
- if(!('speechSynthesis' in window)||!text)return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang='en-GB';utterance.rate=.98;window.speechSynthesis.speak(utterance);
+const ankhAssistantButton=document.querySelector('#ankh-assistant-button'),ankhAssistantOverlay=document.querySelector('#ankh-assistant-overlay'),ankhAssistantClose=document.querySelector('#ankh-assistant-close'),ankhAssistantEnd=document.querySelector('#ankh-assistant-end'),ankhAssistantMute=document.querySelector('#ankh-assistant-mute'),ankhAssistantRetry=document.querySelector('#ankh-assistant-retry'),ankhAssistantOrb=document.querySelector('#ankh-assistant-orb'),ankhAssistantTitle=document.querySelector('#ankh-assistant-title'),ankhAssistantMessage=document.querySelector('#ankh-assistant-message'),ankhAssistantExamples=document.querySelector('#ankh-assistant-examples'),ankhAssistantHelp=document.querySelector('#ankh-assistant-help'),ankhAssistantLiveLabel=document.querySelector('#ankh-assistant-live-label'),ankhAssistantLiveLog=document.querySelector('#ankh-assistant-live-log');
+let ankhRealtimePc=null,ankhRealtimeDc=null,ankhRealtimeStream=null,ankhRealtimeAudio=null,ankhRealtimeConnected=false,ankhRealtimeMuted=false,ankhRealtimeTranscript='',ankhHandledCalls=new Set();
+
+function assistantRealtimeState(state,title,message){
+ if(ankhAssistantTitle)ankhAssistantTitle.textContent=title;
+ if(ankhAssistantMessage)ankhAssistantMessage.textContent=message;
+ ['connecting','listening','thinking','speaking','error'].forEach(name=>ankhAssistantOverlay?.classList.toggle(name,state===name));
+ if(ankhAssistantLiveLabel)ankhAssistantLiveLabel.textContent=state==='connecting'?'CONNECTING':state==='listening'?'LISTENING':state==='thinking'?'CHECKING ANKH':state==='speaking'?'ANKH IS TALKING':state==='error'?'CONNECTION ISSUE':'LIVE VOICE';
+ if(ankhAssistantExamples)ankhAssistantExamples.hidden=state!=='listening'||(ankhAssistantLiveLog&&!ankhAssistantLiveLog.hidden);
+ if(ankhAssistantRetry)ankhAssistantRetry.hidden=state!=='error';
+ if(ankhAssistantMute)ankhAssistantMute.disabled=!ankhRealtimeConnected;
+ if(ankhAssistantHelp)ankhAssistantHelp.textContent=state==='connecting'?'Setting up secure live voice…':state==='listening'?'Just speak naturally — follow-up questions keep the same conversation':state==='thinking'?'Checking your live ANKH data…':state==='speaking'?'You can interrupt ANKH by speaking':state==='error'?'Tap Reconnect to try again':'Live conversation';
 }
-function assistantStopTracks(){if(ankhAssistantTimeout){clearTimeout(ankhAssistantTimeout);ankhAssistantTimeout=null}if(ankhAssistantTick){clearInterval(ankhAssistantTick);ankhAssistantTick=null}ankhAssistantStream?.getTracks().forEach(t=>t.stop());ankhAssistantStream=null}
-function assistantSetState(state,title,message){
- if(ankhAssistantTitle)ankhAssistantTitle.textContent=title;if(ankhAssistantMessage)ankhAssistantMessage.textContent=message;
- ankhAssistantOverlay?.classList.toggle('listening',state==='listening');ankhAssistantOverlay?.classList.toggle('working',state==='working');ankhAssistantOverlay?.classList.toggle('answered',state==='answered');
- if(ankhAssistantExamples)ankhAssistantExamples.hidden=state!=='idle';
- if(ankhAssistantTimer)ankhAssistantTimer.hidden=state!=='listening';
- if(ankhAssistantAction){
-  ankhAssistantAction.disabled=state==='working';
-  ankhAssistantAction.textContent=state==='listening'?'■ Stop & answer':state==='working'?'Thinking…':state==='answered'?'🎙 Ask another':'🎙 Start talking';
+function assistantAddLiveLog(text){
+ text=(text||'').trim();if(!text||!ankhAssistantLiveLog)return;
+ const bubble=document.createElement('div');bubble.className='assistant-live-bubble assistant';bubble.textContent=text;ankhAssistantLiveLog.append(bubble);ankhAssistantLiveLog.hidden=false;ankhAssistantLiveLog.scrollTop=ankhAssistantLiveLog.scrollHeight;
+ if(ankhAssistantExamples)ankhAssistantExamples.hidden=true;
+}
+function assistantRealtimeCleanup(){
+ ankhRealtimeConnected=false;ankhRealtimeMuted=false;ankhHandledCalls.clear();ankhRealtimeTranscript='';
+ try{ankhRealtimeDc?.close()}catch(_){}
+ try{ankhRealtimePc?.close()}catch(_){}
+ ankhRealtimeStream?.getTracks().forEach(track=>track.stop());
+ if(ankhRealtimeAudio){try{ankhRealtimeAudio.pause()}catch(_){};ankhRealtimeAudio.srcObject=null;ankhRealtimeAudio.remove()}
+ ankhRealtimeDc=null;ankhRealtimePc=null;ankhRealtimeStream=null;ankhRealtimeAudio=null;
+ if(ankhAssistantMute){ankhAssistantMute.disabled=true;ankhAssistantMute.textContent='Mute mic'}
+}
+function assistantCloseRealtime(){
+ assistantRealtimeCleanup();if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=true;document.body.classList.remove('assistant-overlay-open');
+}
+async function assistantRunRealtimeTool(item){
+ if(!item?.call_id||ankhHandledCalls.has(item.call_id)||!ankhRealtimeDc||ankhRealtimeDc.readyState!=='open')return;
+ ankhHandledCalls.add(item.call_id);assistantRealtimeState('thinking','Checking ANKH…','I’m looking that up in the live admin data.');
+ let args={};try{args=JSON.parse(item.arguments||'{}')}catch(_){}
+ let output;
+ try{
+  const response=await fetch('?api=assistant-tool',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:<?=json_encode($_SESSION['csrf'])?>,name:item.name,args})});
+  const payload=await response.json().catch(()=>({ok:false,error:'The ANKH data tool returned an unreadable response.'}));
+  output=payload.ok?payload.result:{error:payload.error||'Could not read ANKH data.'};
+ }catch(error){output={error:error?.message||'Could not read ANKH data.'}}
+ if(!ankhRealtimeDc||ankhRealtimeDc.readyState!=='open')return;
+ ankhRealtimeDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:item.call_id,output:JSON.stringify(output)}}));
+ ankhRealtimeDc.send(JSON.stringify({type:'response.create'}));
+}
+function assistantHandleRealtimeEvent(event){
+ if(!event||!event.type)return;
+ if(event.type==='input_audio_buffer.speech_started'){
+  ankhRealtimeTranscript='';assistantRealtimeState('listening','I’m listening…','Keep talking — I’ll answer when you finish.');
+ }else if(event.type==='input_audio_buffer.speech_stopped'){
+  assistantRealtimeState('thinking','Got it…','Working out the answer.');
+ }else if(event.type==='response.created'){
+  assistantRealtimeState('thinking','Thinking…','Using this conversation and your ANKH data.');
+ }else if(event.type==='response.output_audio.delta'){
+  assistantRealtimeState('speaking','ANKH is talking','You can interrupt at any time by speaking.');
+ }else if(event.type==='response.output_audio_transcript.delta'){
+  ankhRealtimeTranscript+=(event.delta||'');
+ }else if(event.type==='response.output_audio_transcript.done'){
+  const text=(event.transcript||ankhRealtimeTranscript||'').trim();if(text)assistantAddLiveLog(text);ankhRealtimeTranscript='';
+ }else if(event.type==='response.done'){
+  const outputs=Array.isArray(event.response?.output)?event.response.output:[];const calls=outputs.filter(item=>item?.type==='function_call');
+  if(calls.length){calls.forEach(assistantRunRealtimeTool)}
+  else if(ankhRealtimeConnected){setTimeout(()=>{if(ankhRealtimeConnected&&!ankhAssistantOverlay?.classList.contains('speaking'))assistantRealtimeState('listening','I’m listening…','Ask another question or follow up on what we were just talking about.')},250)}
+ }else if(event.type==='error'){
+  const message=event.error?.message||'The live voice session hit an error.';assistantRealtimeState('error','Voice connection issue',message);
  }
- if(ankhAssistantHelp)ankhAssistantHelp.textContent=state==='listening'?'Tap Stop when you’ve finished':state==='working'?'Checking your ANKH data…':state==='answered'?'Answer spoken aloud · tap Ask another to continue':'I’ll speak the answer back to you';
 }
-function assistantOpen(){if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=false;document.body.classList.add('assistant-overlay-open');assistantSetState('idle','What would you like to know?','Ask about profit, payments, deliveries, stock or customer orders.');if(ankhAssistantAnswer)ankhAssistantAnswer.hidden=true;if(ankhAssistantItems)ankhAssistantItems.hidden=true}
-function assistantCloseOverlay(){assistantStopTracks();if(ankhAssistantRecorder?.state==='recording')try{ankhAssistantRecorder.stop()}catch(_){};ankhAssistantRecorder=null;if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=true;document.body.classList.remove('assistant-overlay-open');window.speechSynthesis?.cancel()}
-function assistantMime(){const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];return types.find(t=>window.MediaRecorder?.isTypeSupported?.(t))||''}
-function assistantUpdateTimer(){if(!ankhAssistantTimer)return;const sec=Math.floor((Date.now()-ankhAssistantStarted)/1000);ankhAssistantTimer.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
-async function assistantStart(){
- if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){assistantSetState('answered','Microphone unavailable','This browser cannot record audio for ANKH Assistant.');return}
+async function assistantConnectRealtime(){
+ assistantRealtimeCleanup();
+ if(!window.RTCPeerConnection||!navigator.mediaDevices?.getUserMedia){assistantRealtimeState('error','Live voice unavailable','This browser does not support the live voice connection.');return}
+ assistantRealtimeState('connecting','Connecting…','Starting a secure live conversation with ANKH.');
  try{
-  window.speechSynthesis?.cancel();ankhAssistantStream=await navigator.mediaDevices.getUserMedia({audio:true});ankhAssistantChunks=[];const mime=assistantMime();ankhAssistantRecorder=mime?new MediaRecorder(ankhAssistantStream,{mimeType:mime}):new MediaRecorder(ankhAssistantStream);
-  ankhAssistantRecorder.addEventListener('dataavailable',e=>{if(e.data?.size)ankhAssistantChunks.push(e.data)});
-  ankhAssistantRecorder.addEventListener('stop',()=>{const type=ankhAssistantRecorder.mimeType||mime||'audio/mp4',blob=new Blob(ankhAssistantChunks,{type});assistantStopTracks();if(blob.size>100)assistantSend(blob,type);else assistantSetState('answered','I didn’t catch that','Try again and start speaking after the circle begins pulsing.')},{once:true});
-  ankhAssistantRecorder.start();ankhAssistantStarted=Date.now();assistantSetState('listening','I’m listening…','Ask me a question about the business.');assistantUpdateTimer();ankhAssistantTick=setInterval(assistantUpdateTimer,500);ankhAssistantTimeout=setTimeout(()=>assistantStopRecording(),60000);
- }catch(_){assistantStopTracks();assistantSetState('answered','Microphone permission needed','Allow microphone access in Safari and try again.')}
+  const tokenBody=new URLSearchParams();tokenBody.set('csrf',<?=json_encode($_SESSION['csrf'])?>);
+  const tokenResponse=await fetch('?api=realtime-token',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:tokenBody.toString()});
+  const token=await tokenResponse.json().catch(()=>({ok:false,error:'Could not read the Realtime token response.'}));
+  if(!tokenResponse.ok||!token.ok||!token.value)throw new Error(token.error||'Could not start ANKH Live Voice.');
+
+  const pc=new RTCPeerConnection();ankhRealtimePc=pc;
+  const audio=document.createElement('audio');audio.autoplay=true;audio.playsInline=true;audio.className='ankh-realtime-audio';document.body.append(audio);ankhRealtimeAudio=audio;
+  pc.addEventListener('track',event=>{audio.srcObject=event.streams[0];audio.play().catch(()=>{})});
+  pc.addEventListener('connectionstatechange',()=>{
+   if(pc.connectionState==='connected'){ankhRealtimeConnected=true;assistantRealtimeState('listening','I’m listening…','Ask me anything about ANKH and then keep the conversation going.')}
+   if(['failed','disconnected'].includes(pc.connectionState)&&!ankhAssistantOverlay?.hidden)assistantRealtimeState('error','Connection lost','Tap Reconnect to continue the conversation.');
+  });
+
+  ankhRealtimeStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+  ankhRealtimeStream.getAudioTracks().forEach(track=>pc.addTrack(track,ankhRealtimeStream));
+
+  const dc=pc.createDataChannel('oai-events');ankhRealtimeDc=dc;
+  dc.addEventListener('message',message=>{try{assistantHandleRealtimeEvent(JSON.parse(message.data))}catch(_){}});
+  dc.addEventListener('open',()=>{
+   ankhRealtimeConnected=true;assistantRealtimeState('listening','I’m listening…','Ask me anything about ANKH and then keep the conversation going.');
+   dc.send(JSON.stringify({type:'response.create',response:{output_modalities:['audio'],instructions:'Greet the user in one short sentence as ANKH Assistant, then ask what they would like to know about the business. Do not call a tool for this greeting.'}}));
+  });
+  dc.addEventListener('close',()=>{ankhRealtimeConnected=false});
+
+  const offer=await pc.createOffer();await pc.setLocalDescription(offer);
+  const sdpResponse=await fetch('https://api.openai.com/v1/realtime/calls',{method:'POST',body:offer.sdp,headers:{Authorization:'Bearer '+token.value,'Content-Type':'application/sdp'}});
+  if(!sdpResponse.ok)throw new Error('OpenAI Live Voice could not connect.');
+  await pc.setRemoteDescription({type:'answer',sdp:await sdpResponse.text()});
+ }catch(error){
+  assistantRealtimeCleanup();assistantRealtimeState('error','Couldn’t start live voice',error?.message||'Please try again.');
+ }
 }
-function assistantStopRecording(){if(ankhAssistantRecorder?.state!=='recording')return;assistantSetState('working','Checking ANKH…','I’m working out the answer from your orders and stock.');ankhAssistantRecorder.stop()}
-async function assistantSend(blob,mime){
- assistantSetState('working','Checking ANKH…','I’m working out the answer from your orders and stock.');
- try{
-  const data=new FormData();data.append('csrf',<?=json_encode($_SESSION['csrf'])?>);data.append('audio',blob,mime.includes('mp4')?'ankh-question.m4a':'ankh-question.webm');
-  const response=await fetch('?api=voice-assistant',{method:'POST',body:data,credentials:'same-origin'});const payload=await response.json().catch(()=>({ok:false,error:'The assistant returned an unreadable response.'}));
-  if(!response.ok||!payload.ok)throw new Error(payload.error||'ANKH Assistant could not answer that.');
-  assistantSetState('answered','Here’s what I found',payload.transcript?'You asked: “'+payload.transcript+'”':'');
-  if(ankhAssistantAnswer){ankhAssistantAnswer.hidden=false;ankhAssistantAnswer.textContent=payload.answer||''}
-  if(ankhAssistantItems){ankhAssistantItems.replaceChildren();const items=Array.isArray(payload.items)?payload.items:[];items.slice(0,12).forEach(item=>{const row=document.createElement('div');row.className='ankh-assistant-item';const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=item.title||'';const detail=document.createElement('small');detail.textContent=item.detail||'';copy.append(title,detail);const ref=document.createElement('span');ref.textContent=item.reference||'';row.append(copy,ref);ankhAssistantItems.append(row)});ankhAssistantItems.hidden=!items.length}
-  assistantSpeak(payload.answer||'');
-  if(payload.navigate)setTimeout(()=>{location.href=payload.navigate},1800);
- }catch(error){assistantSetState('answered','I couldn’t answer that',error?.message||'Please try again.');if(ankhAssistantAnswer){ankhAssistantAnswer.hidden=false;ankhAssistantAnswer.textContent=error?.message||'Please try again.'}}
+function assistantOpenRealtime(){
+ if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=false;document.body.classList.add('assistant-overlay-open');
+ if(ankhAssistantLiveLog){ankhAssistantLiveLog.replaceChildren();ankhAssistantLiveLog.hidden=true}
+ if(ankhAssistantExamples)ankhAssistantExamples.hidden=false;
+ assistantConnectRealtime();
 }
-ankhAssistantButton?.addEventListener('click',assistantOpen);ankhAssistantClose?.addEventListener('click',assistantCloseOverlay);ankhAssistantOrb?.addEventListener('click',()=>{if(ankhAssistantRecorder?.state==='recording')assistantStopRecording();else if(!ankhAssistantOverlay?.classList.contains('working'))assistantStart()});ankhAssistantAction?.addEventListener('click',()=>{if(ankhAssistantRecorder?.state==='recording')assistantStopRecording();else assistantStart()});
+function assistantToggleMute(){
+ const tracks=ankhRealtimeStream?.getAudioTracks()||[];if(!tracks.length)return;ankhRealtimeMuted=!ankhRealtimeMuted;tracks.forEach(track=>track.enabled=!ankhRealtimeMuted);
+ if(ankhAssistantMute)ankhAssistantMute.textContent=ankhRealtimeMuted?'Unmute mic':'Mute mic';
+ if(ankhRealtimeMuted)assistantRealtimeState('listening','Microphone muted','Tap Unmute mic when you want to continue.');else assistantRealtimeState('listening','I’m listening…','Carry on — the same conversation is still open.');
+}
+ankhAssistantButton?.addEventListener('click',assistantOpenRealtime);
+ankhAssistantClose?.addEventListener('click',assistantCloseRealtime);
+ankhAssistantEnd?.addEventListener('click',assistantCloseRealtime);
+ankhAssistantRetry?.addEventListener('click',assistantConnectRealtime);
+ankhAssistantMute?.addEventListener('click',assistantToggleMute);
 
 const addCustomerButton=document.querySelector('#show-add-customer'),addCustomerPanel=document.querySelector('#add-customer-panel');
 addCustomerButton?.addEventListener('click',()=>{const open=addCustomerPanel.hidden;addCustomerPanel.hidden=!open;addCustomerButton.setAttribute('aria-expanded',open?'true':'false');if(open)addCustomerPanel.querySelector('input[name="name"]')?.focus()});
