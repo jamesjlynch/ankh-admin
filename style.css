@@ -597,3 +597,11 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
   .delete-order-form{margin-top:12px;padding-top:10px}
   .delete-order-form .danger-button{min-height:40px;font-size:12px;padding:8px 10px}
 }
+
+/* Four-step order progress */
+@media(max-width:760px){
+  .wizard-progress{margin:0 2px 24px;gap:5px}
+  .wizard-progress>span{width:32px;height:32px;flex:0 0 32px}
+  .wizard-progress>i{flex:1;min-width:14px;max-width:none}
+  .wizard-progress>span>span{font-size:8px;top:36px}
+}
