@@ -237,7 +237,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile10"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile11"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -282,15 +282,41 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show. Create an order to get started.</p>
 <?php elseif($view==='new'):?>
-<h1>New order</h1><p class="muted">Customer → products → save. That's it.</p><form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="order"><h2 class="step">1. Customer</h2><div class="two"><div class="customer-search-wrap"><label>Customer name<input id="customer-search" name="customer" maxlength="160" required autocomplete="off" placeholder="Start typing name or phone…" value="<?=e($_POST['customer']??'')?>"></label><div id="customer-results" class="customer-results" role="listbox" hidden></div></div><label>Phone<input id="customer-phone" name="phone" maxlength="40" type="tel" autocomplete="tel" value="<?=e($_POST['phone']??'')?>"></label></div><label>Referrer <span class="muted">(optional)</span><input name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist><label>Delivery address<textarea id="customer-address" name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??'')?></textarea></label><h2 class="step">2. Products</h2><p class="muted">Start typing a product, then tap it to add it to this order.</p>
+<div class="new-order-head"><h1>New order</h1><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<form method="post" class="panel order-wizard" id="order-wizard"><?php csrf();?><input type="hidden" name="action" value="order">
+
+<section class="wizard-step" data-wizard-step="1">
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 1 OF 3</span><h2>Customer</h2><p class="muted">Choose an existing customer or enter a new one.</p></div>
+<div class="two"><div class="customer-search-wrap"><label>Customer name<input id="customer-search" name="customer" maxlength="160" required autocomplete="off" placeholder="Start typing name or phone…" value="<?=e($_POST['customer']??'')?>"></label><div id="customer-results" class="customer-results" role="listbox" hidden></div></div><label>Phone<input id="customer-phone" name="phone" maxlength="40" type="tel" autocomplete="tel" value="<?=e($_POST['phone']??'')?>"></label></div>
+<label>Referrer <span class="muted">(optional)</span><input id="customer-referrer" name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist>
+<label>Delivery address<textarea id="customer-address" name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??'')?></textarea></label>
+<div class="wizard-actions wizard-actions-next"><button type="button" data-wizard-next="2">Next · Add products →</button></div>
+</section>
+
+<section class="wizard-step" data-wizard-step="2" hidden>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 2 OF 3</span><h2>Products</h2><p class="muted">Tap a product to add it. Retatrutide is ready as your quick pick.</p></div>
 <div class="product-search-wrap"><label for="product-search">Find a peptide or product<input id="product-search" type="search" placeholder="e.g. BPC-157, CJC-1295, Retatrutide…" autocomplete="off" aria-autocomplete="list" aria-controls="product-results"></label><div id="product-results" class="product-results" role="listbox" hidden></div></div>
 <div id="strength-picker" class="strength-picker" hidden><div class="strength-picker-head"><div><span class="muted">Choose strength</span><strong id="strength-product-name"></strong></div><button type="button" id="close-strength-picker" class="strength-close" aria-label="Close strength choices">×</button></div><div id="strength-options" class="strength-options"></div></div>
 <div id="selected-products">
-<?php foreach($products as $p):if(!$p['active'])continue;$postedQty=(int)($_POST['qty'][$p['id']]??0);$postedPrice=$_POST['price'][$p['id']]??number_format((int)$p['price']/100,2,'.','');$baseName=$p['name'];$strength='';if(preg_match('/\\s+(\\d+(?:\\.\\d+)?\\s*(?:mg|ml|iu))$/i',$p['name'],$pm)){$strength=$pm[1];$baseName=trim(substr($p['name'],0,-strlen($pm[0])));} ?><div class="product-pick<?=$postedQty>0?' picked':''?>" data-product-id="<?=$p['id']?>" data-product-name="<?=e(strtolower($p['name']))?>" data-product-label="<?=e($p['name'])?>" data-product-base="<?=e($baseName)?>" data-product-strength="<?=e($strength)?>" data-standard-price="<?=e(number_format((int)$p['price']/100,2,'.',''))?>" <?=$postedQty>0?'':'hidden'?>><span><?=e($p['name'])?><small>Standard <?=money($p['price'])?></small></span><div class="stepper"><button type="button" data-change="-1" aria-label="Remove one <?=e($p['name'])?>">−</button><input inputmode="numeric" aria-label="<?=e($p['name'])?> quantity" class="quantity" name="qty[<?=$p['id']?>]" type="number" min="0" max="999" value="<?=$postedQty?>"><button type="button" data-change="1" aria-label="Add one <?=e($p['name'])?>">+</button></div><label class="order-price">Price each for this order (£)<input class="line-price" name="price[<?=$p['id']?>]" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($postedPrice)?>"></label></div><?php endforeach;?>
+<?php foreach($products as $p):if(!$p['active'])continue;$postedQty=(int)($_POST['qty'][$p['id']]??0);$postedPrice=$_POST['price'][$p['id']]??number_format((int)$p['price']/100,2,'.','');$baseName=$p['name'];$strength='';if(preg_match('/\s+(\d+(?:\.\d+)?\s*(?:mg|ml|iu))$/i',$p['name'],$pm)){$strength=$pm[1];$baseName=trim(substr($p['name'],0,-strlen($pm[0])));} ?><div class="product-pick<?=$postedQty>0?' picked':''?>" data-product-id="<?=$p['id']?>" data-product-name="<?=e(strtolower($p['name']))?>" data-product-label="<?=e($p['name'])?>" data-product-base="<?=e($baseName)?>" data-product-strength="<?=e($strength)?>" data-standard-price="<?=e(number_format((int)$p['price']/100,2,'.',''))?>" <?=$postedQty>0?'':'hidden'?>><span><?=e($p['name'])?><small>Standard <?=money($p['price'])?></small></span><div class="stepper"><button type="button" data-change="-1" aria-label="Remove one <?=e($p['name'])?>">−</button><input inputmode="numeric" aria-label="<?=e($p['name'])?> quantity" class="quantity" name="qty[<?=$p['id']?>]" type="number" min="0" max="999" value="<?=$postedQty?>"><button type="button" data-change="1" aria-label="Add one <?=e($p['name'])?>">+</button></div><label class="order-price">Price each for this order (£)<input class="line-price" name="price[<?=$p['id']?>]" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($postedPrice)?>"></label></div><?php endforeach;?>
 </div>
 <p id="selected-empty" class="selected-empty">No products added yet.</p>
 <?php if(!$products):?><p>Add products in the <a href="?view=products">Products tab</a> first.</p><?php endif;?>
-<h2 class="step">3. Check and save</h2><div class="line"><strong>Product subtotal</strong><strong id="subtotal">£0.00</strong></div><label>Notes (optional)<textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label><p class="muted">Saving records the order. It does not take payment or message the customer.</p><button class="save-order">Save this order</button></form>
+<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="1">← Back</button><button type="button" data-wizard-next="3">Next · Check order →</button></div>
+</section>
+
+<section class="wizard-step" data-wizard-step="3" hidden>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 3 OF 3</span><h2>Check & save</h2><p class="muted">Check the details below, then save the order.</p></div>
+<div class="order-check">
+<div class="order-check-section"><span class="order-check-label">Customer</span><strong id="check-customer">—</strong><small id="check-customer-detail"></small></div>
+<div class="order-check-section"><span class="order-check-label">Products</span><div id="check-products"></div></div>
+<div class="line order-check-total"><strong>Product subtotal</strong><strong id="subtotal">£0.00</strong></div>
+</div>
+<label>Notes <span class="muted">(optional)</span><textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label>
+<p class="muted">Saving records the order. It does not take payment or message the customer.</p>
+<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="2">← Back</button><button class="save-order">Save order</button></div>
+</section>
+</form>
 <?php elseif($view==='products'):?>
 <h1>Products</h1><p class="muted">The active list is the current ANKH retail range from your price-list artwork. Supplier costs still come from the <a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1yhC2UBJn5kCe7a2IL7CEg3KcmX6s1e2lNXTOVegniYk/edit?usp=drivesdk">Supplier Price List ↗</a>.</p>
 <form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><h2>Add product</h2><div class="two"><label>Name and strength<input name="name" required maxlength="160" placeholder="Product name · 5mg"></label><label>Price (£)<input name="price" type="number" min="0" max="100000" step=".01" required></label></div><button>Add product</button></form>
@@ -329,6 +355,32 @@ document.querySelectorAll('[data-close-customer-form]').forEach(b=>b.addEventLis
 document.querySelectorAll('[data-edit-customer]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.editCustomer,form=document.querySelector('[data-customer-form="'+id+'"]');if(!form)return;const open=form.hidden;form.hidden=!open;b.setAttribute('aria-expanded',open?'true':'false');b.textContent=open?'Hide edit':'Edit customer';if(open)form.querySelector('input[name="name"]')?.focus()}));
 document.querySelectorAll('[data-cancel-customer-edit]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.cancelCustomerEdit,form=document.querySelector('[data-customer-form="'+id+'"]'),toggle=document.querySelector('[data-edit-customer="'+id+'"]');if(form)form.hidden=true;if(toggle){toggle.setAttribute('aria-expanded','false');toggle.textContent='Edit customer'}}));
 
+const wizard=document.querySelector('#order-wizard'),wizardSteps=[...document.querySelectorAll('[data-wizard-step]')],wizardProgress=[...document.querySelectorAll('[data-progress-step]')];
+function showWizardStep(step){
+ if(!wizard)return;
+ wizardSteps.forEach(section=>section.hidden=Number(section.dataset.wizardStep)!==Number(step));
+ wizardProgress.forEach(item=>{const n=Number(item.dataset.progressStep);item.classList.toggle('active',n===Number(step));item.classList.toggle('done',n<Number(step))});
+ document.activeElement?.blur();
+ wizard.scrollIntoView({behavior:'smooth',block:'start'});
+ if(Number(step)===2){setTimeout(()=>{productSearch?.focus();showProductResults()},250)}
+ if(Number(step)===3)buildOrderCheck();
+}
+function selectedOrderRows(){return productRows.filter(row=>Number(row.querySelector('.quantity')?.value||0)>0)}
+function buildOrderCheck(){
+ const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products');
+ if(customer)customer.textContent=customerSearch?.value.trim()||'—';
+ if(detail){const bits=[customerPhone?.value.trim(),document.querySelector('#customer-referrer')?.value.trim()].filter(Boolean);detail.textContent=bits.join(' · ')}
+ if(products){products.replaceChildren();selectedOrderRows().forEach(row=>{const q=Number(row.querySelector('.quantity')?.value||0),price=Number(row.querySelector('.line-price')?.value||0),line=document.createElement('div');line.className='check-product-line';const name=document.createElement('span');name.textContent=q+' × '+row.dataset.productLabel;const amount=document.createElement('strong');amount.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(q*price);line.append(name,amount);products.append(line)})}
+ updateTotal();
+}
+document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventListener('click',()=>{
+ const next=Number(button.dataset.wizardNext);
+ if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}}
+ if(next===3&&!selectedOrderRows().length){alert('Add at least one product before continuing.');productSearch?.focus();showProductResults();return}
+ showWizardStep(next);
+}));
+document.querySelectorAll('[data-wizard-back]').forEach(button=>button.addEventListener('click',()=>showWizardStep(Number(button.dataset.wizardBack))));
+
 const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
 const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
 function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}customerSearch?.focus()}
@@ -354,5 +406,5 @@ document.querySelectorAll('.quantity,.line-price').forEach(q=>q.addEventListener
 document.querySelectorAll('[data-change]').forEach(b=>b.addEventListener('click',()=>{const row=b.closest('.product-pick'),q=row.querySelector('.quantity');q.value=Math.min(999,Math.max(0,(Number(q.value)||0)+Number(b.dataset.change)));updateTotal()}));
 updateTotal();
 const orderForm=document.querySelector('.save-order')?.form;
-orderForm?.addEventListener('submit',e=>{if(!Array.from(orderForm.querySelectorAll('.quantity')).some(q=>Number(q.value)>0)){e.preventDefault();alert('Choose at least one product using the + buttons.');orderForm.querySelector('[data-change]')?.focus();return;}const b=orderForm.querySelector('.save-order');b.disabled=true;b.textContent='Saving order…'});
+orderForm?.addEventListener('submit',e=>{if(!customerSearch?.value.trim()){e.preventDefault();showWizardStep(1);customerSearch?.reportValidity();return}if(!selectedOrderRows().length){e.preventDefault();alert('Add at least one product.');showWizardStep(2);return}const b=orderForm.querySelector('.save-order');b.disabled=true;b.textContent='Saving order…'});
 </script><?php endif;?></body></html>
