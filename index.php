@@ -11,6 +11,7 @@ function e($s){return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');}
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 $error = '';
 $syncError = null;
+$savedOrderId = 0;
 if (!$config || empty($config['password_hash']) || empty($config['database_path'])) {
  http_response_code(503);
  exit('<!doctype html><meta name="viewport" content="width=device-width"><title>ANKH Admin setup</title><body style="background:#101112;color:#ead9ac;font:18px system-ui;padding:10vw"><h1>☥ ANKH Admin</h1><p>The app is installed. Private access and database configuration need to be completed before orders can be managed.</p>');
@@ -300,6 +301,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($chosenDate->format('Y-m-d')===$todayLocal->format('Y-m-d'))$created=gmdate('c');
    else $created=(new DateTimeImmutable($orderDate.' 12:00:00',$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
    $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation) VALUES (?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation]);$oid=$db->lastInsertId();
+   $savedOrderId=(int)$oid;
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");
    $saveCustomer->execute([$name,$phone,$address,$created]);
    foreach($lines as [$p,$n,$orderPrice])$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,?)')->execute([$oid,$p['name'],$orderPrice,$n]);
@@ -323,6 +325,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  $flash=$action==='order'?'Order saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
+ if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();}
 }
@@ -330,7 +333,8 @@ $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
 function money($n){return '£'.number_format((float)$n/100,2);}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
+function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile18"></head><body>
 <?php if(!$auth): ?>
@@ -362,10 +366,34 @@ foreach($customerProducts as $customerProduct){
  $customerProductCounts[$key][]=['name'=>(string)$customerProduct['name'],'qty'=>(int)$customerProduct['qty']];
 }
 
-$newOrderCustomer=null;
+$newOrderCustomer=null;$repeatOrderData=null;$repeatQty=[];$repeatPrices=[];$repeatPresentation='';
 if($view==='new' && (int)($_GET['customer_id']??0)>0){
  $q=$db->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([(int)$_GET['customer_id']]);$newOrderCustomer=$q->fetch(PDO::FETCH_ASSOC)?:null;
 }
+if($view==='new' && (int)($_GET['repeat_order']??0)>0){
+ $repeatId=(int)$_GET['repeat_order'];$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$repeatId]);$repeatOrder=$q->fetch(PDO::FETCH_ASSOC);
+ if($repeatOrder){
+  $repeatOrderData=$repeatOrder;$newOrderCustomer=['name'=>$repeatOrder['customer'],'phone'=>$repeatOrder['phone'],'address'=>$repeatOrder['address']];
+  $repeatPresentation=(string)($repeatOrder['presentation']??'');
+  $nameToProduct=[];foreach($products as $rp)if((int)$rp['active']===1)$nameToProduct[strtolower(trim((string)$rp['name']))]=(int)$rp['id'];
+  $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
+  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ri){
+   if(strtolower(trim((string)$ri['name']))==='pen')continue;
+   $pid=$nameToProduct[strtolower(trim((string)$ri['name']))]??0;if(!$pid)continue;
+   $repeatQty[$pid]=(int)$ri['quantity'];$repeatPrices[$pid]=number_format((int)$ri['price']/100,2,'.','');
+  }
+ }
+}
+$recentCustomers=[];$recentSeen=[];
+foreach($orders as $recentOrder){
+ $key=strtolower(trim((string)$recentOrder['customer'])).'|'.trim((string)$recentOrder['phone']);if(isset($recentSeen[$key]))continue;
+ foreach($customerSuggestions as $candidate){
+  if(strtolower(trim($candidate['name'])).'|'.trim($candidate['phone'])===$key){$recentCustomers[]=$candidate;$recentSeen[$key]=true;break;}
+ }
+ if(count($recentCustomers)>=5)break;
+}
+$savedOrder=null;
+if($view==='saved' && (int)($_GET['id']??0)>0)$savedOrder=orderForSheet($db,(int)$_GET['id']);
 
 // Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
