@@ -29,6 +29,14 @@ if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTE
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
 if(!in_array('payment_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN payment_date TEXT NOT NULL DEFAULT ''");
 if(!in_array('delivery_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN delivery_date TEXT NOT NULL DEFAULT ''");
+if(!in_array('payment_method',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT ''");
+if(!in_array('delivery_method',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN delivery_method TEXT NOT NULL DEFAULT ''");
+if(!in_array('tracking_reference',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN tracking_reference TEXT NOT NULL DEFAULT ''");
+if(!in_array('delivery_charge',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN delivery_charge INTEGER NOT NULL DEFAULT 0");
+if(!in_array('postage_cost',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN postage_cost INTEGER NOT NULL DEFAULT 0");
+if(!in_array('payment_fee',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN payment_fee INTEGER NOT NULL DEFAULT 0");
+$itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
 $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
@@ -43,6 +51,8 @@ foreach($existingOrderCustomers as $existingCustomer){
  $seedCustomer->execute([$existingCustomer['customer'],$existingCustomer['phone'],$existingCustomer['address'],$existingCustomer['created']]);
 }
 $statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Delivered','Cancelled'];
+$paymentMethods=['Cash','Bank Transfer','Card','PayPal','Other'];
+$deliveryMethods=['Collection','Local Delivery','Postage'];
 
 // Keep the live order catalogue complete without overwriting manually managed prices.
 function setting(PDO $db,string $key,string $default=''):string{
@@ -113,16 +123,19 @@ $currentSupplierCosts=[
  'BAC Water 3ml'=>75,'BAC Water 10ml'=>82,'Acetic Acid 0.6% 10ml'=>60
 ];
 $catalogVersion='retail-posters-2026-09-22-v3';
-$findProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
-$updateProduct=$db->prepare('UPDATE products SET price=?,active=1 WHERE id=?');
-$insertProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,?,1)');
+$findProduct=$db->prepare('SELECT id,cost FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
+$insertProduct=$db->prepare('INSERT INTO products(name,price,cost,active) VALUES (?,?,?,1)');
+$fillProductCost=$db->prepare('UPDATE products SET cost=? WHERE id=? AND cost IS NULL');
 
-// Always verify every current retail product is present, active and correctly priced.
+// Keep every current retail product available in the database without undoing manual edits.
 foreach($currentRetailCatalog as $retailName=>$retailPrice){
- $findProduct->execute([$retailName]);$existingId=$findProduct->fetchColumn();
- if($existingId)$updateProduct->execute([$retailPrice,(int)$existingId]);
- else{$insertProduct->execute([$retailName,$retailPrice]);$existingId=(int)$db->lastInsertId();}
- if(isset($currentSupplierCosts[$retailName]))$db->prepare('UPDATE products SET cost=? WHERE id=?')->execute([$currentSupplierCosts[$retailName],(int)$existingId]);
+ $findProduct->execute([$retailName]);$existing=$findProduct->fetch(PDO::FETCH_ASSOC);
+ if(!$existing){
+  $insertProduct->execute([$retailName,$retailPrice,$currentSupplierCosts[$retailName]??null]);$existingId=(int)$db->lastInsertId();
+ }else{
+  $existingId=(int)$existing['id'];
+  if(isset($currentSupplierCosts[$retailName]))$fillProductCost->execute([$currentSupplierCosts[$retailName],$existingId]);
+ }
 }
 
 // Only deactivate products outside the current retail range when the catalogue changes.
@@ -135,16 +148,28 @@ if(setting($db,'retail_catalog_version')!==$catalogVersion){
  }
  saveSetting($db,'retail_catalog_version',$catalogVersion);
 }
+
+// Cost snapshots: fill only legacy rows that do not already have a saved cost.
+$db->exec("UPDATE items SET cost=(SELECT p.cost FROM products p WHERE lower(trim(p.name))=lower(trim(items.name)) LIMIT 1) WHERE cost IS NULL AND lower(trim(name))<>'pen'");
+$penCostSetting=setting($db,'pen_cost_pence','');
+if($penCostSetting!=='' && ctype_digit($penCostSetting))$db->prepare("UPDATE items SET cost=? WHERE cost IS NULL AND lower(trim(name))='pen'")->execute([(int)$penCostSetting]);
 function sheetsWebhookValid(string $url):bool{
  $p=parse_url($url);$host=strtolower((string)($p['host']??''));
  return (($p['scheme']??'')==='https') && ($host==='script.google.com' || str_ends_with($host,'.googleusercontent.com'));
 }
 function orderForSheet(PDO $db,int $id):?array{
  $q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$id]);$o=$q->fetch(PDO::FETCH_ASSOC);if(!$o)return null;
- $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
- $total=0;$out=[];
- foreach($items as $i){$line=(int)$i['price']*(int)$i['quantity'];$total+=$line;$out[]=['name'=>$i['name'],'unit_price_pence'=>(int)$i['price'],'quantity'=>(int)$i['quantity']];}
- return ['id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','presentation'=>$o['presentation']??'','payment_date'=>$o['payment_date']??'','delivery_date'=>$o['delivery_date']??'','address'=>$o['address'],'notes'=>$o['notes'],'status'=>$o['status'],'total_pence'=>$total,'items'=>$out];
+ $q=$db->prepare('SELECT name,price,cost,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
+ $total=(int)($o['delivery_charge']??0);$out=[];
+ foreach($items as $i){$line=(int)$i['price']*(int)$i['quantity'];$total+=$line;$out[]=['name'=>$i['name'],'unit_price_pence'=>(int)$i['price'],'unit_cost_pence'=>$i['cost']===null?null:(int)$i['cost'],'quantity'=>(int)$i['quantity']];}
+ return [
+  'id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],
+  'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','presentation'=>$o['presentation']??'',
+  'payment_method'=>$o['payment_method']??'','delivery_method'=>$o['delivery_method']??'','tracking_reference'=>$o['tracking_reference']??'',
+  'delivery_charge_pence'=>(int)($o['delivery_charge']??0),'postage_cost_pence'=>(int)($o['postage_cost']??0),'payment_fee_pence'=>(int)($o['payment_fee']??0),
+  'payment_date'=>$o['payment_date']??'','delivery_date'=>$o['delivery_date']??'','address'=>$o['address'],'notes'=>$o['notes'],
+  'status'=>$o['status'],'total_pence'=>$total,'items'=>$out
+ ];
 }
 function syncOrderToSheet(PDO $db,int $orderId):?string{
  $url=setting($db,'sheets_webhook');if($url==='')return null;
@@ -334,7 +359,7 @@ if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile22"></head><body>
 <?php if(!$auth): ?>
