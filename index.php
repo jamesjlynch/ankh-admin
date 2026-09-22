@@ -266,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$existingDates)throw new Exception('Order could not be found.');
    if($newStatus==='Paid' && $paymentDate==='')$paymentDate=(string)($existingDates['payment_date']?:$todayAction);
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
-   $db->prepare('UPDATE orders SET status=?,payment_date=CASE WHEN ?<>"" THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>"" THEN ? ELSE delivery_date END WHERE id=?')->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$orderId]);
+   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$orderId]);
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_dates'){
