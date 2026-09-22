@@ -272,30 +272,75 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile12"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile13"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
-$open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'])));
-$paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'])?$o['total']:0,$orders));
-$storedCustomers=$db->query('SELECT * FROM customers ORDER BY name COLLATE NOCASE, id')->fetchAll(PDO::FETCH_ASSOC);
-$customerSuggestions=array_map(fn($customer)=>[
+$paidStatuses=['Paid','Packed','Dispatched'];
+$open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'],true)));
+$paid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?$o['total']:0,$orders));
+
+$storedCustomers=$db->query('SELECT * FROM customers ORDER BY archived ASC,name COLLATE NOCASE,id')->fetchAll(PDO::FETCH_ASSOC);
+$customerSuggestions=array_values(array_map(fn($customer)=>[
+ 'id'=>(int)$customer['id'],
  'name'=>(string)$customer['name'],
  'phone'=>(string)$customer['phone'],
  'address'=>(string)$customer['address']
-],$storedCustomers);
+],array_filter($storedCustomers,fn($customer)=>(int)$customer['archived']===0)));
 $customerOrderHistory=[];
 foreach($orders as $customerOrder){
  $customerKey=strtolower(trim((string)$customerOrder['customer'])).'|'.trim((string)$customerOrder['phone']);
  $customerOrderHistory[$customerKey][]=$customerOrder;
 }
+$customerProductCounts=[];
+$customerProducts=$db->query("SELECT o.customer,o.phone,i.name,SUM(i.quantity) qty FROM orders o JOIN items i ON i.order_id=o.id WHERE o.status<>'Cancelled' AND lower(trim(i.name))<>'pen' GROUP BY lower(trim(o.customer)),trim(o.phone),i.name ORDER BY qty DESC")->fetchAll(PDO::FETCH_ASSOC);
+foreach($customerProducts as $customerProduct){
+ $key=strtolower(trim((string)$customerProduct['customer'])).'|'.trim((string)$customerProduct['phone']);
+ $customerProductCounts[$key][]=['name'=>(string)$customerProduct['name'],'qty'=>(int)$customerProduct['qty']];
+}
+
+$newOrderCustomer=null;
+if($view==='new' && (int)($_GET['customer_id']??0)>0){
+ $q=$db->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([(int)$_GET['customer_id']]);$newOrderCustomer=$q->fetch(PDO::FETCH_ASSOC)?:null;
+}
+
+// Dashboard figures use paid/packed/dispatched orders as completed sales.
+$tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
+$todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();
+$todaySales=0;$weekSales=0;$unpaidBalance=0;$awaitingDispatch=0;
+foreach($orders as $dashboardOrder){
+ $createdTs=strtotime((string)$dashboardOrder['created'])?:0;
+ if(in_array($dashboardOrder['status'],$paidStatuses,true)){
+  if($createdTs>=$todayStart)$todaySales+=(int)$dashboardOrder['total'];
+  if($createdTs>=$weekStart)$weekSales+=(int)$dashboardOrder['total'];
+ }
+ if(in_array($dashboardOrder['status'],['New','Awaiting payment'],true))$unpaidBalance+=(int)$dashboardOrder['total'];
+ if(in_array($dashboardOrder['status'],['Paid','Packed'],true))$awaitingDispatch++;
+}
+$grossProfit=0;$uncostedSales=0;$topSelling=[];
+$dashboardItems=$db->query("SELECT i.name,i.price,i.quantity,p.cost FROM items i JOIN orders o ON o.id=i.order_id LEFT JOIN products p ON lower(trim(p.name))=lower(trim(i.name)) WHERE o.status IN ('Paid','Packed','Dispatched')")->fetchAll(PDO::FETCH_ASSOC);
+foreach($dashboardItems as $dashboardItem){
+ $qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;
+ if($dashboardItem['cost']!==null)$grossProfit+=((int)$dashboardItem['price']-(int)$dashboardItem['cost'])*$qty;
+ else $uncostedSales+=$line;
+ if(strtolower(trim((string)$dashboardItem['name']))!=='pen'){
+  $productName=(string)$dashboardItem['name'];$topSelling[$productName]??=['qty'=>0,'revenue'=>0];
+  $topSelling[$productName]['qty']+=$qty;$topSelling[$productName]['revenue']+=$line;
+ }
+}
+uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['revenue']);
+$topSelling=array_slice($topSelling,0,5,true);
+$trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && $p['stock_qty']!==null));
+$lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=(int)$p['low_stock_at']));
+
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
-<aside><a class="brand" href="./"><span>☥</span> ANKH<small>ORDER DESK</small></a><nav>
+<aside><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a><nav>
+<a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="<?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=$view==='customers'?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
@@ -305,7 +350,26 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header><?php if($testingNoAuth):?><p class="error" style="background:#3b301b;border-color:#79622d;color:#f5d991">TEST MODE · Password temporarily disabled</p><?php endif;?>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
-<?php if($view==='orders'): ?>
+<?php if($view==='dashboard'): ?>
+<div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted">Sales, profit and what needs your attention.</p></div><a class="button" href="?view=new">+ New order</a></div>
+<div class="dashboard-stats">
+<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Paid / packed / dispatched</small></article>
+<article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
+<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>All-time · mapped supplier costs</small></article>
+<article><span>Unpaid balance</span><strong><?=money($unpaidBalance)?></strong><small>New + awaiting payment</small></article>
+<article><span>Awaiting dispatch</span><strong><?=$awaitingDispatch?></strong><small>Paid or packed orders</small></article>
+<article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> products tracked</small></article>
+</div>
+<div class="dashboard-grid">
+<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
+<?php if($topSelling):$rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;else:?><p class="muted">Top sellers will appear after paid sales are recorded.</p><?php endif;?>
+</section>
+<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
+<?php if($lowStock):foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;elseif(!$trackedStock):?><p class="muted">No stock levels set yet. Add stock quantities on the Products page and low-stock warnings will appear here.</p><?php else:?><p class="success dashboard-ok">All tracked products are above their low-stock alert.</p><?php endif;?>
+</section>
+</div>
+<?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit uses products with a saved supplier cost. <?=money($uncostedSales)?> of paid sales currently has no mapped cost, including pen charges where applicable.</p><?php endif;?>
+<?php elseif($view==='orders'): ?>
 <div class="heading"><div><h1>Orders</h1><p class="muted">Tap an order to see its items and update its progress.</p></div><a class="button" href="?view=new">+ New order</a></div>
 <div class="stats"><article><span>Open orders</span><strong><?=$open?></strong></article><article><span>Paid order value · all time</span><strong><?=money($paid)?></strong></article><article><span>Total orders</span><strong><?=count($orders)?></strong></article></div>
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $s):?><option><?=e($s)?></option><?php endforeach;?></select></label></div>
