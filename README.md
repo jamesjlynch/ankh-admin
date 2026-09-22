@@ -10,6 +10,7 @@ Private, mobile-first order management in ANKH black and gold. PHP 8.1+ and PDO 
 - Product creation/editing and hiding products from new orders.
 - Prices stored in integer pence and snapshotted when an order is created.
 - Data stored in a private SQLite database on the server.
+- Optional automatic Google Sheets mirror for orders and status changes.
 
 This is a separate admin app. It does not yet import the storefront catalogue, WhatsApp conversations or storefront orders automatically. Products and orders initially need to be entered manually. There is one shared administrator login.
 
@@ -31,6 +32,20 @@ Back up the private configuration and database using your hosting backup system.
 
 Changing an order status does not send a message to the customer or take payment. Paid statuses are recorded manually. Values exclude delivery fees, tax adjustments and refunds.
 
+## Google Sheets sync
+
+The app can mirror orders into the `ANKH Admin Orders` spreadsheet while keeping SQLite as the source of truth. This means a Google outage will not stop order entry.
+
+1. Open the ANKH Admin app and choose **Google Sheets**.
+2. Open the linked spreadsheet and choose **Extensions → Apps Script**.
+3. Copy `google-sheets-webhook.gs` into Apps Script.
+4. Replace `PASTE_SECRET_FROM_ANKH_ADMIN` with the private shared secret shown in the admin app.
+5. Deploy the Apps Script as a Web app, executing as yourself and allowing access to anyone.
+6. Paste the resulting `/exec` URL into the admin app and save it.
+7. Use **Sync all existing orders** once to backfill anything already recorded.
+
+New orders and later status changes are then mirrored automatically. Google sync failures are recorded separately and do not roll back or block the SQLite order save.
+
 ## Validation
 Source was reviewed for escaping, prepared queries, server-side validation and authorization checks. This authoring environment did not have a PHP runtime, so PHP lint and browser/database end-to-end testing still need to be run before real customer use:
 - php -l index.php
@@ -40,4 +55,4 @@ Source was reviewed for escaping, prepared queries, server-side validation and a
 - Sign out and verify private records are inaccessible.
 - Test at a phone-sized viewport.
 
-No deployment workflow is configured yet. The existing storefront's deployment settings and secrets are not automatically shared with this repository.
+Krystal deployment is configured from this repository via the included cPanel deployment files. Private login credentials and the SQLite database remain outside GitHub.
