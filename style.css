@@ -964,3 +964,44 @@ input[type="date"]{
     margin-top:12px;
   }
 }
+
+/* Delivery assignment */
+.delivery-assignee{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:24px;
+  padding:4px 8px;
+  border-radius:999px;
+  border:1px solid #46494b;
+  background:#171819;
+  color:#aaa79f;
+  font-size:10px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.delivery-assignee.assigned{
+  border-color:#6d572e;
+  background:#2a2418;
+  color:var(--gold);
+}
+.delivery-assign-form{
+  display:grid;
+  grid-template-columns:1fr auto;
+  align-items:end;
+  gap:8px;
+  margin:10px 0 12px;
+  padding:10px;
+  border:1px solid #343638;
+  border-radius:10px;
+  background:#141516;
+}
+.delivery-assign-form label{margin:0;font-size:11px}
+.delivery-assign-form select{margin-top:5px;min-height:42px}
+.delivery-assign-form button{min-height:42px;padding:9px 14px}
+
+@media(max-width:760px){
+  .todo-accordion-side .delivery-assignee{font-size:9px;padding:4px 7px}
+  .delivery-assign-form{grid-template-columns:1fr auto}
+  .delivery-assign-form button{min-width:72px}
+}
