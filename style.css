@@ -1313,3 +1313,184 @@ body.voice-overlay-open{overflow:hidden}
   .voice-order-overlay-card h2{font-size:25px}
   .voice-order-stop{min-height:58px}
 }
+
+/* Featured Voice Order launcher */
+.voice-order-launch{
+  position:relative;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:18px;
+  margin:0 0 16px;
+  padding:18px;
+  overflow:hidden;
+  border:1px solid #5f4d2c;
+  border-radius:18px;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(223,182,102,.15),transparent 34%),
+    linear-gradient(145deg,#1b1914,#121314 72%);
+  box-shadow:0 14px 34px #0003,inset 0 1px 0 #ffffff08;
+}
+.voice-order-launch:before{
+  content:"☥";
+  position:absolute;
+  right:82px;
+  bottom:-62px;
+  color:#dfb6660b;
+  font-size:190px;
+  line-height:1;
+  pointer-events:none;
+}
+.voice-order-launch-copy{position:relative;z-index:1;min-width:0}
+.voice-order-launch-kicker{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:7px;
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:1.5px;
+}
+.voice-order-launch-kicker:before{
+  content:"";
+  width:20px;
+  height:1px;
+  background:var(--gold);
+}
+.voice-order-launch h2{
+  margin:0;
+  color:#f4efe4;
+  font-size:20px;
+  line-height:1.15;
+  letter-spacing:-.25px;
+}
+.voice-order-launch p{
+  max-width:590px;
+  margin:7px 0 0;
+  color:#aaa69d;
+  font-size:12px;
+  line-height:1.5;
+}
+.voice-order-example{
+  display:flex;
+  align-items:flex-start;
+  gap:8px;
+  margin-top:11px;
+  padding:9px 10px;
+  border:1px solid #34332e;
+  border-radius:11px;
+  background:#101112aa;
+  color:#cfc8b9;
+  font-size:10px;
+  line-height:1.4;
+}
+.voice-order-example span{
+  flex:0 0 auto;
+  color:var(--gold);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+}
+.voice-order-example q{
+  min-width:0;
+  quotes:"“" "”";
+  font-style:normal;
+}
+.voice-order-launch-button{
+  position:relative;
+  z-index:1;
+  width:122px;
+  height:122px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  padding:0;
+  border:1px solid #8a713f;
+  border-radius:50%;
+  background:radial-gradient(circle at 50% 35%,#3a2e18,#211b12 56%,#121314 100%);
+  color:#f0dfb7;
+  box-shadow:0 0 0 7px #dfb6660a,0 15px 32px #0007,0 0 34px #dfb66616;
+}
+.voice-order-launch-button:hover{
+  border-color:var(--gold);
+  transform:translateY(-1px);
+}
+.voice-order-launch-button:disabled{opacity:.72;cursor:wait}
+.voice-launch-mic{
+  position:relative;
+  z-index:2;
+  font-size:30px;
+  line-height:1;
+}
+.voice-order-launch-button strong{
+  position:relative;
+  z-index:2;
+  max-width:88px;
+  color:#f2ead7;
+  font-size:9px;
+  line-height:1.2;
+  text-align:center;
+}
+.voice-launch-rings{
+  position:absolute;
+  inset:7px;
+  border:1px solid #dfb66638;
+  border-radius:50%;
+}
+.voice-order-launch-button.recording .voice-launch-rings{
+  animation:voiceLaunchPulse 1.25s ease-out infinite;
+}
+.voice-order-launch-button.recording{
+  border-color:#c95b5b;
+  box-shadow:0 0 0 7px #c95b5b0d,0 15px 32px #0007,0 0 36px #c95b5b20;
+}
+.voice-order-launch-button.working .voice-launch-rings{
+  animation:voiceLaunchSpin 1.2s linear infinite;
+  border-top-color:var(--gold);
+  border-right-color:transparent;
+}
+@keyframes voiceLaunchPulse{
+  0%{transform:scale(.9);opacity:.95}
+  80%{transform:scale(1.18);opacity:0}
+  100%{transform:scale(1.18);opacity:0}
+}
+@keyframes voiceLaunchSpin{to{transform:rotate(360deg)}}
+
+@media(max-width:760px){
+  .voice-order-launch{
+    grid-template-columns:1fr;
+    gap:14px;
+    padding:15px;
+  }
+  .voice-order-launch:before{
+    right:-8px;
+    bottom:-74px;
+    font-size:175px;
+  }
+  .voice-order-launch h2{font-size:18px}
+  .voice-order-launch p{font-size:11px}
+  .voice-order-example{
+    display:block;
+    font-size:10px;
+  }
+  .voice-order-example span{display:block;margin-bottom:3px}
+  .voice-order-launch-button{
+    width:100%;
+    height:auto;
+    min-height:58px;
+    flex-direction:row;
+    border-radius:14px;
+  }
+  .voice-order-launch-button .voice-launch-rings{
+    inset:5px;
+    border-radius:10px;
+  }
+  .voice-launch-mic{font-size:24px}
+  .voice-order-launch-button strong{
+    max-width:none;
+    font-size:12px;
+  }
+}
