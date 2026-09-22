@@ -354,6 +354,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 
   if($action==='order_edit'){
    $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$orderId]);$existingOrder=$q->fetch(PDO::FETCH_ASSOC);if(!$existingOrder)throw new Exception('Order could not be found.');
+   $existingItemCosts=[];$q=$db->prepare('SELECT name,cost FROM items WHERE order_id=?');$q->execute([$orderId]);foreach($q->fetchAll(PDO::FETCH_ASSOC) as $existingItem){$existingItemCosts[strtolower(trim((string)$existingItem['name']))]=$existingItem['cost']===null?null:(int)$existingItem['cost'];}
    $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
    $paymentMethod=trim((string)($_POST['payment_method']??''));$deliveryMethod=trim((string)($_POST['delivery_method']??''));$trackingReference=trim((string)($_POST['tracking_reference']??''));
    $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=postedMoneyPence($_POST['payment_fee']??'','payment fee');
@@ -366,14 +367,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate || $chosenDate>$todayLocal)throw new Exception('Choose a valid order date.');
    $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false||$n<0||$n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=?');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product could not be found.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
    if(!$lines)throw new Exception('Add at least one product.');
-   $originalTime=strtotime((string)$existingOrder['created']);$hour=(int)date('H',$originalTime);$minute=(int)date('i',$originalTime);$second=(int)date('s',$originalTime);
-   $created=(new DateTimeImmutable($orderDate.' '.sprintf('%02d:%02d:%02d',$hour,$minute,$second),$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
+   $originalLocal=(new DateTimeImmutable((string)$existingOrder['created']))->setTimezone($orderTz);
+   $created=(new DateTimeImmutable($orderDate.' '.$originalLocal->format('H:i:s'),$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
    $db->beginTransaction();
    $db->prepare('UPDATE orders SET customer=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=? WHERE id=?')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$orderId]);
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
    $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);$insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,quantity) VALUES (?,?,?,?,?)');
-   foreach($lines as [$p,$n,$orderPrice])$insertItem->execute([$orderId,$p['name'],$orderPrice,$p['cost']===null?null:(int)$p['cost'],$n]);
-   if($presentation==='Pen'){$penCost=setting($db,'pen_cost_pence','');$insertItem->execute([$orderId,'Pen',2000,$penCost!==''?(int)$penCost:null,1]);}
+   foreach($lines as [$p,$n,$orderPrice]){$costKey=strtolower(trim((string)$p['name']));$savedCost=array_key_exists($costKey,$existingItemCosts)?$existingItemCosts[$costKey]:($p['cost']===null?null:(int)$p['cost']);$insertItem->execute([$orderId,$p['name'],$orderPrice,$savedCost,$n]);}
+   if($presentation==='Pen'){$savedPenCost=array_key_exists('pen',$existingItemCosts)?$existingItemCosts['pen']:null;if($savedPenCost===null){$penCost=setting($db,'pen_cost_pence','');$savedPenCost=$penCost!==''?(int)$penCost:null;}$insertItem->execute([$orderId,'Pen',2000,$savedPenCost,1]);}
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
@@ -482,10 +483,10 @@ $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
 $todaySales=0;$weekSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
- $createdTs=strtotime((string)$dashboardOrder['created'])?:0;
+ $salesTs=strtotime((string)($dashboardOrder['payment_date']?:$dashboardOrder['created']))?:0;
  if(in_array($dashboardOrder['status'],$paidStatuses,true)){
-  if($createdTs>=$todayStart)$todaySales+=(int)$dashboardOrder['total'];
-  if($createdTs>=$weekStart)$weekSales+=(int)$dashboardOrder['total'];
+  if($salesTs>=$todayStart)$todaySales+=(int)$dashboardOrder['total'];
+  if($salesTs>=$weekStart)$weekSales+=(int)$dashboardOrder['total'];
  }
  if(in_array($dashboardOrder['status'],['New','Awaiting payment'],true))$unpaidBalance+=(int)$dashboardOrder['total'];
 }
@@ -585,9 +586,9 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($awaitingDelivery):?><div class="todo-column">
 <div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Paid orders to complete</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
-<article class="todo-card"><div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?> · <?=e($todo['presentation']?:'Order')?></small></div><span class="badge status-<?=e(statusClass($todo['status']))?>"><?=e($todo['status'])?></span></div>
+<article class="todo-card"><div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?> · <?=e($todo['presentation']?:'Order')?><?=!empty($todo['delivery_method'])?' · '.e($todo['delivery_method']):''?></small></div><span class="badge status-<?=e(statusClass($todo['status']))?>"><?=e($todo['status'])?></span></div>
 <div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
-<?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?>
+<?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
 <form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form></article>
 <?php endforeach;?></div><?php endif;?>
 </div></section><?php endif;?>
@@ -790,7 +791,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <section class="saved-order">
 <div class="saved-check">✓</div><p class="eyebrow">ORDER SAVED</p><h1><?=$savedOrder['reference']?></h1><p class="saved-customer"><?=e($savedOrder['customer'])?></p>
 <div class="saved-total"><?=money($savedOrder['total_pence'])?></div><span class="badge status-<?=e(statusClass($savedOrder['status']))?>"><?=e($savedOrder['status'])?></span>
-<div class="saved-items"><?php foreach($savedOrder['items'] as $savedItem):?><div class="line"><span><?=e($savedItem['quantity'].' × '.$savedItem['name'])?></span><strong><?=money($savedItem['unit_price_pence']*$savedItem['quantity'])?></strong></div><?php endforeach;?></div>
+<div class="saved-items"><?php foreach($savedOrder['items'] as $savedItem):?><div class="line"><span><?=e($savedItem['quantity'].' × '.$savedItem['name'])?></span><strong><?=money($savedItem['unit_price_pence']*$savedItem['quantity'])?></strong></div><?php endforeach;?><?php if((int)$savedOrder['delivery_charge_pence']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($savedOrder['delivery_charge_pence'])?></strong></div><?php endif;?></div><div class="saved-meta"><?php if($savedOrder['payment_method']):?><span>Payment: <?=e($savedOrder['payment_method'])?></span><?php endif;?><?php if($savedOrder['delivery_method']):?><span>Delivery: <?=e($savedOrder['delivery_method'])?></span><?php endif;?></div>
 <div class="saved-actions"><a class="button" href="?view=dashboard">Dashboard</a><a class="button" href="?view=new">+ New order</a><a class="quick-action" href="?view=orders">View orders</a><a class="quick-action" href="?view=new&amp;repeat_order=<?=$savedOrder['id']?>">Repeat order</a></div>
 </section>
 <?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
