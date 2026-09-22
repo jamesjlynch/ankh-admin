@@ -411,14 +411,9 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <article><span>Awaiting delivery</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
 <article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> products tracked</small></article>
 </div>
-<div class="dashboard-grid">
-<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
+<div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
 <?php if($topSelling):$rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;else:?><p class="muted">Top sellers will appear after paid sales are recorded.</p><?php endif;?>
-</section>
-<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
-<?php if($lowStock):foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;elseif(!$trackedStock):?><p class="muted">No stock levels set yet. Add stock quantities on the Products page and low-stock warnings will appear here.</p><?php else:?><p class="success dashboard-ok">All tracked products are above their low-stock alert.</p><?php endif;?>
-</section>
-</div>
+</section></div>
 <section class="todo-board">
 <div class="todo-board-head"><div><p class="eyebrow">TODAY'S TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><span><?=count($awaitingPayment)?> payment</span><span><?=count($awaitingDelivery)?> delivery</span></div></div>
 <div class="todo-columns">
@@ -446,6 +441,10 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </div>
 </div>
 </section>
+<div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
+<?php if($lowStock):foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;elseif(!$trackedStock):?><p class="muted">No stock levels set yet. Add stock quantities on the Products page and low-stock warnings will appear here.</p><?php else:?><p class="success dashboard-ok">All tracked products are above their low-stock alert.</p><?php endif;?>
+</section></div>
+
 <?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit uses products with a saved supplier cost. <?=money($uncostedSales)?> of paid sales currently has no mapped cost, including pen charges where applicable.</p><?php endif;?>
 <?php elseif($view==='orders'): ?>
 <div class="heading"><div><h1>Orders</h1><p class="muted">Tap an order to see its items and update its progress.</p></div><a class="button" href="?view=new">+ New order</a></div>
