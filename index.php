@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
+$productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
+if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
+if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN low_stock_at INTEGER NOT NULL DEFAULT 2");
+$customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
 
 // Bring existing order customers into the standalone customer list, newest details first.
 $existingOrderCustomers=$db->query("SELECT customer,phone,address,created FROM orders WHERE trim(customer)<>'' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
@@ -85,6 +91,24 @@ $currentRetailCatalog=[
  'BAC Water 10ml'=>399,
  'Acetic Acid 0.6% 10ml'=>499
 ];
+$currentSupplierCosts=[
+ 'BPC-157 5mg'=>283,'BPC-157 10mg'=>484,
+ 'TB-500 2mg'=>343,'TB-500 5mg'=>634,
+ 'GHK-CU 50mg'=>224,'SS-31 10mg'=>723,
+ 'CJC-1295 without DAC 2mg'=>283,'CJC-1295 without DAC 5mg'=>634,
+ 'CJC-1295 with DAC 2mg'=>581,'CJC-1295 with DAC 5mg'=>1342,
+ 'CJC-1295 MOD without DAC 5mg'=>634,
+ 'Ipamorelin 5mg'=>283,'GHRP-2 5mg'=>179,'GHRP-2 10mg'=>380,
+ 'IGF-1 LR3 1mg'=>1468,'MGF 2mg'=>462,'PEG-MGF 2mg'=>723,
+ 'MOTS-C 10mg'=>484,'NAD+ 500mg'=>686,
+ 'Tesamorelin 2mg'=>425,'Tesamorelin 10mg'=>1453,
+ 'Retatrutide 10mg'=>790,'Retatrutide 20mg'=>991,
+ 'Melanotan 1 10mg'=>484,'KissPeptin-10 5mg'=>484,
+ 'DSIP 5mg'=>320,'Epitalon 10mg'=>261,'Selank 5mg'=>343,
+ 'Semax 5mg'=>343,'SNAP-8 10mg'=>358,
+ 'Glow Stack'=>1535,'Wolverine Stack'=>812,
+ 'BAC Water 3ml'=>75,'BAC Water 10ml'=>82,'Acetic Acid 0.6% 10ml'=>60
+];
 $catalogVersion='retail-posters-2026-09-22-v3';
 $findProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
 $updateProduct=$db->prepare('UPDATE products SET price=?,active=1 WHERE id=?');
@@ -94,7 +118,8 @@ $insertProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,?
 foreach($currentRetailCatalog as $retailName=>$retailPrice){
  $findProduct->execute([$retailName]);$existingId=$findProduct->fetchColumn();
  if($existingId)$updateProduct->execute([$retailPrice,(int)$existingId]);
- else $insertProduct->execute([$retailName,$retailPrice]);
+ else{$insertProduct->execute([$retailName,$retailPrice]);$existingId=(int)$db->lastInsertId();}
+ if(isset($currentSupplierCosts[$retailName]))$db->prepare('UPDATE products SET cost=? WHERE id=?')->execute([$currentSupplierCosts[$retailName],(int)$existingId]);
 }
 
 // Only deactivate products outside the current retail range when the catalogue changes.
@@ -169,10 +194,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='product'){
    $name=trim($_POST['name']??'');$price=filter_var($_POST['price']??'',FILTER_VALIDATE_FLOAT);
-   if(!$name || strlen($name)>160 || $price===false || $price<0 || $price>100000)throw new Exception('Enter a product name and valid price.');
-   $id=(int)($_POST['id']??0);
-   if($id){$q=$db->prepare('UPDATE products SET name=?,price=?,active=? WHERE id=?');$q->execute([$name,(int)round($price*100),isset($_POST['active'])?1:0,$id]);}
-   else{$q=$db->prepare('INSERT INTO products(name,price) VALUES (?,?)');$q->execute([$name,(int)round($price*100)]);}
+   $costRaw=trim((string)($_POST['cost']??''));$stockRaw=trim((string)($_POST['stock_qty']??''));$lowRaw=trim((string)($_POST['low_stock_at']??'2'));
+   $cost=$costRaw===''?null:filter_var($costRaw,FILTER_VALIDATE_FLOAT);$stock=$stockRaw===''?null:filter_var($stockRaw,FILTER_VALIDATE_INT);$low=filter_var($lowRaw,FILTER_VALIDATE_INT);
+   if(!$name || strlen($name)>160 || $price===false || $price<0 || $price>100000 || ($costRaw!==''&&($cost===false||$cost<0||$cost>100000)) || ($stockRaw!==''&&($stock===false||$stock<0||$stock>999999)) || $low===false || $low<0 || $low>999999)throw new Exception('Enter valid product, price and stock details.');
+   $id=(int)($_POST['id']??0);$costPence=$cost===null?null:(int)round($cost*100);
+   if($id){$q=$db->prepare('UPDATE products SET name=?,price=?,cost=?,stock_qty=?,low_stock_at=?,active=? WHERE id=?');$q->execute([$name,(int)round($price*100),$costPence,$stock,$low,isset($_POST['active'])?1:0,$id]);}
+   else{$q=$db->prepare('INSERT INTO products(name,price,cost,stock_qty,low_stock_at) VALUES (?,?,?,?,?)');$q->execute([$name,(int)round($price*100),$costPence,$stock,$low]);}
   }
   if($action==='customer'){
    $customerId=(int)($_POST['id']??0);
@@ -185,13 +212,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $q->execute([$customerName,$customerPhone,$customerId]);
     if($q->fetchColumn())throw new Exception('A customer with that name and phone already exists.');
     $db->beginTransaction();
-    $db->prepare('UPDATE customers SET name=?,phone=?,address=? WHERE id=?')->execute([$customerName,$customerPhone,$customerAddress,$customerId]);
+    $db->prepare('UPDATE customers SET name=?,phone=?,address=?,archived=0 WHERE id=?')->execute([$customerName,$customerPhone,$customerAddress,$customerId]);
     $db->prepare('UPDATE orders SET customer=?,phone=? WHERE lower(trim(customer))=lower(trim(?)) AND trim(phone)=trim(?)')->execute([$customerName,$customerPhone,$oldCustomer['name'],$oldCustomer['phone']]);
     $db->commit();
    }else{
-    $q=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
+    $q=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");
     $q->execute([$customerName,$customerPhone,$customerAddress,gmdate('c')]);
    }
+  }
+  if($action==='customer_archive'){
+   $customerId=(int)($_POST['id']??0);$archive=($_POST['archive']??'1')==='1'?1:0;
+   $q=$db->prepare('UPDATE customers SET archived=? WHERE id=?');$q->execute([$archive,$customerId]);
+   if(!$q->rowCount())throw new Exception('Customer could not be found.');
   }
   if($action==='status'){
    if(!in_array($_POST['status']??'',$statuses,true))throw new Exception('Choose a valid status.');
@@ -208,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->beginTransaction();
    $created=gmdate('c');
    $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation) VALUES (?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation]);$oid=$db->lastInsertId();
-   $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
+   $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");
    $saveCustomer->execute([$name,$phone,$address,$created]);
    foreach($lines as [$p,$n,$orderPrice])$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,?)')->execute([$oid,$p['name'],$orderPrice,$n]);
    if($presentation==='Pen')$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,1)')->execute([$oid,'Pen',2000]);
@@ -228,7 +260,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))));
+ $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
@@ -238,7 +270,7 @@ $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
 function money($n){return '£'.number_format((float)$n/100,2);}
-$view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile12"></head><body>
 <?php if(!$auth): ?>
