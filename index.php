@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
+if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
 
 // Bring existing order customers into the standalone customer list, newest details first.
 $existingOrderCustomers=$db->query("SELECT customer,phone,address,created FROM orders WHERE trim(customer)<>'' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
@@ -115,7 +116,7 @@ function orderForSheet(PDO $db,int $id):?array{
  $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
  $total=0;$out=[];
  foreach($items as $i){$line=(int)$i['price']*(int)$i['quantity'];$total+=$line;$out[]=['name'=>$i['name'],'unit_price_pence'=>(int)$i['price'],'quantity'=>(int)$i['quantity']];}
- return ['id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','address'=>$o['address'],'notes'=>$o['notes'],'status'=>$o['status'],'total_pence'=>$total,'items'=>$out];
+ return ['id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','presentation'=>$o['presentation']??'','address'=>$o['address'],'notes'=>$o['notes'],'status'=>$o['status'],'total_pence'=>$total,'items'=>$out];
 }
 function syncOrderToSheet(PDO $db,int $orderId):?string{
  $url=setting($db,'sheets_webhook');if($url==='')return null;
@@ -199,16 +200,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order'){
-   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');
+   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');
    if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000)throw new Exception('Check the customer details and try again.');
+   if(!in_array($presentation,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial.');
    $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false || $n<0 || $n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=? AND active=1');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product is unavailable.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
    if(!$lines)throw new Exception('Add at least one product.');
    $db->beginTransaction();
    $created=gmdate('c');
-   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer) VALUES (?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer]);$oid=$db->lastInsertId();
+   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation) VALUES (?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation]);$oid=$db->lastInsertId();
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
    $saveCustomer->execute([$name,$phone,$address,$created]);
    foreach($lines as [$p,$n,$orderPrice])$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,?)')->execute([$oid,$p['name'],$orderPrice,$n]);
+   if($presentation==='Pen')$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,1)')->execute([$oid,'Pen',2000]);
    $db->commit();
    $syncError=syncOrderToSheet($db,(int)$oid);
   }
@@ -237,7 +240,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile11"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile12"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -276,7 +279,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $s):?><option><?=e($s)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
 <?php foreach($orders as $o):?><details class="order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><span class="badge"><?=e($o['status'])?></span><strong><?=money($o['total'])?></strong><small>Tap to open ↓</small></div></summary><div class="detail">
-<p><?=e($o['phone'])?></p><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
+<p><?=e($o['phone'])?></p><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
 <?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].' @ '.money($i['price']).' each')?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
 <form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form></div></details><?php endforeach;?></div>
@@ -294,7 +297,15 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </section>
 
 <section class="wizard-step" data-wizard-step="2" hidden>
-<div class="wizard-step-head"><span class="wizard-kicker">STEP 2 OF 3</span><h2>Products</h2><p class="muted">Tap a product to add it. Retatrutide is ready as your quick pick.</p></div>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 2 OF 3</span><h2>Products</h2><p class="muted">First choose how the peptide is supplied.</p></div>
+<input type="hidden" id="presentation" name="presentation" value="<?=e($_POST['presentation']??'')?>">
+<div class="presentation-picker" aria-label="Choose product type">
+<button type="button" data-presentation="Pen"><strong>Pen</strong><span>Peptide price + £20</span></button>
+<button type="button" data-presentation="Cartridge"><strong>Cartridge</strong><span>Peptide price</span></button>
+<button type="button" data-presentation="Vial"><strong>Vial</strong><span>Peptide price</span></button>
+</div>
+<div id="product-choice-area" hidden>
+<p class="muted product-choice-hint">Now choose the peptide. Retatrutide is ready as your quick pick.</p>
 <div class="product-search-wrap"><label for="product-search">Find a peptide or product<input id="product-search" type="search" placeholder="e.g. BPC-157, CJC-1295, Retatrutide…" autocomplete="off" aria-autocomplete="list" aria-controls="product-results"></label><div id="product-results" class="product-results" role="listbox" hidden></div></div>
 <div id="strength-picker" class="strength-picker" hidden><div class="strength-picker-head"><div><span class="muted">Choose strength</span><strong id="strength-product-name"></strong></div><button type="button" id="close-strength-picker" class="strength-close" aria-label="Close strength choices">×</button></div><div id="strength-options" class="strength-options"></div></div>
 <div id="selected-products">
@@ -302,6 +313,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </div>
 <p id="selected-empty" class="selected-empty">No products added yet.</p>
 <?php if(!$products):?><p>Add products in the <a href="?view=products">Products tab</a> first.</p><?php endif;?>
+</div>
 <div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="1">← Back</button><button type="button" data-wizard-next="3">Next · Check order →</button></div>
 </section>
 
@@ -309,6 +321,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="wizard-step-head"><span class="wizard-kicker">STEP 3 OF 3</span><h2>Check & save</h2><p class="muted">Check the details below, then save the order.</p></div>
 <div class="order-check">
 <div class="order-check-section"><span class="order-check-label">Customer</span><strong id="check-customer">—</strong><small id="check-customer-detail"></small></div>
+<div class="order-check-section"><span class="order-check-label">Type</span><strong id="check-presentation">—</strong><small id="check-presentation-detail"></small></div>
 <div class="order-check-section"><span class="order-check-label">Products</span><div id="check-products"></div></div>
 <div class="line order-check-total"><strong>Product subtotal</strong><strong id="subtotal">£0.00</strong></div>
 </div>
@@ -367,15 +380,18 @@ function showWizardStep(step){
 }
 function selectedOrderRows(){return productRows.filter(row=>Number(row.querySelector('.quantity')?.value||0)>0)}
 function buildOrderCheck(){
- const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products');
+ const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products'),presentation=document.querySelector('#check-presentation'),presentationDetail=document.querySelector('#check-presentation-detail');
  if(customer)customer.textContent=customerSearch?.value.trim()||'—';
  if(detail){const bits=[customerPhone?.value.trim(),document.querySelector('#customer-referrer')?.value.trim()].filter(Boolean);detail.textContent=bits.join(' · ')}
+ if(presentation)presentation.textContent=presentationInput?.value||'—';
+ if(presentationDetail)presentationDetail.textContent=presentationInput?.value==='Pen'?'Adds £20 once to this order':'No extra charge';
  if(products){products.replaceChildren();selectedOrderRows().forEach(row=>{const q=Number(row.querySelector('.quantity')?.value||0),price=Number(row.querySelector('.line-price')?.value||0),line=document.createElement('div');line.className='check-product-line';const name=document.createElement('span');name.textContent=q+' × '+row.dataset.productLabel;const amount=document.createElement('strong');amount.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(q*price);line.append(name,amount);products.append(line)})}
  updateTotal();
 }
 document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventListener('click',()=>{
  const next=Number(button.dataset.wizardNext);
  if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}}
+ if(next===3&&!presentationInput?.value){alert('Choose Pen, Cartridge or Vial first.');return}
  if(next===3&&!selectedOrderRows().length){alert('Add at least one product before continuing.');productSearch?.focus();showProductResults();return}
  showWizardStep(next);
 }));
@@ -392,8 +408,18 @@ document.addEventListener('click',e=>{if(customerResults&&!e.target.closest('.cu
 const search=document.querySelector('#search'),filter=document.querySelector('#filter');
 function applyFilters(){let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});document.querySelector('#empty').hidden=visible>0}
 search?.addEventListener('input',applyFilters);filter?.addEventListener('change',applyFilters);
-const productSearch=document.querySelector('#product-search'),productResults=document.querySelector('#product-results'),productRows=[...document.querySelectorAll('[data-product-id]')],selectedEmpty=document.querySelector('#selected-empty'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker');
-function updateTotal(){let total=0,selected=0;document.querySelectorAll('.quantity').forEach(x=>{const row=x.closest('.product-pick'),price=Math.max(0,Number(row.querySelector('.line-price')?.value)||0),qty=Math.max(0,Number(x.value)||0);total+=qty*price;row.classList.toggle('picked',qty>0);row.hidden=qty<=0;if(qty>0)selected++});if(selectedEmpty)selectedEmpty.hidden=selected>0;const out=document.querySelector('#subtotal');if(out){out.setAttribute('aria-live','polite');out.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(total)}}
+const productSearch=document.querySelector('#product-search'),productResults=document.querySelector('#product-results'),productRows=[...document.querySelectorAll('[data-product-id]')],selectedEmpty=document.querySelector('#selected-empty'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),presentationInput=document.querySelector('#presentation'),presentationButtons=[...document.querySelectorAll('[data-presentation]')],productChoiceArea=document.querySelector('#product-choice-area');
+function setPresentation(value){
+ if(!presentationInput)return;
+ presentationInput.value=value;
+ presentationButtons.forEach(b=>b.classList.toggle('selected',b.dataset.presentation===value));
+ if(productChoiceArea)productChoiceArea.hidden=!value;
+ updateTotal();
+ if(value){setTimeout(()=>{productSearch?.focus();showProductResults()},80)}
+}
+presentationButtons.forEach(b=>b.addEventListener('click',()=>setPresentation(b.dataset.presentation)));
+if(presentationInput?.value)setPresentation(presentationInput.value);
+function updateTotal(){let total=0,selected=0;document.querySelectorAll('.quantity').forEach(x=>{const row=x.closest('.product-pick'),price=Math.max(0,Number(row.querySelector('.line-price')?.value)||0),qty=Math.max(0,Number(x.value)||0);total+=qty*price;row.classList.toggle('picked',qty>0);row.hidden=qty<=0;if(qty>0)selected++});if(presentationInput?.value==='Pen')total+=20;if(selectedEmpty)selectedEmpty.hidden=selected>0;const out=document.querySelector('#subtotal');if(out){out.setAttribute('aria-live','polite');out.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(total)}}
 function addProduct(row){if(!row)return;const q=row.querySelector('.quantity');row.hidden=false;if((Number(q.value)||0)<1)q.value=1;updateTotal();if(strengthPicker)strengthPicker.hidden=true;if(productSearch){productSearch.value='';productSearch.focus()}if(productResults){productResults.hidden=true;productResults.replaceChildren()}}
 function productGroups(){const groups=new Map();productRows.forEach(row=>{const base=row.dataset.productBase||row.dataset.productLabel,key=base.toLowerCase();if(!groups.has(key))groups.set(key,{base,rows:[]});groups.get(key).rows.push(row)});return [...groups.values()]}
 function showStrengths(group){if(!strengthPicker||!strengthOptions||!strengthProductName)return;strengthProductName.textContent=group.base;strengthOptions.replaceChildren();group.rows.sort((a,b)=>{const av=parseFloat(a.dataset.productStrength)||0,bv=parseFloat(b.dataset.productStrength)||0;return av-bv}).forEach(row=>{const b=document.createElement('button');b.type='button';b.className='strength-option';const strength=document.createElement('strong');strength.textContent=row.dataset.productStrength||'Add';const price=document.createElement('span');price.textContent='£'+Number(row.dataset.standardPrice).toFixed(2);b.append(strength,price);b.addEventListener('click',()=>addProduct(row));strengthOptions.append(b)});strengthPicker.hidden=false;productResults.hidden=true;productSearch.value=group.base;strengthPicker.scrollIntoView({block:'nearest',behavior:'smooth'})}
@@ -406,5 +432,5 @@ document.querySelectorAll('.quantity,.line-price').forEach(q=>q.addEventListener
 document.querySelectorAll('[data-change]').forEach(b=>b.addEventListener('click',()=>{const row=b.closest('.product-pick'),q=row.querySelector('.quantity');q.value=Math.min(999,Math.max(0,(Number(q.value)||0)+Number(b.dataset.change)));updateTotal()}));
 updateTotal();
 const orderForm=document.querySelector('.save-order')?.form;
-orderForm?.addEventListener('submit',e=>{if(!customerSearch?.value.trim()){e.preventDefault();showWizardStep(1);customerSearch?.reportValidity();return}if(!selectedOrderRows().length){e.preventDefault();alert('Add at least one product.');showWizardStep(2);return}const b=orderForm.querySelector('.save-order');b.disabled=true;b.textContent='Saving order…'});
+orderForm?.addEventListener('submit',e=>{if(!customerSearch?.value.trim()){e.preventDefault();showWizardStep(1);customerSearch?.reportValidity();return}if(!presentationInput?.value){e.preventDefault();alert('Choose Pen, Cartridge or Vial.');showWizardStep(2);return}if(!selectedOrderRows().length){e.preventDefault();alert('Add at least one product.');showWizardStep(2);return}const b=orderForm.querySelector('.save-order');b.disabled=true;b.textContent='Saving order…'});
 </script><?php endif;?></body></html>
