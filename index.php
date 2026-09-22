@@ -305,7 +305,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $orderId=(int)$_POST['id'];$todayAction=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
    $paymentDate=array_key_exists('payment_date',$_POST)?orderActionDate((string)$_POST['payment_date'],'payment'):'';
    $deliveryDate=array_key_exists('delivery_date',$_POST)?orderActionDate((string)$_POST['delivery_date'],'delivery'):'';
-   $paymentMethod=trim((string)($_POST['payment_method']??''));$paymentFee=array_key_exists('payment_fee',$_POST)?postedMoneyPence($_POST['payment_fee'],'payment fee'):-1;
+   $paymentMethod=trim((string)($_POST['payment_method']??''));
    if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
    $q=$db->prepare('SELECT payment_date,delivery_date,payment_method FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
    if(!$existingDates)throw new Exception('Order could not be found.');
@@ -314,20 +314,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if($paymentMethod==='' && (string)$existingDates['payment_method']==='')throw new Exception('Choose how the payment was received.');
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
-   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END,payment_fee=CASE WHEN ?>=0 THEN ? ELSE payment_fee END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$paymentFee,$paymentFee,$orderId]);
+   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_dates'){
    $orderId=(int)($_POST['id']??0);$paymentDate=orderActionDate((string)($_POST['payment_date']??''),'payment');$deliveryDate=orderActionDate((string)($_POST['delivery_date']??''),'delivery');
    $q=$db->prepare('UPDATE orders SET payment_date=?,delivery_date=? WHERE id=?');$q->execute([$paymentDate,$deliveryDate,$orderId]);
    if(!$q->rowCount()){$check=$db->prepare('SELECT id FROM orders WHERE id=?');$check->execute([$orderId]);if(!$check->fetchColumn())throw new Exception('Order could not be found.');}
-   $syncError=syncOrderToSheet($db,$orderId);
-  }
-  if($action==='delivery_assign'){
-   $orderId=(int)($_POST['id']??0);$assignedTo=trim((string)($_POST['assigned_to']??''));if($assignedTo==='Jay')$assignedTo='James';
-   if($assignedTo!==''&&!in_array($assignedTo,$deliveryAssignees,true))throw new Exception('Choose James, Tony or Unassigned.');
-   $q=$db->prepare('UPDATE orders SET assigned_to=? WHERE id=?');$q->execute([$assignedTo,$orderId]);
-   $check=$db->prepare('SELECT id FROM orders WHERE id=?');$check->execute([$orderId]);if(!$check->fetchColumn())throw new Exception('Order could not be found.');
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_delete'){
@@ -350,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$orderDate=trim($_POST['order_date']??'');
    $paymentMethod=trim((string)($_POST['payment_method']??''));$deliveryMethod=trim((string)($_POST['delivery_method']??''));$assignedTo=trim((string)($_POST['assigned_to']??''));if($assignedTo==='Jay')$assignedTo='James';$trackingReference=trim((string)($_POST['tracking_reference']??''));
-   $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=postedMoneyPence($_POST['payment_fee']??'','payment fee');
+   $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=$isEdit?(int)($existingOrder['payment_fee']??0):0;
    if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000 || strlen($trackingReference)>200)throw new Exception('Check the order details and try again.');
    if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
    if(!in_array($deliveryMethod,$deliveryMethods,true))throw new Exception('Choose Collection, Local Delivery or Postage.');
@@ -419,7 +412,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='delivery_assign'?'Delivery assignment updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))));
+ $flash=$action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
@@ -434,7 +427,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile34"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile35"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -565,17 +558,17 @@ uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['reven
 uasort($productProfit,fn($a,$b)=>$b['revenue']<=>$a['revenue']);
 
 $reportPeriods=[
- 'today'=>['label'=>'Today','start'=>$todayStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
- 'week'=>['label'=>'This week','start'=>$weekStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
- 'month'=>['label'=>'This month','start'=>$monthStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
- 'all'=>['label'=>'All time','start'=>0,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0]
+ 'today'=>['label'=>'Today','start'=>$todayStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'profit'=>0,'orders'=>0],
+ 'week'=>['label'=>'This week','start'=>$weekStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'profit'=>0,'orders'=>0],
+ 'month'=>['label'=>'This month','start'=>$monthStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'profit'=>0,'orders'=>0],
+ 'all'=>['label'=>'All time','start'=>0,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'profit'=>0,'orders'=>0]
 ];
 $paymentBreakdown=[];
 foreach($orders as $reportOrder){
  if(!in_array($reportOrder['status'],$paidStatuses,true))continue;
  $orderId=(int)$reportOrder['id'];$dateText=(string)($reportOrder['payment_date']?:$reportOrder['created']);$reportTs=strtotime($dateText)?:0;
- $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$penCogs=(int)($orderPenCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$fee=(int)($reportOrder['payment_fee']??0);$profit=$revenue-$cogs-$postage-$fee;
- foreach($reportPeriods as $key=>&$period){if($reportTs>=$period['start']){$period['revenue']+=$revenue;$period['cogs']+=$cogs;$period['pen']+=$penCogs;$period['postage']+=$postage;$period['fees']+=$fee;$period['profit']+=$profit;$period['orders']++;}}unset($period);
+ $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$penCogs=(int)($orderPenCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$profit=$revenue-$cogs-$postage;
+ foreach($reportPeriods as $key=>&$period){if($reportTs>=$period['start']){$period['revenue']+=$revenue;$period['cogs']+=$cogs;$period['pen']+=$penCogs;$period['postage']+=$postage;$period['profit']+=$profit;$period['orders']++;}}unset($period);
  $method=trim((string)($reportOrder['payment_method']??''))?:'Not recorded';$paymentBreakdown[$method]=($paymentBreakdown[$method]??0)+$revenue;
 }
 $grossProfit=$reportPeriods['all']['profit'];
@@ -610,7 +603,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="dashboard-stats">
 <article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></article>
 <article><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></article>
-<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After costs &amp; fees</small></article>
+<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></article>
 <article><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></article>
 <article><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
 <article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></article>
@@ -634,7 +627,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </summary>
 <div class="todo-accordion-body">
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span></div>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment method<select name="payment_method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><label class="todo-date">Payment / card fee (£) <span class="muted">(optional)</span><input type="number" name="payment_fee" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e(number_format((int)$todo['payment_fee']/100,2,'.',''))?>"></label><button>✓ Payment received</button></form>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment method<select name="payment_method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Payment received</button></form>
 </div>
 </details>
 <?php endforeach;?></div><?php endif;?>
@@ -649,7 +642,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </summary>
 <div class="todo-accordion-body">
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><?php if(!empty($todo['delivery_method'])):?><span><?=e($todo['delivery_method'])?></span><?php endif;?></div>
-<form method="post" class="delivery-assign-form"><?php csrf();?><input type="hidden" name="action" value="delivery_assign"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="id" value="<?=$todo['id']?>"><label>Assigned to<select name="assigned_to"><option value="">Unassigned</option><?php foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$todo['assigned_to']===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label><button>Save</button></form>
+
 <?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
 <form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form>
 </div>
@@ -715,7 +708,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="order-check-section"><span class="order-check-label">Products</span><div id="check-products"></div></div>
 <div class="line order-check-total"><strong>Total</strong><strong id="subtotal">£0.00</strong></div>
 </div>
-<div class="order-subsection"><span class="order-check-label">Payment</span><div class="two"><label>Payment method <span class="muted">(optional until paid)</span><select id="payment-method" name="payment_method"><option value="">Not set yet</option><?php $selectedPayment=$_POST['payment_method']??$repeatPaymentMethod;foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$selectedPayment===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Payment / card fee (£) <span class="muted">(optional)</span><input id="payment-fee" name="payment_fee" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($_POST['payment_fee']??number_format($repeatPaymentFee/100,2,'.',''))?>"></label></div></div>
+<div class="order-subsection"><span class="order-check-label">Payment</span><label>Payment method <span class="muted">(optional until paid)</span><select id="payment-method" name="payment_method"><option value="">Not set yet</option><?php $selectedPayment=$_POST['payment_method']??$repeatPaymentMethod;foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$selectedPayment===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div>
 <label>Notes <span class="muted">(optional)</span><textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label>
 <div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="2">← Back</button><button class="save-order">Save order</button></div>
 </section>
@@ -732,7 +725,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 
 <div class="edit-section"><span class="wizard-kicker">DELIVERY</span><label>Delivery method<select id="delivery-method" name="delivery_method" required><?php $editDeliveryMethod=$editOrder['delivery_method']?:'Local Delivery';foreach($deliveryMethods as $method):?><option value="<?=e($method)?>" <?=$editDeliveryMethod===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Assigned to<select id="assigned-to" name="assigned_to"><option value="">Unassigned</option><?php foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$editOrder['assigned_to']===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label><div id="postage-fields" class="postage-fields" hidden><label>Tracking / reference<input id="tracking-reference" name="tracking_reference" maxlength="200" value="<?=e($editOrder['tracking_reference']??'')?>"></label><div class="two"><label>Postage charged (£)<input id="delivery-charge" name="delivery_charge" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['delivery_charge']/100,2,'.',''))?>"></label><label>Actual postage cost (£)<input id="postage-cost" name="postage_cost" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['postage_cost']/100,2,'.',''))?>"></label></div></div></div>
 
-<div class="edit-section"><span class="wizard-kicker">PAYMENT & NOTES</span><div class="two"><label>Payment method<select id="payment-method" name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$editOrder['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Payment / card fee (£)<input id="payment-fee" name="payment_fee" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['payment_fee']/100,2,'.',''))?>"></label></div><label>Notes<textarea name="notes" maxlength="4000"><?=e($editOrder['notes'])?></textarea></label></div>
+<div class="edit-section"><span class="wizard-kicker">PAYMENT & NOTES</span><label>Payment method<select id="payment-method" name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$editOrder['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Notes<textarea name="notes" maxlength="4000"><?=e($editOrder['notes'])?></textarea></label></div>
 <div class="edit-total"><span>Order total</span><strong id="subtotal">£0.00</strong></div><button class="save-order">Save changes</button>
 </form>
 <?php endif;?>
@@ -796,7 +789,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;?>
 
 <?php elseif($view==='reports'):?>
-<div class="heading"><div><h1>Profit & reports</h1><p class="muted page-description">Paid sales less product costs, pen costs, postage and payment fees.</p></div><a class="quick-action" href="?view=more">← More</a></div>
+<div class="heading"><div><h1>Profit & reports</h1><p class="muted page-description">Paid sales less product costs, pen costs and postage.</p></div><a class="quick-action" href="?view=more">← More</a></div>
 <div class="report-periods">
 <?php foreach(['today','week','month','all'] as $periodKey):$period=$reportPeriods[$periodKey];?><article class="report-period"><span><?=e($period['label'])?></span><strong><?=money($period['profit'])?></strong><small><?=money($period['revenue'])?> sales · <?=$period['orders']?> orders</small></article><?php endforeach;?>
 </div>
@@ -806,7 +799,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div><span>Product cost</span><strong>− <?=money(max(0,$reportPeriods['all']['cogs']-$reportPeriods['all']['pen']))?></strong></div>
 <div><span>Pen cost</span><strong>− <?=money($reportPeriods['all']['pen'])?></strong></div>
 <div><span>Postage cost</span><strong>− <?=money($reportPeriods['all']['postage'])?></strong></div>
-<div><span>Payment / card fees</span><strong>− <?=money($reportPeriods['all']['fees'])?></strong></div>
+
 <div class="report-profit"><span>Gross profit</span><strong><?=money($reportPeriods['all']['profit'])?></strong></div>
 </div>
 <?php if($uncostedSales>0):?><p class="error report-warning"><?=money($uncostedSales)?> of sold item revenue still has no saved cost, so profit is overstated until those costs are entered.</p><?php endif;?>
@@ -863,7 +856,7 @@ const productCatalog=<?=json_encode($productCatalogForJs,JSON_HEX_TAG|JSON_HEX_A
 const initialOrderLines=<?=json_encode($view==='edit'?$editLines:$repeatLines,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
 const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
 const productSearch=document.querySelector('#product-search'),productSearchWrap=productSearch?.closest('.product-search-wrap'),productResults=document.querySelector('#product-results'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),selectedLinesContainer=document.querySelector('#selected-order-lines'),selectedEmpty=document.querySelector('#selected-empty'),addAnotherButton=document.querySelector('#add-another-product');
-const deliveryMethodSelect=document.querySelector('#delivery-method'),assignedToSelect=document.querySelector('#assigned-to'),postageFields=document.querySelector('#postage-fields'),deliveryChargeInput=document.querySelector('#delivery-charge'),postageCostInput=document.querySelector('#postage-cost'),trackingReferenceInput=document.querySelector('#tracking-reference'),paymentMethodInput=document.querySelector('#payment-method'),paymentFeeInput=document.querySelector('#payment-fee');
+const deliveryMethodSelect=document.querySelector('#delivery-method'),assignedToSelect=document.querySelector('#assigned-to'),postageFields=document.querySelector('#postage-fields'),deliveryChargeInput=document.querySelector('#delivery-charge'),postageCostInput=document.querySelector('#postage-cost'),trackingReferenceInput=document.querySelector('#tracking-reference'),paymentMethodInput=document.querySelector('#payment-method');
 const draftEnabled=wizard?.dataset.draftEnabled==='1';
 let currentWizardStep=1,lineCounter=0,productSearchMoved=false;
 
@@ -1038,19 +1031,19 @@ function togglePostageFields(){
  if(!isPostage){if(trackingReferenceInput)trackingReferenceInput.value='';if(deliveryChargeInput)deliveryChargeInput.value='0.00';if(postageCostInput)postageCostInput.value='0.00'}
  updateTotal();saveDraftOrder();
 }
-deliveryMethodSelect?.addEventListener('change',togglePostageFields);deliveryChargeInput?.addEventListener('input',()=>{updateTotal();saveDraftOrder()});paymentFeeInput?.addEventListener('input',saveDraftOrder);trackingReferenceInput?.addEventListener('input',saveDraftOrder);paymentMethodInput?.addEventListener('change',saveDraftOrder);assignedToSelect?.addEventListener('change',saveDraftOrder);
+deliveryMethodSelect?.addEventListener('change',togglePostageFields);deliveryChargeInput?.addEventListener('input',()=>{updateTotal();saveDraftOrder()});trackingReferenceInput?.addEventListener('input',saveDraftOrder);paymentMethodInput?.addEventListener('change',saveDraftOrder);assignedToSelect?.addEventListener('change',saveDraftOrder);
 
 function serializeLines(){return selectedOrderCards().map(card=>lineData(card))}
 function saveDraftOrder(){
  if(!draftEnabled||!wizard)return;
- const draft={step:currentWizardStep,customer:customerSearch?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',delivery_method:deliveryMethodSelect?.value||'Local Delivery',assigned_to:assignedToSelect?.value||'',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',payment_fee:paymentFeeInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',lines:serializeLines()};
+ const draft={step:currentWizardStep,customer:customerSearch?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',delivery_method:deliveryMethodSelect?.value||'Local Delivery',assigned_to:assignedToSelect?.value||'',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',lines:serializeLines()};
  const useful=draft.customer||draft.phone||draft.address||draft.lines.length;try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
 }
 function restoreDraftOrder(){
  if(!draftEnabled||!wizard)return false;let draft=null;try{draft=JSON.parse(localStorage.getItem(orderDraftKey)||'null')}catch(_){}if(!draft)return false;
  if(customerSearch)customerSearch.value=draft.customer||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
  const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
- if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||'Local Delivery';if(assignedToSelect)assignedToSelect.value=draft.assigned_to||'';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';if(paymentFeeInput)paymentFeeInput.value=draft.payment_fee||'0.00';
+ if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||'Local Delivery';if(assignedToSelect)assignedToSelect.value=draft.assigned_to||'';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';
  selectedLinesContainer?.replaceChildren();(draft.lines||[]).forEach(line=>addOrderLine(line,false));if(clearDraftButton)clearDraftButton.hidden=false;togglePostageFields();showWizardStep(Math.min(3,Math.max(1,Number(draft.step)||1)));return true;
 }
 clearDraftButton?.addEventListener('click',()=>{try{localStorage.removeItem(orderDraftKey)}catch(_){}location.href='?view=new'});
