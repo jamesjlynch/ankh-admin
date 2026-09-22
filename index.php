@@ -538,7 +538,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="1">← Back</button><button type="button" data-wizard-next="3">Next · Choose peptide →</button></div>
 </section>
 
-<section class="wizard-step" data-wizard-step="4" hidden>
+<section class="wizard-step" data-wizard-step="3" hidden>
 <div class="wizard-step-head"><span class="wizard-kicker">STEP 3 OF 4</span><h2>Products</h2><p class="muted">Find the peptide and choose the strength.</p></div>
 <div id="product-choice-area">
 <div class="product-search-wrap"><label for="product-search">Find a peptide or product<input id="product-search" type="search" placeholder="Tap for Retatrutide or start typing…" autocomplete="off" aria-autocomplete="list" aria-controls="product-results"></label><div id="product-results" class="product-results" role="listbox" hidden></div></div>
@@ -549,10 +549,10 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <p id="selected-empty" class="selected-empty">No products added yet.</p>
 
 </div>
-<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="3">← Back</button><button type="button" data-wizard-next="4">Next · Check order →</button></div>
+<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="2">← Back</button><button type="button" data-wizard-next="4">Next · Check order →</button></div>
 </section>
 
-<section class="wizard-step" data-wizard-step="3" hidden>
+<section class="wizard-step" data-wizard-step="4" hidden>
 <div class="wizard-step-head"><span class="wizard-kicker">STEP 4 OF 4</span><h2>Check & save</h2><p class="muted">Check the important details, then save.</p></div>
 <div class="order-check">
 <div class="order-check-section"><span class="order-check-label">Customer</span><strong id="check-customer">—</strong><small id="check-customer-detail"></small></div>
@@ -562,7 +562,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="line order-check-total"><strong>Total</strong><strong id="subtotal">£0.00</strong></div>
 </div>
 <label>Notes <span class="muted">(optional)</span><textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label>
-<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="2">← Back</button><button class="save-order">Save order</button></div>
+<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="3">← Back</button><button class="save-order">Save order</button></div>
 </section>
 </form>
 <?php elseif($view==='products'):?>
@@ -725,7 +725,6 @@ function setPresentation(value){
  presentationButtons.forEach(b=>b.classList.toggle('selected',b.dataset.presentation===value));
  if(productChoiceArea)productChoiceArea.hidden=!value;
  updateTotal();
- if(value){setTimeout(()=>{productSearch?.focus();showProductResults()},80)}
  if(typeof saveDraftOrder==='function')saveDraftOrder();
 }
 presentationButtons.forEach(b=>b.addEventListener('click',()=>setPresentation(b.dataset.presentation)));
