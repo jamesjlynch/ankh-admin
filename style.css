@@ -345,3 +345,12 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
   .todo-card-head h3{font-size:16px}
   .todo-action button{min-height:50px}
 }
+
+/* Order deletion */
+.delete-order-form{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.delete-order-form .danger-button{color:#e58d82;border-color:#6b3833;background:#2a1716}
+.delete-order-form .danger-button:hover,.delete-order-form .danger-button:focus-visible{background:#3a1d1b;border-color:#8c4740}
+
+/* Dashboard vertical priority */
+.dashboard-primary-panel{margin:16px 0}
+.dashboard-primary-panel .dashboard-panel{margin:0}
