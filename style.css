@@ -354,3 +354,15 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
 /* Dashboard vertical priority */
 .dashboard-primary-panel{margin:16px 0}
 .dashboard-primary-panel .dashboard-panel{margin:0}
+
+/* Payment and delivery dates */
+.todo-date{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px;margin:0 0 10px;color:var(--muted);font-size:12px}
+.todo-date input{margin:0;min-height:42px;padding:8px 10px}
+.order-dates-form{margin:18px 0;padding:14px;border:1px solid #343638;border-radius:12px;background:#141516}
+.order-dates-form .two{margin-bottom:4px}
+.order-dates-form button{margin-top:2px}
+@media(max-width:760px){
+  .todo-date{grid-template-columns:1fr;font-size:11px}
+  .todo-date input{min-height:46px}
+  .order-dates-form{padding:12px}
+}
