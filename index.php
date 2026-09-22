@@ -829,7 +829,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
   <span class="voice-order-launch-kicker">AI VOICE ORDER</span>
   <h2>Add your order with your voice</h2>
   <p>Tap the microphone and say the customer’s name, product and strength, quantity, Pen / Cartridge / Vial, delivery method and James or Tony if it’s assigned.</p>
-  <div class="voice-order-example"><span>Try saying</span><q>Sarah Jones, two Reta 10mg pens, local delivery, assign to James.</q></div>
+  <div class="voice-order-example"><span>Try saying</span><q>Sarah Jones, two Reta 10mg pens, local delivery, assign to James.</q></div><div class="voice-order-alias">You can say <strong>“Reta”</strong> for Retatrutide.</div>
  </div>
  <button type="button" id="voice-order-button" class="voice-order-launch-button" data-ready="<?=$voiceOrderReady?'1':'0'?>" aria-label="Start a voice order">
   <span class="voice-launch-rings" aria-hidden="true"></span>
@@ -1346,7 +1346,7 @@ async function startVoiceOrder(){
 function stopVoiceOrderRecording(){
  if(voiceRecorder?.state!=='recording')return;
  setVoiceState('Building draft','Transcribing your order and matching it to ANKH products…','working');
- voiceOrderButton.disabled=true;voiceOrderButton.classList.add('working');voiceOrderButton.querySelector('strong').textContent='Working…';
+ voiceOrderButton.disabled=true;voiceOrderButton.classList.remove('recording');voiceOrderButton.classList.add('working');voiceOrderButton.querySelector('strong').textContent='Working…';
  voiceRecorder.stop();
 }
 voiceOrderButton?.addEventListener('click',()=>{if(voiceRecorder?.state==='recording')stopVoiceOrderRecording();else startVoiceOrder()});
