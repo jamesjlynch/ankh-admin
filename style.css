@@ -1759,3 +1759,157 @@ body.assistant-overlay-open{overflow:hidden}
   .ankh-assistant-card h2{font-size:21px}
   .ankh-assistant-action{min-height:54px}
 }
+
+/* Realtime conversational ANKH Assistant */
+.ankh-realtime-audio{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none}
+.realtime-card{padding-top:18px}
+.assistant-live-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  margin:0 auto 15px;
+  padding:6px 10px;
+  border:1px solid #3b3d3e;
+  border-radius:999px;
+  background:#111213;
+  color:#8d8b84;
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:1.2px;
+}
+.assistant-live-badge i{
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#6c6d6e;
+  box-shadow:0 0 0 4px #ffffff05;
+}
+.ankh-assistant-overlay.listening .assistant-live-badge{color:#d8c898;border-color:#5e5031}
+.ankh-assistant-overlay.listening .assistant-live-badge i{background:#d8ad58;box-shadow:0 0 0 4px #d8ad5814,0 0 12px #d8ad5860}
+.ankh-assistant-overlay.speaking .assistant-live-badge{color:#d8c898;border-color:#5e5031}
+.ankh-assistant-overlay.speaking .assistant-live-badge i{background:var(--gold);box-shadow:0 0 0 4px #dfb66616,0 0 13px #dfb66677}
+.ankh-assistant-overlay.error .assistant-live-badge{color:#e8b0b0;border-color:#674040}
+.ankh-assistant-overlay.error .assistant-live-badge i{background:#c95c5c}
+
+.realtime-orb{
+  appearance:none;
+  -webkit-appearance:none;
+  overflow:visible;
+  padding:0;
+  cursor:default;
+}
+.realtime-orb .realtime-wave{
+  position:absolute;
+  inset:-10px;
+  border:1px solid #dfb66645;
+  border-radius:50%;
+  opacity:0;
+  pointer-events:none;
+}
+.ankh-assistant-overlay.listening .realtime-orb .wave-a{
+  animation:realtimeListen 1.65s ease-out infinite;
+}
+.ankh-assistant-overlay.listening .realtime-orb .wave-b{
+  animation:realtimeListen 1.65s .82s ease-out infinite;
+}
+.ankh-assistant-overlay.speaking .realtime-orb{
+  animation:realtimeSpeak .62s ease-in-out infinite alternate;
+}
+.ankh-assistant-overlay.speaking .realtime-orb .wave-a,
+.ankh-assistant-overlay.speaking .realtime-orb .wave-b{
+  opacity:.55;
+  animation:realtimeTalkRing 1.15s ease-in-out infinite alternate;
+}
+.ankh-assistant-overlay.thinking .realtime-orb{
+  animation:assistantThink .9s ease-in-out infinite alternate;
+}
+.ankh-assistant-overlay.connecting .realtime-orb{
+  animation:realtimeConnect 1.2s linear infinite;
+}
+@keyframes realtimeListen{
+  0%{transform:scale(.88);opacity:.78}
+  85%{transform:scale(1.2);opacity:0}
+  100%{transform:scale(1.2);opacity:0}
+}
+@keyframes realtimeSpeak{
+  from{transform:scale(.98)}
+  to{transform:scale(1.035)}
+}
+@keyframes realtimeTalkRing{
+  from{transform:scale(.96);opacity:.25}
+  to{transform:scale(1.08);opacity:.7}
+}
+@keyframes realtimeConnect{
+  0%{box-shadow:0 0 0 8px #dfb66608,0 18px 40px #0008,0 0 20px #dfb66610}
+  50%{box-shadow:0 0 0 8px #dfb66612,0 18px 40px #0008,0 0 48px #dfb66635}
+  100%{box-shadow:0 0 0 8px #dfb66608,0 18px 40px #0008,0 0 20px #dfb66610}
+}
+
+.ankh-assistant-live-log{
+  max-height:200px;
+  overflow:auto;
+  display:grid;
+  gap:7px;
+  margin-top:14px;
+  padding:2px;
+  text-align:left;
+  scrollbar-width:thin;
+}
+.ankh-assistant-live-log[hidden]{display:none}
+.assistant-live-bubble{
+  width:fit-content;
+  max-width:92%;
+  padding:9px 11px;
+  border:1px solid #3e3a30;
+  border-radius:13px 13px 13px 4px;
+  background:#1b1812;
+  color:#e8deca;
+  font-size:11px;
+  line-height:1.45;
+}
+.assistant-live-bubble.assistant:before{
+  content:"ANKH";
+  display:block;
+  margin-bottom:3px;
+  color:var(--gold);
+  font-size:8px;
+  font-weight:900;
+  letter-spacing:.8px;
+}
+.realtime-examples{margin-top:15px}
+.realtime-examples p{
+  margin:0;
+  padding:3px 0;
+  color:#c6c1b6;
+  font-size:10px;
+  line-height:1.4;
+}
+.assistant-live-controls{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-top:16px;
+}
+.assistant-live-controls .assistant-retry{
+  grid-column:1/-1;
+}
+.assistant-mute,.assistant-retry,.assistant-end{
+  min-height:46px;
+  border-radius:12px;
+  font-size:10px;
+  font-weight:800;
+}
+.assistant-end{
+  border:1px solid #674040;
+  background:#321b1b;
+  color:#f1c6c6;
+}
+.assistant-end:hover{border-color:#985959}
+.assistant-mute:disabled{opacity:.5}
+
+@media(max-width:760px){
+  .realtime-card{padding-top:16px}
+  .assistant-live-badge{margin-bottom:13px}
+  .ankh-assistant-live-log{max-height:180px}
+  .assistant-live-controls{position:sticky;bottom:-1px;padding-top:8px;background:linear-gradient(180deg,transparent,#101112 28%)}
+}
