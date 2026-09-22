@@ -231,8 +231,38 @@ function deleteOrderFromSheet(PDO $db,string $reference):?string{
 if(setting($db,'sheets_sheet_id')==='')saveSetting($db,'sheets_sheet_id','1j9ucRgbGcB56olVTGiBJDJNMxgggB1jg4KUWZuslUwA');
 if(setting($db,'sheets_secret')==='')saveSetting($db,'sheets_secret',bin2hex(random_bytes(24)));
 
+function openAiCurlJson(string $url,array $headers,$body,bool $multipart=false):array{
+ if(!function_exists('curl_init'))throw new Exception('Voice ordering needs the PHP cURL extension enabled.');
+ $ch=curl_init($url);$baseHeaders=['Authorization: Bearer '.($GLOBALS['openAiKey']??'')];
+ curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>60,CURLOPT_HTTPHEADER=>array_merge($baseHeaders,$headers),CURLOPT_POSTFIELDS=>$body]);
+ $raw=curl_exec($ch);$http=(int)curl_getinfo($ch,CURLINFO_HTTP_CODE);$err=curl_error($ch);curl_close($ch);
+ if($raw===false||$err!=='')throw new Exception('Could not reach OpenAI. Please try again.');
+ $json=json_decode((string)$raw,true);
+ if($http<200||$http>=300){
+  $message=is_array($json)?(string)($json['error']['message']??''):'';
+  throw new Exception($message!==''?'OpenAI: '.$message:'OpenAI could not process the voice order.');
+ }
+ if(!is_array($json))throw new Exception('OpenAI returned an unreadable response.');
+ return $json;
+}
+function responseOutputText(array $response):string{
+ if(isset($response['output_text'])&&is_string($response['output_text']))return $response['output_text'];
+ foreach(($response['output']??[]) as $item){
+  foreach(($item['content']??[]) as $content){
+   if(($content['type']??'')==='output_text'&&isset($content['text']))return (string)$content['text'];
+  }
+ }
+ return '';
+}
+function voiceJson(array $data,int $status=200):never{
+ http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
+}
+
 // TEMPORARY TEST MODE: set to false when testing is finished.
 $testingNoAuth=true;
+$openAiKey=trim((string)($config['openai_api_key']??(getenv('OPENAI_API_KEY')?:'')));
+$voiceOrderReady=!$testingNoAuth && $openAiKey!=='';
+
 if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();}
 
 function orderActionDate(string $value,string $label):string{
@@ -247,6 +277,89 @@ function postedMoneyPence($value,string $label):int{
  $number=filter_var($raw,FILTER_VALIDATE_FLOAT);
  if($number===false||$number<0||$number>100000)throw new Exception('Check the '.$label.' amount.');
  return (int)round($number*100);
+}
+
+if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
+ try{
+  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
+  if(!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  if($testingNoAuth)voiceJson(['ok'=>false,'error'=>'Voice ordering is locked while temporary password-disabled test mode is active.'],403);
+  if($openAiKey==='')voiceJson(['ok'=>false,'error'=>'OpenAI is not connected yet. Add OPENAI_API_KEY to the private server configuration.'],503);
+  if(!isset($_FILES['audio']) || !is_uploaded_file($_FILES['audio']['tmp_name']))voiceJson(['ok'=>false,'error'=>'No voice recording was received.'],400);
+  if((int)($_FILES['audio']['size']??0)<100 || (int)($_FILES['audio']['size']??0)>12*1024*1024)voiceJson(['ok'=>false,'error'=>'Keep the voice order under about one minute and try again.'],400);
+
+  $activeProducts=$db->query('SELECT id,name,price FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+  if(!$activeProducts)voiceJson(['ok'=>false,'error'=>'Add products before using Voice Order.'],400);
+  $voiceCustomers=$db->query('SELECT id,name FROM customers WHERE archived=0 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+
+  $tmp=(string)$_FILES['audio']['tmp_name'];$mime=(string)($_FILES['audio']['type']??'audio/mp4');$filename=(string)($_FILES['audio']['name']??'voice-order.m4a');
+  $productNames=array_values(array_map(fn($p)=>(string)$p['name'],$activeProducts));
+  $transcription=openAiCurlJson('https://api.openai.com/v1/audio/transcriptions',[],[
+   'file'=>new CURLFile($tmp,$mime,$filename),
+   'model'=>'gpt-4o-mini-transcribe',
+   'language'=>'en',
+   'prompt'=>'ANKH order entry. Product names may include: '.implode(', ',$productNames).'. Formats: Pen, Cartridge, Vial. Delivery people: James, Tony.'
+  ],true);
+  $transcript=trim((string)($transcription['text']??''));
+  if($transcript==='')voiceJson(['ok'=>false,'error'=>'I could not hear an order. Please try again.'],422);
+
+  $customerList=array_map(fn($c)=>['id'=>(int)$c['id'],'name'=>(string)$c['name']],$voiceCustomers);
+  $schema=[
+   'type'=>'object','additionalProperties'=>false,
+   'properties'=>[
+    'customer_id'=>['type'=>['integer','null']],
+    'customer_name'=>['type'=>'string'],
+    'phone'=>['type'=>'string'],
+    'address'=>['type'=>'string'],
+    'referrer'=>['type'=>'string'],
+    'delivery_method'=>['type'=>'string','enum'=>['Collection','Local Delivery','Postage']],
+    'assigned_to'=>['type'=>'string','enum'=>['','James','Tony']],
+    'payment_method'=>['type'=>'string','enum'=>['','Cash','Bank Transfer','Card','PayPal','Other']],
+    'notes'=>['type'=>'string'],
+    'lines'=>['type'=>'array','items'=>[
+      'type'=>'object','additionalProperties'=>false,
+      'properties'=>[
+       'product_name'=>['type'=>'string','enum'=>$productNames],
+       'quantity'=>['type'=>'integer','minimum'=>1,'maximum'=>99],
+       'presentation'=>['type'=>'string','enum'=>['','Pen','Cartridge','Vial']],
+       'family_friends'=>['type'=>'boolean']
+      ],
+      'required'=>['product_name','quantity','presentation','family_friends']
+    ]],
+    'questions'=>['type'=>'array','items'=>['type'=>'string']],
+    'needs_review'=>['type'=>'boolean']
+   ],
+   'required'=>['customer_id','customer_name','phone','address','referrer','delivery_method','assigned_to','payment_method','notes','lines','questions','needs_review']
+  ];
+  $instructions="Convert a spoken ANKH order into a draft. Never invent customer contact details, products, strengths, quantities, formats, payment methods or delivery people. Use an existing customer_id only when the spoken customer clearly matches the supplied customer list. If an existing customer is chosen, leave phone and address blank because the app fills them from its database. Product_name must be an exact supplied catalogue value. If a product is mentioned without enough strength information to choose exactly, do not guess: omit that line and add a short question. If Pen/Cartridge/Vial was not said, use an empty presentation and ask which format. 'family and friends', 'friends and family', or 'F&F' means family_friends=true. Delivery defaults to Local Delivery only if no delivery method was said. Assignment is only James or Tony when explicitly stated. Return a draft only; never imply it has been saved.";
+  $input=json_encode(['transcript'=>$transcript,'customers'=>$customerList,'products'=>$productNames],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+  $response=openAiCurlJson('https://api.openai.com/v1/responses',['Content-Type: application/json'],json_encode([
+   'model'=>'gpt-5.6-luna','store'=>false,'reasoning'=>['effort'=>'none'],'instructions'=>$instructions,'input'=>$input,
+   'text'=>['format'=>['type'=>'json_schema','name'=>'ankh_voice_order','strict'=>true,'schema'=>$schema]]
+  ],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+  $parsedText=responseOutputText($response);$draft=json_decode($parsedText,true);
+  if(!is_array($draft))voiceJson(['ok'=>false,'error'=>'I heard the order but could not turn it into a draft. Please try again.'],422);
+
+  $customer=null;$customerId=(int)($draft['customer_id']??0);
+  if($customerId>0){$q=$db->prepare('SELECT id,name,phone,address FROM customers WHERE id=? AND archived=0');$q->execute([$customerId]);$customer=$q->fetch(PDO::FETCH_ASSOC)?:null;}
+  if($customer){
+   $draft['customer_name']=(string)$customer['name'];$draft['phone']=(string)$customer['phone'];$draft['address']=(string)$customer['address'];
+  }
+
+  $productByName=[];foreach($activeProducts as $p)$productByName[(string)$p['name']]=$p;
+  $lines=[];
+  foreach(($draft['lines']??[]) as $line){
+   $name=(string)($line['product_name']??'');if(!isset($productByName[$name]))continue;$p=$productByName[$name];
+   $qty=max(1,min(99,(int)($line['quantity']??1)));$presentation=in_array(($line['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$line['presentation']:'';
+   $base=(int)$p['price']/100;$canDiscount=(bool)preg_match('/\d+(?:\.\d+)?\s*mg$/i',$name);$discount=$canDiscount&&!empty($line['family_friends']);
+   $price=max(0,$base-($discount?5:0)+($presentation==='Pen'?20:0));
+   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price];
+  }
+  $draft['lines']=$lines;
+  voiceJson(['ok'=>true,'transcript'=>$transcript,'draft'=>$draft]);
+ }catch(Throwable $ex){
+  voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Voice ordering failed. Please try again.'],500);
+ }
 }
 
 if ($_SERVER['REQUEST_METHOD']==='POST') {
@@ -427,7 +540,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile36"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile37"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -679,7 +792,12 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show.</p>
 <?php elseif($view==='new'):?>
-<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><div class="new-order-tools"><button type="button" id="voice-order-button" class="voice-order-button" data-ready="<?=$voiceOrderReady?'1':'0'?>"><span aria-hidden="true">🎙</span><span>Voice order</span></button><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<section id="voice-order-panel" class="voice-order-panel" hidden>
+<div class="voice-order-state"><span id="voice-order-pulse" class="voice-order-pulse" aria-hidden="true"></span><div><strong id="voice-order-title">Voice order</strong><p id="voice-order-message">Speak the order and I’ll prepare a draft for you to check.</p></div></div>
+<div id="voice-order-transcript" class="voice-order-transcript" hidden></div>
+<div id="voice-order-questions" class="voice-order-questions" hidden></div>
+</section>
 <form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order">
 
 <section class="wizard-step" data-wizard-step="1">
@@ -1081,6 +1199,65 @@ const restoredDraft=restoreDraftOrder();
 if(!restoredDraft)initialOrderLines.forEach(line=>addOrderLine(line,false));
 togglePostageFields();updateTotal();
 wizard?.addEventListener('input',saveDraftOrder);wizard?.addEventListener('change',saveDraftOrder);
+
+const voiceOrderButton=document.querySelector('#voice-order-button'),voiceOrderPanel=document.querySelector('#voice-order-panel'),voiceOrderTitle=document.querySelector('#voice-order-title'),voiceOrderMessage=document.querySelector('#voice-order-message'),voiceOrderTranscript=document.querySelector('#voice-order-transcript'),voiceOrderQuestions=document.querySelector('#voice-order-questions'),voiceOrderPulse=document.querySelector('#voice-order-pulse');
+let voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStopTimer=null;
+function setVoiceState(title,message,state='idle'){
+ if(voiceOrderPanel)voiceOrderPanel.hidden=false;if(voiceOrderTitle)voiceOrderTitle.textContent=title;if(voiceOrderMessage)voiceOrderMessage.textContent=message;
+ if(voiceOrderPulse){voiceOrderPulse.classList.toggle('recording',state==='recording');voiceOrderPulse.classList.toggle('working',state==='working')}
+}
+function stopVoiceTracks(){if(voiceStopTimer){clearTimeout(voiceStopTimer);voiceStopTimer=null}voiceStream?.getTracks().forEach(track=>track.stop());voiceStream=null}
+function voiceMimeType(){
+ const options=['audio/mp4','audio/webm;codecs=opus','audio/webm'];return options.find(type=>window.MediaRecorder?.isTypeSupported?.(type))||'';
+}
+function showVoiceQuestions(questions=[]){
+ if(!voiceOrderQuestions)return;voiceOrderQuestions.replaceChildren();if(!questions.length){voiceOrderQuestions.hidden=true;return}
+ const title=document.createElement('strong');title.textContent='Check these details';voiceOrderQuestions.append(title);
+ questions.forEach(q=>{const p=document.createElement('p');p.textContent=q;voiceOrderQuestions.append(p)});voiceOrderQuestions.hidden=false;
+}
+function applyVoiceDraft(payload){
+ const draft=payload?.draft||{};if(voiceOrderTranscript){voiceOrderTranscript.hidden=false;voiceOrderTranscript.textContent='“'+(payload.transcript||'')+'”'}
+ showVoiceQuestions(Array.isArray(draft.questions)?draft.questions:[]);
+ const customer=draft.customer_id?customerSuggestions.find(c=>Number(c.id)===Number(draft.customer_id)):null;
+ if(customer)chooseCustomer(customer);else{
+  if(customerSearch)customerSearch.value=draft.customer_name||'';if(customerPhone&&draft.phone)customerPhone.value=draft.phone;if(customerAddress&&draft.address)customerAddress.value=draft.address;
+ }
+ const ref=document.querySelector('#customer-referrer');if(ref&&draft.referrer)ref.value=draft.referrer;
+ if(deliveryMethodSelect&&draft.delivery_method)deliveryMethodSelect.value=draft.delivery_method;
+ if(assignedToSelect)assignedToSelect.value=draft.assigned_to||'';
+ if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';
+ const notes=wizard?.querySelector('textarea[name="notes"]');if(notes&&draft.notes)notes.value=draft.notes;
+ selectedLinesContainer?.replaceChildren();(draft.lines||[]).forEach(line=>addOrderLine(line,false));
+ productSearchMoved=false;togglePostageFields();updateSelectedState();updateTotal();saveDraftOrder();
+ const missingCustomer=!customerSearch?.value.trim(),missingProducts=!selectedOrderCards().length,missingFormat=selectedOrderCards().some(card=>!lineData(card).presentation);
+ if(missingCustomer)showWizardStep(1);else if(missingProducts||missingFormat)showWizardStep(2);else showWizardStep(3);
+ setVoiceState('Draft ready','Nothing has been saved. Check the order below, make any changes, then tap Save order.','done');
+ voiceOrderPanel?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+async function sendVoiceOrder(blob,mime){
+ setVoiceState('Building draft','Transcribing your order and matching it to ANKH products…','working');voiceOrderButton.disabled=true;voiceOrderButton.innerHTML='<span aria-hidden="true">…</span><span>Working</span>';
+ try{
+  const data=new FormData();data.append('csrf',<?=json_encode($_SESSION['csrf'])?>);data.append('audio',blob,mime.includes('mp4')?'voice-order.m4a':'voice-order.webm');
+  const response=await fetch('?api=voice-order',{method:'POST',body:data,credentials:'same-origin'});const payload=await response.json().catch(()=>({ok:false,error:'Voice ordering returned an unreadable response.'}));
+  if(!response.ok||!payload.ok)throw new Error(payload.error||'Voice ordering failed.');
+  applyVoiceDraft(payload);
+ }catch(error){setVoiceState('Couldn’t build the draft',error?.message||'Please try recording the order again.','error')}
+ finally{voiceOrderButton.disabled=false;voiceOrderButton.innerHTML='<span aria-hidden="true">🎙</span><span>Voice order</span>'}
+}
+async function startVoiceOrder(){
+ if(voiceOrderButton?.dataset.ready!=='1'){
+  setVoiceState('Voice Order is installed','It will activate after the OpenAI API key is added to the private server config and password protection is turned back on.','idle');return;
+ }
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){setVoiceState('Microphone not available','This browser does not support microphone recording for Voice Order.','error');return}
+ try{
+  voiceStream=await navigator.mediaDevices.getUserMedia({audio:true});voiceChunks=[];const mime=voiceMimeType();voiceRecorder=mime?new MediaRecorder(voiceStream,{mimeType:mime}):new MediaRecorder(voiceStream);
+  voiceRecorder.addEventListener('dataavailable',event=>{if(event.data?.size)voiceChunks.push(event.data)});
+  voiceRecorder.addEventListener('stop',()=>{const type=voiceRecorder.mimeType||mime||'audio/mp4',blob=new Blob(voiceChunks,{type});stopVoiceTracks();if(blob.size>100)sendVoiceOrder(blob,type);else setVoiceState('No audio captured','Try again and speak after the microphone starts.','error')},{once:true});
+  voiceRecorder.start();voiceOrderButton.innerHTML='<span aria-hidden="true">■</span><span>Stop & build draft</span>';setVoiceState('Listening…','Say the customer, products, quantities, Pen/Cartridge/Vial, delivery and James or Tony if assigned.','recording');
+  voiceStopTimer=setTimeout(()=>{if(voiceRecorder?.state==='recording')voiceRecorder.stop()},60000);
+ }catch(error){stopVoiceTracks();setVoiceState('Microphone permission needed','Allow microphone access in Safari and try again.','error')}
+}
+voiceOrderButton?.addEventListener('click',()=>{if(voiceRecorder?.state==='recording'){voiceRecorder.stop();voiceOrderButton.disabled=true}else startVoiceOrder()});
 
 orderForm?.addEventListener('submit',e=>{
  if(!customerSearch?.value.trim()){e.preventDefault();if(wizard)showWizardStep(1);customerSearch?.reportValidity();return}
