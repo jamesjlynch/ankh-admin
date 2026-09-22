@@ -427,7 +427,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile35"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile36"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -539,7 +539,7 @@ if($todoOrderIds){
  $q->execute($todoOrderIds);
  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $todoItem)$todoItems[(int)$todoItem['order_id']][]=$todoItem;
 }
-$grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$orderPenCostById=[];$productProfit=[];$penCostAll=0;
+$grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$orderPenCostById=[];$orderMissingCost=[];$productProfit=[];$penCostAll=0;
 $dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.presentation,i.presentation_cost,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
 foreach($dashboardItems as $dashboardItem){
  $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$presentationCost=(int)($dashboardItem['presentation_cost']??0);$name=(string)$dashboardItem['name'];
@@ -547,7 +547,7 @@ foreach($dashboardItems as $dashboardItem){
   if($cost!==null){$legacyPen=$cost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$legacyPen;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$legacyPen;$penCostAll+=$legacyPen;}else{$uncostedSales+=$line;}
   continue;
  }
- if($cost!==null)$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;else$uncostedSales+=$line;
+ if($cost!==null)$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;else{$uncostedSales+=$line;$orderMissingCost[$orderId]=true;}
  if($presentationCost>0){$penLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penLine;$penCostAll+=$penLine;}
  $topSelling[$name]??=['qty'=>0,'revenue'=>0];$topSelling[$name]['qty']+=$qty;$topSelling[$name]['revenue']+=$line;
  $productProfit[$name]??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];
@@ -563,14 +563,22 @@ $reportPeriods=[
  'month'=>['label'=>'This month','start'=>$monthStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'profit'=>0,'orders'=>0],
  'all'=>['label'=>'All time','start'=>0,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'profit'=>0,'orders'=>0]
 ];
-$paymentBreakdown=[];
+$reportPeriodKey=in_array($_GET['period']??'week',['today','week','month','all'],true)?($_GET['period']??'week'):'week';
+$reportOrderRows=[];$paymentBreakdown=[];
 foreach($orders as $reportOrder){
  if(!in_array($reportOrder['status'],$paidStatuses,true))continue;
  $orderId=(int)$reportOrder['id'];$dateText=(string)($reportOrder['payment_date']?:$reportOrder['created']);$reportTs=strtotime($dateText)?:0;
  $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$penCogs=(int)($orderPenCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$profit=$revenue-$cogs-$postage;
+ $reportOrderRows[]=[
+  'id'=>$orderId,'customer'=>(string)$reportOrder['customer'],'status'=>(string)$reportOrder['status'],'assigned_to'=>(string)($reportOrder['assigned_to']??''),
+  'date'=>$dateText,'ts'=>$reportTs,'revenue'=>$revenue,'cogs'=>$cogs,'product_cost'=>max(0,$cogs-$penCogs),'pen_cost'=>$penCogs,'postage'=>$postage,'profit'=>$profit,
+  'missing_cost'=>!empty($orderMissingCost[$orderId])
+ ];
  foreach($reportPeriods as $key=>&$period){if($reportTs>=$period['start']){$period['revenue']+=$revenue;$period['cogs']+=$cogs;$period['pen']+=$penCogs;$period['postage']+=$postage;$period['profit']+=$profit;$period['orders']++;}}unset($period);
  $method=trim((string)($reportOrder['payment_method']??''))?:'Not recorded';$paymentBreakdown[$method]=($paymentBreakdown[$method]??0)+$revenue;
 }
+usort($reportOrderRows,fn($a,$b)=>$b['ts']<=>$a['ts'] ?: $b['id']<=>$a['id']);
+$selectedReportOrders=array_values(array_filter($reportOrderRows,fn($row)=>$row['ts']>=$reportPeriods[$reportPeriodKey]['start']));
 $grossProfit=$reportPeriods['all']['profit'];
 $trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && $p['stock_qty']!==null));
 $lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=(int)$p['low_stock_at']));
@@ -791,8 +799,29 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php elseif($view==='reports'):?>
 <div class="heading"><div><h1>Profit & reports</h1><p class="muted page-description">Paid sales less product costs, pen costs and postage.</p></div><a class="quick-action" href="?view=more">← More</a></div>
 <div class="report-periods">
-<?php foreach(['today','week','month','all'] as $periodKey):$period=$reportPeriods[$periodKey];?><article class="report-period"><span><?=e($period['label'])?></span><strong><?=money($period['profit'])?></strong><small><?=money($period['revenue'])?> sales · <?=$period['orders']?> orders</small></article><?php endforeach;?>
+<?php foreach(['today','week','month','all'] as $periodKey):$period=$reportPeriods[$periodKey];?><a class="report-period <?=$reportPeriodKey===$periodKey?'selected':''?>" href="?view=reports&amp;period=<?=e($periodKey)?>"><span><?=e($period['label'])?></span><strong><small>Profit</small><?=money($period['profit'])?></strong><small><b>Sales <?=money($period['revenue'])?></b> · <?=$period['orders']?> orders</small></a><?php endforeach;?>
 </div>
+<section class="panel order-profit-breakdown">
+<div class="dashboard-panel-head"><div><p class="eyebrow"><?=e(strtoupper($reportPeriods[$reportPeriodKey]['label']))?></p><h2>Profit by order</h2><p class="muted">Tap an order to see exactly how its profit was calculated.</p></div></div>
+<?php if($selectedReportOrders):foreach($selectedReportOrders as $row):?>
+<details class="profit-order <?=$row['profit']<0?'loss':''?>">
+<summary>
+<div><span class="ref">ANK-<?=str_pad((string)$row['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($row['customer'])?></h3><small><?=e(date('d M Y',strtotime($row['date'])))?><?php if($row['assigned_to']):?> · <?=e($row['assigned_to'])?><?php endif;?></small></div>
+<div class="profit-order-summary"><span>Sales <?=money($row['revenue'])?></span><strong><?=money($row['profit'])?> profit</strong><?php if($row['profit']<0):?><em>LOSS</em><?php elseif($row['missing_cost']):?><em class="warning">COST MISSING</em><?php endif;?></div>
+</summary>
+<div class="profit-order-detail">
+<div><span>Sales</span><strong><?=money($row['revenue'])?></strong></div>
+<div><span>Product cost</span><strong>− <?=money($row['product_cost'])?></strong></div>
+<div><span>Pen cost</span><strong>− <?=money($row['pen_cost'])?></strong></div>
+<div><span>Postage cost</span><strong>− <?=money($row['postage'])?></strong></div>
+<div class="profit-order-result"><span>Profit</span><strong><?=money($row['profit'])?></strong></div>
+<?php if($row['missing_cost']):?><p class="error">One or more items on this order has no cost recorded, so its profit may be overstated.</p><?php endif;?>
+<a class="quick-action" href="?view=edit&amp;id=<?=$row['id']?>">Open order</a>
+</div>
+</details>
+<?php endforeach;else:?><p class="muted">No completed sales in this period.</p><?php endif;?>
+</section>
+
 <section class="panel report-breakdown"><div class="dashboard-panel-head"><div><p class="eyebrow">ALL TIME</p><h2>Profit breakdown</h2></div></div>
 <div class="report-lines">
 <div><span>Sales revenue</span><strong><?=money($reportPeriods['all']['revenue'])?></strong></div>
