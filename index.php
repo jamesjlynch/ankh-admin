@@ -258,12 +258,33 @@ function voiceJson(array $data,int $status=200):never{
  http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
 }
 
-// TEMPORARY TEST MODE: set to false when testing is finished.
-$testingNoAuth=true;
+// One-time 4-digit PIN setup. Only a SHA-256 hash of the setup token is stored here.
+$pinSetupTokenHash='64a1ea8550f3bb078a15088090d021b056d8bdad6ee24d1346e7603693b1cbea';
+$savedAdminPinHash=setting($db,'admin_pin_hash','');
+$pinSetupComplete=$savedAdminPinHash!=='';
+$testingNoAuth=!$pinSetupComplete;
+$adminPasswordHash=$pinSetupComplete?$savedAdminPinHash:(string)$config['password_hash'];
 $openAiKey=trim((string)($config['openai_api_key']??(getenv('OPENAI_API_KEY')?:'')));
-$voiceOrderReady=!$testingNoAuth && $openAiKey!=='';
+$voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
+
+$pinSetupToken=(string)($_GET['setup_pin']??$_POST['setup_pin']??'');
+$pinSetupAuthorized=!$pinSetupComplete && $pinSetupToken!=='' && hash_equals($pinSetupTokenHash,hash('sha256',$pinSetupToken));
 
 if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();}
+
+if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin_pin'){
+ try{
+  if(!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??'')))throw new Exception('Please refresh the page and try again.');
+  if(!$pinSetupAuthorized)throw new Exception('This PIN setup link is invalid or has already been used.');
+  $pin=(string)($_POST['pin']??'');$confirm=(string)($_POST['confirm_pin']??'');
+  if(!preg_match('/^\\d{4}$/',$pin))throw new Exception('Choose exactly 4 numbers.');
+  if($pin!==$confirm)throw new Exception('The two PINs do not match.');
+  saveSetting($db,'admin_pin_hash',password_hash($pin,PASSWORD_DEFAULT));
+  saveSetting($db,'pin_setup_completed_at',gmdate('c'));
+  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  header('Location: ./?view=dashboard&pin_created=1');exit;
+ }catch(Throwable $ex){$error=$ex->getMessage();}
+}
 
 function orderActionDate(string $value,string $label):string{
  $value=trim($value);if($value==='')return '';
@@ -369,7 +390,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if ($action==='login') {
   $ip=hash('sha256',$_SERVER['REMOTE_ADDR']??'unknown');$q=$db->prepare('SELECT * FROM attempts WHERE ip=?');$q->execute([$ip]);$a=$q->fetch(PDO::FETCH_ASSOC);
   if($a && $a['failures']>=5 && time()-(int)$a['started']<900) throw new Exception('Too many attempts. Please wait 15 minutes.');
-  if(!password_verify((string)($_POST['password']??''),$config['password_hash'])){
+  if(!password_verify((string)($_POST['password']??''),$adminPasswordHash)){
    if(!$a || time()-(int)$a['started']>=900){$q=$db->prepare('INSERT OR REPLACE INTO attempts VALUES (?,1,?)');$q->execute([$ip,time()]);}
    else{$q=$db->prepare('UPDATE attempts SET failures=failures+1 WHERE ip=?');$q->execute([$ip]);}
    throw new Exception('Password not recognised.');
@@ -540,10 +561,13 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile37"></head><body>
-<?php if(!$auth): ?>
-<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
-<form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile38"></head><body>
+<?php if($pinSetupAuthorized): ?>
+<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
+<form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
+<?php elseif(!$auth): ?>
+<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Enter your PIN.</h1><p class="muted">Use your 4-digit ANKH Admin PIN.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>4-digit PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
