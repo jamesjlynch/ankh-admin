@@ -62,6 +62,7 @@ $currentRetailCatalog=[
  'Tesamorelin 2mg'=>2299,
  'Tesamorelin 10mg'=>4499,
  'Retatrutide 10mg'=>4500,
+ 'Retatrutide 20mg'=>9000,
  'Melanotan 1 10mg'=>2499,
  'KissPeptin-10 5mg'=>2499,
  'DSIP 5mg'=>1100,
@@ -75,7 +76,7 @@ $currentRetailCatalog=[
  'BAC Water 10ml'=>399,
  'Acetic Acid 0.6% 10ml'=>499
 ];
-$catalogVersion='retail-posters-2026-09-22-v1';
+$catalogVersion='retail-posters-2026-09-22-v2';
 if(setting($db,'retail_catalog_version')!==$catalogVersion){
  $db->beginTransaction();
  try{
