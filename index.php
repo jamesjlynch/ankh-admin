@@ -561,7 +561,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile38"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile39"></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -822,6 +822,21 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div id="voice-order-transcript" class="voice-order-transcript" hidden></div>
 <div id="voice-order-questions" class="voice-order-questions" hidden></div>
 </section>
+<div id="voice-order-overlay" class="voice-order-overlay" hidden>
+ <div class="voice-order-overlay-card" role="dialog" aria-modal="true" aria-labelledby="voice-overlay-title">
+  <div class="voice-order-tip">Speak naturally — I’ll turn it into an order</div>
+  <button type="button" id="voice-order-orb" class="voice-order-orb" aria-label="Stop recording and build order draft">
+   <span class="voice-order-ring ring-one" aria-hidden="true"></span>
+   <span class="voice-order-ring ring-two" aria-hidden="true"></span>
+   <span class="voice-order-ankh" aria-hidden="true">☥</span>
+  </button>
+  <h2 id="voice-overlay-title">Listening…</h2>
+  <p id="voice-overlay-message">Say the customer, products, quantities, format, delivery and who it’s assigned to.</p>
+  <div id="voice-order-timer" class="voice-order-timer">00:00</div>
+  <button type="button" id="voice-order-stop" class="voice-order-stop"><span aria-hidden="true">■</span> STOP &amp; BUILD DRAFT</button>
+  <small id="voice-overlay-help">Tap STOP when you’ve finished speaking</small>
+ </div>
+</div>
 <form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order">
 
 <section class="wizard-step" data-wizard-step="1">
@@ -1225,12 +1240,39 @@ togglePostageFields();updateTotal();
 wizard?.addEventListener('input',saveDraftOrder);wizard?.addEventListener('change',saveDraftOrder);
 
 const voiceOrderButton=document.querySelector('#voice-order-button'),voiceOrderPanel=document.querySelector('#voice-order-panel'),voiceOrderTitle=document.querySelector('#voice-order-title'),voiceOrderMessage=document.querySelector('#voice-order-message'),voiceOrderTranscript=document.querySelector('#voice-order-transcript'),voiceOrderQuestions=document.querySelector('#voice-order-questions'),voiceOrderPulse=document.querySelector('#voice-order-pulse');
-let voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStopTimer=null;
+const voiceOrderOverlay=document.querySelector('#voice-order-overlay'),voiceOrderOrb=document.querySelector('#voice-order-orb'),voiceOrderStop=document.querySelector('#voice-order-stop'),voiceOverlayTitle=document.querySelector('#voice-overlay-title'),voiceOverlayMessage=document.querySelector('#voice-overlay-message'),voiceOverlayHelp=document.querySelector('#voice-overlay-help'),voiceOrderTimer=document.querySelector('#voice-order-timer');
+let voiceRecorder=null,voiceStream=null,voiceChunks=[],voiceStopTimer=null,voiceElapsedTimer=null,voiceStartedAt=0;
+function stopVoiceElapsedTimer(){if(voiceElapsedTimer){clearInterval(voiceElapsedTimer);voiceElapsedTimer=null}}
+function updateVoiceTimer(){
+ if(!voiceOrderTimer||!voiceStartedAt)return;const seconds=Math.max(0,Math.floor((Date.now()-voiceStartedAt)/1000)),mins=Math.floor(seconds/60),secs=seconds%60;
+ voiceOrderTimer.textContent=String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+}
+function setVoiceOverlay(state){
+ const open=state==='recording'||state==='working';
+ if(voiceOrderOverlay)voiceOrderOverlay.hidden=!open;
+ document.body.classList.toggle('voice-overlay-open',open);
+ if(!open){stopVoiceElapsedTimer();return}
+ voiceOrderOverlay?.classList.toggle('working',state==='working');
+ if(voiceOrderStop){voiceOrderStop.hidden=state==='working';voiceOrderStop.disabled=state==='working'}
+ if(voiceOrderOrb)voiceOrderOrb.disabled=state==='working';
+ if(state==='recording'){
+  if(voiceOverlayTitle)voiceOverlayTitle.textContent='Listening…';
+  if(voiceOverlayMessage)voiceOverlayMessage.textContent='Say the customer, products, quantities, Pen / Cartridge / Vial, delivery and James or Tony.';
+  if(voiceOverlayHelp)voiceOverlayHelp.textContent='Tap the big circle or STOP when you’ve finished speaking';
+  voiceStartedAt=Date.now();if(voiceOrderTimer)voiceOrderTimer.textContent='00:00';stopVoiceElapsedTimer();voiceElapsedTimer=setInterval(updateVoiceTimer,500);
+ }else{
+  stopVoiceElapsedTimer();
+  if(voiceOverlayTitle)voiceOverlayTitle.textContent='Building your order…';
+  if(voiceOverlayMessage)voiceOverlayMessage.textContent='I’m transcribing what you said and matching it to ANKH products.';
+  if(voiceOverlayHelp)voiceOverlayHelp.textContent='This normally only takes a few seconds';
+ }
+}
 function setVoiceState(title,message,state='idle'){
  if(voiceOrderPanel)voiceOrderPanel.hidden=false;if(voiceOrderTitle)voiceOrderTitle.textContent=title;if(voiceOrderMessage)voiceOrderMessage.textContent=message;
  if(voiceOrderPulse){voiceOrderPulse.classList.toggle('recording',state==='recording');voiceOrderPulse.classList.toggle('working',state==='working')}
+ setVoiceOverlay(state);
 }
-function stopVoiceTracks(){if(voiceStopTimer){clearTimeout(voiceStopTimer);voiceStopTimer=null}voiceStream?.getTracks().forEach(track=>track.stop());voiceStream=null}
+function stopVoiceTracks(){if(voiceStopTimer){clearTimeout(voiceStopTimer);voiceStopTimer=null}stopVoiceElapsedTimer();voiceStream?.getTracks().forEach(track=>track.stop());voiceStream=null}
 function voiceMimeType(){
  const options=['audio/mp4','audio/webm;codecs=opus','audio/webm'];return options.find(type=>window.MediaRecorder?.isTypeSupported?.(type))||'';
 }
@@ -1278,10 +1320,18 @@ async function startVoiceOrder(){
   voiceRecorder.addEventListener('dataavailable',event=>{if(event.data?.size)voiceChunks.push(event.data)});
   voiceRecorder.addEventListener('stop',()=>{const type=voiceRecorder.mimeType||mime||'audio/mp4',blob=new Blob(voiceChunks,{type});stopVoiceTracks();if(blob.size>100)sendVoiceOrder(blob,type);else setVoiceState('No audio captured','Try again and speak after the microphone starts.','error')},{once:true});
   voiceRecorder.start();voiceOrderButton.innerHTML='<span aria-hidden="true">■</span><span>Stop & build draft</span>';setVoiceState('Listening…','Say the customer, products, quantities, Pen/Cartridge/Vial, delivery and James or Tony if assigned.','recording');
-  voiceStopTimer=setTimeout(()=>{if(voiceRecorder?.state==='recording')voiceRecorder.stop()},60000);
+  voiceStopTimer=setTimeout(()=>{if(voiceRecorder?.state==='recording')stopVoiceOrderRecording()},60000);
  }catch(error){stopVoiceTracks();setVoiceState('Microphone permission needed','Allow microphone access in Safari and try again.','error')}
 }
-voiceOrderButton?.addEventListener('click',()=>{if(voiceRecorder?.state==='recording'){voiceRecorder.stop();voiceOrderButton.disabled=true}else startVoiceOrder()});
+function stopVoiceOrderRecording(){
+ if(voiceRecorder?.state!=='recording')return;
+ setVoiceState('Building draft','Transcribing your order and matching it to ANKH products…','working');
+ voiceOrderButton.disabled=true;voiceOrderButton.innerHTML='<span aria-hidden="true">…</span><span>Working</span>';
+ voiceRecorder.stop();
+}
+voiceOrderButton?.addEventListener('click',()=>{if(voiceRecorder?.state==='recording')stopVoiceOrderRecording();else startVoiceOrder()});
+voiceOrderStop?.addEventListener('click',stopVoiceOrderRecording);
+voiceOrderOrb?.addEventListener('click',stopVoiceOrderRecording);
 
 orderForm?.addEventListener('submit',e=>{
  if(!customerSearch?.value.trim()){e.preventDefault();if(wizard)showWizardStep(1);customerSearch?.reportValidity();return}
