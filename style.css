@@ -1494,3 +1494,16 @@ body.voice-overlay-open{overflow:hidden}
     font-size:12px;
   }
 }
+
+.voice-order-alias{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin-top:8px;
+  padding:5px 8px;
+  border-radius:999px;
+  background:#2a2316;
+  color:#cfc5ac;
+  font-size:9px;
+}
+.voice-order-alias strong{color:var(--gold)}
