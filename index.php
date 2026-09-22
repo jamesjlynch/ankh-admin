@@ -838,109 +838,200 @@ function filterCustomerPage(){if(!customerCards.length)return;const term=(custom
 customerPageSearch?.addEventListener('input',filterCustomerPage);customerStatusFilter?.addEventListener('change',filterCustomerPage);filterCustomerPage();
 
 const wizard=document.querySelector('#order-wizard'),wizardSteps=[...document.querySelectorAll('[data-wizard-step]')],wizardProgress=[...document.querySelectorAll('[data-progress-step]')],clearDraftButton=document.querySelector('#clear-draft');
-let currentWizardStep=1;
-function showWizardStep(step){
- if(!wizard)return;
- currentWizardStep=Number(step)||1;
- wizardSteps.forEach(section=>section.hidden=Number(section.dataset.wizardStep)!==Number(step));
- wizardProgress.forEach(item=>{const n=Number(item.dataset.progressStep);item.classList.toggle('active',n===Number(step));item.classList.toggle('done',n<Number(step))});
- document.activeElement?.blur();
- wizard.scrollIntoView({behavior:'smooth',block:'start'});
- if(Number(step)===3){setTimeout(()=>{productSearch?.focus();showProductResults()},250)}
- if(Number(step)===4)buildOrderCheck();
- if(typeof saveDraftOrder==='function')saveDraftOrder();
+const orderForm=document.querySelector('#order-wizard,#edit-order-form');
+const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
+const productCatalog=<?=json_encode($productCatalogForJs,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
+const initialOrderLines=<?=json_encode($view==='edit'?$editLines:$repeatLines,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
+const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
+const productSearch=document.querySelector('#product-search'),productResults=document.querySelector('#product-results'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),selectedLinesContainer=document.querySelector('#selected-order-lines'),selectedEmpty=document.querySelector('#selected-empty'),addAnotherHint=document.querySelector('#add-another-hint');
+const deliveryMethodSelect=document.querySelector('#delivery-method'),postageFields=document.querySelector('#postage-fields'),deliveryChargeInput=document.querySelector('#delivery-charge'),postageCostInput=document.querySelector('#postage-cost'),trackingReferenceInput=document.querySelector('#tracking-reference'),paymentMethodInput=document.querySelector('#payment-method'),paymentFeeInput=document.querySelector('#payment-fee');
+const draftEnabled=wizard?.dataset.draftEnabled==='1';
+let currentWizardStep=1,lineCounter=0;
+
+function moneyFormat(value){return new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(Number(value)||0)}
+function selectedOrderCards(){return [...document.querySelectorAll('.order-line-card')]}
+function lineData(card){
+ return {
+  product_id:Number(card.querySelector('[data-line-product]')?.value||0),
+  quantity:Number(card.querySelector('[data-line-quantity]')?.value||0),
+  presentation:card.querySelector('[data-line-presentation]')?.value||'',
+  base_price:Number(card.querySelector('[data-line-base-price]')?.value||0),
+  discount:card.querySelector('[data-line-discount]')?.value==='1',
+  price:Number(card.querySelector('[data-line-price]')?.value||0)
+ };
 }
-function selectedOrderRows(){return productRows.filter(row=>Number(row.querySelector('.quantity')?.value||0)>0)}
+function calculatedLinePrice(card){
+ const data=lineData(card);return Math.max(0,data.base_price-(data.discount?5:0)+(data.presentation==='Pen'?20:0));
+}
+function refreshLineVisuals(card){
+ const data=lineData(card);
+ card.querySelectorAll('[data-line-format]').forEach(button=>button.classList.toggle('selected',button.dataset.lineFormat===data.presentation));
+ const family=card.querySelector('[data-family-line]');if(family){family.classList.toggle('selected',data.discount);family.setAttribute('aria-pressed',data.discount?'true':'false')}
+ const priceOut=card.querySelector('[data-line-total]');if(priceOut)priceOut.textContent=moneyFormat(data.price*data.quantity);
+}
+function recalculateLinePrice(card){
+ const price=card.querySelector('[data-line-price]');if(price)price.value=calculatedLinePrice(card).toFixed(2);refreshLineVisuals(card);updateTotal();
+}
+function updateSelectedState(){
+ const count=selectedOrderCards().length;if(selectedEmpty)selectedEmpty.hidden=count>0;if(addAnotherHint)addAnotherHint.hidden=count===0;
+}
+function createFormatButton(value,icon){
+ const button=document.createElement('button');button.type='button';button.className='line-format-button';button.dataset.lineFormat=value;
+ const iconSpan=document.createElement('span');iconSpan.className='line-format-icon';iconSpan.textContent=icon;
+ const label=document.createElement('strong');label.textContent=value;button.append(iconSpan,label);return button;
+}
+function addOrderLine(data={},scroll=true){
+ if(!selectedLinesContainer)return null;
+ const product=productCatalog.find(p=>Number(p.id)===Number(data.product_id));if(!product)return null;
+ const key='l'+(++lineCounter)+'_'+Date.now().toString(36);
+ const base=Number(data.base_price??product.price)||0,qty=Math.max(1,Number(data.quantity)||1),presentation=data.presentation||'',discount=!!data.discount;
+ const initialCalculated=Math.max(0,base-(discount?5:0)+(presentation==='Pen'?20:0));
+ const price=data.price===undefined||data.price===null?initialCalculated:Number(data.price);
+
+ const card=document.createElement('article');card.className='order-line-card';card.dataset.productName=product.name;card.dataset.productStrength=product.strength||'';
+ const head=document.createElement('div');head.className='order-line-head';
+ const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=product.name;const baseText=document.createElement('small');baseText.textContent='Peptide '+moneyFormat(base);titleWrap.append(title,baseText);
+ const remove=document.createElement('button');remove.type='button';remove.className='line-remove';remove.setAttribute('aria-label','Remove '+product.name);remove.textContent='×';head.append(titleWrap,remove);card.append(head);
+
+ const hiddenProduct=document.createElement('input');hiddenProduct.type='hidden';hiddenProduct.name='lines['+key+'][product_id]';hiddenProduct.value=String(product.id);hiddenProduct.dataset.lineProduct='';
+ const hiddenBase=document.createElement('input');hiddenBase.type='hidden';hiddenBase.name='lines['+key+'][base_price]';hiddenBase.value=base.toFixed(2);hiddenBase.dataset.lineBasePrice='';
+ const hiddenPresentation=document.createElement('input');hiddenPresentation.type='hidden';hiddenPresentation.name='lines['+key+'][presentation]';hiddenPresentation.value=presentation;hiddenPresentation.dataset.linePresentation='';
+ const hiddenDiscount=document.createElement('input');hiddenDiscount.type='hidden';hiddenDiscount.name='lines['+key+'][discount]';hiddenDiscount.value=discount?'1':'0';hiddenDiscount.dataset.lineDiscount='';
+ card.append(hiddenProduct,hiddenBase,hiddenPresentation,hiddenDiscount);
+
+ const formatTitle=document.createElement('span');formatTitle.className='line-section-label';formatTitle.textContent='Choose format';
+ const formats=document.createElement('div');formats.className='line-format-picker';
+ [['Pen','▯'],['Cartridge','▤'],['Vial','◉']].forEach(([value,icon])=>{const button=createFormatButton(value,icon);button.addEventListener('click',()=>{hiddenPresentation.value=value;recalculateLinePrice(card);saveDraftOrder()});formats.append(button)});
+ card.append(formatTitle,formats);
+
+ if((product.strength||'').toLowerCase().endsWith('mg')){
+  const family=document.createElement('button');family.type='button';family.className='family-discount line-family-discount';family.dataset.familyLine='';family.setAttribute('aria-pressed',discount?'true':'false');
+  const familyLabel=document.createElement('span');familyLabel.textContent='Family & Friends';const familyValue=document.createElement('strong');familyValue.textContent='−£5';family.append(familyLabel,familyValue);
+  family.addEventListener('click',()=>{hiddenDiscount.value=hiddenDiscount.value==='1'?'0':'1';recalculateLinePrice(card);saveDraftOrder()});card.append(family);
+ }
+
+ const controls=document.createElement('div');controls.className='line-controls';
+ const qtyWrap=document.createElement('div');qtyWrap.className='line-quantity';const qtyLabel=document.createElement('span');qtyLabel.textContent='Quantity';
+ const stepper=document.createElement('div');stepper.className='stepper';const minus=document.createElement('button');minus.type='button';minus.textContent='−';const qtyInput=document.createElement('input');qtyInput.type='number';qtyInput.min='1';qtyInput.max='999';qtyInput.inputMode='numeric';qtyInput.name='lines['+key+'][quantity]';qtyInput.value=String(qty);qtyInput.dataset.lineQuantity='';const plus=document.createElement('button');plus.type='button';plus.textContent='+';
+ stepper.append(minus,qtyInput,plus);qtyWrap.append(qtyLabel,stepper);
+ const priceLabel=document.createElement('label');priceLabel.className='line-price-field';priceLabel.textContent='Price each (£)';const priceInput=document.createElement('input');priceInput.type='number';priceInput.min='0';priceInput.max='100000';priceInput.step='.01';priceInput.inputMode='decimal';priceInput.name='lines['+key+'][price]';priceInput.value=(Number.isFinite(price)?price:initialCalculated).toFixed(2);priceInput.dataset.linePrice='';priceLabel.append(priceInput);
+ controls.append(qtyWrap,priceLabel);card.append(controls);
+ const lineTotal=document.createElement('div');lineTotal.className='line-card-total';lineTotal.innerHTML='<span>Line total</span><strong data-line-total></strong>';card.append(lineTotal);
+
+ remove.addEventListener('click',()=>{card.remove();updateSelectedState();updateTotal();saveDraftOrder()});
+ minus.addEventListener('click',()=>{qtyInput.value=String(Math.max(1,Number(qtyInput.value||1)-1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});
+ plus.addEventListener('click',()=>{qtyInput.value=String(Math.min(999,Number(qtyInput.value||1)+1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});
+ qtyInput.addEventListener('input',()=>{if(Number(qtyInput.value)<1)qtyInput.value='1';refreshLineVisuals(card);updateTotal();saveDraftOrder()});
+ priceInput.addEventListener('input',()=>{refreshLineVisuals(card);updateTotal();saveDraftOrder()});
+
+ selectedLinesContainer.append(card);refreshLineVisuals(card);updateSelectedState();updateTotal();
+ if(scroll){productSearch?.blur();setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'center'}),80)}
+ return card;
+}
+
+function updateTotal(){
+ let total=selectedOrderCards().reduce((sum,card)=>{const d=lineData(card);return sum+(d.price*d.quantity)},0);
+ if(deliveryMethodSelect?.value==='Postage')total+=Math.max(0,Number(deliveryChargeInput?.value)||0);
+ const out=document.querySelector('#subtotal');if(out){out.setAttribute('aria-live','polite');out.textContent=moneyFormat(total)}
+ selectedOrderCards().forEach(refreshLineVisuals);updateSelectedState();
+}
+function validateLines(){
+ const cards=selectedOrderCards();if(!cards.length){alert('Add at least one peptide.');return false}
+ const missing=cards.find(card=>!lineData(card).presentation);
+ if(missing){missing.classList.add('needs-format');missing.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>missing.classList.remove('needs-format'),1600);alert('Choose Pen, Cartridge or Vial for each peptide.');return false}
+ return true;
+}
 function buildOrderCheck(){
- const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products'),presentation=document.querySelector('#check-presentation'),presentationDetail=document.querySelector('#check-presentation-detail'),orderDate=document.querySelector('#order-date'),checkOrderDate=document.querySelector('#check-order-date'),checkDelivery=document.querySelector('#check-delivery'),checkDeliveryDetail=document.querySelector('#check-delivery-detail');
+ const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products'),orderDate=document.querySelector('#order-date'),checkOrderDate=document.querySelector('#check-order-date'),checkDelivery=document.querySelector('#check-delivery'),checkDeliveryDetail=document.querySelector('#check-delivery-detail');
  if(customer)customer.textContent=customerSearch?.value.trim()||'—';
  if(detail){const bits=[customerPhone?.value.trim(),document.querySelector('#customer-referrer')?.value.trim()].filter(Boolean);detail.textContent=bits.join(' · ')}
  if(checkOrderDate&&orderDate?.value){const d=new Date(orderDate.value+'T12:00:00');checkOrderDate.textContent=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
- if(presentation)presentation.textContent=presentationInput?.value||'—';
- if(presentationDetail)presentationDetail.textContent='';
  if(checkDelivery)checkDelivery.textContent=deliveryMethodSelect?.value||'—';
  if(checkDeliveryDetail){const bits=[];if(deliveryMethodSelect?.value==='Postage'&&Number(deliveryChargeInput?.value||0)>0)bits.push('Postage charged £'+Number(deliveryChargeInput.value).toFixed(2));if(trackingReferenceInput?.value.trim())bits.push(trackingReferenceInput.value.trim());checkDeliveryDetail.textContent=bits.join(' · ')}
- if(products){products.replaceChildren();selectedOrderRows().forEach(row=>{const q=Number(row.querySelector('.quantity')?.value||0),price=Number(row.querySelector('.line-price')?.value||0),line=document.createElement('div');line.className='check-product-line';const name=document.createElement('span');name.textContent=q+' × '+row.dataset.productLabel;const amount=document.createElement('strong');amount.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(q*price);line.append(name,amount);products.append(line)})}
+ if(products){products.replaceChildren();selectedOrderCards().forEach(card=>{const d=lineData(card),line=document.createElement('div');line.className='check-product-line';const name=document.createElement('span');name.textContent=d.quantity+' × '+card.dataset.productName+' · '+d.presentation+(d.discount?' · Family & Friends':'');const amount=document.createElement('strong');amount.textContent=moneyFormat(d.quantity*d.price);line.append(name,amount);products.append(line)})}
  updateTotal();
+}
+
+function showWizardStep(step){
+ if(!wizard)return;currentWizardStep=Number(step)||1;
+ wizardSteps.forEach(section=>section.hidden=Number(section.dataset.wizardStep)!==Number(step));
+ wizardProgress.forEach(item=>{const n=Number(item.dataset.progressStep);item.classList.toggle('active',n===Number(step));item.classList.toggle('done',n<Number(step))});
+ document.activeElement?.blur();wizard.scrollIntoView({behavior:'smooth',block:'start'});
+ if(Number(step)===2)setTimeout(()=>productSearch?.focus(),220);
+ if(Number(step)===3)buildOrderCheck();
+ saveDraftOrder();
 }
 document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventListener('click',()=>{
  const next=Number(button.dataset.wizardNext);
  if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}const orderDate=document.querySelector('#order-date');if(!orderDate?.value||!orderDate.checkValidity()){orderDate?.reportValidity();orderDate?.focus();return}if(!deliveryMethodSelect?.value){deliveryMethodSelect?.reportValidity();deliveryMethodSelect?.focus();return}}
- if(next===3&&!presentationInput?.value){alert('Choose Pen, Cartridge or Vial first.');return}
- if(next===4&&!selectedOrderRows().length){alert('Add at least one product before continuing.');productSearch?.focus();showProductResults();return}
- showWizardStep(next);
+ if(next===3&&!validateLines())return;showWizardStep(next);
 }));
 document.querySelectorAll('[data-wizard-back]').forEach(button=>button.addEventListener('click',()=>showWizardStep(Number(button.dataset.wizardBack))));
 
-const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
-const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
-function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}customerSearch?.focus();if(typeof saveDraftOrder==='function')saveDraftOrder()}
-function showCustomerResults(){if(!customerSearch||!customerResults)return;const term=customerSearch.value.toLowerCase().trim();customerResults.replaceChildren();if(term.length<1){customerResults.hidden=true;return}const matches=customerSuggestions.filter(c=>(c.name||'').toLowerCase().includes(term)||(c.phone||'').toLowerCase().includes(term)).slice(0,8);if(!matches.length){customerResults.hidden=true;return}matches.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='customer-result';b.setAttribute('role','option');const main=document.createElement('strong');main.textContent=c.name||'Customer';const detail=document.createElement('span');detail.textContent=c.phone||'';b.append(main,detail);if(c.address){const addr=document.createElement('small');addr.textContent=c.address.replace(/\s+/g,' ').trim();b.append(addr)}b.addEventListener('click',()=>chooseCustomer(c));customerResults.append(b)});customerResults.hidden=false}
-customerSearch?.addEventListener('input',showCustomerResults);
-customerSearch?.addEventListener('focus',showCustomerResults);
+function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}customerSearch?.blur();saveDraftOrder()}
+function showCustomerResults(){if(!customerSearch||!customerResults)return;const term=customerSearch.value.toLowerCase().trim();customerResults.replaceChildren();if(term.length<1){customerResults.hidden=true;return}const matches=customerSuggestions.filter(c=>(c.name||'').toLowerCase().includes(term)||(c.phone||'').toLowerCase().includes(term)).slice(0,8);if(!matches.length){customerResults.hidden=true;return}matches.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='customer-result';b.setAttribute('role','option');const main=document.createElement('strong');main.textContent=c.name||'Customer';const info=document.createElement('span');info.textContent=c.phone||'';b.append(main,info);if(c.address){const addr=document.createElement('small');addr.textContent=c.address.replace(/\s+/g,' ').trim();b.append(addr)}b.addEventListener('click',()=>chooseCustomer(c));customerResults.append(b)});customerResults.hidden=false}
+customerSearch?.addEventListener('input',showCustomerResults);customerSearch?.addEventListener('focus',showCustomerResults);
 document.querySelectorAll('[data-recent-customer]').forEach(button=>button.addEventListener('click',()=>{const customer=customerSuggestions.find(c=>String(c.id)===button.dataset.recentCustomer);if(customer)chooseCustomer(customer)}));
 document.addEventListener('click',e=>{if(customerResults&&!e.target.closest('.customer-search-wrap'))customerResults.hidden=true});
 
 const search=document.querySelector('#search'),filter=document.querySelector('#filter');
-function applyFilters(){let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});document.querySelector('#empty').hidden=visible>0}
+function applyFilters(){if(!search||!filter)return;let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});const empty=document.querySelector('#empty');if(empty)empty.hidden=visible>0}
 search?.addEventListener('input',applyFilters);filter?.addEventListener('change',applyFilters);
-const productSearch=document.querySelector('#product-search'),productResults=document.querySelector('#product-results'),productRows=[...document.querySelectorAll('[data-product-id]')],selectedEmpty=document.querySelector('#selected-empty'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),presentationInput=document.querySelector('#presentation'),presentationButtons=[...document.querySelectorAll('[data-presentation]')],productChoiceArea=document.querySelector('#product-choice-area'),deliveryMethodSelect=document.querySelector('#delivery-method'),postageFields=document.querySelector('#postage-fields'),deliveryChargeInput=document.querySelector('#delivery-charge'),postageCostInput=document.querySelector('#postage-cost'),trackingReferenceInput=document.querySelector('#tracking-reference'),paymentMethodInput=document.querySelector('#payment-method'),paymentFeeInput=document.querySelector('#payment-fee');
-function togglePostageFields(){const isPostage=deliveryMethodSelect?.value==='Postage';if(postageFields)postageFields.hidden=!isPostage;if(!isPostage){if(trackingReferenceInput)trackingReferenceInput.value='';if(deliveryChargeInput)deliveryChargeInput.value='0.00';if(postageCostInput)postageCostInput.value='0.00'}updateTotal();if(typeof saveDraftOrder==='function')saveDraftOrder()}
-deliveryMethodSelect?.addEventListener('change',togglePostageFields);
-const draftEnabled=wizard?.dataset.draftEnabled==='1';
+
+function productGroups(){
+ const groups=new Map();productCatalog.filter(p=>p.active).forEach(product=>{const key=(product.base||product.name).toLowerCase();if(!groups.has(key))groups.set(key,{base:product.base||product.name,products:[]});groups.get(key).products.push(product)});return [...groups.values()];
+}
+function chooseProduct(product){
+ addOrderLine({product_id:product.id,quantity:1,presentation:'',base_price:product.price,discount:false,price:product.price},true);
+ if(strengthPicker)strengthPicker.hidden=true;if(productResults){productResults.hidden=true;productResults.replaceChildren()}if(productSearch){productSearch.value='';productSearch.blur()}
+}
+function showStrengths(group){
+ if(!strengthPicker||!strengthOptions||!strengthProductName)return;strengthProductName.textContent=group.base;strengthOptions.replaceChildren();
+ [...group.products].sort((a,b)=>(parseFloat(a.strength)||0)-(parseFloat(b.strength)||0)).forEach(product=>{const button=document.createElement('button');button.type='button';button.className='strength-option';const strength=document.createElement('strong');strength.textContent=product.strength||'Add';const price=document.createElement('span');price.textContent=moneyFormat(product.price);button.append(strength,price);button.addEventListener('click',()=>chooseProduct(product));strengthOptions.append(button)});
+ strengthPicker.hidden=false;productResults.hidden=true;productSearch?.blur();strengthPicker.scrollIntoView({block:'nearest',behavior:'smooth'});
+}
+function showProductResults(){
+ if(!productSearch||!productResults)return;const term=productSearch.value.toLowerCase().trim();productResults.replaceChildren();const groups=productGroups();
+ let matches;if(!term){const reta=groups.find(group=>group.base.toLowerCase()==='retatrutide');matches=reta?[reta]:[]}else{matches=groups.filter(group=>group.base.toLowerCase().includes(term)).sort((a,b)=>a.base.toLowerCase()==='retatrutide'?-1:b.base.toLowerCase()==='retatrutide'?1:a.base.localeCompare(b.base)).slice(0,8)}
+ if(!matches.length){productResults.hidden=true;return}
+ matches.forEach(group=>{const button=document.createElement('button');button.type='button';button.className='product-result';button.setAttribute('role','option');const name=document.createElement('strong');name.textContent=group.base;const info=document.createElement('span');const strengths=group.products.map(p=>p.strength).filter(Boolean).sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));info.textContent=strengths.length?strengths.join(' · '):(group.products.length>1?'Choose option':'Add');button.append(name,info);button.addEventListener('click',()=>group.products.length===1?chooseProduct(group.products[0]):showStrengths(group));productResults.append(button)});
+ productResults.hidden=false;
+}
+productSearch?.addEventListener('input',()=>{if(strengthPicker)strengthPicker.hidden=true;showProductResults()});productSearch?.addEventListener('focus',showProductResults);
+closeStrengthPicker?.addEventListener('click',()=>{strengthPicker.hidden=true;productSearch?.blur()});
+document.addEventListener('click',e=>{if(productResults&&!e.target.closest('.product-search-wrap')&&!e.target.closest('.strength-picker'))productResults.hidden=true});
+
+function togglePostageFields(){
+ const isPostage=deliveryMethodSelect?.value==='Postage';if(postageFields)postageFields.hidden=!isPostage;
+ if(!isPostage){if(trackingReferenceInput)trackingReferenceInput.value='';if(deliveryChargeInput)deliveryChargeInput.value='0.00';if(postageCostInput)postageCostInput.value='0.00'}
+ updateTotal();saveDraftOrder();
+}
+deliveryMethodSelect?.addEventListener('change',togglePostageFields);deliveryChargeInput?.addEventListener('input',()=>{updateTotal();saveDraftOrder()});paymentFeeInput?.addEventListener('input',saveDraftOrder);trackingReferenceInput?.addEventListener('input',saveDraftOrder);paymentMethodInput?.addEventListener('change',saveDraftOrder);
+
+function serializeLines(){return selectedOrderCards().map(card=>lineData(card))}
 function saveDraftOrder(){
  if(!draftEnabled||!wizard)return;
- const qty={},price={};productRows.forEach(row=>{const id=row.dataset.productId,q=Number(row.querySelector('.quantity')?.value||0);if(q>0){qty[id]=q;price[id]=row.querySelector('.line-price')?.value||row.dataset.standardPrice}});
- const draft={step:currentWizardStep,customer:customerSearch?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',presentation:presentationInput?.value||'',delivery_method:deliveryMethodSelect?.value||'',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',payment_fee:paymentFeeInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',qty,price};
- const useful=draft.customer||draft.phone||draft.address||draft.presentation||Object.keys(qty).length;
- try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
+ const draft={step:currentWizardStep,customer:customerSearch?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',delivery_method:deliveryMethodSelect?.value||'Local Delivery',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',payment_fee:paymentFeeInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',lines:serializeLines()};
+ const useful=draft.customer||draft.phone||draft.address||draft.lines.length;try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
 }
 function restoreDraftOrder(){
- if(!draftEnabled||!wizard)return;
- let draft=null;try{draft=JSON.parse(localStorage.getItem(orderDraftKey)||'null')}catch(_){}
- if(!draft)return;
+ if(!draftEnabled||!wizard)return false;let draft=null;try{draft=JSON.parse(localStorage.getItem(orderDraftKey)||'null')}catch(_){}if(!draft)return false;
  if(customerSearch)customerSearch.value=draft.customer||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
- const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||deliveryMethodSelect.value||'Local Delivery';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';if(paymentFeeInput)paymentFeeInput.value=draft.payment_fee||'0.00';togglePostageFields();
- productRows.forEach(row=>{const id=row.dataset.productId,q=row.querySelector('.quantity'),p=row.querySelector('.line-price');if(draft.qty?.[id]){q.value=draft.qty[id];row.hidden=false}if(draft.price?.[id]&&p)p.value=draft.price[id]});
- if(draft.presentation)setPresentation(draft.presentation);updateTotal();if(clearDraftButton)clearDraftButton.hidden=false;showWizardStep(Math.min(4,Math.max(1,Number(draft.step)||1)));
+ const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
+ if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||'Local Delivery';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';if(paymentFeeInput)paymentFeeInput.value=draft.payment_fee||'0.00';
+ selectedLinesContainer?.replaceChildren();(draft.lines||[]).forEach(line=>addOrderLine(line,false));if(clearDraftButton)clearDraftButton.hidden=false;togglePostageFields();showWizardStep(Math.min(3,Math.max(1,Number(draft.step)||1)));return true;
 }
 clearDraftButton?.addEventListener('click',()=>{try{localStorage.removeItem(orderDraftKey)}catch(_){}location.href='?view=new'});
-function setPresentation(value){
- if(!presentationInput)return;
- presentationInput.value=value;
- presentationButtons.forEach(b=>b.classList.toggle('selected',b.dataset.presentation===value));
- if(productChoiceArea)productChoiceArea.hidden=!value;
- updateTotal();
- if(typeof saveDraftOrder==='function')saveDraftOrder();
-}
-presentationButtons.forEach(b=>b.addEventListener('click',()=>setPresentation(b.dataset.presentation)));
-if(presentationInput?.value)setPresentation(presentationInput.value);
-function updateTotal(){let total=0,selected=0;document.querySelectorAll('.quantity').forEach(x=>{const row=x.closest('.product-pick'),price=Math.max(0,Number(row.querySelector('.line-price')?.value)||0),qty=Math.max(0,Number(x.value)||0);total+=qty*price;row.classList.toggle('picked',qty>0);row.hidden=qty<=0;if(qty>0)selected++});if(presentationInput?.value==='Pen')total+=20;if(deliveryMethodSelect?.value==='Postage')total+=Math.max(0,Number(deliveryChargeInput?.value)||0);if(selectedEmpty)selectedEmpty.hidden=selected>0;const out=document.querySelector('#subtotal');if(out){out.setAttribute('aria-live','polite');out.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(total)}}
-function addProduct(row){if(!row)return;const q=row.querySelector('.quantity');row.hidden=false;if((Number(q.value)||0)<1)q.value=1;updateTotal();if(strengthPicker)strengthPicker.hidden=true;if(productSearch){productSearch.value='';productSearch.blur()}if(productResults){productResults.hidden=true;productResults.replaceChildren()}syncFamilyDiscountButton(row);row.scrollIntoView({block:'nearest',behavior:'smooth'});if(typeof saveDraftOrder==='function')saveDraftOrder()}
-function syncFamilyDiscountButton(row){
- const button=row?.querySelector('[data-family-discount]'),price=row?.querySelector('.line-price');if(!button||!price)return;
- const normal=Math.max(0,Number(row.dataset.standardPrice)||0),discounted=Math.max(0,normal-5),current=Math.max(0,Number(price.value)||0);
- const selected=Math.abs(current-discounted)<0.005;
- button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',selected?'true':'false');
-}
-function syncFamilyDiscountButtons(){productRows.forEach(syncFamilyDiscountButton)}
-document.querySelectorAll('[data-family-discount]').forEach(button=>button.addEventListener('click',()=>{
- const row=button.closest('.product-pick'),price=row?.querySelector('.line-price');if(!row||!price)return;
- const normal=Math.max(0,Number(row.dataset.standardPrice)||0),discounted=Math.max(0,normal-5),selected=button.classList.contains('selected');
- price.value=(selected?normal:discounted).toFixed(2);syncFamilyDiscountButton(row);updateTotal();if(typeof saveDraftOrder==='function')saveDraftOrder();
-}));
-function productGroups(){const groups=new Map();productRows.forEach(row=>{const base=row.dataset.productBase||row.dataset.productLabel,key=base.toLowerCase();if(!groups.has(key))groups.set(key,{base,rows:[]});groups.get(key).rows.push(row)});return [...groups.values()]}
-function showStrengths(group){if(!strengthPicker||!strengthOptions||!strengthProductName)return;strengthProductName.textContent=group.base;strengthOptions.replaceChildren();group.rows.sort((a,b)=>{const av=parseFloat(a.dataset.productStrength)||0,bv=parseFloat(b.dataset.productStrength)||0;return av-bv}).forEach(row=>{const b=document.createElement('button');b.type='button';b.className='strength-option';const strength=document.createElement('strong');strength.textContent=row.dataset.productStrength||'Add';const price=document.createElement('span');price.textContent='£'+Number(row.dataset.standardPrice).toFixed(2);b.append(strength,price);b.addEventListener('click',()=>addProduct(row));strengthOptions.append(b)});strengthPicker.hidden=false;productResults.hidden=true;productSearch.value=group.base;strengthPicker.scrollIntoView({block:'nearest',behavior:'smooth'})}
-function showProductResults(){if(!productSearch||!productResults)return;const term=productSearch.value.toLowerCase().trim();productResults.replaceChildren();const groups=productGroups();let matches;if(!term){const reta=groups.find(group=>group.base.toLowerCase()==='retatrutide');matches=reta?[reta]:[]}else{matches=groups.filter(group=>group.base.toLowerCase().includes(term)).sort((a,b)=>{if(a.base.toLowerCase()==='retatrutide')return -1;if(b.base.toLowerCase()==='retatrutide')return 1;return a.base.localeCompare(b.base)}).slice(0,8)}if(!matches.length){productResults.hidden=true;return}matches.forEach(group=>{const b=document.createElement('button');b.type='button';b.className='product-result';b.setAttribute('role','option');const name=document.createElement('strong');name.textContent=group.base;const info=document.createElement('span');const strengths=group.rows.map(r=>r.dataset.productStrength).filter(Boolean).sort((a,b)=>(parseFloat(a)||0)-(parseFloat(b)||0));info.textContent=strengths.length?strengths.join(' · '):(group.rows.length>1?'Choose option':'Add');b.append(name,info);b.addEventListener('click',()=>{if(group.rows.length===1)addProduct(group.rows[0]);else showStrengths(group)});productResults.append(b)});productResults.hidden=false}
-productSearch?.addEventListener('input',()=>{if(strengthPicker)strengthPicker.hidden=true;showProductResults()});
-productSearch?.addEventListener('focus',showProductResults);
-closeStrengthPicker?.addEventListener('click',()=>{strengthPicker.hidden=true;productSearch?.focus()});
-document.addEventListener('click',e=>{if(productResults&&!e.target.closest('.product-search-wrap')&&!e.target.closest('.strength-picker'))productResults.hidden=true});
-document.querySelectorAll('.quantity,.line-price').forEach(q=>q.addEventListener('input',()=>{updateTotal();if(q.classList.contains('line-price'))syncFamilyDiscountButton(q.closest('.product-pick'))}));deliveryChargeInput?.addEventListener('input',()=>{updateTotal();if(typeof saveDraftOrder==='function')saveDraftOrder()});paymentFeeInput?.addEventListener('input',()=>{if(typeof saveDraftOrder==='function')saveDraftOrder()});trackingReferenceInput?.addEventListener('input',()=>{if(typeof saveDraftOrder==='function')saveDraftOrder()});paymentMethodInput?.addEventListener('change',()=>{if(typeof saveDraftOrder==='function')saveDraftOrder()});
-document.querySelectorAll('[data-change]').forEach(b=>b.addEventListener('click',()=>{const row=b.closest('.product-pick'),q=row.querySelector('.quantity');q.value=Math.min(999,Math.max(0,(Number(q.value)||0)+Number(b.dataset.change)));updateTotal();saveDraftOrder()}));
-togglePostageFields();updateTotal();syncFamilyDiscountButtons();
+
+const restoredDraft=restoreDraftOrder();
+if(!restoredDraft)initialOrderLines.forEach(line=>addOrderLine(line,false));
+togglePostageFields();updateTotal();
 wizard?.addEventListener('input',saveDraftOrder);wizard?.addEventListener('change',saveDraftOrder);
-restoreDraftOrder();
-const orderForm=document.querySelector('.save-order')?.form;
-orderForm?.addEventListener('submit',e=>{if(!customerSearch?.value.trim()){e.preventDefault();showWizardStep(1);customerSearch?.reportValidity();return}if(!deliveryMethodSelect?.value){e.preventDefault();showWizardStep(1);deliveryMethodSelect?.reportValidity();return}if(!presentationInput?.value){e.preventDefault();alert('Choose Pen, Cartridge or Vial.');showWizardStep(2);return}if(!selectedOrderRows().length){e.preventDefault();alert('Add at least one product.');showWizardStep(3);return}const b=orderForm.querySelector('.save-order');b.disabled=true;b.textContent=b.form?.querySelector('input[name="action"]')?.value==='order_edit'?'Saving changes…':'Saving order…'});
+
+orderForm?.addEventListener('submit',e=>{
+ if(!customerSearch?.value.trim()){e.preventDefault();if(wizard)showWizardStep(1);customerSearch?.reportValidity();return}
+ if(!deliveryMethodSelect?.value){e.preventDefault();if(wizard)showWizardStep(1);deliveryMethodSelect?.reportValidity();return}
+ if(!validateLines()){e.preventDefault();if(wizard)showWizardStep(2);return}
+ const button=orderForm.querySelector('.save-order');if(button){button.disabled=true;button.textContent=orderForm.querySelector('input[name="action"]')?.value==='order_edit'?'Saving changes…':'Saving order…'}
+});
 </script><?php endif;?></body></html>
