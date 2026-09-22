@@ -414,7 +414,7 @@ $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products',
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
-$orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
+$orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?$o['total']:0,$orders));
@@ -438,7 +438,9 @@ foreach($customerProducts as $customerProduct){
  $customerProductCounts[$key][]=['name'=>(string)$customerProduct['name'],'qty'=>(int)$customerProduct['qty']];
 }
 
-$newOrderCustomer=null;$repeatOrderData=null;$repeatQty=[];$repeatPrices=[];$repeatPresentation='';
+$newOrderCustomer=null;$repeatOrderData=null;$repeatQty=[];$repeatPrices=[];$repeatPresentation='';$repeatPaymentMethod='';$repeatDeliveryMethod='';$repeatTrackingReference='';$repeatDeliveryCharge=0;$repeatPostageCost=0;$repeatPaymentFee=0;
+$editOrder=null;$editQty=[];$editPrices=[];
+
 if($view==='new' && (int)($_GET['customer_id']??0)>0){
  $q=$db->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([(int)$_GET['customer_id']]);$newOrderCustomer=$q->fetch(PDO::FETCH_ASSOC)?:null;
 }
@@ -446,7 +448,7 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
  $repeatId=(int)$_GET['repeat_order'];$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$repeatId]);$repeatOrder=$q->fetch(PDO::FETCH_ASSOC);
  if($repeatOrder){
   $repeatOrderData=$repeatOrder;$newOrderCustomer=['name'=>$repeatOrder['customer'],'phone'=>$repeatOrder['phone'],'address'=>$repeatOrder['address']];
-  $repeatPresentation=(string)($repeatOrder['presentation']??'');
+  $repeatPresentation=(string)($repeatOrder['presentation']??'');$repeatPaymentMethod=(string)($repeatOrder['payment_method']??'');$repeatDeliveryMethod=(string)($repeatOrder['delivery_method']??'');$repeatTrackingReference=(string)($repeatOrder['tracking_reference']??'');$repeatDeliveryCharge=(int)($repeatOrder['delivery_charge']??0);$repeatPostageCost=(int)($repeatOrder['postage_cost']??0);$repeatPaymentFee=(int)($repeatOrder['payment_fee']??0);
   $nameToProduct=[];foreach($products as $rp)if((int)$rp['active']===1)$nameToProduct[strtolower(trim((string)$rp['name']))]=(int)$rp['id'];
   $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
   foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ri){
@@ -454,6 +456,14 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
    $pid=$nameToProduct[strtolower(trim((string)$ri['name']))]??0;if(!$pid)continue;
    $repeatQty[$pid]=(int)$ri['quantity'];$repeatPrices[$pid]=number_format((int)$ri['price']/100,2,'.','');
   }
+ }
+}
+if($view==='edit' && (int)($_GET['id']??0)>0){
+ $editId=(int)$_GET['id'];$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$editId]);$editOrder=$q->fetch(PDO::FETCH_ASSOC)?:null;
+ if($editOrder){
+  $nameToProduct=[];foreach($products as $ep)$nameToProduct[strtolower(trim((string)$ep['name']))]=(int)$ep['id'];
+  $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$editId]);
+  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ei){if(strtolower(trim((string)$ei['name']))==='pen')continue;$pid=$nameToProduct[strtolower(trim((string)$ei['name']))]??0;if(!$pid)continue;$editQty[$pid]=(int)$ei['quantity'];$editPrices[$pid]=number_format((int)$ei['price']/100,2,'.','');}
  }
 }
 $recentCustomers=[];$recentSeen=[];
@@ -469,7 +479,7 @@ if($view==='saved' && (int)($_GET['id']??0)>0)$savedOrder=orderForSheet($db,(int
 
 // Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
-$todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();
+$todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
 $todaySales=0;$weekSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
  $createdTs=strtotime((string)$dashboardOrder['created'])?:0;
@@ -491,22 +501,38 @@ if($todoOrderIds){
  $q->execute($todoOrderIds);
  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $todoItem)$todoItems[(int)$todoItem['order_id']][]=$todoItem;
 }
-$grossProfit=0;$uncostedSales=0;$topSelling=[];
-$dashboardItems=$db->query("SELECT i.name,i.price,i.quantity,p.cost FROM items i JOIN orders o ON o.id=i.order_id LEFT JOIN products p ON lower(trim(p.name))=lower(trim(i.name)) WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
+$grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$productProfit=[];$penCostAll=0;
+$dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
 foreach($dashboardItems as $dashboardItem){
- $qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;
- if($dashboardItem['cost']!==null)$grossProfit+=((int)$dashboardItem['price']-(int)$dashboardItem['cost'])*$qty;
- else $uncostedSales+=$line;
- if(strtolower(trim((string)$dashboardItem['name']))!=='pen'){
-  $productName=(string)$dashboardItem['name'];$topSelling[$productName]??=['qty'=>0,'revenue'=>0];
-  $topSelling[$productName]['qty']+=$qty;$topSelling[$productName]['revenue']+=$line;
- }
+ $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$name=(string)$dashboardItem['name'];
+ if($cost!==null){$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;}else{$uncostedSales+=$line;}
+ if(strtolower(trim($name))==='pen'){if($cost!==null)$penCostAll+=$cost*$qty;continue;}
+ $topSelling[$name]??=['qty'=>0,'revenue'=>0];$topSelling[$name]['qty']+=$qty;$topSelling[$name]['revenue']+=$line;
+ $productProfit[$name]??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];
+ $productProfit[$name]['units']+=$qty;$productProfit[$name]['revenue']+=$line;
+ if($cost!==null)$productProfit[$name]['cogs']+=$cost*$qty;else$productProfit[$name]['missing_cost']=true;
 }
-uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['revenue']);
-$topSelling=array_slice($topSelling,0,5,true);
+uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['revenue']);$topSelling=array_slice($topSelling,0,5,true);
+uasort($productProfit,fn($a,$b)=>$b['revenue']<=>$a['revenue']);
+
+$reportPeriods=[
+ 'today'=>['label'=>'Today','start'=>$todayStart,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
+ 'week'=>['label'=>'This week','start'=>$weekStart,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
+ 'month'=>['label'=>'This month','start'=>$monthStart,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
+ 'all'=>['label'=>'All time','start'=>0,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0]
+];
+$paymentBreakdown=[];
+foreach($orders as $reportOrder){
+ if(!in_array($reportOrder['status'],$paidStatuses,true))continue;
+ $orderId=(int)$reportOrder['id'];$dateText=(string)($reportOrder['payment_date']?:$reportOrder['created']);$reportTs=strtotime($dateText)?:0;
+ $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$fee=(int)($reportOrder['payment_fee']??0);$profit=$revenue-$cogs-$postage-$fee;
+ foreach($reportPeriods as $key=>&$period){if($reportTs>=$period['start']){$period['revenue']+=$revenue;$period['cogs']+=$cogs;$period['postage']+=$postage;$period['fees']+=$fee;$period['profit']+=$profit;$period['orders']++;}}unset($period);
+ $method=trim((string)($reportOrder['payment_method']??''))?:'Not recorded';$paymentBreakdown[$method]=($paymentBreakdown[$method]??0)+$revenue;
+}
+$grossProfit=$reportPeriods['all']['profit'];
 $trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && $p['stock_qty']!==null));
 $lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=(int)$p['low_stock_at']));
-
+$penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
