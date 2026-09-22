@@ -581,9 +581,9 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <p>3. In the script, replace <strong>PASTE_SECRET_FROM_ANKH_ADMIN</strong> with the private shared secret above.</p>
 <p>4. Choose <strong>Deploy → New deployment → Web app</strong>, execute as yourself, allow access to anyone, then copy the URL ending in <strong>/exec</strong> into the box above.</p>
 </section>
-<?php else:?>
-<div class="heading customer-heading"><div><h1>Customers</h1><p class="muted">Search customers, see their value and start repeat orders quickly.</p></div><button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button></div>
-<div class="customer-page-filters"><label>Search customers<input id="customer-page-search" type="search" placeholder="Name, phone, address or usual product"></label><label>Show<select id="customer-status-filter"><option value="active">Active</option><option value="archived">Archived</option><option value="all">All customers</option></select></label></div>
+<?php elseif($view==='customers'):?>
+<div class="heading customer-heading"><div><h1>Customers</h1><p class="muted page-description">Search, contact or start another order.</p></div><button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button></div>
+<div class="customer-page-filters"><label>Search customers<input id="customer-page-search" type="search" placeholder="Name, phone, address or product"></label><label>Show<select id="customer-status-filter"><option value="active">Active</option><option value="archived">Archived</option><option value="all">All</option></select></label></div>
 <form method="post" class="panel customer-form" id="add-customer-panel" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><div class="customer-form-title"><h2>Add customer</h2><button type="button" class="quiet customer-form-close" data-close-customer-form>Cancel</button></div><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><button>Save customer</button></form>
 <div id="customer-list">
 <?php foreach($storedCustomers as $c):
@@ -593,20 +593,40 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
  $searchBits=$c['name'].' '.$c['phone'].' '.$c['address'].' '.implode(' ',array_column($usualProducts,'name'));
 ?>
 <details class="order customer-card<?=$c['archived']?' archived-customer':''?>" data-customer-search="<?=e(strtolower($searchBits))?>" data-customer-archived="<?=$c['archived']?'1':'0'?>">
-<summary><div><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · Last <?=e(date('d M Y',strtotime($lastOrder['created'])))?><?php endif;?></small></div></summary>
+<summary><div><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · <?=e(date('d M y',strtotime($lastOrder['created'])))?><?php endif;?></small></div></summary>
 <div class="detail">
-<div class="customer-metrics"><div><span>Total spent</span><strong><?=money($customerSpent)?></strong></div><div><span>Orders</span><strong><?=count($history)?></strong></div><div><span>Last order</span><strong><?=$lastOrder?e(date('d M y',strtotime($lastOrder['created']))):'—'?></strong></div></div>
+<div class="customer-metrics"><div><span>Spent</span><strong><?=money($customerSpent)?></strong></div><div><span>Orders</span><strong><?=count($history)?></strong></div><div><span>Last order</span><strong><?=$lastOrder?e(date('d M y',strtotime($lastOrder['created']))):'—'?></strong></div></div>
 <?php if($c['address']):?><p class="address"><?=nl2br(e($c['address']))?></p><?php endif;?>
-<div class="usual-products"><span class="order-check-label">Usual products</span><?php if($usualProducts):?><div class="product-chips"><?php foreach($usualProducts as $usual):?><span><?=e($usual['name'])?> <b>×<?=$usual['qty']?></b></span><?php endforeach;?></div><?php else:?><p class="muted">No product history yet.</p><?php endif;?></div>
-<div class="customer-actions"><?php if(!$c['archived']):?><a class="button customer-new-order" href="?view=new&amp;customer_id=<?=$c['id']?>">+ New order for this customer</a><?php endif;?><button type="button" class="quiet edit-customer-button" data-edit-customer="<?=$c['id']?>" aria-expanded="false">Edit customer</button></div>
+<div class="customer-quick-actions"><?php if(!$c['archived']):?><a class="quick-action" href="?view=new&amp;customer_id=<?=$c['id']?>">+ New order</a><?php if($lastOrder):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$lastOrder['id']?>">Repeat last</a><?php endif;?><?php endif;?><?php if(trim((string)$c['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$c['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$c['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($c['address'])?>">Copy address</button><?php endif;?></div>
+<?php if($usualProducts):?><div class="usual-products"><span class="order-check-label">Usual products</span><div class="product-chips"><?php foreach($usualProducts as $usual):?><span><?=e($usual['name'])?> <b>×<?=$usual['qty']?></b></span><?php endforeach;?></div></div><?php endif;?>
+<div class="customer-actions"><button type="button" class="quiet edit-customer-button" data-edit-customer="<?=$c['id']?>" aria-expanded="false">Edit customer</button></div>
 <form method="post" class="customer-edit-form" data-customer-form="<?=$c['id']?>" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><input type="hidden" name="id" value="<?=$c['id']?>"><div class="two"><label>Name<input name="name" maxlength="160" required value="<?=e($c['name'])?>"></label><label>Phone<input name="phone" maxlength="40" type="tel" value="<?=e($c['phone'])?>"></label></div><label>Address<textarea name="address" maxlength="2000"><?=e($c['address'])?></textarea></label><div class="customer-edit-actions"><button>Save changes</button><button type="button" class="quiet" data-cancel-customer-edit="<?=$c['id']?>">Cancel</button></div></form>
 <form method="post" class="customer-archive-form" onsubmit="return confirm('<?=$c['archived']?'Restore this customer?':'Archive this customer? Their order history will be kept.'?>')"><?php csrf();?><input type="hidden" name="action" value="customer_archive"><input type="hidden" name="return" value="customers"><input type="hidden" name="id" value="<?=$c['id']?>"><input type="hidden" name="archive" value="<?=$c['archived']?'0':'1'?>"><button class="quiet"><?=$c['archived']?'Restore customer':'Archive customer'?></button></form>
-<?php if($history):?><div class="customer-history"><span class="order-check-label">Order history</span><?php foreach($history as $o):?><div class="line"><span>ANK-<?=$o['id']?> · <?=e($o['status'])?> · <?=e(date('d M y',strtotime($o['created'])))?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?></div><?php else:?><p class="muted">No orders yet. This customer will appear in New Order search.</p><?php endif;?>
+<?php if($history):?><div class="customer-history"><span class="order-check-label">Order history</span><?php foreach($history as $o):?><div class="line customer-history-line"><span><b>ANK-<?=$o['id']?></b> · <?=e(date('d M y',strtotime($o['created'])))?> · <?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?></div><?php endif;?>
 </div></details>
 <?php endforeach;?>
 </div>
 <p id="customer-page-empty" class="empty" hidden>No customers match that search.</p>
-<?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;endif;?>
+<?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;?>
+
+<?php elseif($view==='more'):?>
+<div class="heading"><div><h1>More</h1><p class="muted page-description">Products, stock and integrations.</p></div></div>
+<div class="more-grid">
+<a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products & stock</h2><p>Prices, supplier costs, availability and stock levels.</p></div><b>›</b></a>
+<a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
+</div>
+
+<?php else:?>
+<div id="order-saved-marker"></div>
+<?php if($savedOrder):?>
+<section class="saved-order">
+<div class="saved-check">✓</div><p class="eyebrow">ORDER SAVED</p><h1><?=$savedOrder['reference']?></h1><p class="saved-customer"><?=e($savedOrder['customer'])?></p>
+<div class="saved-total"><?=money($savedOrder['total_pence'])?></div><span class="badge status-<?=e(statusClass($savedOrder['status']))?>"><?=e($savedOrder['status'])?></span>
+<div class="saved-items"><?php foreach($savedOrder['items'] as $savedItem):?><div class="line"><span><?=e($savedItem['quantity'].' × '.$savedItem['name'])?></span><strong><?=money($savedItem['unit_price_pence']*$savedItem['quantity'])?></strong></div><?php endforeach;?></div>
+<div class="saved-actions"><a class="button" href="?view=dashboard">Dashboard</a><a class="button" href="?view=new">+ New order</a><a class="quick-action" href="?view=orders">View orders</a><a class="quick-action" href="?view=new&amp;repeat_order=<?=$savedOrder['id']?>">Repeat order</a></div>
+</section>
+<?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
+<?php endif;?>
 </main><script>
 const addCustomerButton=document.querySelector('#show-add-customer'),addCustomerPanel=document.querySelector('#add-customer-panel');
 addCustomerButton?.addEventListener('click',()=>{const open=addCustomerPanel.hidden;addCustomerPanel.hidden=!open;addCustomerButton.setAttribute('aria-expanded',open?'true':'false');if(open)addCustomerPanel.querySelector('input[name="name"]')?.focus()});
