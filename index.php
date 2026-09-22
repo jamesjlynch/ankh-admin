@@ -432,13 +432,13 @@ function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile32"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile33"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
-$orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
+$orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?$o['total']:0,$orders));
@@ -523,12 +523,12 @@ if($view==='saved' && (int)($_GET['id']??0)>0)$savedOrder=orderForSheet($db,(int
 // Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
-$todaySales=0;$weekSales=0;$unpaidBalance=0;
+$todaySales=0;$monthSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
  $salesTs=strtotime((string)($dashboardOrder['payment_date']?:$dashboardOrder['created']))?:0;
  if(in_array($dashboardOrder['status'],$paidStatuses,true)){
   if($salesTs>=$todayStart)$todaySales+=(int)$dashboardOrder['total'];
-  if($salesTs>=$weekStart)$weekSales+=(int)$dashboardOrder['total'];
+  if($salesTs>=$monthStart)$monthSales+=(int)$dashboardOrder['total'];
  }
  if(in_array($dashboardOrder['status'],['New','Awaiting payment'],true))$unpaidBalance+=(int)$dashboardOrder['total'];
 }
@@ -607,7 +607,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted page-description">What needs attention and how the business is doing.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="dashboard-stats">
 <article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></article>
-<article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
+<article><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></article>
 <article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After costs &amp; fees</small></article>
 <article><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></article>
 <article><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
@@ -665,7 +665,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="stats compact-stats"><article><span>Open</span><strong><?=$open?></strong></article><article><span>Paid value</span><strong><?=money($paid)?></strong></article><article><span>Total</span><strong><?=count($orders)?></strong></article></div>
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
-<?php foreach($orders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div></summary><div class="detail">
+<?php foreach($orders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee">Unassigned</span><?php endif;?><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span></div><strong><?=money($o['total'])?></strong></div></summary><div class="detail">
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a></div>
 <div class="order-meta"><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
 <?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>
