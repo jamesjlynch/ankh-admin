@@ -71,7 +71,6 @@ function upsertOrder_(ss, order) {
     String(order.tracking_reference || ''),
     Number(order.delivery_charge_pence || 0) / 100,
     Number(order.postage_cost_pence || 0) / 100,
-    Number(order.payment_fee_pence || 0) / 100,
     dateOrText_(order.payment_date),
     dateOrText_(order.delivery_date),
     String(order.presentation || '')
@@ -109,7 +108,7 @@ function ensureHeaders_(orders, items) {
   const orderHeaders = [
     'Order ID','Created','Customer','Phone','Referrer','Address','Status','Total (£)','Notes','Last Synced',
     'Payment Method','Delivery Method','Assigned To','Tracking / Reference','Delivery Charge (£)','Postage Cost (£)',
-    'Payment Fee (£)','Payment Date','Delivery Date','Format Summary'
+    'Payment Date','Delivery Date','Format Summary'
   ];
   const itemHeaders = ['Order ID','Product','Quantity','Unit Price (£)','Line Total (£)','Status','Unit Cost (£)','Format','Base Price (£)','Discount (£)','Format Cost (£)'];
   orders.getRange(1, 1, 1, orderHeaders.length).setValues([orderHeaders]);
