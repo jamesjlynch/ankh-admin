@@ -1507,3 +1507,255 @@ body.voice-overlay-open{overflow:hidden}
   font-size:9px;
 }
 .voice-order-alias strong{color:var(--gold)}
+
+/* Global ANKH voice assistant */
+body.assistant-overlay-open{overflow:hidden}
+.ankh-assistant-button{
+  position:fixed;
+  right:18px;
+  bottom:22px;
+  z-index:8500;
+  min-width:118px;
+  height:54px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:0 15px;
+  border:1px solid #8a713f;
+  border-radius:999px;
+  background:linear-gradient(145deg,#332917,#181817);
+  color:#f4e6c5;
+  box-shadow:0 14px 32px #0007,0 0 24px #dfb66618;
+}
+.ankh-assistant-button:hover{border-color:var(--gold);transform:translateY(-1px)}
+.assistant-button-ring{
+  position:absolute;
+  inset:5px;
+  border:1px solid #dfb66622;
+  border-radius:999px;
+  pointer-events:none;
+}
+.assistant-button-icon{position:relative;z-index:1;font-size:19px}
+.assistant-button-label{position:relative;z-index:1;font-size:11px;font-weight:900;letter-spacing:.2px}
+
+.ankh-assistant-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10000;
+  display:grid;
+  place-items:center;
+  padding:20px;
+  background:rgba(6,7,8,.93);
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+}
+.ankh-assistant-overlay[hidden]{display:none}
+.ankh-assistant-card{
+  position:relative;
+  width:min(100%,480px);
+  max-height:min(86vh,760px);
+  overflow:auto;
+  padding:24px 20px 20px;
+  border:1px solid #504631;
+  border-radius:22px;
+  background:
+    radial-gradient(circle at 50% 4%,rgba(223,182,102,.12),transparent 34%),
+    linear-gradient(180deg,#191815,#101112);
+  box-shadow:0 26px 80px #000b;
+  text-align:center;
+}
+.ankh-assistant-close{
+  position:absolute;
+  top:10px;
+  right:10px;
+  width:34px;
+  height:34px;
+  padding:0;
+  border:1px solid #3b3c3d;
+  border-radius:50%;
+  background:#131415;
+  color:#aaa79f;
+  font-size:21px;
+  line-height:1;
+}
+.ankh-assistant-orb{
+  position:relative;
+  width:132px;
+  height:132px;
+  display:grid;
+  place-items:center;
+  margin:6px auto 18px;
+  border:1px solid #816a3c;
+  border-radius:50%;
+  background:radial-gradient(circle at 50% 38%,#342a18,#1c1812 55%,#101112);
+  box-shadow:0 0 0 8px #dfb66608,0 18px 40px #0008,0 0 36px #dfb66618;
+  cursor:pointer;
+}
+.ankh-assistant-orb:before,.ankh-assistant-orb:after{
+  content:"";
+  position:absolute;
+  inset:-9px;
+  border:1px solid #dfb66644;
+  border-radius:50%;
+  opacity:0;
+}
+.ankh-assistant-orb span{
+  color:var(--gold);
+  font-size:66px;
+  line-height:1;
+  text-shadow:0 0 24px #dfb66650;
+}
+.ankh-assistant-overlay.listening .ankh-assistant-orb:before{
+  animation:assistantPulse 1.55s ease-out infinite;
+}
+.ankh-assistant-overlay.listening .ankh-assistant-orb:after{
+  animation:assistantPulse 1.55s .75s ease-out infinite;
+}
+.ankh-assistant-overlay.working .ankh-assistant-orb{
+  animation:assistantThink 1s ease-in-out infinite alternate;
+}
+@keyframes assistantPulse{
+  0%{transform:scale(.9);opacity:.75}
+  85%{transform:scale(1.22);opacity:0}
+  100%{transform:scale(1.22);opacity:0}
+}
+@keyframes assistantThink{
+  from{transform:scale(.98);box-shadow:0 0 0 8px #dfb66608,0 18px 40px #0008,0 0 24px #dfb66614}
+  to{transform:scale(1.03);box-shadow:0 0 0 8px #dfb6660d,0 18px 40px #0008,0 0 48px #dfb66630}
+}
+.ankh-assistant-card .eyebrow{margin:0 0 6px}
+.ankh-assistant-card h2{margin:0;color:#f5efe2;font-size:23px}
+.ankh-assistant-card>p:not(.eyebrow){
+  max-width:390px;
+  margin:7px auto 0;
+  color:#aaa79f;
+  font-size:12px;
+  line-height:1.5;
+}
+.ankh-assistant-timer{
+  margin-top:12px;
+  color:var(--gold);
+  font-size:12px;
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+  letter-spacing:1.4px;
+}
+.ankh-assistant-examples{
+  display:grid;
+  gap:6px;
+  margin-top:16px;
+  padding:12px;
+  border:1px solid #323331;
+  border-radius:13px;
+  background:#0d0e0f99;
+}
+.ankh-assistant-examples>span{
+  color:var(--gold);
+  font-size:9px;
+  font-weight:900;
+  letter-spacing:1px;
+  text-transform:uppercase;
+}
+.ankh-assistant-examples button{
+  min-height:auto;
+  padding:4px;
+  border:0;
+  background:transparent;
+  color:#c6c1b6;
+  font-size:10px;
+  font-weight:500;
+}
+.ankh-assistant-action{
+  width:100%;
+  min-height:52px;
+  margin-top:16px;
+  border:1px solid #80693a;
+  border-radius:14px;
+  background:#2a2316;
+  color:#f3e5c4;
+  font-weight:900;
+}
+.ankh-assistant-overlay.listening .ankh-assistant-action{
+  border-color:#a74d4d;
+  background:#4a1f1f;
+  color:#fff0f0;
+}
+.ankh-assistant-card>small{
+  display:block;
+  margin-top:8px;
+  color:#797873;
+  font-size:9px;
+}
+.ankh-assistant-answer{
+  margin-top:15px;
+  padding:13px;
+  border:1px solid #5a4a2b;
+  border-radius:14px;
+  background:#211b12;
+  color:#f1e7d0;
+  font-size:13px;
+  line-height:1.55;
+  text-align:left;
+}
+.ankh-assistant-items{
+  display:grid;
+  gap:7px;
+  margin-top:9px;
+  text-align:left;
+}
+.ankh-assistant-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:9px 10px;
+  border:1px solid #303234;
+  border-radius:10px;
+  background:#121314;
+}
+.ankh-assistant-item>div{min-width:0}
+.ankh-assistant-item strong{
+  display:block;
+  overflow:hidden;
+  color:#e7e2d8;
+  font-size:11px;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.ankh-assistant-item small{
+  display:block;
+  margin-top:2px;
+  color:#8e8b84;
+  font-size:9px;
+}
+.ankh-assistant-item>span{
+  flex:0 0 auto;
+  color:var(--gold);
+  font-size:9px;
+  font-weight:800;
+}
+
+@media(max-width:760px){
+  .ankh-assistant-button{
+    right:14px;
+    bottom:calc(82px + env(safe-area-inset-bottom));
+    min-width:52px;
+    width:52px;
+    height:52px;
+    padding:0;
+  }
+  .assistant-button-label{display:none}
+  .assistant-button-icon{font-size:20px}
+  .ankh-assistant-overlay{padding:12px}
+  .ankh-assistant-card{
+    width:100%;
+    max-height:88vh;
+    padding:22px 14px 16px;
+    border-radius:20px;
+  }
+  .ankh-assistant-orb{width:116px;height:116px}
+  .ankh-assistant-orb span{font-size:59px}
+  .ankh-assistant-card h2{font-size:21px}
+  .ankh-assistant-action{min-height:54px}
+}
