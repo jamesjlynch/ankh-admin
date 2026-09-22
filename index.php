@@ -21,9 +21,17 @@ $db->exec('CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, failures IN
 CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL CHECK(price>=0), active INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, status TEXT NOT NULL DEFAULT "New", created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0));
+CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE, phone TEXT NOT NULL DEFAULT "", address TEXT NOT NULL DEFAULT "", created TEXT NOT NULL, UNIQUE(name,phone));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
+
+// Bring existing order customers into the standalone customer list, newest details first.
+$existingOrderCustomers=$db->query("SELECT customer,phone,address,created FROM orders WHERE trim(customer)<>'' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
+$seedCustomer=$db->prepare('INSERT OR IGNORE INTO customers(name,phone,address,created) VALUES (?,?,?,?)');
+foreach($existingOrderCustomers as $existingCustomer){
+ $seedCustomer->execute([$existingCustomer['customer'],$existingCustomer['phone'],$existingCustomer['address'],$existingCustomer['created']]);
+}
 $statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Cancelled'];
 
 // Keep the live order catalogue complete without overwriting manually managed prices.
@@ -165,6 +173,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($id){$q=$db->prepare('UPDATE products SET name=?,price=?,active=? WHERE id=?');$q->execute([$name,(int)round($price*100),isset($_POST['active'])?1:0,$id]);}
    else{$q=$db->prepare('INSERT INTO products(name,price) VALUES (?,?)');$q->execute([$name,(int)round($price*100)]);}
   }
+  if($action==='customer'){
+   $customerName=trim($_POST['name']??'');$customerPhone=trim($_POST['phone']??'');$customerAddress=trim($_POST['address']??'');
+   if(!$customerName || strlen($customerName)>160 || strlen($customerPhone)>40 || strlen($customerAddress)>2000)throw new Exception('Check the customer details and try again.');
+   $q=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
+   $q->execute([$customerName,$customerPhone,$customerAddress,gmdate('c')]);
+  }
   if($action==='status'){
    if(!in_array($_POST['status']??'',$statuses,true))throw new Exception('Choose a valid status.');
    $orderId=(int)$_POST['id'];
@@ -177,7 +191,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false || $n<0 || $n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=? AND active=1');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product is unavailable.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
    if(!$lines)throw new Exception('Add at least one product.');
    $db->beginTransaction();
-   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer) VALUES (?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,gmdate('c'),$referrer]);$oid=$db->lastInsertId();
+   $created=gmdate('c');
+   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer) VALUES (?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer]);$oid=$db->lastInsertId();
+   $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created) VALUES (?,?,?,?) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END");
+   $saveCustomer->execute([$name,$phone,$address,$created]);
    foreach($lines as [$p,$n,$orderPrice])$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,?)')->execute([$oid,$p['name'],$orderPrice,$n]);
    $db->commit();
    $syncError=syncOrderToSheet($db,(int)$oid);
@@ -195,7 +212,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='sheets_settings'?'Google Sheets connection saved.':'')));
+ $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?'Customer saved.':($action==='sheets_settings'?'Google Sheets connection saved.':''))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
@@ -207,7 +224,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile8"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile9"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -216,18 +233,17 @@ $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchA
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'])));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'])?$o['total']:0,$orders));
-$customerSuggestions=[];
+$storedCustomers=$db->query('SELECT * FROM customers ORDER BY name COLLATE NOCASE, id')->fetchAll(PDO::FETCH_ASSOC);
+$customerSuggestions=array_map(fn($customer)=>[
+ 'name'=>(string)$customer['name'],
+ 'phone'=>(string)$customer['phone'],
+ 'address'=>(string)$customer['address']
+],$storedCustomers);
+$customerOrderHistory=[];
 foreach($orders as $customerOrder){
  $customerKey=strtolower(trim((string)$customerOrder['customer'])).'|'.trim((string)$customerOrder['phone']);
- if(!isset($customerSuggestions[$customerKey])){
-  $customerSuggestions[$customerKey]=[
-   'name'=>(string)$customerOrder['customer'],
-   'phone'=>(string)$customerOrder['phone'],
-   'address'=>(string)$customerOrder['address']
-  ];
- }
+ $customerOrderHistory[$customerKey][]=$customerOrder;
 }
-$customerSuggestions=array_values($customerSuggestions);
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
@@ -288,10 +304,11 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <p>4. Choose <strong>Deploy → New deployment → Web app</strong>, execute as yourself, allow access to anyone, then copy the URL ending in <strong>/exec</strong> into the box above.</p>
 </section>
 <?php else:?>
-<h1>Customers</h1><p class="muted">Customer history from your recorded orders.</p>
-<?php $customers=[];foreach($orders as $o){$key=strtolower($o['customer']).'|'.$o['phone'];$customers[$key]??=['name'=>$o['customer'],'phone'=>$o['phone'],'orders'=>[]];$customers[$key]['orders'][]=$o;}foreach($customers as $c):?>
-<details class="order"><summary><div><h2><?=e($c['name'])?></h2><span class="muted"><?=e($c['phone'])?></span></div><span><?=count($c['orders'])?> orders</span></summary><div class="detail"><?php foreach($c['orders'] as $o):?><div class="line"><span>ANK-<?=$o['id']?> · <?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?></div></details>
-<?php endforeach;if(!$customers):?><p class="empty">Customers appear here when you create orders.</p><?php endif;endif;?>
+<div class="heading"><div><h1>Customers</h1><p class="muted">Save customers here before they place an order, or view their order history.</p></div></div>
+<form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><h2>Add customer</h2><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><button>+ Add customer</button></form>
+<?php foreach($storedCustomers as $c):$customerKey=strtolower(trim((string)$c['name'])).'|'.trim((string)$c['phone']);$history=$customerOrderHistory[$customerKey]??[];?>
+<details class="order"><summary><div><h2><?=e($c['name'])?></h2><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><span><?=count($history)?> <?=count($history)===1?'order':'orders'?></span></summary><div class="detail"><?php if($c['address']):?><p class="address"><?=nl2br(e($c['address']))?></p><?php endif;?><?php foreach($history as $o):?><div class="line"><span>ANK-<?=$o['id']?> · <?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div><?php endforeach;?><?php if(!$history):?><p class="muted">No orders yet. This customer will appear in New Order search.</p><?php endif;?></div></details>
+<?php endforeach;if(!$storedCustomers):?><p class="empty">No customers yet. Add your first customer above.</p><?php endif;endif;?>
 </main><script>
 const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
 const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
