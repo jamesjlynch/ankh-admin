@@ -10,6 +10,7 @@ $config = is_file($configFile) ? require $configFile : [];
 function e($s){return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');}
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 $error = '';
+$syncError = null;
 if (!$config || empty($config['password_hash']) || empty($config['database_path'])) {
  http_response_code(503);
  exit('<!doctype html><meta name="viewport" content="width=device-width"><title>ANKH Admin setup</title><body style="background:#101112;color:#ead9ac;font:18px system-ui;padding:10vw"><h1>☥ ANKH Admin</h1><p>The app is installed. Private access and database configuration need to be completed before orders can be managed.</p>');
@@ -19,8 +20,56 @@ $db->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000');
 $db->exec('CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, failures INTEGER NOT NULL, started INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL CHECK(price>=0), active INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, status TEXT NOT NULL DEFAULT "New", created TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0));');
+CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0));
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
 $statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Cancelled'];
+
+function setting(PDO $db,string $key,string $default=''):string{
+ $q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$key]);$v=$q->fetchColumn();
+ return $v===false?$default:(string)$v;
+}
+function saveSetting(PDO $db,string $key,string $value):void{
+ $db->prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)')->execute([$key,$value]);
+}
+function sheetsWebhookValid(string $url):bool{
+ $p=parse_url($url);$host=strtolower((string)($p['host']??''));
+ return (($p['scheme']??'')==='https') && ($host==='script.google.com' || str_ends_with($host,'.googleusercontent.com'));
+}
+function orderForSheet(PDO $db,int $id):?array{
+ $q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$id]);$o=$q->fetch(PDO::FETCH_ASSOC);if(!$o)return null;
+ $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
+ $total=0;$out=[];
+ foreach($items as $i){$line=(int)$i['price']*(int)$i['quantity'];$total+=$line;$out[]=['name'=>$i['name'],'unit_price_pence'=>(int)$i['price'],'quantity'=>(int)$i['quantity']];}
+ return ['id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],'customer'=>$o['customer'],'phone'=>$o['phone'],'address'=>$o['address'],'notes'=>$o['notes'],'status'=>$o['status'],'total_pence'=>$total,'items'=>$out];
+}
+function syncOrderToSheet(PDO $db,int $orderId):?string{
+ $url=setting($db,'sheets_webhook');if($url==='')return null;
+ if(!sheetsWebhookValid($url))return 'The saved Google Sheets webhook URL is invalid.';
+ $order=orderForSheet($db,$orderId);if(!$order)return 'The order could not be found for syncing.';
+ $payload=['secret'=>setting($db,'sheets_secret'),'event'=>'order_upsert','spreadsheetId'=>setting($db,'sheets_sheet_id'),'order'=>$order];
+ $json=json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+ if($json===false)return 'The order could not be prepared for Google Sheets.';
+ $body=false;$http=0;$transport='';
+ if(function_exists('curl_init')){
+  $ch=curl_init($url);
+  curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$json,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_MAXREDIRS=>4,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_TIMEOUT=>10,CURLOPT_HTTPHEADER=>['Content-Type: application/json','Accept: application/json'],CURLOPT_USERAGENT=>'ANKH-Admin/1.0']);
+  if(defined('CURLOPT_POSTREDIR')&&defined('CURL_REDIR_POST_ALL'))curl_setopt($ch,CURLOPT_POSTREDIR,CURL_REDIR_POST_ALL);
+  $body=curl_exec($ch);$http=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$transport=curl_error($ch);curl_close($ch);
+ }else{
+  $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>"Content-Type: application/json\r\nAccept: application/json\r\nUser-Agent: ANKH-Admin/1.0\r\n",'content'=>$json,'timeout'=>10,'ignore_errors'=>true]]);
+  $body=@file_get_contents($url,false,$ctx);
+  if(isset($http_response_header[0])&&preg_match('/\\s(\\d{3})\\s/',$http_response_header[0],$m))$http=(int)$m[1];
+ }
+ $reply=is_string($body)?json_decode($body,true):null;
+ if($http>=200&&$http<300&&is_array($reply)&&!empty($reply['ok'])){
+  saveSetting($db,'sheets_last_sync',gmdate('c'));saveSetting($db,'sheets_last_error','');return '';
+ }
+ $message=$transport?:((is_array($reply)&&!empty($reply['error']))?(string)$reply['error']:'Google did not confirm the sync.');
+ saveSetting($db,'sheets_last_error',substr($message,0,500));return $message;
+}
+if(setting($db,'sheets_sheet_id')==='')saveSetting($db,'sheets_sheet_id','1j9ucRgbGcB56olVTGiBJDJNMxgggB1jg4KUWZuslUwA');
+if(setting($db,'sheets_secret')==='')saveSetting($db,'sheets_secret',bin2hex(random_bytes(24)));
+
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
@@ -47,7 +96,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='status'){
    if(!in_array($_POST['status']??'',$statuses,true))throw new Exception('Choose a valid status.');
-   $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$_POST['status'],(int)$_POST['id']]);
+   $orderId=(int)$_POST['id'];
+   $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$_POST['status'],$orderId]);
+   $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order'){
    $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');
@@ -58,9 +109,24 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->prepare('INSERT INTO orders(customer,phone,address,notes,created) VALUES (?,?,?,?,?)')->execute([$name,$phone,$address,$notes,gmdate('c')]);$oid=$db->lastInsertId();
    foreach($lines as [$p,$n])$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,?)')->execute([$oid,$p['name'],$p['price'],$n]);
    $db->commit();
+   $syncError=syncOrderToSheet($db,(int)$oid);
+  }
+  if($action==='sheets_settings'){
+   $url=trim((string)($_POST['webhook']??''));
+   if($url!==''&&!sheetsWebhookValid($url))throw new Exception('Paste the Google Apps Script Web App URL ending in /exec.');
+   saveSetting($db,'sheets_webhook',$url);
+  }
+  if($action==='sheets_sync_all'){
+   if(setting($db,'sheets_webhook')==='')throw new Exception('Connect the Google Apps Script Web App first.');
+   $ids=$db->query('SELECT id FROM orders ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);$ok=0;$failed=0;
+   foreach($ids as $id){$sync=syncOrderToSheet($db,(int)$id);if($sync===null||$sync==='')$ok++;else$failed++;}
+   $_SESSION['flash']=$failed?"{$ok} orders synced; {$failed} could not be synced. Check the connection details below.":"{$ok} orders synced to Google Sheets.";
+   header('Location: ./?view=sheets');exit;
   }
  }
- $_SESSION['flash']=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':''));
+ $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='sheets_settings'?'Google Sheets connection saved.':'')));
+ if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
+ if($flash!=='')$_SESSION['flash']=$flash;
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();}
 }
@@ -68,7 +134,7 @@ $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
 function money($n){return '£'.number_format((float)$n/100,2);}
-$view=in_array($_GET['view']??'', ['orders','new','products','customers'],true)?$_GET['view']:'orders';
+$view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile2"></head><body>
 <?php if(!$auth): ?>
@@ -79,8 +145,9 @@ $products=$db->query('SELECT * FROM products ORDER BY name')->fetchAll(PDO::FETC
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'])));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'])?$o['total']:0,$orders));
+$sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
-<aside><a class="brand" href="./"><span>☥</span> ANKH<small>ORDER DESK</small></a><nav><?php foreach(['orders'=>'Orders','new'=>'New order','customers'=>'Customers','products'=>'Products'] as $key=>$label):?><a class="<?=$view===$key?'selected':''?>" href="?view=<?=$key?>"><?=$label?></a><?php endforeach;?></nav><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form></aside>
+<aside><a class="brand" href="./"><span>☥</span> ANKH<small>ORDER DESK</small></a><nav><?php foreach(['orders'=>'Orders','new'=>'New order','customers'=>'Customers','products'=>'Products','sheets'=>'Google Sheets'] as $key=>$label):?><a class="<?=$view===$key?'selected':''?>" href="?view=<?=$key?>"><?=$label?></a><?php endforeach;?></nav><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form></aside>
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
@@ -104,6 +171,27 @@ $paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispat
 <h1>Products</h1><p class="muted">Changes apply to new orders. Existing orders keep their original prices.</p>
 <form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><h2>Add product</h2><div class="two"><label>Name and strength<input name="name" required maxlength="160" placeholder="Product name · 5mg"></label><label>Price (£)<input name="price" type="number" min="0" max="100000" step=".01" required></label></div><button>Add product</button></form>
 <?php foreach($products as $p):?><details class="order"><summary><h2><?=e($p['name'])?></h2><span><?=money($p['price'])?> · <?=$p['active']?'Active':'Hidden'?></span></summary><form method="post" class="detail"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><input type="hidden" name="id" value="<?=$p['id']?>"><label>Name<input name="name" required maxlength="160" value="<?=e($p['name'])?>"></label><label>Price (£)<input name="price" type="number" min="0" max="100000" step=".01" required value="<?=e($p['price']/100)?>"></label><label class="check"><input type="checkbox" name="active" <?=$p['active']?'checked':''?>> Available for new orders</label><button>Save product</button></form></details><?php endforeach;?>
+<?php elseif($view==='sheets'):?>
+<h1>Google Sheets</h1><p class="muted">Orders stay safely in this app and can also be mirrored into your ANKH Google Sheet.</p>
+<section class="panel">
+<h2>ANKH Admin Orders</h2>
+<p><a class="button" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/<?=e($sheetId)?>/edit">Open Google Sheet ↗</a></p>
+<div class="line"><span>Connection</span><strong><?=$sheetWebhook?'Webhook saved':'Not connected yet'?></strong></div>
+<?php if($sheetLastSync):?><div class="line"><span>Last successful sync</span><strong><?=e(date('d M Y H:i',strtotime($sheetLastSync)))?></strong></div><?php endif;?>
+<?php if($sheetLastError):?><p class="error">Last sync problem: <?=e($sheetLastError)?></p><?php endif;?>
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="sheets_settings"><input type="hidden" name="return" value="sheets"><label>Google Apps Script Web App URL<input type="url" name="webhook" value="<?=e($sheetWebhook)?>" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></label><button>Save Google connection</button></form>
+<?php if($sheetWebhook):?><form method="post" style="margin-top:14px"><?php csrf();?><input type="hidden" name="action" value="sheets_sync_all"><button>Sync all existing orders</button></form><?php endif;?>
+</section>
+<section class="panel">
+<h2>One-time Google setup</h2>
+<p class="muted">This only needs doing once. The webhook is protected by a private shared secret, so the Sheet does not need to be publicly editable.</p>
+<p>1. Open the Google Sheet above, then choose <strong>Extensions → Apps Script</strong>.</p>
+<p>2. Copy the contents of <strong>google-sheets-webhook.gs</strong> from the ANKH Admin GitHub repo into Apps Script.</p>
+<label>Spreadsheet ID<input value="<?=e($sheetId)?>" readonly onclick="this.select()"></label>
+<label>Private shared secret<input value="<?=e($sheetSecret)?>" readonly onclick="this.select()"></label>
+<p>3. In the script, replace <strong>PASTE_SECRET_FROM_ANKH_ADMIN</strong> with the private shared secret above.</p>
+<p>4. Choose <strong>Deploy → New deployment → Web app</strong>, execute as yourself, allow access to anyone, then copy the URL ending in <strong>/exec</strong> into the box above.</p>
+</section>
 <?php else:?>
 <h1>Customers</h1><p class="muted">Customer history from your recorded orders.</p>
 <?php $customers=[];foreach($orders as $o){$key=strtolower($o['customer']).'|'.$o['phone'];$customers[$key]??=['name'=>$o['customer'],'phone'=>$o['phone'],'orders'=>[]];$customers[$key]['orders'][]=$o;}foreach($customers as $c):?>
