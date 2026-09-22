@@ -26,6 +26,82 @@ $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 $statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Cancelled'];
 
+// Keep the live order catalogue complete without overwriting manually managed prices.
+$catalogSeed=[
+ 'Acetic Acid 0.6% 10ml',
+ 'BAC Water 5ml',
+ 'BAC Water 10ml',
+ 'BPC-157 5mg',
+ 'BPC-157 10mg',
+ 'BPC + TB Stack 10mg',
+ 'BPC + TB Stack 20mg',
+ 'Cagrilintide 5mg',
+ 'Cagrilintide 10mg',
+ 'CJC-1295 No DAC 2mg',
+ 'CJC-1295 No DAC 5mg',
+ 'CJC-1295 No DAC 10mg',
+ 'CJC-1295 with DAC 2mg',
+ 'CJC-1295 with DAC 5mg',
+ 'DSIP 5mg',
+ 'DSIP 10mg',
+ 'DSIP 15mg',
+ 'Epitalon 10mg',
+ 'GHK-CU 50mg',
+ 'GHRP-2 5mg',
+ 'GHRP-2 10mg',
+ 'Glow Stack 70mg',
+ 'IGF-1 LR3 1mg',
+ 'Ipamorelin 5mg',
+ 'Ipamorelin 10mg',
+ 'Kisspeptin-10 5mg',
+ 'KPV 10mg',
+ 'Melanotan 1 10mg',
+ 'MGF 2mg',
+ 'MOTS-C 10mg',
+ 'MOTS-C 20mg',
+ 'MOTS-C 40mg',
+ 'NAD+ 500mg',
+ 'NAD+ 1000mg',
+ 'Oxytocin 5mg',
+ 'PEG-MGF 2mg',
+ 'Retatrutide 10mg',
+ 'Retatrutide 20mg',
+ 'Retatrutide 30mg',
+ 'Selank 5mg',
+ 'Selank 10mg',
+ 'Semaglutide 5mg',
+ 'Semaglutide 10mg',
+ 'Semaglutide 15mg',
+ 'Semaglutide 20mg',
+ 'Semaglutide 30mg',
+ 'Semax 5mg',
+ 'SNAP-8 10mg',
+ 'SS-31 10mg',
+ 'TB-500 2mg',
+ 'TB-500 5mg',
+ 'TB-500 10mg',
+ 'Tesamorelin 2mg',
+ 'Tesamorelin 10mg',
+ 'Thymalin 10mg',
+ 'Thymosin Alpha-1 5mg',
+ 'Thymosin Alpha-1 10mg',
+ 'Tirzepatide (Mounjaro) 10mg',
+ 'Tirzepatide (Mounjaro) 20mg',
+ 'Tirzepatide (Mounjaro) 30mg',
+ 'Reusable Pen',
+ 'V2 Reusable Pen',
+ 'V3 Reusable Pen',
+ 'Cartridge',
+ 'Peptide Storage Case',
+ 'Starter Kit'
+];
+$hasProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) LIMIT 1');
+$addProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,0,1)');
+foreach($catalogSeed as $catalogName){
+ $hasProduct->execute([$catalogName]);
+ if(!$hasProduct->fetchColumn())$addProduct->execute([$catalogName]);
+}
+
 function setting(PDO $db,string $key,string $default=''):string{
  $q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$key]);$v=$q->fetchColumn();
  return $v===false?$default:(string)$v;
@@ -142,7 +218,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets'],true)?$_GET['view']:'orders';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile5"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile6"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
