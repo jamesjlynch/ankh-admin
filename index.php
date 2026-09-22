@@ -390,6 +390,133 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
  }
 }
 
+if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-assistant'){
+ try{
+  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
+  if(!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  if($testingNoAuth)voiceJson(['ok'=>false,'error'=>'ANKH Assistant is locked until the app PIN has been set.'],403);
+  if($openAiKey==='')voiceJson(['ok'=>false,'error'=>'OpenAI is not connected yet.'],503);
+  if(!isset($_FILES['audio']) || !is_uploaded_file($_FILES['audio']['tmp_name']))voiceJson(['ok'=>false,'error'=>'No voice recording was received.'],400);
+  if((int)($_FILES['audio']['size']??0)<100 || (int)($_FILES['audio']['size']??0)>12*1024*1024)voiceJson(['ok'=>false,'error'=>'Keep the question under about one minute and try again.'],400);
+
+  $tmp=(string)$_FILES['audio']['tmp_name'];$mime=(string)($_FILES['audio']['type']??'audio/mp4');$filename=(string)($_FILES['audio']['name']??'ankh-question.m4a');
+  $transcription=openAiCurlJson('https://api.openai.com/v1/audio/transcriptions',[],[
+   'file'=>new CURLFile($tmp,$mime,$filename),
+   'model'=>'gpt-4o-mini-transcribe',
+   'language'=>'en',
+   'prompt'=>'ANKH Peptides business admin question. Names may include James and Tony. Reta means Retatrutide. Common questions are profit, sales, outstanding payments, deliveries, stock and customer orders.'
+  ],true);
+  $transcript=trim((string)($transcription['text']??''));
+  if($transcript==='')voiceJson(['ok'=>false,'error'=>'I could not hear a question. Please try again.'],422);
+
+  $schema=[
+   'type'=>'object','additionalProperties'=>false,
+   'properties'=>[
+    'intent'=>['type'=>'string','enum'=>['profit','sales','outstanding_payments','delivery_needed','assigned_delivery','low_stock','summary','customer_last_order','open_new_order','help']],
+    'period'=>['type'=>'string','enum'=>['today','week','month','months','all']],
+    'months'=>['type'=>'integer','minimum'=>0,'maximum'=>36],
+    'assignee'=>['type'=>'string','enum'=>['','James','Tony']],
+    'customer_name'=>['type'=>'string']
+   ],
+   'required'=>['intent','period','months','assignee','customer_name']
+  ];
+  $assistantInstructions="Classify an ANKH business-admin voice question. Read-only questions only. Profit means gross profit after saved product costs, pen costs and postage. If the user says 'last X months', use intent profit or sales as appropriate, period months and months=X. 'This month' means period month. 'This week' means week. 'Today' means today. Outstanding/unpaid money means outstanding_payments. Orders needing delivery means delivery_needed. If they ask what James or Tony has to deliver, use assigned_delivery and that assignee. Stock running low means low_stock. 'Give me a summary' means summary. Questions about a named customer's most recent order mean customer_last_order. Requests to add/create a new order mean open_new_order. Otherwise use help.";
+  $classified=openAiCurlJson('https://api.openai.com/v1/responses',['Content-Type: application/json'],json_encode([
+   'model'=>'gpt-5.6-luna','store'=>false,'reasoning'=>['effort'=>'none'],'instructions'=>$assistantInstructions,'input'=>$transcript,
+   'text'=>['format'=>['type'=>'json_schema','name'=>'ankh_assistant_intent','strict'=>true,'schema'=>$schema]]
+  ],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+  $intent=json_decode(responseOutputText($classified),true);
+  if(!is_array($intent))voiceJson(['ok'=>false,'error'=>'I heard you, but I could not understand the business question.'],422);
+
+  $kind=(string)($intent['intent']??'help');$period=(string)($intent['period']??'month');$months=max(0,min(36,(int)($intent['months']??0)));
+  $assignee=(string)($intent['assignee']??'');$customerName=trim((string)($intent['customer_name']??''));
+  $tz=new DateTimeZone('Europe/London');$nowAssistant=new DateTimeImmutable('now',$tz);
+  $start=null;$periodLabel='all time';
+  if($period==='today'){$start=$nowAssistant->setTime(0,0);$periodLabel='today';}
+  elseif($period==='week'){$start=$nowAssistant->modify('monday this week')->setTime(0,0);$periodLabel='this week';}
+  elseif($period==='month'){$start=$nowAssistant->modify('first day of this month')->setTime(0,0);$periodLabel='this month';}
+  elseif($period==='months'){$months=$months?:1;$start=$nowAssistant->modify('-'.$months.' months')->setTime(0,0);$periodLabel='the last '.$months.' month'.($months===1?'':'s');}
+
+  $moneySpeak=function(int $pence):string{return '£'.number_format($pence/100,2);};
+  $answer='';$items=[];$navigate='';
+  $paidForAssistant=['Paid','Packed','Dispatched','Delivered'];
+
+  if(in_array($kind,['profit','sales','summary'],true)){
+   $rows=$db->query("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
+   $itemCosts=[];$missingCosts=[];
+   $costRows=$db->query("SELECT i.order_id,i.name,i.cost,i.presentation_cost,i.quantity FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
+   foreach($costRows as $cr){
+    $oid=(int)$cr['order_id'];$qty=(int)$cr['quantity'];$cost=$cr['cost']===null?null:(int)$cr['cost'];$presentationCost=(int)($cr['presentation_cost']??0);
+    if($cost===null){$missingCosts[$oid]=true;$cost=0;}
+    $itemCosts[$oid]=($itemCosts[$oid]??0)+(($cost+$presentationCost)*$qty);
+   }
+   $periodRevenue=0;$periodProfit=0;$periodOrders=0;$periodMissing=false;
+   foreach($rows as $row){
+    if(!in_array((string)$row['status'],$paidForAssistant,true))continue;
+    $dateText=(string)(($row['payment_date']??'')?:$row['created']);$ts=strtotime($dateText)?:0;
+    if($start && $ts<$start->getTimestamp())continue;
+    $revenue=(int)$row['total'];$profit=$revenue-(int)($itemCosts[(int)$row['id']]??0)-(int)($row['postage_cost']??0);
+    $periodRevenue+=$revenue;$periodProfit+=$profit;$periodOrders++;if(!empty($missingCosts[(int)$row['id']]))$periodMissing=true;
+   }
+   if($kind==='profit'){
+    $answer='Gross profit for '.$periodLabel.' is '.$moneySpeak($periodProfit).' from '.$moneySpeak($periodRevenue).' in sales across '.$periodOrders.' completed order'.($periodOrders===1?'':'s').'.';
+    if($periodMissing)$answer.=' Some sold items have no saved cost, so the profit figure may be overstated.';
+   }elseif($kind==='sales'){
+    $answer='Sales for '.$periodLabel.' are '.$moneySpeak($periodRevenue).' across '.$periodOrders.' completed order'.($periodOrders===1?'':'s').'.';
+   }else{
+    $todayStartAssistant=$nowAssistant->setTime(0,0)->getTimestamp();$todayRevenue=0;$todayProfit=0;$todayOrders=0;
+    foreach($rows as $row){
+     if(!in_array((string)$row['status'],$paidForAssistant,true))continue;$ts=strtotime((string)(($row['payment_date']??'')?:$row['created']))?:0;if($ts<$todayStartAssistant)continue;
+     $rev=(int)$row['total'];$todayRevenue+=$rev;$todayProfit+=$rev-(int)($itemCosts[(int)$row['id']]??0)-(int)($row['postage_cost']??0);$todayOrders++;
+    }
+    $unpaidRows=$db->query("SELECT o.id,o.customer,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.status IN ('New','Awaiting payment') GROUP BY o.id")->fetchAll(PDO::FETCH_ASSOC);
+    $deliveryRows=$db->query("SELECT id FROM orders WHERE status IN ('Paid','Packed','Dispatched')")->fetchAll(PDO::FETCH_ASSOC);
+    $lowRows=$db->query("SELECT id FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at")->fetchAll(PDO::FETCH_ASSOC);
+    $unpaidTotal=array_sum(array_map(fn($r)=>(int)$r['total'],$unpaidRows));
+    $answer='Today you have '.$moneySpeak($todayRevenue).' in sales and '.$moneySpeak($todayProfit).' gross profit from '.$todayOrders.' completed order'.($todayOrders===1?'':'s').'. There are '.count($unpaidRows).' outstanding payment'.(count($unpaidRows)===1?'':'s').' worth '.$moneySpeak($unpaidTotal).', '.count($deliveryRows).' order'.(count($deliveryRows)===1?'':'s').' still to deliver, and '.count($lowRows).' low-stock product'.(count($lowRows)===1?'':'s').'.';
+   }
+  }elseif($kind==='outstanding_payments'){
+   $rows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.status IN ('New','Awaiting payment') GROUP BY o.id ORDER BY datetime(o.created) ASC,o.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+   $total=array_sum(array_map(fn($r)=>(int)$r['total'],$rows));
+   foreach($rows as $r)$items[]=['reference'=>'ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),'title'=>(string)$r['customer'],'detail'=>$moneySpeak((int)$r['total']).' outstanding'];
+   if(!$rows)$answer='There are no outstanding payments.';
+   else{$names=array_slice(array_map(fn($r)=>(string)$r['customer'],$rows),0,5);$answer='There are '.count($rows).' outstanding payment'.(count($rows)===1?'':'s').' worth '.$moneySpeak($total).'. '.implode(', ',$names).(count($rows)>5?' and '.(count($rows)-5).' more.':'.');}
+  }elseif(in_array($kind,['delivery_needed','assigned_delivery'],true)){
+   $sql="SELECT o.id,o.customer,o.status,o.assigned_to,o.delivery_method,o.created FROM orders o WHERE o.status IN ('Paid','Packed','Dispatched')";
+   $params=[];if($kind==='assigned_delivery'&&in_array($assignee,['James','Tony'],true)){$sql.=" AND o.assigned_to=?";$params[]=$assignee;}
+   $sql.=" ORDER BY datetime(o.created) ASC,o.id ASC";$q=$db->prepare($sql);$q->execute($params);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
+   foreach($rows as $r)$items[]=['reference'=>'ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),'title'=>(string)$r['customer'],'detail'=>trim(((string)$r['assigned_to']?:'Unassigned').' · '.((string)$r['delivery_method']?:'Delivery not set'))];
+   $label=$kind==='assigned_delivery'&&$assignee!==''?$assignee.' has':'There are';
+   if(!$rows)$answer=$kind==='assigned_delivery'&&$assignee!==''?$assignee.' has no orders waiting for delivery.':'There are no orders waiting for delivery.';
+   else{$names=array_slice(array_map(fn($r)=>(string)$r['customer'],$rows),0,5);$answer=$label.' '.count($rows).' order'.(count($rows)===1?'':'s').' waiting for delivery: '.implode(', ',$names).(count($rows)>5?' and '.(count($rows)-5).' more.':'.');}
+  }elseif($kind==='low_stock'){
+   $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+   foreach($rows as $r)$items[]=['reference'=>'Stock','title'=>(string)$r['name'],'detail'=>(int)$r['stock_qty'].' left'];
+   if(!$rows)$answer='Nothing currently tracked is at or below its low-stock level.';
+   else{$names=array_slice(array_map(fn($r)=>(string)$r['name'].' with '.(int)$r['stock_qty'].' left',$rows),0,5);$answer=count($rows).' product'.(count($rows)===1?' is':'s are').' low on stock: '.implode(', ',$names).(count($rows)>5?' and '.(count($rows)-5).' more.':'.');}
+  }elseif($kind==='customer_last_order'){
+   if($customerName===''){$answer='Tell me the customer name and ask for their last order.';}
+   else{
+    $q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE lower(o.customer) LIKE lower(?) GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 1");$q->execute(['%'.$customerName.'%']);$row=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$row)$answer='I could not find an order for '.$customerName.'.';
+    else{
+     $iq=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$iq->execute([(int)$row['id']]);$parts=[];foreach($iq->fetchAll(PDO::FETCH_ASSOC) as $it){if(strtolower(trim((string)$it['name']))==='pen')continue;$parts[]=(int)$it['quantity'].' '.$it['name'].(!empty($it['presentation'])?' '.$it['presentation']:'');}
+     $ref='ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT);$answer=$row['customer']."'s last order was ".$ref.' for '.implode(', ',$parts).', total '.$moneySpeak((int)$row['total']).'. Its status is '.$row['status'].'.';
+     $items[]=['reference'=>$ref,'title'=>(string)$row['customer'],'detail'=>implode(' · ',$parts)];
+    }
+   }
+  }elseif($kind==='open_new_order'){
+   $answer='Opening New Order. Use the Voice Order button there to dictate the customer and products.';$navigate='?view=new';
+  }else{
+   $answer='You can ask me about profit or sales over a time period, outstanding payments, orders needing delivery, what James or Tony has to deliver, low stock, a customer’s last order, or ask for today’s summary.';
+  }
+
+  voiceJson(['ok'=>true,'transcript'=>$transcript,'answer'=>$answer,'items'=>$items,'navigate'=>$navigate,'intent'=>$kind]);
+ }catch(Throwable $ex){
+  voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'ANKH Assistant could not answer that. Please try again.'],500);
+ }
+}
+
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
@@ -568,7 +695,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile40"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile41"></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1041,10 +1168,80 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </section>
 <?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
 <?php endif;?>
-</main><script>
+</main>
+<button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Ask ANKH Assistant">
+ <span class="assistant-button-ring" aria-hidden="true"></span><span class="assistant-button-icon" aria-hidden="true">🎙</span><span class="assistant-button-label">Ask ANKH</span>
+</button>
+<div id="ankh-assistant-overlay" class="ankh-assistant-overlay" hidden>
+ <section class="ankh-assistant-card" role="dialog" aria-modal="true" aria-labelledby="ankh-assistant-title">
+  <button type="button" id="ankh-assistant-close" class="ankh-assistant-close" aria-label="Close assistant">×</button>
+  <div class="ankh-assistant-orb" id="ankh-assistant-orb"><span>☥</span></div>
+  <p class="eyebrow">ANKH ASSISTANT</p>
+  <h2 id="ankh-assistant-title">What would you like to know?</h2>
+  <p id="ankh-assistant-message">Ask about profit, payments, deliveries, stock or customer orders.</p>
+  <div id="ankh-assistant-timer" class="ankh-assistant-timer" hidden>00:00</div>
+  <div id="ankh-assistant-answer" class="ankh-assistant-answer" hidden></div>
+  <div id="ankh-assistant-items" class="ankh-assistant-items" hidden></div>
+  <div class="ankh-assistant-examples" id="ankh-assistant-examples">
+   <span>Try asking</span>
+   <button type="button" disabled>“What payments are outstanding?”</button>
+   <button type="button" disabled>“How much profit in the last 3 months?”</button>
+   <button type="button" disabled>“What has Tony got to deliver?”</button>
+  </div>
+  <button type="button" id="ankh-assistant-action" class="ankh-assistant-action">🎙 Start talking</button>
+  <small id="ankh-assistant-help">I’ll speak the answer back to you</small>
+ </section>
+</div>
+<script>
 const orderDraftKey='ankh-order-draft-v2';
 if(document.querySelector('#order-saved-marker')){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
 document.querySelectorAll('[data-copy-text]').forEach(button=>button.addEventListener('click',async()=>{const value=button.dataset.copyText||'';try{await navigator.clipboard.writeText(value);const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}catch(_){const area=document.createElement('textarea');area.value=value;document.body.append(area);area.select();document.execCommand('copy');area.remove()}}));
+
+const ankhAssistantButton=document.querySelector('#ankh-assistant-button'),ankhAssistantOverlay=document.querySelector('#ankh-assistant-overlay'),ankhAssistantClose=document.querySelector('#ankh-assistant-close'),ankhAssistantOrb=document.querySelector('#ankh-assistant-orb'),ankhAssistantTitle=document.querySelector('#ankh-assistant-title'),ankhAssistantMessage=document.querySelector('#ankh-assistant-message'),ankhAssistantTimer=document.querySelector('#ankh-assistant-timer'),ankhAssistantAnswer=document.querySelector('#ankh-assistant-answer'),ankhAssistantItems=document.querySelector('#ankh-assistant-items'),ankhAssistantExamples=document.querySelector('#ankh-assistant-examples'),ankhAssistantAction=document.querySelector('#ankh-assistant-action'),ankhAssistantHelp=document.querySelector('#ankh-assistant-help');
+let ankhAssistantRecorder=null,ankhAssistantStream=null,ankhAssistantChunks=[],ankhAssistantTimeout=null,ankhAssistantTick=null,ankhAssistantStarted=0;
+function assistantSpeak(text){
+ if(!('speechSynthesis' in window)||!text)return;window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(text);utterance.lang='en-GB';utterance.rate=.98;window.speechSynthesis.speak(utterance);
+}
+function assistantStopTracks(){if(ankhAssistantTimeout){clearTimeout(ankhAssistantTimeout);ankhAssistantTimeout=null}if(ankhAssistantTick){clearInterval(ankhAssistantTick);ankhAssistantTick=null}ankhAssistantStream?.getTracks().forEach(t=>t.stop());ankhAssistantStream=null}
+function assistantSetState(state,title,message){
+ if(ankhAssistantTitle)ankhAssistantTitle.textContent=title;if(ankhAssistantMessage)ankhAssistantMessage.textContent=message;
+ ankhAssistantOverlay?.classList.toggle('listening',state==='listening');ankhAssistantOverlay?.classList.toggle('working',state==='working');ankhAssistantOverlay?.classList.toggle('answered',state==='answered');
+ if(ankhAssistantExamples)ankhAssistantExamples.hidden=state!=='idle';
+ if(ankhAssistantTimer)ankhAssistantTimer.hidden=state!=='listening';
+ if(ankhAssistantAction){
+  ankhAssistantAction.disabled=state==='working';
+  ankhAssistantAction.textContent=state==='listening'?'■ Stop & answer':state==='working'?'Thinking…':state==='answered'?'🎙 Ask another':'🎙 Start talking';
+ }
+ if(ankhAssistantHelp)ankhAssistantHelp.textContent=state==='listening'?'Tap Stop when you’ve finished':state==='working'?'Checking your ANKH data…':state==='answered'?'Answer spoken aloud · tap Ask another to continue':'I’ll speak the answer back to you';
+}
+function assistantOpen(){if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=false;document.body.classList.add('assistant-overlay-open');assistantSetState('idle','What would you like to know?','Ask about profit, payments, deliveries, stock or customer orders.');if(ankhAssistantAnswer)ankhAssistantAnswer.hidden=true;if(ankhAssistantItems)ankhAssistantItems.hidden=true}
+function assistantCloseOverlay(){assistantStopTracks();if(ankhAssistantRecorder?.state==='recording')try{ankhAssistantRecorder.stop()}catch(_){};ankhAssistantRecorder=null;if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=true;document.body.classList.remove('assistant-overlay-open');window.speechSynthesis?.cancel()}
+function assistantMime(){const types=['audio/mp4','audio/webm;codecs=opus','audio/webm'];return types.find(t=>window.MediaRecorder?.isTypeSupported?.(t))||''}
+function assistantUpdateTimer(){if(!ankhAssistantTimer)return;const sec=Math.floor((Date.now()-ankhAssistantStarted)/1000);ankhAssistantTimer.textContent=String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
+async function assistantStart(){
+ if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){assistantSetState('answered','Microphone unavailable','This browser cannot record audio for ANKH Assistant.');return}
+ try{
+  window.speechSynthesis?.cancel();ankhAssistantStream=await navigator.mediaDevices.getUserMedia({audio:true});ankhAssistantChunks=[];const mime=assistantMime();ankhAssistantRecorder=mime?new MediaRecorder(ankhAssistantStream,{mimeType:mime}):new MediaRecorder(ankhAssistantStream);
+  ankhAssistantRecorder.addEventListener('dataavailable',e=>{if(e.data?.size)ankhAssistantChunks.push(e.data)});
+  ankhAssistantRecorder.addEventListener('stop',()=>{const type=ankhAssistantRecorder.mimeType||mime||'audio/mp4',blob=new Blob(ankhAssistantChunks,{type});assistantStopTracks();if(blob.size>100)assistantSend(blob,type);else assistantSetState('answered','I didn’t catch that','Try again and start speaking after the circle begins pulsing.')},{once:true});
+  ankhAssistantRecorder.start();ankhAssistantStarted=Date.now();assistantSetState('listening','I’m listening…','Ask me a question about the business.');assistantUpdateTimer();ankhAssistantTick=setInterval(assistantUpdateTimer,500);ankhAssistantTimeout=setTimeout(()=>assistantStopRecording(),60000);
+ }catch(_){assistantStopTracks();assistantSetState('answered','Microphone permission needed','Allow microphone access in Safari and try again.')}
+}
+function assistantStopRecording(){if(ankhAssistantRecorder?.state!=='recording')return;assistantSetState('working','Checking ANKH…','I’m working out the answer from your orders and stock.');ankhAssistantRecorder.stop()}
+async function assistantSend(blob,mime){
+ assistantSetState('working','Checking ANKH…','I’m working out the answer from your orders and stock.');
+ try{
+  const data=new FormData();data.append('csrf',<?=json_encode($_SESSION['csrf'])?>);data.append('audio',blob,mime.includes('mp4')?'ankh-question.m4a':'ankh-question.webm');
+  const response=await fetch('?api=voice-assistant',{method:'POST',body:data,credentials:'same-origin'});const payload=await response.json().catch(()=>({ok:false,error:'The assistant returned an unreadable response.'}));
+  if(!response.ok||!payload.ok)throw new Error(payload.error||'ANKH Assistant could not answer that.');
+  assistantSetState('answered','Here’s what I found',payload.transcript?'You asked: “'+payload.transcript+'”':'');
+  if(ankhAssistantAnswer){ankhAssistantAnswer.hidden=false;ankhAssistantAnswer.textContent=payload.answer||''}
+  if(ankhAssistantItems){ankhAssistantItems.replaceChildren();const items=Array.isArray(payload.items)?payload.items:[];items.slice(0,12).forEach(item=>{const row=document.createElement('div');row.className='ankh-assistant-item';const copy=document.createElement('div');const title=document.createElement('strong');title.textContent=item.title||'';const detail=document.createElement('small');detail.textContent=item.detail||'';copy.append(title,detail);const ref=document.createElement('span');ref.textContent=item.reference||'';row.append(copy,ref);ankhAssistantItems.append(row)});ankhAssistantItems.hidden=!items.length}
+  assistantSpeak(payload.answer||'');
+  if(payload.navigate)setTimeout(()=>{location.href=payload.navigate},1800);
+ }catch(error){assistantSetState('answered','I couldn’t answer that',error?.message||'Please try again.');if(ankhAssistantAnswer){ankhAssistantAnswer.hidden=false;ankhAssistantAnswer.textContent=error?.message||'Please try again.'}}
+}
+ankhAssistantButton?.addEventListener('click',assistantOpen);ankhAssistantClose?.addEventListener('click',assistantCloseOverlay);ankhAssistantOrb?.addEventListener('click',()=>{if(ankhAssistantRecorder?.state==='recording')assistantStopRecording();else if(!ankhAssistantOverlay?.classList.contains('working'))assistantStart()});ankhAssistantAction?.addEventListener('click',()=>{if(ankhAssistantRecorder?.state==='recording')assistantStopRecording();else assistantStart()});
 
 const addCustomerButton=document.querySelector('#show-add-customer'),addCustomerPanel=document.querySelector('#add-customer-panel');
 addCustomerButton?.addEventListener('click',()=>{const open=addCustomerPanel.hidden;addCustomerPanel.hidden=!open;addCustomerButton.setAttribute('aria-expanded',open?'true':'false');if(open)addCustomerPanel.querySelector('input[name="name"]')?.focus()});
