@@ -232,13 +232,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order'){
-   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');
+   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
    if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000)throw new Exception('Check the customer details and try again.');
    if(!in_array($presentation,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial.');
+   $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);
+   $chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
+   if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate)throw new Exception('Choose a valid order date.');
+   if($chosenDate>$todayLocal)throw new Exception('Order date cannot be in the future.');
    $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false || $n<0 || $n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=? AND active=1');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product is unavailable.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
    if(!$lines)throw new Exception('Add at least one product.');
    $db->beginTransaction();
-   $created=gmdate('c');
+   if($chosenDate->format('Y-m-d')===$todayLocal->format('Y-m-d'))$created=gmdate('c');
+   else $created=(new DateTimeImmutable($orderDate.' 12:00:00',$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
    $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation) VALUES (?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation]);$oid=$db->lastInsertId();
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");
    $saveCustomer->execute([$name,$phone,$address,$created]);
@@ -272,7 +277,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile14"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile15"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -375,7 +380,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $s):?><option><?=e($s)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
 <?php foreach($orders as $o):?><details class="order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><span class="badge"><?=e($o['status'])?></span><strong><?=money($o['total'])?></strong><small>Tap to open ↓</small></div></summary><div class="detail">
-<p><?=e($o['phone'])?></p><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
+<p><?=e($o['phone'])?></p><p><strong>Order date:</strong> <?=e(date('d M Y',strtotime($o['created'])))?></p><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
 <?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].' @ '.money($i['price']).' each')?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
 <form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form></div></details><?php endforeach;?></div>
@@ -389,6 +394,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="two"><div class="customer-search-wrap"><label>Customer name<input id="customer-search" name="customer" maxlength="160" required autocomplete="off" placeholder="Start typing name or phone…" value="<?=e($_POST['customer']??($newOrderCustomer['name']??''))?>"></label><div id="customer-results" class="customer-results" role="listbox" hidden></div></div><label>Phone<input id="customer-phone" name="phone" maxlength="40" type="tel" autocomplete="tel" value="<?=e($_POST['phone']??($newOrderCustomer['phone']??''))?>"></label></div>
 <label>Referrer <span class="muted">(optional)</span><input id="customer-referrer" name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist>
 <label>Delivery address<textarea id="customer-address" name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??($newOrderCustomer['address']??''))?></textarea></label>
+<label class="order-date-field">Order date <span class="muted">(defaults to today)</span><input id="order-date" name="order_date" type="date" required max="<?=e($now->format('Y-m-d'))?>" value="<?=e($_POST['order_date']??$now->format('Y-m-d'))?>"></label>
 <div class="wizard-actions wizard-actions-next"><button type="button" data-wizard-next="2">Next · Add products →</button></div>
 </section>
 
@@ -417,6 +423,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="wizard-step-head"><span class="wizard-kicker">STEP 3 OF 3</span><h2>Check & save</h2><p class="muted">Check the details below, then save the order.</p></div>
 <div class="order-check">
 <div class="order-check-section"><span class="order-check-label">Customer</span><strong id="check-customer">—</strong><small id="check-customer-detail"></small></div>
+<div class="order-check-section"><span class="order-check-label">Order date</span><strong id="check-order-date">—</strong></div>
 <div class="order-check-section"><span class="order-check-label">Type</span><strong id="check-presentation">—</strong><small id="check-presentation-detail"></small></div>
 <div class="order-check-section"><span class="order-check-label">Products</span><div id="check-products"></div></div>
 <div class="line order-check-total"><strong>Product subtotal</strong><strong id="subtotal">£0.00</strong></div>
@@ -504,9 +511,10 @@ function showWizardStep(step){
 }
 function selectedOrderRows(){return productRows.filter(row=>Number(row.querySelector('.quantity')?.value||0)>0)}
 function buildOrderCheck(){
- const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products'),presentation=document.querySelector('#check-presentation'),presentationDetail=document.querySelector('#check-presentation-detail');
+ const customer=document.querySelector('#check-customer'),detail=document.querySelector('#check-customer-detail'),products=document.querySelector('#check-products'),presentation=document.querySelector('#check-presentation'),presentationDetail=document.querySelector('#check-presentation-detail'),orderDate=document.querySelector('#order-date'),checkOrderDate=document.querySelector('#check-order-date');
  if(customer)customer.textContent=customerSearch?.value.trim()||'—';
  if(detail){const bits=[customerPhone?.value.trim(),document.querySelector('#customer-referrer')?.value.trim()].filter(Boolean);detail.textContent=bits.join(' · ')}
+ if(checkOrderDate&&orderDate?.value){const d=new Date(orderDate.value+'T12:00:00');checkOrderDate.textContent=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
  if(presentation)presentation.textContent=presentationInput?.value||'—';
  if(presentationDetail)presentationDetail.textContent=presentationInput?.value==='Pen'?'Adds £20 once to this order':'No extra charge';
  if(products){products.replaceChildren();selectedOrderRows().forEach(row=>{const q=Number(row.querySelector('.quantity')?.value||0),price=Number(row.querySelector('.line-price')?.value||0),line=document.createElement('div');line.className='check-product-line';const name=document.createElement('span');name.textContent=q+' × '+row.dataset.productLabel;const amount=document.createElement('strong');amount.textContent=new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(q*price);line.append(name,amount);products.append(line)})}
@@ -514,7 +522,7 @@ function buildOrderCheck(){
 }
 document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventListener('click',()=>{
  const next=Number(button.dataset.wizardNext);
- if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}}
+ if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}const orderDate=document.querySelector('#order-date');if(!orderDate?.value||!orderDate.checkValidity()){orderDate?.reportValidity();orderDate?.focus();return}}
  if(next===3&&!presentationInput?.value){alert('Choose Pen, Cartridge or Vial first.');return}
  if(next===3&&!selectedOrderRows().length){alert('Add at least one product before continuing.');productSearch?.focus();showProductResults();return}
  showWizardStep(next);
