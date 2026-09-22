@@ -88,16 +88,16 @@ function upsertOrder_(ss, order) {
   const itemRows = (order.items || []).map(item => [
     reference,
     String(item.name || ''),
-    String(item.presentation || ''),
     Number(item.quantity || 0),
-    item.base_price_pence === null || item.base_price_pence === undefined ? '' : Number(item.base_price_pence) / 100,
-    Number(item.discount_pence || 0) / 100,
     Number(item.unit_price_pence || 0) / 100,
     (Number(item.unit_price_pence || 0) * Number(item.quantity || 0)) / 100,
     String(order.status || 'New'),
     item.unit_cost_pence === null || item.unit_cost_pence === undefined ? '' : Number(item.unit_cost_pence) / 100,
+    String(item.presentation || ''),
+    item.base_price_pence === null || item.base_price_pence === undefined ? '' : Number(item.base_price_pence) / 100,
+    Number(item.discount_pence || 0) / 100,
     Number(item.presentation_cost_pence || 0) / 100
-  ]).filter(row => row[3] > 0);
+  ]).filter(row => row[2] > 0);
 
   if (itemRows.length) {
     items.getRange(items.getLastRow() + 1, 1, itemRows.length, 11).setValues(itemRows);
@@ -110,7 +110,7 @@ function ensureHeaders_(orders, items) {
     'Payment Method','Delivery Method','Tracking / Reference','Delivery Charge (£)','Postage Cost (£)',
     'Payment Fee (£)','Payment Date','Delivery Date','Format Summary'
   ];
-  const itemHeaders = ['Order ID','Product','Format','Quantity','Base Price (£)','Discount (£)','Unit Price (£)','Line Total (£)','Status','Product Cost (£)','Format Cost (£)'];
+  const itemHeaders = ['Order ID','Product','Quantity','Unit Price (£)','Line Total (£)','Status','Unit Cost (£)','Format','Base Price (£)','Discount (£)','Format Cost (£)'];
   orders.getRange(1, 1, 1, orderHeaders.length).setValues([orderHeaders]);
   items.getRange(1, 1, 1, itemHeaders.length).setValues([itemHeaders]);
 }
