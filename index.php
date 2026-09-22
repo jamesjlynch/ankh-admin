@@ -628,6 +628,10 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
 <?php endif;?>
 </main><script>
+const orderDraftKey='ankh-order-draft-v1';
+if(document.querySelector('#order-saved-marker')){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
+document.querySelectorAll('[data-copy-text]').forEach(button=>button.addEventListener('click',async()=>{const value=button.dataset.copyText||'';try{await navigator.clipboard.writeText(value);const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}catch(_){const area=document.createElement('textarea');area.value=value;document.body.append(area);area.select();document.execCommand('copy');area.remove()}}));
+
 const addCustomerButton=document.querySelector('#show-add-customer'),addCustomerPanel=document.querySelector('#add-customer-panel');
 addCustomerButton?.addEventListener('click',()=>{const open=addCustomerPanel.hidden;addCustomerPanel.hidden=!open;addCustomerButton.setAttribute('aria-expanded',open?'true':'false');if(open)addCustomerPanel.querySelector('input[name="name"]')?.focus()});
 document.querySelectorAll('[data-close-customer-form]').forEach(b=>b.addEventListener('click',()=>{if(addCustomerPanel){addCustomerPanel.hidden=true;addCustomerButton?.setAttribute('aria-expanded','false')}}));
@@ -637,15 +641,18 @@ const customerPageSearch=document.querySelector('#customer-page-search'),custome
 function filterCustomerPage(){if(!customerCards.length)return;const term=(customerPageSearch?.value||'').toLowerCase().trim(),mode=customerStatusFilter?.value||'active';let visible=0;customerCards.forEach(card=>{const archived=card.dataset.customerArchived==='1',statusOk=mode==='all'||(mode==='archived'?archived:!archived),searchOk=!term||card.dataset.customerSearch.includes(term);card.hidden=!(statusOk&&searchOk);if(!card.hidden)visible++});if(customerPageEmpty)customerPageEmpty.hidden=visible>0}
 customerPageSearch?.addEventListener('input',filterCustomerPage);customerStatusFilter?.addEventListener('change',filterCustomerPage);filterCustomerPage();
 
-const wizard=document.querySelector('#order-wizard'),wizardSteps=[...document.querySelectorAll('[data-wizard-step]')],wizardProgress=[...document.querySelectorAll('[data-progress-step]')];
+const wizard=document.querySelector('#order-wizard'),wizardSteps=[...document.querySelectorAll('[data-wizard-step]')],wizardProgress=[...document.querySelectorAll('[data-progress-step]')],clearDraftButton=document.querySelector('#clear-draft');
+let currentWizardStep=1;
 function showWizardStep(step){
  if(!wizard)return;
+ currentWizardStep=Number(step)||1;
  wizardSteps.forEach(section=>section.hidden=Number(section.dataset.wizardStep)!==Number(step));
  wizardProgress.forEach(item=>{const n=Number(item.dataset.progressStep);item.classList.toggle('active',n===Number(step));item.classList.toggle('done',n<Number(step))});
  document.activeElement?.blur();
  wizard.scrollIntoView({behavior:'smooth',block:'start'});
  if(Number(step)===2){setTimeout(()=>{productSearch?.focus();showProductResults()},250)}
  if(Number(step)===3)buildOrderCheck();
+ if(typeof saveDraftOrder==='function')saveDraftOrder();
 }
 function selectedOrderRows(){return productRows.filter(row=>Number(row.querySelector('.quantity')?.value||0)>0)}
 function buildOrderCheck(){
@@ -673,12 +680,31 @@ function chooseCustomer(customer){if(customerSearch)customerSearch.value=custome
 function showCustomerResults(){if(!customerSearch||!customerResults)return;const term=customerSearch.value.toLowerCase().trim();customerResults.replaceChildren();if(term.length<1){customerResults.hidden=true;return}const matches=customerSuggestions.filter(c=>(c.name||'').toLowerCase().includes(term)||(c.phone||'').toLowerCase().includes(term)).slice(0,8);if(!matches.length){customerResults.hidden=true;return}matches.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='customer-result';b.setAttribute('role','option');const main=document.createElement('strong');main.textContent=c.name||'Customer';const detail=document.createElement('span');detail.textContent=c.phone||'';b.append(main,detail);if(c.address){const addr=document.createElement('small');addr.textContent=c.address.replace(/\s+/g,' ').trim();b.append(addr)}b.addEventListener('click',()=>chooseCustomer(c));customerResults.append(b)});customerResults.hidden=false}
 customerSearch?.addEventListener('input',showCustomerResults);
 customerSearch?.addEventListener('focus',showCustomerResults);
+document.querySelectorAll('[data-recent-customer]').forEach(button=>button.addEventListener('click',()=>{const customer=customerSuggestions.find(c=>String(c.id)===button.dataset.recentCustomer);if(customer){chooseCustomer(customer);customerSearch?.dispatchEvent(new Event('input',{bubbles:true}))}}));
 document.addEventListener('click',e=>{if(customerResults&&!e.target.closest('.customer-search-wrap'))customerResults.hidden=true});
 
 const search=document.querySelector('#search'),filter=document.querySelector('#filter');
 function applyFilters(){let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});document.querySelector('#empty').hidden=visible>0}
 search?.addEventListener('input',applyFilters);filter?.addEventListener('change',applyFilters);
 const productSearch=document.querySelector('#product-search'),productResults=document.querySelector('#product-results'),productRows=[...document.querySelectorAll('[data-product-id]')],selectedEmpty=document.querySelector('#selected-empty'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),presentationInput=document.querySelector('#presentation'),presentationButtons=[...document.querySelectorAll('[data-presentation]')],productChoiceArea=document.querySelector('#product-choice-area');
+const draftEnabled=wizard?.dataset.draftEnabled==='1';
+function saveDraftOrder(){
+ if(!draftEnabled||!wizard)return;
+ const qty={},price={};productRows.forEach(row=>{const id=row.dataset.productId,q=Number(row.querySelector('.quantity')?.value||0);if(q>0){qty[id]=q;price[id]=row.querySelector('.line-price')?.value||row.dataset.standardPrice}});
+ const draft={step:currentWizardStep,customer:customerSearch?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',presentation:presentationInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',qty,price};
+ const useful=draft.customer||draft.phone||draft.address||draft.presentation||Object.keys(qty).length;
+ try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
+}
+function restoreDraftOrder(){
+ if(!draftEnabled||!wizard)return;
+ let draft=null;try{draft=JSON.parse(localStorage.getItem(orderDraftKey)||'null')}catch(_){}
+ if(!draft)return;
+ if(customerSearch)customerSearch.value=draft.customer||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
+ const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
+ productRows.forEach(row=>{const id=row.dataset.productId,q=row.querySelector('.quantity'),p=row.querySelector('.line-price');if(draft.qty?.[id]){q.value=draft.qty[id];row.hidden=false}if(draft.price?.[id]&&p)p.value=draft.price[id]});
+ if(draft.presentation)setPresentation(draft.presentation);updateTotal();if(clearDraftButton)clearDraftButton.hidden=false;showWizardStep(Math.min(3,Math.max(1,Number(draft.step)||1)));
+}
+clearDraftButton?.addEventListener('click',()=>{try{localStorage.removeItem(orderDraftKey)}catch(_){}location.href='?view=new'});
 function setPresentation(value){
  if(!presentationInput)return;
  presentationInput.value=value;
@@ -701,6 +727,8 @@ document.addEventListener('click',e=>{if(productResults&&!e.target.closest('.pro
 document.querySelectorAll('.quantity,.line-price').forEach(q=>q.addEventListener('input',updateTotal));
 document.querySelectorAll('[data-change]').forEach(b=>b.addEventListener('click',()=>{const row=b.closest('.product-pick'),q=row.querySelector('.quantity');q.value=Math.min(999,Math.max(0,(Number(q.value)||0)+Number(b.dataset.change)));updateTotal()}));
 updateTotal();
+wizard?.addEventListener('input',saveDraftOrder);wizard?.addEventListener('change',saveDraftOrder);
+restoreDraftOrder();
 const orderForm=document.querySelector('.save-order')?.form;
 orderForm?.addEventListener('submit',e=>{if(!customerSearch?.value.trim()){e.preventDefault();showWizardStep(1);customerSearch?.reportValidity();return}if(!presentationInput?.value){e.preventDefault();alert('Choose Pen, Cartridge or Vial.');showWizardStep(2);return}if(!selectedOrderRows().length){e.preventDefault();alert('Add at least one product.');showWizardStep(2);return}const b=orderForm.querySelector('.save-order');b.disabled=true;b.textContent='Saving order…'});
 </script><?php endif;?></body></html>
