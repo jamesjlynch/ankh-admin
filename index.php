@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
+if(!in_array('payment_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN payment_date TEXT NOT NULL DEFAULT ''");
+if(!in_array('delivery_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN delivery_date TEXT NOT NULL DEFAULT ''");
 $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
@@ -141,7 +143,7 @@ function orderForSheet(PDO $db,int $id):?array{
  $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
  $total=0;$out=[];
  foreach($items as $i){$line=(int)$i['price']*(int)$i['quantity'];$total+=$line;$out[]=['name'=>$i['name'],'unit_price_pence'=>(int)$i['price'],'quantity'=>(int)$i['quantity']];}
- return ['id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','presentation'=>$o['presentation']??'','address'=>$o['address'],'notes'=>$o['notes'],'status'=>$o['status'],'total_pence'=>$total,'items'=>$out];
+ return ['id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','presentation'=>$o['presentation']??'','payment_date'=>$o['payment_date']??'','delivery_date'=>$o['delivery_date']??'','address'=>$o['address'],'notes'=>$o['notes'],'status'=>$o['status'],'total_pence'=>$total,'items'=>$out];
 }
 function syncOrderToSheet(PDO $db,int $orderId):?string{
  $url=setting($db,'sheets_webhook');if($url==='')return null;
@@ -196,6 +198,14 @@ if(setting($db,'sheets_secret')==='')saveSetting($db,'sheets_secret',bin2hex(ran
 $testingNoAuth=true;
 if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();}
 
+function orderActionDate(string $value,string $label):string{
+ $value=trim($value);if($value==='')return '';
+ $tz=new DateTimeZone('Europe/London');$date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$tz);$today=new DateTimeImmutable('today',$tz);
+ if(!$date || $date->format('Y-m-d')!==$value)throw new Exception('Choose a valid '.$label.' date.');
+ if($date>$today)throw new Exception(ucfirst($label).' date cannot be in the future.');
+ return $value;
+}
+
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
@@ -247,9 +257,22 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->rowCount())throw new Exception('Customer could not be found.');
   }
   if($action==='status'){
-   if(!in_array($_POST['status']??'',$statuses,true))throw new Exception('Choose a valid status.');
-   $orderId=(int)$_POST['id'];
-   $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$_POST['status'],$orderId]);
+   $newStatus=(string)($_POST['status']??'');
+   if(!in_array($newStatus,$statuses,true))throw new Exception('Choose a valid status.');
+   $orderId=(int)$_POST['id'];$todayAction=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+   $paymentDate=array_key_exists('payment_date',$_POST)?orderActionDate((string)$_POST['payment_date'],'payment'):'';
+   $deliveryDate=array_key_exists('delivery_date',$_POST)?orderActionDate((string)$_POST['delivery_date'],'delivery'):'';
+   $q=$db->prepare('SELECT payment_date,delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$existingDates)throw new Exception('Order could not be found.');
+   if($newStatus==='Paid' && $paymentDate==='')$paymentDate=(string)($existingDates['payment_date']?:$todayAction);
+   if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
+   $db->prepare('UPDATE orders SET status=?,payment_date=CASE WHEN ?<>"" THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>"" THEN ? ELSE delivery_date END WHERE id=?')->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$orderId]);
+   $syncError=syncOrderToSheet($db,$orderId);
+  }
+  if($action==='order_dates'){
+   $orderId=(int)($_POST['id']??0);$paymentDate=orderActionDate((string)($_POST['payment_date']??''),'payment');$deliveryDate=orderActionDate((string)($_POST['delivery_date']??''),'delivery');
+   $q=$db->prepare('UPDATE orders SET payment_date=?,delivery_date=? WHERE id=?');$q->execute([$paymentDate,$deliveryDate,$orderId]);
+   if(!$q->rowCount()){$check=$db->prepare('SELECT id FROM orders WHERE id=?');$check->execute([$orderId]);if(!$check->fetchColumn())throw new Exception('Order could not be found.');}
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_delete'){
@@ -297,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='order_delete'?'Order deleted.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))));
+ $flash=$action==='order'?'Order saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
@@ -309,7 +332,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile17"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile18"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -423,7 +446,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <article class="todo-card">
 <div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?></small></div><strong><?=money($todo['total'])?></strong></div>
 <div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><button>✓ Payment received</button></form>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Payment received</button></form>
 </article>
 <?php endforeach;else:?><p class="todo-empty">Nothing waiting for payment.</p><?php endif;?>
 </div>
@@ -435,7 +458,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?> · <?=e($todo['presentation']?:'Order')?></small></div><span class="badge"><?=e($todo['status'])?></span></div>
 <div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
 <?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><button>✓ Delivered</button></form>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form>
 </article>
 <?php endforeach;else:?><p class="todo-empty">Nothing waiting for delivery.</p><?php endif;?>
 </div>
@@ -452,9 +475,10 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $s):?><option><?=e($s)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
 <?php foreach($orders as $o):?><details class="order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><span class="badge"><?=e($o['status'])?></span><strong><?=money($o['total'])?></strong><small>Tap to open ↓</small></div></summary><div class="detail">
-<p><?=e($o['phone'])?></p><p><strong>Order date:</strong> <?=e(date('d M Y',strtotime($o['created'])))?></p><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
+<p><?=e($o['phone'])?></p><p><strong>Order date:</strong> <?=e(date('d M Y',strtotime($o['created'])))?></p><?php if(!empty($o['payment_date'])):?><p><strong>Payment date:</strong> <?=e(date('d M Y',strtotime($o['payment_date'])))?></p><?php endif;?><?php if(!empty($o['delivery_date'])):?><p><strong>Delivery date:</strong> <?=e(date('d M Y',strtotime($o['delivery_date'])))?></p><?php endif;?><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
 <?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].' @ '.money($i['price']).' each')?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
+<form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button class="quiet">Save payment / delivery dates</button></form>
 <form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form>
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show. Create an order to get started.</p>
