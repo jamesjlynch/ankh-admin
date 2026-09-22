@@ -231,6 +231,12 @@ function orderActionDate(string $value,string $label):string{
  if($date>$today)throw new Exception(ucfirst($label).' date cannot be in the future.');
  return $value;
 }
+function postedMoneyPence($value,string $label):int{
+ $raw=trim((string)$value);if($raw==='')return 0;
+ $number=filter_var($raw,FILTER_VALIDATE_FLOAT);
+ if($number===false||$number<0||$number>100000)throw new Exception('Check the '.$label.' amount.');
+ return (int)round($number*100);
+}
 
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
@@ -288,11 +294,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $orderId=(int)$_POST['id'];$todayAction=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
    $paymentDate=array_key_exists('payment_date',$_POST)?orderActionDate((string)$_POST['payment_date'],'payment'):'';
    $deliveryDate=array_key_exists('delivery_date',$_POST)?orderActionDate((string)$_POST['delivery_date'],'delivery'):'';
-   $q=$db->prepare('SELECT payment_date,delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
+   $paymentMethod=trim((string)($_POST['payment_method']??''));
+   if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
+   $q=$db->prepare('SELECT payment_date,delivery_date,payment_method FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
    if(!$existingDates)throw new Exception('Order could not be found.');
-   if($newStatus==='Paid' && $paymentDate==='')$paymentDate=(string)($existingDates['payment_date']?:$todayAction);
+   if($newStatus==='Paid'){
+    if($paymentDate==='')$paymentDate=(string)($existingDates['payment_date']?:$todayAction);
+    if($paymentMethod==='' && (string)$existingDates['payment_method']==='')throw new Exception('Choose how the payment was received.');
+   }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
-   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$orderId]);
+   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_dates'){
@@ -314,8 +325,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='order'){
    $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
-   if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000)throw new Exception('Check the customer details and try again.');
+   $paymentMethod=trim((string)($_POST['payment_method']??''));$deliveryMethod=trim((string)($_POST['delivery_method']??''));$trackingReference=trim((string)($_POST['tracking_reference']??''));
+   $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=postedMoneyPence($_POST['payment_fee']??'','payment fee');
+   if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000 || strlen($trackingReference)>200)throw new Exception('Check the order details and try again.');
    if(!in_array($presentation,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial.');
+   if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
+   if(!in_array($deliveryMethod,$deliveryMethods,true))throw new Exception('Choose Collection, Local Delivery or Postage.');
+   if($deliveryMethod!=='Postage'){$trackingReference='';$deliveryCharge=0;$postageCost=0;}
    $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);
    $chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
    if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate)throw new Exception('Choose a valid order date.');
@@ -325,14 +341,45 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->beginTransaction();
    if($chosenDate->format('Y-m-d')===$todayLocal->format('Y-m-d'))$created=gmdate('c');
    else $created=(new DateTimeImmutable($orderDate.' 12:00:00',$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
-   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation) VALUES (?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation]);$oid=$db->lastInsertId();
+   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,tracking_reference,delivery_charge,postage_cost,payment_fee) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee]);$oid=$db->lastInsertId();
    $savedOrderId=(int)$oid;
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");
    $saveCustomer->execute([$name,$phone,$address,$created]);
-   foreach($lines as [$p,$n,$orderPrice])$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,?)')->execute([$oid,$p['name'],$orderPrice,$n]);
-   if($presentation==='Pen')$db->prepare('INSERT INTO items(order_id,name,price,quantity) VALUES (?,?,?,1)')->execute([$oid,'Pen',2000]);
+   $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,quantity) VALUES (?,?,?,?,?)');
+   foreach($lines as [$p,$n,$orderPrice])$insertItem->execute([$oid,$p['name'],$orderPrice,$p['cost']===null?null:(int)$p['cost'],$n]);
+   if($presentation==='Pen'){$penCost=setting($db,'pen_cost_pence','');$insertItem->execute([$oid,'Pen',2000,$penCost!==''?(int)$penCost:null,1]);}
    $db->commit();
    $syncError=syncOrderToSheet($db,(int)$oid);
+  }
+
+  if($action==='order_edit'){
+   $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$orderId]);$existingOrder=$q->fetch(PDO::FETCH_ASSOC);if(!$existingOrder)throw new Exception('Order could not be found.');
+   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
+   $paymentMethod=trim((string)($_POST['payment_method']??''));$deliveryMethod=trim((string)($_POST['delivery_method']??''));$trackingReference=trim((string)($_POST['tracking_reference']??''));
+   $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=postedMoneyPence($_POST['payment_fee']??'','payment fee');
+   if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000 || strlen($trackingReference)>200)throw new Exception('Check the order details and try again.');
+   if(!in_array($presentation,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial.');
+   if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
+   if(!in_array($deliveryMethod,$deliveryMethods,true))throw new Exception('Choose Collection, Local Delivery or Postage.');
+   if($deliveryMethod!=='Postage'){$trackingReference='';$deliveryCharge=0;$postageCost=0;}
+   $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);$chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
+   if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate || $chosenDate>$todayLocal)throw new Exception('Choose a valid order date.');
+   $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false||$n<0||$n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=?');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product could not be found.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
+   if(!$lines)throw new Exception('Add at least one product.');
+   $originalTime=strtotime((string)$existingOrder['created']);$hour=(int)date('H',$originalTime);$minute=(int)date('i',$originalTime);$second=(int)date('s',$originalTime);
+   $created=(new DateTimeImmutable($orderDate.' '.sprintf('%02d:%02d:%02d',$hour,$minute,$second),$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
+   $db->beginTransaction();
+   $db->prepare('UPDATE orders SET customer=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=? WHERE id=?')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$orderId]);
+   $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
+   $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);$insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,quantity) VALUES (?,?,?,?,?)');
+   foreach($lines as [$p,$n,$orderPrice])$insertItem->execute([$orderId,$p['name'],$orderPrice,$p['cost']===null?null:(int)$p['cost'],$n]);
+   if($presentation==='Pen'){$penCost=setting($db,'pen_cost_pence','');$insertItem->execute([$orderId,'Pen',2000,$penCost!==''?(int)$penCost:null,1]);}
+   $db->commit();$syncError=syncOrderToSheet($db,$orderId);
+  }
+
+  if($action==='profit_settings'){
+   $penCost=postedMoneyPence($_POST['pen_cost']??'','pen cost');saveSetting($db,'pen_cost_pence',(string)$penCost);
+   $db->prepare("UPDATE items SET cost=? WHERE cost IS NULL AND lower(trim(name))='pen'")->execute([$penCost]);
   }
   if($action==='sheets_settings'){
    $url=trim((string)($_POST['webhook']??''));
@@ -347,7 +394,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))));
+ $flash=$action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
