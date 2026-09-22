@@ -37,6 +37,10 @@ if(!in_array('postage_cost',array_column($orderColumns,'name'),true))$db->exec("
 if(!in_array('payment_fee',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN payment_fee INTEGER NOT NULL DEFAULT 0");
 $itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
+if(!in_array('presentation',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
+if(!in_array('presentation_cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation_cost INTEGER NOT NULL DEFAULT 0");
+if(!in_array('base_price',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN base_price INTEGER DEFAULT NULL");
+if(!in_array('discount',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN discount INTEGER NOT NULL DEFAULT 0");
 $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
@@ -151,6 +155,7 @@ if(setting($db,'retail_catalog_version')!==$catalogVersion){
 
 // Cost snapshots: fill only legacy rows that do not already have a saved cost.
 $db->exec("UPDATE items SET cost=(SELECT p.cost FROM products p WHERE lower(trim(p.name))=lower(trim(items.name)) LIMIT 1) WHERE cost IS NULL AND lower(trim(name))<>'pen'");
+$db->exec("UPDATE items SET base_price=price WHERE base_price IS NULL AND lower(trim(name))<>'pen'");
 $penCostSetting=setting($db,'pen_cost_pence','');
 if($penCostSetting!=='' && ctype_digit($penCostSetting))$db->prepare("UPDATE items SET cost=? WHERE cost IS NULL AND lower(trim(name))='pen'")->execute([(int)$penCostSetting]);
 function sheetsWebhookValid(string $url):bool{
@@ -159,9 +164,12 @@ function sheetsWebhookValid(string $url):bool{
 }
 function orderForSheet(PDO $db,int $id):?array{
  $q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$id]);$o=$q->fetch(PDO::FETCH_ASSOC);if(!$o)return null;
- $q=$db->prepare('SELECT name,price,cost,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
+ $q=$db->prepare('SELECT name,price,cost,presentation,presentation_cost,base_price,discount,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
  $total=(int)($o['delivery_charge']??0);$out=[];
- foreach($items as $i){$line=(int)$i['price']*(int)$i['quantity'];$total+=$line;$out[]=['name'=>$i['name'],'unit_price_pence'=>(int)$i['price'],'unit_cost_pence'=>$i['cost']===null?null:(int)$i['cost'],'quantity'=>(int)$i['quantity']];}
+ foreach($items as $i){
+  $line=(int)$i['price']*(int)$i['quantity'];$total+=$line;
+  $out[]=['name'=>$i['name'],'presentation'=>$i['presentation']??'','unit_price_pence'=>(int)$i['price'],'base_price_pence'=>$i['base_price']===null?null:(int)$i['base_price'],'discount_pence'=>(int)($i['discount']??0),'unit_cost_pence'=>$i['cost']===null?null:(int)$i['cost'],'presentation_cost_pence'=>(int)($i['presentation_cost']??0),'quantity'=>(int)$i['quantity']];
+ }
  return [
   'id'=>(int)$o['id'],'reference'=>'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),'created'=>$o['created'],
   'customer'=>$o['customer'],'phone'=>$o['phone'],'referrer'=>$o['referrer']??'','presentation'=>$o['presentation']??'',
@@ -323,58 +331,62 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->commit();
    $syncError=deleteOrderFromSheet($db,$reference);
   }
-  if($action==='order'){
-   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
+  if($action==='order' || $action==='order_edit'){
+   $isEdit=$action==='order_edit';$orderId=$isEdit?(int)($_POST['id']??0):0;$existingOrder=null;$existingItemCosts=[];
+   if($isEdit){
+    $q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$orderId]);$existingOrder=$q->fetch(PDO::FETCH_ASSOC);if(!$existingOrder)throw new Exception('Order could not be found.');
+    $q=$db->prepare('SELECT name,cost,presentation_cost,base_price FROM items WHERE order_id=?');$q->execute([$orderId]);
+    foreach($q->fetchAll(PDO::FETCH_ASSOC) as $existingItem){$existingItemCosts[strtolower(trim((string)$existingItem['name']))]=['cost'=>$existingItem['cost']===null?null:(int)$existingItem['cost'],'presentation_cost'=>(int)($existingItem['presentation_cost']??0),'base_price'=>$existingItem['base_price']===null?null:(int)$existingItem['base_price']];}
+   }
+   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$orderDate=trim($_POST['order_date']??'');
    $paymentMethod=trim((string)($_POST['payment_method']??''));$deliveryMethod=trim((string)($_POST['delivery_method']??''));$trackingReference=trim((string)($_POST['tracking_reference']??''));
    $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=postedMoneyPence($_POST['payment_fee']??'','payment fee');
    if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000 || strlen($trackingReference)>200)throw new Exception('Check the order details and try again.');
-   if(!in_array($presentation,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial.');
-   if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
-   if(!in_array($deliveryMethod,$deliveryMethods,true))throw new Exception('Choose Collection, Local Delivery or Postage.');
-   if($deliveryMethod!=='Postage'){$trackingReference='';$deliveryCharge=0;$postageCost=0;}
-   $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);
-   $chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
-   if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate)throw new Exception('Choose a valid order date.');
-   if($chosenDate>$todayLocal)throw new Exception('Order date cannot be in the future.');
-   $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false || $n<0 || $n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=? AND active=1');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product is unavailable.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
-   if(!$lines)throw new Exception('Add at least one product.');
-   $db->beginTransaction();
-   if($chosenDate->format('Y-m-d')===$todayLocal->format('Y-m-d'))$created=gmdate('c');
-   else $created=(new DateTimeImmutable($orderDate.' 12:00:00',$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
-   $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,tracking_reference,delivery_charge,postage_cost,payment_fee) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee]);$oid=$db->lastInsertId();
-   $savedOrderId=(int)$oid;
-   $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");
-   $saveCustomer->execute([$name,$phone,$address,$created]);
-   $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,quantity) VALUES (?,?,?,?,?)');
-   foreach($lines as [$p,$n,$orderPrice])$insertItem->execute([$oid,$p['name'],$orderPrice,$p['cost']===null?null:(int)$p['cost'],$n]);
-   if($presentation==='Pen'){$penCost=setting($db,'pen_cost_pence','');$insertItem->execute([$oid,'Pen',2000,$penCost!==''?(int)$penCost:null,1]);}
-   $db->commit();
-   $syncError=syncOrderToSheet($db,(int)$oid);
-  }
-
-  if($action==='order_edit'){
-   $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$orderId]);$existingOrder=$q->fetch(PDO::FETCH_ASSOC);if(!$existingOrder)throw new Exception('Order could not be found.');
-   $existingItemCosts=[];$q=$db->prepare('SELECT name,cost FROM items WHERE order_id=?');$q->execute([$orderId]);foreach($q->fetchAll(PDO::FETCH_ASSOC) as $existingItem){$existingItemCosts[strtolower(trim((string)$existingItem['name']))]=$existingItem['cost']===null?null:(int)$existingItem['cost'];}
-   $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
-   $paymentMethod=trim((string)($_POST['payment_method']??''));$deliveryMethod=trim((string)($_POST['delivery_method']??''));$trackingReference=trim((string)($_POST['tracking_reference']??''));
-   $deliveryCharge=postedMoneyPence($_POST['delivery_charge']??'','postage charge');$postageCost=postedMoneyPence($_POST['postage_cost']??'','postage cost');$paymentFee=postedMoneyPence($_POST['payment_fee']??'','payment fee');
-   if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000 || strlen($trackingReference)>200)throw new Exception('Check the order details and try again.');
-   if(!in_array($presentation,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial.');
    if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
    if(!in_array($deliveryMethod,$deliveryMethods,true))throw new Exception('Choose Collection, Local Delivery or Postage.');
    if($deliveryMethod!=='Postage'){$trackingReference='';$deliveryCharge=0;$postageCost=0;}
    $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);$chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
    if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate || $chosenDate>$todayLocal)throw new Exception('Choose a valid order date.');
-   $lines=[];foreach(($_POST['qty']??[]) as $id=>$qty){$n=filter_var($qty,FILTER_VALIDATE_INT);if($n===false||$n<0||$n>999)throw new Exception('Quantities must be between 0 and 999.');if(!$n)continue;$q=$db->prepare('SELECT * FROM products WHERE id=?');$q->execute([(int)$id]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product could not be found.');$price=filter_var($_POST['price'][$id]??((int)$p['price']/100),FILTER_VALIDATE_FLOAT);if($price===false||$price<0||$price>100000)throw new Exception('Check the price for '.$p['name'].'.');$lines[]=[$p,$n,(int)round($price*100)];}
-   if(!$lines)throw new Exception('Add at least one product.');
-   $originalLocal=(new DateTimeImmutable((string)$existingOrder['created']))->setTimezone($orderTz);
-   $created=(new DateTimeImmutable($orderDate.' '.$originalLocal->format('H:i:s'),$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
+
+   $lines=[];$presentations=[];
+   foreach(($_POST['lines']??[]) as $lineKey=>$line){
+    if(!is_array($line))continue;
+    $productId=(int)($line['product_id']??0);$qty=filter_var($line['quantity']??0,FILTER_VALIDATE_INT);$format=trim((string)($line['presentation']??''));$discountFlag=((string)($line['discount']??'0'))==='1';
+    if($productId<1||$qty===false||$qty<1||$qty>999)throw new Exception('Check the product quantities.');
+    if(!in_array($format,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial for every peptide.');
+    $q=$db->prepare($isEdit?'SELECT * FROM products WHERE id=?':'SELECT * FROM products WHERE id=? AND active=1');$q->execute([$productId]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product is unavailable.');
+    $basePrice=postedMoneyPence($line['base_price']??number_format((int)$p['price']/100,2,'.',''),'base price');
+    if($basePrice<0)$basePrice=(int)$p['price'];
+    $discount=$discountFlag?min(500,$basePrice):0;$formatCharge=$format==='Pen'?2000:0;
+    $calculatedPrice=max(0,$basePrice-$discount+$formatCharge);
+    $postedPrice=postedMoneyPence($line['price']??number_format($calculatedPrice/100,2,'.',''),'line price');
+    $costKey=strtolower(trim((string)$p['name']));$saved=$existingItemCosts[$costKey]??null;
+    $productCost=$saved&&array_key_exists('cost',$saved)?$saved['cost']:($p['cost']===null?null:(int)$p['cost']);
+    $penCostSetting=setting($db,'pen_cost_pence','');$presentationCost=$format==='Pen'?($penCostSetting!==''?(int)$penCostSetting:0):0;
+    if($saved && $format==='Pen' && (int)$saved['presentation_cost']>0)$presentationCost=(int)$saved['presentation_cost'];
+    $lines[]=['product'=>$p,'qty'=>(int)$qty,'presentation'=>$format,'base_price'=>$basePrice,'discount'=>$discount,'price'=>$postedPrice,'cost'=>$productCost,'presentation_cost'=>$presentationCost];
+    $presentations[$format]=true;
+   }
+   if(!$lines)throw new Exception('Add at least one peptide.');
+   $orderPresentation=count($presentations)===1?(string)array_key_first($presentations):'Mixed';
+
+   if($isEdit){
+    $originalLocal=(new DateTimeImmutable((string)$existingOrder['created']))->setTimezone($orderTz);
+    $created=(new DateTimeImmutable($orderDate.' '.$originalLocal->format('H:i:s'),$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
+   }else{
+    $created=$chosenDate->format('Y-m-d')===$todayLocal->format('Y-m-d')?gmdate('c'):(new DateTimeImmutable($orderDate.' 12:00:00',$orderTz))->setTimezone(new DateTimeZone('UTC'))->format('c');
+   }
+
    $db->beginTransaction();
-   $db->prepare('UPDATE orders SET customer=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=? WHERE id=?')->execute([$name,$phone,$address,$notes,$created,$referrer,$presentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$orderId]);
+   if($isEdit){
+    $db->prepare('UPDATE orders SET customer=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=? WHERE id=?')->execute([$name,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$orderId]);
+    $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
+   }else{
+    $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,tracking_reference,delivery_charge,postage_cost,payment_fee) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$trackingReference,$deliveryCharge,$postageCost,$paymentFee]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
+   }
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
-   $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);$insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,quantity) VALUES (?,?,?,?,?)');
-   foreach($lines as [$p,$n,$orderPrice]){$costKey=strtolower(trim((string)$p['name']));$savedCost=array_key_exists($costKey,$existingItemCosts)?$existingItemCosts[$costKey]:($p['cost']===null?null:(int)$p['cost']);$insertItem->execute([$orderId,$p['name'],$orderPrice,$savedCost,$n]);}
-   if($presentation==='Pen'){$savedPenCost=array_key_exists('pen',$existingItemCosts)?$existingItemCosts['pen']:null;if($savedPenCost===null){$penCost=setting($db,'pen_cost_pence','');$savedPenCost=$penCost!==''?(int)$penCost:null;}$insertItem->execute([$orderId,'Pen',2000,$savedPenCost,1]);}
+   $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity) VALUES (?,?,?,?,?,?,?,?,?)');
+   foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty']]);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
