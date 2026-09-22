@@ -76,25 +76,27 @@ $currentRetailCatalog=[
  'BAC Water 10ml'=>399,
  'Acetic Acid 0.6% 10ml'=>499
 ];
-$catalogVersion='retail-posters-2026-09-22-v2';
+$catalogVersion='retail-posters-2026-09-22-v3';
+$findProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
+$updateProduct=$db->prepare('UPDATE products SET price=?,active=1 WHERE id=?');
+$insertProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,?,1)');
+
+// Always verify every current retail product is present, active and correctly priced.
+foreach($currentRetailCatalog as $retailName=>$retailPrice){
+ $findProduct->execute([$retailName]);$existingId=$findProduct->fetchColumn();
+ if($existingId)$updateProduct->execute([$retailPrice,(int)$existingId]);
+ else $insertProduct->execute([$retailName,$retailPrice]);
+}
+
+// Only deactivate products outside the current retail range when the catalogue changes.
 if(setting($db,'retail_catalog_version')!==$catalogVersion){
- $db->beginTransaction();
- try{
-  $db->exec('UPDATE products SET active=0');
-  $findProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
-  $updateProduct=$db->prepare('UPDATE products SET price=?,active=1 WHERE id=?');
-  $insertProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,?,1)');
-  foreach($currentRetailCatalog as $retailName=>$retailPrice){
-   $findProduct->execute([$retailName]);$existingId=$findProduct->fetchColumn();
-   if($existingId)$updateProduct->execute([$retailPrice,(int)$existingId]);
-   else $insertProduct->execute([$retailName,$retailPrice]);
-  }
-  saveSetting($db,'retail_catalog_version',$catalogVersion);
-  $db->commit();
- }catch(Throwable $catalogError){
-  if($db->inTransaction())$db->rollBack();
-  throw $catalogError;
+ $activeNames=array_keys($currentRetailCatalog);
+ $allProducts=$db->query('SELECT id,name FROM products')->fetchAll(PDO::FETCH_ASSOC);
+ $hideProduct=$db->prepare('UPDATE products SET active=0 WHERE id=?');
+ foreach($allProducts as $catalogProduct){
+  if(!in_array($catalogProduct['name'],$activeNames,true))$hideProduct->execute([(int)$catalogProduct['id']]);
  }
+ saveSetting($db,'retail_catalog_version',$catalogVersion);
 }
 function sheetsWebhookValid(string $url):bool{
  $p=parse_url($url);$host=strtolower((string)($p['host']??''));
