@@ -1067,3 +1067,95 @@ input[type="date"]{
     font-size:8px;
   }
 }
+
+/* Per-order profit breakdown */
+.report-period{text-decoration:none}
+.report-period>strong{display:block}
+.report-period>strong small{
+  display:block;
+  margin-bottom:3px;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+}
+.report-period>small b{color:#d9d5cc;font-weight:600}
+.report-period.selected{
+  border-color:var(--gold);
+  box-shadow:inset 0 0 0 1px #dfb66655,0 10px 28px #0003;
+}
+.report-period.selected>span,.report-period.selected>strong{color:var(--gold)}
+
+.order-profit-breakdown{margin-top:16px}
+.profit-order{
+  margin-top:9px;
+  border:1px solid #343638;
+  border-radius:12px;
+  overflow:hidden;
+  background:#151617;
+}
+.profit-order.loss{border-color:#7a3d3d;background:#1c1515}
+.profit-order>summary{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 14px;
+  cursor:pointer;
+}
+.profit-order>summary::-webkit-details-marker{display:none}
+.profit-order h3{margin:3px 0;font-size:15px}
+.profit-order summary small{color:var(--muted);font-size:11px}
+.profit-order-summary{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:3px;
+  text-align:right;
+}
+.profit-order-summary span{font-size:11px;color:var(--muted)}
+.profit-order-summary strong{font-size:14px;color:#efebe2}
+.profit-order-summary em{
+  padding:3px 6px;
+  border-radius:999px;
+  background:#522929;
+  color:#ffabab;
+  font-size:8px;
+  font-style:normal;
+  font-weight:800;
+  letter-spacing:.7px;
+}
+.profit-order-summary em.warning{background:#4a3b1f;color:#e9c36a}
+.profit-order-detail{
+  padding:0 14px 14px;
+  border-top:1px solid var(--border);
+}
+.profit-order-detail>div{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  padding:9px 0;
+  border-bottom:1px solid #2c2e30;
+  font-size:12px;
+}
+.profit-order-detail>div span{color:#c7c3bb}
+.profit-order-detail>div strong{white-space:nowrap}
+.profit-order-detail .profit-order-result{
+  padding-top:12px;
+  border-bottom:0;
+  font-size:15px;
+}
+.profit-order-detail .profit-order-result span,
+.profit-order-detail .profit-order-result strong{color:var(--gold);font-weight:700}
+.profit-order.loss .profit-order-result strong{color:#ff9b9b}
+.profit-order-detail .quick-action{margin-top:9px}
+
+@media(max-width:760px){
+  .report-period>strong small{font-size:9px}
+  .profit-order>summary{padding:12px}
+  .profit-order h3{font-size:14px}
+  .profit-order-summary strong{font-size:13px}
+  .profit-order-detail{padding:0 12px 12px}
+}
