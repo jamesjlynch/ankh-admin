@@ -39,7 +39,7 @@ $seedCustomer=$db->prepare('INSERT OR IGNORE INTO customers(name,phone,address,c
 foreach($existingOrderCustomers as $existingCustomer){
  $seedCustomer->execute([$existingCustomer['customer'],$existingCustomer['phone'],$existingCustomer['address'],$existingCustomer['created']]);
 }
-$statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Cancelled'];
+$statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Delivered','Cancelled'];
 
 // Keep the live order catalogue complete without overwriting manually managed prices.
 function setting(PDO $db,string $key,string $default=''):string{
@@ -277,15 +277,15 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile15"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile16"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
-$paidStatuses=['Paid','Packed','Dispatched'];
-$open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'],true)));
+$paidStatuses=['Paid','Packed','Dispatched','Delivered'];
+$open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?$o['total']:0,$orders));
 
 $storedCustomers=$db->query('SELECT * FROM customers ORDER BY archived ASC,name COLLATE NOCASE,id')->fetchAll(PDO::FETCH_ASSOC);
@@ -312,10 +312,10 @@ if($view==='new' && (int)($_GET['customer_id']??0)>0){
  $q=$db->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([(int)$_GET['customer_id']]);$newOrderCustomer=$q->fetch(PDO::FETCH_ASSOC)?:null;
 }
 
-// Dashboard figures use paid/packed/dispatched orders as completed sales.
+// Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();
-$todaySales=0;$weekSales=0;$unpaidBalance=0;$awaitingDispatch=0;
+$todaySales=0;$weekSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
  $createdTs=strtotime((string)$dashboardOrder['created'])?:0;
  if(in_array($dashboardOrder['status'],$paidStatuses,true)){
@@ -323,10 +323,21 @@ foreach($orders as $dashboardOrder){
   if($createdTs>=$weekStart)$weekSales+=(int)$dashboardOrder['total'];
  }
  if(in_array($dashboardOrder['status'],['New','Awaiting payment'],true))$unpaidBalance+=(int)$dashboardOrder['total'];
- if(in_array($dashboardOrder['status'],['Paid','Packed'],true))$awaitingDispatch++;
+}
+$awaitingPayment=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['New','Awaiting payment'],true)));
+$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true)));
+usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
+usort($awaitingDelivery,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
+$todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id')));
+$todoItems=[];
+if($todoOrderIds){
+ $placeholders=implode(',',array_fill(0,count($todoOrderIds),'?'));
+ $q=$db->prepare("SELECT order_id,name,quantity,price FROM items WHERE order_id IN ($placeholders) ORDER BY id");
+ $q->execute($todoOrderIds);
+ foreach($q->fetchAll(PDO::FETCH_ASSOC) as $todoItem)$todoItems[(int)$todoItem['order_id']][]=$todoItem;
 }
 $grossProfit=0;$uncostedSales=0;$topSelling=[];
-$dashboardItems=$db->query("SELECT i.name,i.price,i.quantity,p.cost FROM items i JOIN orders o ON o.id=i.order_id LEFT JOIN products p ON lower(trim(p.name))=lower(trim(i.name)) WHERE o.status IN ('Paid','Packed','Dispatched')")->fetchAll(PDO::FETCH_ASSOC);
+$dashboardItems=$db->query("SELECT i.name,i.price,i.quantity,p.cost FROM items i JOIN orders o ON o.id=i.order_id LEFT JOIN products p ON lower(trim(p.name))=lower(trim(i.name)) WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
 foreach($dashboardItems as $dashboardItem){
  $qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;
  if($dashboardItem['cost']!==null)$grossProfit+=((int)$dashboardItem['price']-(int)$dashboardItem['cost'])*$qty;
@@ -357,12 +368,41 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
 <?php if($view==='dashboard'): ?>
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted">Sales, profit and what needs your attention.</p></div><a class="button" href="?view=new">+ New order</a></div>
+
+<section class="todo-board">
+<div class="todo-board-head"><div><p class="eyebrow">TODAY'S TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><span><?=count($awaitingPayment)?> payment</span><span><?=count($awaitingDelivery)?> delivery</span></div></div>
+<div class="todo-columns">
+<div class="todo-column">
+<div class="todo-column-title"><div><span class="todo-icon">£</span><div><h3>Awaiting payment</h3><small><?=money($unpaidBalance)?> outstanding</small></div></div><strong><?=count($awaitingPayment)?></strong></div>
+<?php if($awaitingPayment):foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
+<article class="todo-card">
+<div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?></small></div><strong><?=money($todo['total'])?></strong></div>
+<div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><button>✓ Payment received</button></form>
+</article>
+<?php endforeach;else:?><p class="todo-empty">Nothing waiting for payment.</p><?php endif;?>
+</div>
+
+<div class="todo-column">
+<div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Paid orders to complete</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
+<?php if($awaitingDelivery):foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
+<article class="todo-card">
+<div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?> · <?=e($todo['presentation']?:'Order')?></small></div><span class="badge"><?=e($todo['status'])?></span></div>
+<div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
+<?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><button>✓ Delivered</button></form>
+</article>
+<?php endforeach;else:?><p class="todo-empty">Nothing waiting for delivery.</p><?php endif;?>
+</div>
+</div>
+</section>
+
 <div class="dashboard-stats">
-<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Paid / packed / dispatched</small></article>
+<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Paid / packed / dispatched / delivered</small></article>
 <article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
 <article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>All-time · mapped supplier costs</small></article>
 <article><span>Unpaid balance</span><strong><?=money($unpaidBalance)?></strong><small>New + awaiting payment</small></article>
-<article><span>Awaiting dispatch</span><strong><?=$awaitingDispatch?></strong><small>Paid or packed orders</small></article>
+<article><span>Awaiting delivery</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
 <article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> products tracked</small></article>
 </div>
 <div class="dashboard-grid">
