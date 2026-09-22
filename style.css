@@ -307,3 +307,41 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
   .product-admin-grid label:first-child{grid-column:auto}
   .customer-metrics{grid-template-columns:1fr}
 }
+
+/* Dashboard todo queue */
+.todo-board{margin:8px 0 24px}
+.todo-board-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px}
+.todo-board-head h2{margin:3px 0 0;font-size:24px}
+.todo-board-head .eyebrow{margin:0}
+.todo-counts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.todo-counts span{padding:7px 10px;border:1px solid #3b3d3f;border-radius:999px;background:#151617;color:#c9c6bf;font-size:12px}
+.todo-columns{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.todo-column{border:1px solid var(--border);border-radius:15px;background:#151617;padding:14px}
+.todo-column-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.todo-column-title>div{display:flex;align-items:center;gap:10px}
+.todo-column-title h3{margin:0 0 2px;font-size:17px}
+.todo-column-title small{color:var(--muted)}
+.todo-column-title>strong{display:grid;place-items:center;min-width:30px;height:30px;border-radius:999px;background:#dfb66618;color:var(--gold);font-size:13px}
+.todo-icon{display:grid;place-items:center;width:34px;height:34px;border:1px solid #665127;border-radius:10px;background:#201a10;color:var(--gold);font-weight:800}
+.todo-card{padding:14px;border:1px solid #303234;border-radius:12px;background:#1b1c1d;margin-top:10px}
+.todo-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.todo-card-head h3{font-size:17px;margin:3px 0 2px}
+.todo-card-head small{color:var(--muted)}
+.todo-card-head>strong{font-size:18px;color:var(--gold);white-space:nowrap}
+.todo-products{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+.todo-products span{padding:6px 8px;border-radius:8px;background:#111213;color:#d7d3ca;font-size:12px;border:1px solid #2e3032}
+.todo-address{margin:10px 0 12px;padding:10px;border-left:2px solid #5d4a25;color:#bbb7ae;font-size:13px;line-height:1.45;background:#131415}
+.todo-action{margin:12px 0 0}
+.todo-action button{width:100%;min-height:48px;font-size:15px}
+.todo-empty{margin:8px 0 2px;padding:18px;border:1px dashed #343638;border-radius:10px;text-align:center;color:var(--muted)}
+@media(max-width:760px){
+  .todo-board-head{align-items:flex-start}
+  .todo-board-head h2{font-size:21px}
+  .todo-counts{max-width:45%}
+  .todo-counts span{font-size:10px;padding:6px 8px}
+  .todo-columns{grid-template-columns:1fr;gap:10px}
+  .todo-column{padding:12px}
+  .todo-card{padding:13px}
+  .todo-card-head h3{font-size:16px}
+  .todo-action button{min-height:50px}
+}
