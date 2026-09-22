@@ -294,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $orderId=(int)$_POST['id'];$todayAction=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
    $paymentDate=array_key_exists('payment_date',$_POST)?orderActionDate((string)$_POST['payment_date'],'payment'):'';
    $deliveryDate=array_key_exists('delivery_date',$_POST)?orderActionDate((string)$_POST['delivery_date'],'delivery'):'';
-   $paymentMethod=trim((string)($_POST['payment_method']??''));
+   $paymentMethod=trim((string)($_POST['payment_method']??''));$paymentFee=array_key_exists('payment_fee',$_POST)?postedMoneyPence($_POST['payment_fee'],'payment fee'):-1;
    if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
    $q=$db->prepare('SELECT payment_date,delivery_date,payment_method FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
    if(!$existingDates)throw new Exception('Order could not be found.');
@@ -303,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if($paymentMethod==='' && (string)$existingDates['payment_method']==='')throw new Exception('Choose how the payment was received.');
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
-   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
+   $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END,payment_fee=CASE WHEN ?>=0 THEN ? ELSE payment_fee END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$paymentFee,$paymentFee,$orderId]);
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_dates'){
@@ -409,7 +409,7 @@ function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile23"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile24"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -562,7 +562,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="dashboard-stats">
 <article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></article>
 <article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
-<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>Mapped supplier costs</small></article>
+<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After costs &amp; fees</small></article>
 <article><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></article>
 <article><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
 <article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></article>
@@ -580,7 +580,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <article class="todo-card"><div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?></small></div><strong><?=money($todo['total'])?></strong></div>
 <div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment method<select name="payment_method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Payment received</button></form></article>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment method<select name="payment_method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><label class="todo-date">Payment / card fee (£) <span class="muted">(optional)</span><input type="number" name="payment_fee" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e(number_format((int)$todo['payment_fee']/100,2,'.',''))?>"></label><button>✓ Payment received</button></form></article>
 <?php endforeach;?></div><?php endif;?>
 
 <?php if($awaitingDelivery):?><div class="todo-column">
