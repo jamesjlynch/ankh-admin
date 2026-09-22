@@ -168,6 +168,27 @@ function syncOrderToSheet(PDO $db,int $orderId):?string{
  $message=$transport?:((is_array($reply)&&!empty($reply['error']))?(string)$reply['error']:'Google did not confirm the sync.');
  saveSetting($db,'sheets_last_error',substr($message,0,500));return $message;
 }
+
+function deleteOrderFromSheet(PDO $db,string $reference):?string{
+ $url=setting($db,'sheets_webhook');if($url==='')return null;
+ if(!sheetsWebhookValid($url))return 'The saved Google Sheets webhook URL is invalid.';
+ $payload=['secret'=>setting($db,'sheets_secret'),'event'=>'order_delete','spreadsheetId'=>setting($db,'sheets_sheet_id'),'reference'=>$reference];
+ $json=json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);if($json===false)return 'The delete could not be prepared for Google Sheets.';
+ $body=false;$http=0;$transport='';
+ if(function_exists('curl_init')){
+  $ch=curl_init($url);
+  curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$json,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_MAXREDIRS=>4,CURLOPT_CONNECTTIMEOUT=>4,CURLOPT_TIMEOUT=>10,CURLOPT_HTTPHEADER=>['Content-Type: application/json','Accept: application/json'],CURLOPT_USERAGENT=>'ANKH-Admin/1.0']);
+  if(defined('CURLOPT_POSTREDIR')&&defined('CURL_REDIR_POST_ALL'))curl_setopt($ch,CURLOPT_POSTREDIR,CURL_REDIR_POST_ALL);
+  $body=curl_exec($ch);$http=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$transport=curl_error($ch);curl_close($ch);
+ }else{
+  $ctx=stream_context_create(['http'=>['method'=>'POST','header'=>"Content-Type: application/json\r\nAccept: application/json\r\nUser-Agent: ANKH-Admin/1.0\r\n",'content'=>$json,'timeout'=>10,'ignore_errors'=>true]]);
+  $body=@file_get_contents($url,false,$ctx);
+  if(isset($http_response_header[0])&&preg_match('/\\s(\\d{3})\\s/',$http_response_header[0],$m))$http=(int)$m[1];
+ }
+ $reply=is_string($body)?json_decode($body,true):null;
+ if($http>=200&&$http<300&&is_array($reply)&&!empty($reply['ok']))return '';
+ return $transport?:((is_array($reply)&&!empty($reply['error']))?(string)$reply['error']:'Google did not confirm the delete.');
+}
 if(setting($db,'sheets_sheet_id')==='')saveSetting($db,'sheets_sheet_id','1j9ucRgbGcB56olVTGiBJDJNMxgggB1jg4KUWZuslUwA');
 if(setting($db,'sheets_secret')==='')saveSetting($db,'sheets_secret',bin2hex(random_bytes(24)));
 
@@ -231,6 +252,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$_POST['status'],$orderId]);
    $syncError=syncOrderToSheet($db,$orderId);
   }
+  if($action==='order_delete'){
+   $orderId=(int)($_POST['id']??0);
+   $q=$db->prepare('SELECT id FROM orders WHERE id=?');$q->execute([$orderId]);
+   if(!$q->fetchColumn())throw new Exception('Order could not be found.');
+   $reference='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
+   $db->beginTransaction();
+   $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
+   $db->prepare('DELETE FROM orders WHERE id=?')->execute([$orderId]);
+   $db->commit();
+   $syncError=deleteOrderFromSheet($db,$reference);
+  }
   if($action==='order'){
    $name=trim($_POST['customer']??'');$phone=trim($_POST['phone']??'');$referrer=trim($_POST['referrer']??'');$address=trim($_POST['address']??'');$notes=trim($_POST['notes']??'');$presentation=trim($_POST['presentation']??'');$orderDate=trim($_POST['order_date']??'');
    if(!$name || strlen($name)>160 || strlen($phone)>40 || strlen($referrer)>160 || strlen($address)>2000 || strlen($notes)>4000)throw new Exception('Check the customer details and try again.');
@@ -265,7 +297,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))));
+ $flash=$action==='order'?'Order saved.':($action==='order_delete'?'Order deleted.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
@@ -277,7 +309,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile16"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile17"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -369,6 +401,24 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($view==='dashboard'): ?>
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted">Sales, profit and what needs your attention.</p></div><a class="button" href="?view=new">+ New order</a></div>
 
+
+
+<div class="dashboard-stats">
+<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Paid / packed / dispatched / delivered</small></article>
+<article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
+<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>All-time · mapped supplier costs</small></article>
+<article><span>Unpaid balance</span><strong><?=money($unpaidBalance)?></strong><small>New + awaiting payment</small></article>
+<article><span>Awaiting delivery</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
+<article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> products tracked</small></article>
+</div>
+<div class="dashboard-grid">
+<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
+<?php if($topSelling):$rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;else:?><p class="muted">Top sellers will appear after paid sales are recorded.</p><?php endif;?>
+</section>
+<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
+<?php if($lowStock):foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;elseif(!$trackedStock):?><p class="muted">No stock levels set yet. Add stock quantities on the Products page and low-stock warnings will appear here.</p><?php else:?><p class="success dashboard-ok">All tracked products are above their low-stock alert.</p><?php endif;?>
+</section>
+</div>
 <section class="todo-board">
 <div class="todo-board-head"><div><p class="eyebrow">TODAY'S TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><span><?=count($awaitingPayment)?> payment</span><span><?=count($awaitingDelivery)?> delivery</span></div></div>
 <div class="todo-columns">
@@ -396,23 +446,6 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </div>
 </div>
 </section>
-
-<div class="dashboard-stats">
-<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Paid / packed / dispatched / delivered</small></article>
-<article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
-<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>All-time · mapped supplier costs</small></article>
-<article><span>Unpaid balance</span><strong><?=money($unpaidBalance)?></strong><small>New + awaiting payment</small></article>
-<article><span>Awaiting delivery</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
-<article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> products tracked</small></article>
-</div>
-<div class="dashboard-grid">
-<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
-<?php if($topSelling):$rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;else:?><p class="muted">Top sellers will appear after paid sales are recorded.</p><?php endif;?>
-</section>
-<section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
-<?php if($lowStock):foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;elseif(!$trackedStock):?><p class="muted">No stock levels set yet. Add stock quantities on the Products page and low-stock warnings will appear here.</p><?php else:?><p class="success dashboard-ok">All tracked products are above their low-stock alert.</p><?php endif;?>
-</section>
-</div>
 <?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit uses products with a saved supplier cost. <?=money($uncostedSales)?> of paid sales currently has no mapped cost, including pen charges where applicable.</p><?php endif;?>
 <?php elseif($view==='orders'): ?>
 <div class="heading"><div><h1>Orders</h1><p class="muted">Tap an order to see its items and update its progress.</p></div><a class="button" href="?view=new">+ New order</a></div>
@@ -423,7 +456,8 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <p><?=e($o['phone'])?></p><p><strong>Order date:</strong> <?=e(date('d M Y',strtotime($o['created'])))?></p><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
 <?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].' @ '.money($i['price']).' each')?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
-<form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form></div></details><?php endforeach;?></div>
+<form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form>
+<form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show. Create an order to get started.</p>
 <?php elseif($view==='new'):?>
 <div class="new-order-head"><h1>New order</h1><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
