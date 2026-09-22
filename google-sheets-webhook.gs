@@ -68,11 +68,12 @@ function upsertOrder_(ss, order) {
     String(item.name || ''),
     Number(item.quantity || 0),
     Number(item.unit_price_pence || 0) / 100,
-    (Number(item.unit_price_pence || 0) * Number(item.quantity || 0)) / 100
+    (Number(item.unit_price_pence || 0) * Number(item.quantity || 0)) / 100,
+    String(order.status || 'New')
   ]).filter(row => row[2] > 0);
 
   if (itemRows.length) {
-    items.getRange(items.getLastRow() + 1, 1, itemRows.length, 5).setValues(itemRows);
+    items.getRange(items.getLastRow() + 1, 1, itemRows.length, 6).setValues(itemRows);
   }
 }
 
