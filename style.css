@@ -1005,3 +1005,31 @@ input[type="date"]{
   .delivery-assign-form{grid-template-columns:1fr auto}
   .delivery-assign-form button{min-width:72px}
 }
+
+/* Assigned-to bubble in collapsed order list */
+.order-summary-badges{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.order-summary-badges .delivery-assignee{
+  min-height:22px;
+  padding:3px 7px;
+  font-size:9px;
+}
+
+@media(max-width:760px){
+  .compact-order summary .order-right{
+    min-width:96px;
+  }
+  .order-summary-badges{
+    gap:4px;
+  }
+  .order-summary-badges .delivery-assignee,
+  .order-summary-badges .badge{
+    font-size:8px;
+    padding:3px 6px;
+  }
+}
