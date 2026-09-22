@@ -451,66 +451,60 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
 <?php if($view==='dashboard'): ?>
-<div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted">Sales, profit and what needs your attention.</p></div><a class="button" href="?view=new">+ New order</a></div>
-
-
-
+<div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted page-description">What needs attention and how the business is doing.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="dashboard-stats">
-<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Paid / packed / dispatched / delivered</small></article>
+<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></article>
 <article><span>This week's sales</span><strong><?=money($weekSales)?></strong><small>Since Monday</small></article>
-<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>All-time · mapped supplier costs</small></article>
-<article><span>Unpaid balance</span><strong><?=money($unpaidBalance)?></strong><small>New + awaiting payment</small></article>
-<article><span>Awaiting delivery</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
-<article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> products tracked</small></article>
-</div>
-<div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
-<?php if($topSelling):$rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;else:?><p class="muted">Top sellers will appear after paid sales are recorded.</p><?php endif;?>
-</section></div>
-<section class="todo-board">
-<div class="todo-board-head"><div><p class="eyebrow">TODAY'S TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><span><?=count($awaitingPayment)?> payment</span><span><?=count($awaitingDelivery)?> delivery</span></div></div>
-<div class="todo-columns">
-<div class="todo-column">
-<div class="todo-column-title"><div><span class="todo-icon">£</span><div><h3>Awaiting payment</h3><small><?=money($unpaidBalance)?> outstanding</small></div></div><strong><?=count($awaitingPayment)?></strong></div>
-<?php if($awaitingPayment):foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
-<article class="todo-card">
-<div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?></small></div><strong><?=money($todo['total'])?></strong></div>
-<div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Payment received</button></form>
-</article>
-<?php endforeach;else:?><p class="todo-empty">Nothing waiting for payment.</p><?php endif;?>
+<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>Mapped supplier costs</small></article>
+<article><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></article>
+<article><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
+<article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></article>
 </div>
 
-<div class="todo-column">
+<?php if($topSelling):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
+<?php $rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;?>
+</section></div><?php endif;?>
+
+<?php if($awaitingPayment||$awaitingDelivery):?><section class="todo-board">
+<div class="todo-board-head"><div><p class="eyebrow">TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><?php if($awaitingPayment):?><span><?=count($awaitingPayment)?> payment</span><?php endif;?><?php if($awaitingDelivery):?><span><?=count($awaitingDelivery)?> delivery</span><?php endif;?></div></div>
+<div class="todo-columns<?=(!$awaitingPayment||!$awaitingDelivery)?' single':''?>">
+<?php if($awaitingPayment):?><div class="todo-column">
+<div class="todo-column-title"><div><span class="todo-icon">£</span><div><h3>Awaiting payment</h3><small><?=money($unpaidBalance)?> outstanding</small></div></div><strong><?=count($awaitingPayment)?></strong></div>
+<?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
+<article class="todo-card"><div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?></small></div><strong><?=money($todo['total'])?></strong></div>
+<div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Payment received</button></form></article>
+<?php endforeach;?></div><?php endif;?>
+
+<?php if($awaitingDelivery):?><div class="todo-column">
 <div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Paid orders to complete</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
-<?php if($awaitingDelivery):foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
-<article class="todo-card">
-<div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?> · <?=e($todo['presentation']?:'Order')?></small></div><span class="badge"><?=e($todo['status'])?></span></div>
+<?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
+<article class="todo-card"><div class="todo-card-head"><div><span class="ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><h3><?=e($todo['customer'])?></h3><small><?=e(date('d M Y',strtotime($todo['created'])))?> · <?=e($todo['presentation']?:'Order')?></small></div><span class="badge status-<?=e(statusClass($todo['status']))?>"><?=e($todo['status'])?></span></div>
 <div class="todo-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'])?></span><?php endforeach;?></div>
 <?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form>
-</article>
-<?php endforeach;else:?><p class="todo-empty">Nothing waiting for delivery.</p><?php endif;?>
-</div>
-</div>
-</section>
-<div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
-<?php if($lowStock):foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;elseif(!$trackedStock):?><p class="muted">No stock levels set yet. Add stock quantities on the Products page and low-stock warnings will appear here.</p><?php else:?><p class="success dashboard-ok">All tracked products are above their low-stock alert.</p><?php endif;?>
-</section></div>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form></article>
+<?php endforeach;?></div><?php endif;?>
+</div></section><?php endif;?>
 
-<?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit uses products with a saved supplier cost. <?=money($uncostedSales)?> of paid sales currently has no mapped cost, including pen charges where applicable.</p><?php endif;?>
+<?php if($lowStock):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
+<?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;?>
+</section></div><?php endif;?>
+<?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit excludes costs that have not been mapped yet.</p><?php endif;?>
 <?php elseif($view==='orders'): ?>
-<div class="heading"><div><h1>Orders</h1><p class="muted">Tap an order to see its items and update its progress.</p></div><a class="button" href="?view=new">+ New order</a></div>
-<div class="stats"><article><span>Open orders</span><strong><?=$open?></strong></article><article><span>Paid order value · all time</span><strong><?=money($paid)?></strong></article><article><span>Total orders</span><strong><?=count($orders)?></strong></article></div>
-<div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $s):?><option><?=e($s)?></option><?php endforeach;?></select></label></div>
+<div class="heading"><div><h1>Orders</h1><p class="muted page-description">Search, update or repeat any order.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<div class="stats compact-stats"><article><span>Open</span><strong><?=$open?></strong></article><article><span>Paid value</span><strong><?=money($paid)?></strong></article><article><span>Total</span><strong><?=count($orders)?></strong></article></div>
+<div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
-<?php foreach($orders as $o):?><details class="order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><span class="badge"><?=e($o['status'])?></span><strong><?=money($o['total'])?></strong><small>Tap to open ↓</small></div></summary><div class="detail">
-<p><?=e($o['phone'])?></p><p><strong>Order date:</strong> <?=e(date('d M Y',strtotime($o['created'])))?></p><?php if(!empty($o['payment_date'])):?><p><strong>Payment date:</strong> <?=e(date('d M Y',strtotime($o['payment_date'])))?></p><?php endif;?><?php if(!empty($o['delivery_date'])):?><p><strong>Delivery date:</strong> <?=e(date('d M Y',strtotime($o['delivery_date'])))?></p><?php endif;?><?php if(!empty($o['referrer'])):?><p><strong>Referred by:</strong> <?=e($o['referrer'])?></p><?php endif;?><?php if(!empty($o['presentation'])):?><p><strong>Type:</strong> <?=e($o['presentation'])?></p><?php endif;?><p class="address"><?=nl2br(e($o['address']))?></p>
-<?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].' @ '.money($i['price']).' each')?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
+<?php foreach($orders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.$o['phone'].' '.($o['referrer']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><strong><?=money($o['total'])?></strong></div></summary><div class="detail">
+<div class="order-quick-actions"><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat order</a></div>
+<div class="order-meta"><span><b>Order</b><?=e(date('d M Y',strtotime($o['created'])))?></span><?php if($o['payment_date']):?><span><b>Paid</b><?=e(date('d M Y',strtotime($o['payment_date'])))?></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><?=e(date('d M Y',strtotime($o['delivery_date'])))?></span><?php endif;?><?php if($o['presentation']):?><span><b>Type</b><?=e($o['presentation'])?></span><?php endif;?></div>
+<?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?>
+<?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].' @ '.money($i['price']))?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
-<form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button class="quiet">Save payment / delivery dates</button></form>
-<form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Order status<select name="status"><?php foreach($statuses as $s):?><option <?=$s===$o['status']?'selected':''?>><?=e($s)?></option><?php endforeach;?></select></label><button>Save status</button></form>
+<form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button class="quiet">Save dates</button></form>
+<form method="post" class="status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><label>Status<select name="status"><?php foreach($statuses as $statusOption):?><option <?=$statusOption===$o['status']?'selected':''?>><?=e($statusOption)?></option><?php endforeach;?></select></label><button>Save status</button></form>
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
-<p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show. Create an order to get started.</p>
+<p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show.</p>
 <?php elseif($view==='new'):?>
 <div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
 <form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order">
