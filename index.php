@@ -422,7 +422,7 @@ function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile30"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile31"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -688,7 +688,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div id="strength-picker" class="strength-picker" hidden><div class="strength-picker-head"><div><span class="muted">Choose strength</span><strong id="strength-product-name"></strong></div><button type="button" id="close-strength-picker" class="strength-close" aria-label="Close strength choices">×</button></div><div id="strength-options" class="strength-options"></div></div>
 <div id="selected-order-lines" class="selected-order-lines"></div>
 <p id="selected-empty" class="selected-empty">No products added yet.</p>
-<div class="add-another-hint" id="add-another-hint" hidden>Use the search above to add another peptide or the same peptide in a different format.</div>
+<button type="button" class="add-another-product" id="add-another-product" hidden><span class="add-another-plus">+</span><span><strong>Add another product</strong><small>Search peptides again</small></span></button>
 <div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="1">← Back</button><button type="button" data-wizard-next="3">Next · Check order →</button></div>
 </section>
 
@@ -848,10 +848,10 @@ const customerSuggestions=<?=json_encode($customerSuggestions,JSON_HEX_TAG|JSON_
 const productCatalog=<?=json_encode($productCatalogForJs,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
 const initialOrderLines=<?=json_encode($view==='edit'?$editLines:$repeatLines,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE)?>;
 const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address');
-const productSearch=document.querySelector('#product-search'),productResults=document.querySelector('#product-results'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),selectedLinesContainer=document.querySelector('#selected-order-lines'),selectedEmpty=document.querySelector('#selected-empty'),addAnotherHint=document.querySelector('#add-another-hint');
+const productSearch=document.querySelector('#product-search'),productSearchWrap=productSearch?.closest('.product-search-wrap'),productResults=document.querySelector('#product-results'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),selectedLinesContainer=document.querySelector('#selected-order-lines'),selectedEmpty=document.querySelector('#selected-empty'),addAnotherButton=document.querySelector('#add-another-product');
 const deliveryMethodSelect=document.querySelector('#delivery-method'),postageFields=document.querySelector('#postage-fields'),deliveryChargeInput=document.querySelector('#delivery-charge'),postageCostInput=document.querySelector('#postage-cost'),trackingReferenceInput=document.querySelector('#tracking-reference'),paymentMethodInput=document.querySelector('#payment-method'),paymentFeeInput=document.querySelector('#payment-fee');
 const draftEnabled=wizard?.dataset.draftEnabled==='1';
-let currentWizardStep=1,lineCounter=0;
+let currentWizardStep=1,lineCounter=0,productSearchMoved=false;
 
 function moneyFormat(value){return new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(Number(value)||0)}
 function selectedOrderCards(){return [...document.querySelectorAll('.order-line-card')]}
@@ -878,8 +878,21 @@ function recalculateLinePrice(card){
  const price=card.querySelector('[data-line-price]');if(price)price.value=calculatedLinePrice(card).toFixed(2);refreshLineVisuals(card);updateTotal();
 }
 function updateSelectedState(){
- const count=selectedOrderCards().length;if(selectedEmpty)selectedEmpty.hidden=count>0;if(addAnotherHint)addAnotherHint.hidden=count===0;
+ const cards=selectedOrderCards(),count=cards.length,hasReadyLine=cards.some(card=>!!lineData(card).presentation);
+ if(selectedEmpty)selectedEmpty.hidden=count>0;
+ if(addAnotherButton)addAnotherButton.hidden=!hasReadyLine||productSearchMoved;
 }
+function moveProductSearchToBottom(){
+ if(!productSearchWrap||!selectedLinesContainer)return;
+ selectedLinesContainer.after(productSearchWrap);
+ if(strengthPicker)productSearchWrap.after(strengthPicker);
+ productSearchMoved=true;
+ if(addAnotherButton)addAnotherButton.hidden=true;
+ if(productSearch){productSearch.value='';productSearch.placeholder='Search another peptide…';productSearch.focus();showProductResults()}
+ setTimeout(()=>productSearchWrap.scrollIntoView({behavior:'smooth',block:'center'}),60);
+}
+addAnotherButton?.addEventListener('click',moveProductSearchToBottom);
+
 function createFormatButton(value,icon){
  const button=document.createElement('button');button.type='button';button.className='line-format-button';button.dataset.lineFormat=value;
  const iconSpan=document.createElement('span');iconSpan.className='line-format-icon';iconSpan.textContent=icon;
@@ -906,7 +919,7 @@ function addOrderLine(data={},scroll=true){
 
  const formatTitle=document.createElement('span');formatTitle.className='line-section-label';formatTitle.textContent='Choose format';
  const formats=document.createElement('div');formats.className='line-format-picker';
- [['Pen','▯'],['Cartridge','▤'],['Vial','◉']].forEach(([value,icon])=>{const button=createFormatButton(value,icon);button.addEventListener('click',()=>{hiddenPresentation.value=value;recalculateLinePrice(card);saveDraftOrder()});formats.append(button)});
+ [['Pen','▯'],['Cartridge','▤'],['Vial','◉']].forEach(([value,icon])=>{const button=createFormatButton(value,icon);button.addEventListener('click',()=>{hiddenPresentation.value=value;recalculateLinePrice(card);updateSelectedState();saveDraftOrder()});formats.append(button)});
  card.append(formatTitle,formats);
 
  if((product.strength||'').toLowerCase().endsWith('mg')){
@@ -930,7 +943,7 @@ function addOrderLine(data={},scroll=true){
  priceInput.addEventListener('input',()=>{refreshLineVisuals(card);updateTotal();saveDraftOrder()});
 
  selectedLinesContainer.append(card);refreshLineVisuals(card);updateSelectedState();updateTotal();
- if(scroll){productSearch?.blur();setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'center'}),80)}
+ if(scroll){productSearch?.blur();if(!productSearchMoved)setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'center'}),80);else setTimeout(()=>productSearchWrap?.scrollIntoView({behavior:'smooth',block:'center'}),80)}
  return card;
 }
 
