@@ -642,3 +642,67 @@ input[type="date"]{
   .order-dates-form .two{min-width:0}
   .order-dates-form label{width:100%;min-width:0}
 }
+
+/* Order editing, fulfilment and profit reports */
+.order-subsection,.edit-section{margin:18px 0;padding:16px;border:1px solid #343638;border-radius:12px;background:#141516}
+.order-subsection>.order-check-label,.edit-section>.wizard-kicker{display:block;margin-bottom:12px}
+.postage-fields[hidden]{display:none}
+.postage-fields{padding-top:4px}
+.edit-order-form{margin-top:16px}
+.edit-section:first-of-type{margin-top:0}
+.edit-total{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0;padding:16px;border:1px solid #5d4a25;border-radius:12px;background:#211c12}
+.edit-total span{color:var(--muted)}
+.edit-total strong{font-size:25px;color:var(--gold)}
+.status-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1}
+.status-fields label{margin:0}
+
+.report-periods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}
+.report-period{padding:18px;border:1px solid var(--border);border-radius:14px;background:linear-gradient(135deg,#202122,#18191a)}
+.report-period span,.report-period small{display:block;color:var(--muted)}
+.report-period strong{display:block;margin:8px 0 4px;font-size:27px;color:#f1eee7}
+.report-period small{font-size:11px}
+.report-breakdown{margin-top:0}
+.report-lines>div{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid var(--border)}
+.report-lines>div:last-child{border-bottom:0}
+.report-lines span{color:#d8d5ce}
+.report-lines strong{white-space:nowrap}
+.report-lines .report-profit{margin-top:5px;padding-top:17px}
+.report-lines .report-profit span,.report-lines .report-profit strong{font-size:20px;color:var(--gold);font-weight:700}
+.report-warning{margin-top:15px}
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.report-grid .panel{margin-top:0}
+.profit-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.profit-table{width:100%;border-collapse:collapse;min-width:680px}
+.profit-table th,.profit-table td{text-align:left;padding:12px 10px;border-bottom:1px solid var(--border);font-size:13px}
+.profit-table th{color:var(--muted);font-weight:600}
+.profit-table td:not(:first-child),.profit-table th:not(:first-child){text-align:right}
+.profit-table td:first-child{font-weight:600}
+.profit-table small{display:block;color:#d88e82;font-weight:500;font-size:10px;margin-top:3px}
+
+/* Payment selector inside dashboard actions */
+.todo-action select{margin-top:7px;min-height:44px}
+.todo-action .todo-date{margin-bottom:10px}
+
+@media(max-width:760px){
+  .order-subsection,.edit-section{padding:13px;margin:13px 0}
+  .edit-order-form{padding:14px 12px}
+  .edit-section .presentation-picker{margin-bottom:0}
+  .edit-total{position:sticky;bottom:calc(82px + env(safe-area-inset-bottom));z-index:15;margin:16px -12px 12px;border-left:0;border-right:0;border-radius:0;padding:12px 14px;background:#211c12f4;backdrop-filter:blur(10px)}
+  .edit-total strong{font-size:22px}
+  .status-fields{grid-template-columns:1fr}
+  .compact-status-form{grid-template-columns:1fr!important}
+  .compact-status-form button{width:100%!important}
+
+  .report-periods{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0}
+  .report-period{padding:13px 11px}
+  .report-period strong{font-size:22px}
+  .report-period span{font-size:12px}
+  .report-grid{grid-template-columns:1fr;gap:0}
+  .report-grid .panel{margin-bottom:12px}
+  .report-breakdown{padding:16px 14px}
+  .report-lines>div{padding:10px 0;font-size:13px}
+  .report-lines .report-profit span,.report-lines .report-profit strong{font-size:17px}
+  .profit-table-wrap{margin:0 -14px;padding:0 14px}
+  .profit-table th,.profit-table td{padding:10px 8px;font-size:12px}
+  .todo-action .todo-date{display:block}
+}
