@@ -72,6 +72,10 @@ function syncOrderToSheet(PDO $db,int $orderId):?string{
 if(setting($db,'sheets_sheet_id')==='')saveSetting($db,'sheets_sheet_id','1j9ucRgbGcB56olVTGiBJDJNMxgggB1jg4KUWZuslUwA');
 if(setting($db,'sheets_secret')==='')saveSetting($db,'sheets_secret',bin2hex(random_bytes(24)));
 
+// TEMPORARY TEST MODE: set to false when testing is finished.
+$testingNoAuth=true;
+if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();}
+
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
@@ -150,8 +154,8 @@ $paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispat
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
-<aside><a class="brand" href="./"><span>☥</span> ANKH<small>ORDER DESK</small></a><nav><?php foreach(['orders'=>'Orders','new'=>'New order','customers'=>'Customers','products'=>'Products','sheets'=>'Google Sheets'] as $key=>$label):?><a class="<?=$view===$key?'selected':''?>" href="?view=<?=$key?>"><?=$label?></a><?php endforeach;?></nav><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form></aside>
-<main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
+<aside><a class="brand" href="./"><span>☥</span> ANKH<small>ORDER DESK</small></a><nav><?php foreach(['orders'=>'Orders','new'=>'New order','customers'=>'Customers','products'=>'Products','sheets'=>'Google Sheets'] as $key=>$label):?><a class="<?=$view===$key?'selected':''?>" href="?view=<?=$key?>"><?=$label?></a><?php endforeach;?></nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
+<main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header><?php if($testingNoAuth):?><p class="error" style="background:#3b301b;border-color:#79622d;color:#f5d991">TEST MODE · Password temporarily disabled</p><?php endif;?>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
 <?php if($view==='orders'): ?>
