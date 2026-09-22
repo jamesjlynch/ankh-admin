@@ -451,8 +451,15 @@ foreach($customerProducts as $customerProduct){
  $customerProductCounts[$key][]=['name'=>(string)$customerProduct['name'],'qty'=>(int)$customerProduct['qty']];
 }
 
-$newOrderCustomer=null;$repeatOrderData=null;$repeatQty=[];$repeatPrices=[];$repeatPresentation='';$repeatPaymentMethod='';$repeatDeliveryMethod='';$repeatTrackingReference='';$repeatDeliveryCharge=0;$repeatPostageCost=0;$repeatPaymentFee=0;
-$editOrder=null;$editQty=[];$editPrices=[];
+$newOrderCustomer=null;$repeatOrderData=null;$repeatPaymentMethod='';$repeatDeliveryMethod='';$repeatTrackingReference='';$repeatDeliveryCharge=0;$repeatPostageCost=0;$repeatPaymentFee=0;$repeatLines=[];
+$editOrder=null;$editLines=[];
+
+$productCatalogForJs=[];
+foreach($products as $catalogProduct){
+ $baseName=(string)$catalogProduct['name'];$strength='';
+ if(preg_match('/\s+(\d+(?:\.\d+)?\s*(?:mg|ml|iu))$/i',$baseName,$pm)){$strength=$pm[1];$baseName=trim(substr($baseName,0,-strlen($pm[0])));}
+ $productCatalogForJs[]=['id'=>(int)$catalogProduct['id'],'name'=>(string)$catalogProduct['name'],'base'=>$baseName,'strength'=>$strength,'price'=>(int)$catalogProduct['price']/100,'active'=>(int)$catalogProduct['active']===1];
+}
 
 if($view==='new' && (int)($_GET['customer_id']??0)>0){
  $q=$db->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([(int)$_GET['customer_id']]);$newOrderCustomer=$q->fetch(PDO::FETCH_ASSOC)?:null;
@@ -461,22 +468,30 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
  $repeatId=(int)$_GET['repeat_order'];$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$repeatId]);$repeatOrder=$q->fetch(PDO::FETCH_ASSOC);
  if($repeatOrder){
   $repeatOrderData=$repeatOrder;$newOrderCustomer=['name'=>$repeatOrder['customer'],'phone'=>$repeatOrder['phone'],'address'=>$repeatOrder['address']];
-  $repeatPresentation=(string)($repeatOrder['presentation']??'');$repeatPaymentMethod=(string)($repeatOrder['payment_method']??'');$repeatDeliveryMethod=(string)($repeatOrder['delivery_method']??'');$repeatTrackingReference=(string)($repeatOrder['tracking_reference']??'');$repeatDeliveryCharge=(int)($repeatOrder['delivery_charge']??0);$repeatPostageCost=(int)($repeatOrder['postage_cost']??0);$repeatPaymentFee=(int)($repeatOrder['payment_fee']??0);
-  $nameToProduct=[];foreach($products as $rp)if((int)$rp['active']===1)$nameToProduct[strtolower(trim((string)$rp['name']))]=(int)$rp['id'];
-  $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
+  $repeatPaymentMethod=(string)($repeatOrder['payment_method']??'');$repeatDeliveryMethod=(string)($repeatOrder['delivery_method']??'');$repeatTrackingReference=(string)($repeatOrder['tracking_reference']??'');$repeatDeliveryCharge=(int)($repeatOrder['delivery_charge']??0);$repeatPostageCost=(int)($repeatOrder['postage_cost']??0);$repeatPaymentFee=(int)($repeatOrder['payment_fee']??0);
+  $nameToProduct=[];foreach($products as $rp)if((int)$rp['active']===1)$nameToProduct[strtolower(trim((string)$rp['name']))]=$rp;
+  $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
   foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ri){
    if(strtolower(trim((string)$ri['name']))==='pen')continue;
-   $pid=$nameToProduct[strtolower(trim((string)$ri['name']))]??0;if(!$pid)continue;
-   $repeatQty[$pid]=(int)$ri['quantity'];$repeatPrices[$pid]=number_format((int)$ri['price']/100,2,'.','');
+   $p=$nameToProduct[strtolower(trim((string)$ri['name']))]??null;if(!$p)continue;
+   $format=in_array((string)$ri['presentation'],['Pen','Cartridge','Vial'],true)?(string)$ri['presentation']:(in_array((string)($repeatOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$repeatOrder['presentation']:'Vial');
+   $base=$ri['base_price']===null?(int)$p['price']:(int)$ri['base_price'];$discount=(int)($ri['discount']??0)>0;
+   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$base/100,'discount'=>$discount,'price'=>max(0,$base-($discount?500:0)+($format==='Pen'?2000:0))/100];
   }
  }
 }
 if($view==='edit' && (int)($_GET['id']??0)>0){
  $editId=(int)$_GET['id'];$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$editId]);$editOrder=$q->fetch(PDO::FETCH_ASSOC)?:null;
  if($editOrder){
-  $nameToProduct=[];foreach($products as $ep)$nameToProduct[strtolower(trim((string)$ep['name']))]=(int)$ep['id'];
-  $q=$db->prepare('SELECT name,price,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$editId]);
-  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ei){if(strtolower(trim((string)$ei['name']))==='pen')continue;$pid=$nameToProduct[strtolower(trim((string)$ei['name']))]??0;if(!$pid)continue;$editQty[$pid]=(int)$ei['quantity'];$editPrices[$pid]=number_format((int)$ei['price']/100,2,'.','');}
+  $nameToProduct=[];foreach($products as $ep)$nameToProduct[strtolower(trim((string)$ep['name']))]=$ep;
+  $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$editId]);
+  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ei){
+   if(strtolower(trim((string)$ei['name']))==='pen')continue;
+   $p=$nameToProduct[strtolower(trim((string)$ei['name']))]??null;if(!$p)continue;
+   $format=in_array((string)$ei['presentation'],['Pen','Cartridge','Vial'],true)?(string)$ei['presentation']:(in_array((string)($editOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$editOrder['presentation']:'Vial');
+   $base=$ei['base_price']===null?(int)$p['price']:(int)$ei['base_price'];
+   $editLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ei['quantity'],'presentation'=>$format,'base_price'=>$base/100,'discount'=>(int)($ei['discount']??0)>0,'price'=>(int)$ei['price']/100];
+  }
  }
 }
 $recentCustomers=[];$recentSeen=[];
@@ -515,15 +530,19 @@ if($todoOrderIds){
  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $todoItem)$todoItems[(int)$todoItem['order_id']][]=$todoItem;
 }
 $grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$orderPenCostById=[];$productProfit=[];$penCostAll=0;
-$dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
+$dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.presentation,i.presentation_cost,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
 foreach($dashboardItems as $dashboardItem){
- $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$name=(string)$dashboardItem['name'];
- if($cost!==null){$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;}else{$uncostedSales+=$line;}
- if(strtolower(trim($name))==='pen'){if($cost!==null){$penLineCost=$cost*$qty;$penCostAll+=$penLineCost;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penLineCost;}continue;}
+ $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$presentationCost=(int)($dashboardItem['presentation_cost']??0);$name=(string)$dashboardItem['name'];
+ if(strtolower(trim($name))==='pen'){
+  if($cost!==null){$legacyPen=$cost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$legacyPen;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$legacyPen;$penCostAll+=$legacyPen;}else{$uncostedSales+=$line;}
+  continue;
+ }
+ if($cost!==null)$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;else$uncostedSales+=$line;
+ if($presentationCost>0){$penLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penLine;$penCostAll+=$penLine;}
  $topSelling[$name]??=['qty'=>0,'revenue'=>0];$topSelling[$name]['qty']+=$qty;$topSelling[$name]['revenue']+=$line;
  $productProfit[$name]??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];
  $productProfit[$name]['units']+=$qty;$productProfit[$name]['revenue']+=$line;
- if($cost!==null)$productProfit[$name]['cogs']+=$cost*$qty;else$productProfit[$name]['missing_cost']=true;
+ if($cost!==null)$productProfit[$name]['cogs']+=($cost+$presentationCost)*$qty;else$productProfit[$name]['missing_cost']=true;
 }
 uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['revenue']);$topSelling=array_slice($topSelling,0,5,true);
 uasort($productProfit,fn($a,$b)=>$b['revenue']<=>$a['revenue']);
