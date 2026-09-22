@@ -501,12 +501,12 @@ if($todoOrderIds){
  $q->execute($todoOrderIds);
  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $todoItem)$todoItems[(int)$todoItem['order_id']][]=$todoItem;
 }
-$grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$productProfit=[];$penCostAll=0;
+$grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$orderPenCostById=[];$productProfit=[];$penCostAll=0;
 $dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
 foreach($dashboardItems as $dashboardItem){
  $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$name=(string)$dashboardItem['name'];
  if($cost!==null){$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;}else{$uncostedSales+=$line;}
- if(strtolower(trim($name))==='pen'){if($cost!==null)$penCostAll+=$cost*$qty;continue;}
+ if(strtolower(trim($name))==='pen'){if($cost!==null){$penLineCost=$cost*$qty;$penCostAll+=$penLineCost;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penLineCost;}continue;}
  $topSelling[$name]??=['qty'=>0,'revenue'=>0];$topSelling[$name]['qty']+=$qty;$topSelling[$name]['revenue']+=$line;
  $productProfit[$name]??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];
  $productProfit[$name]['units']+=$qty;$productProfit[$name]['revenue']+=$line;
@@ -516,17 +516,17 @@ uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['reven
 uasort($productProfit,fn($a,$b)=>$b['revenue']<=>$a['revenue']);
 
 $reportPeriods=[
- 'today'=>['label'=>'Today','start'=>$todayStart,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
- 'week'=>['label'=>'This week','start'=>$weekStart,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
- 'month'=>['label'=>'This month','start'=>$monthStart,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
- 'all'=>['label'=>'All time','start'=>0,'revenue'=>0,'cogs'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0]
+ 'today'=>['label'=>'Today','start'=>$todayStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
+ 'week'=>['label'=>'This week','start'=>$weekStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
+ 'month'=>['label'=>'This month','start'=>$monthStart,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0],
+ 'all'=>['label'=>'All time','start'=>0,'revenue'=>0,'cogs'=>0,'pen'=>0,'postage'=>0,'fees'=>0,'profit'=>0,'orders'=>0]
 ];
 $paymentBreakdown=[];
 foreach($orders as $reportOrder){
  if(!in_array($reportOrder['status'],$paidStatuses,true))continue;
  $orderId=(int)$reportOrder['id'];$dateText=(string)($reportOrder['payment_date']?:$reportOrder['created']);$reportTs=strtotime($dateText)?:0;
- $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$fee=(int)($reportOrder['payment_fee']??0);$profit=$revenue-$cogs-$postage-$fee;
- foreach($reportPeriods as $key=>&$period){if($reportTs>=$period['start']){$period['revenue']+=$revenue;$period['cogs']+=$cogs;$period['postage']+=$postage;$period['fees']+=$fee;$period['profit']+=$profit;$period['orders']++;}}unset($period);
+ $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$penCogs=(int)($orderPenCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$fee=(int)($reportOrder['payment_fee']??0);$profit=$revenue-$cogs-$postage-$fee;
+ foreach($reportPeriods as $key=>&$period){if($reportTs>=$period['start']){$period['revenue']+=$revenue;$period['cogs']+=$cogs;$period['pen']+=$penCogs;$period['postage']+=$postage;$period['fees']+=$fee;$period['profit']+=$profit;$period['orders']++;}}unset($period);
  $method=trim((string)($reportOrder['payment_method']??''))?:'Not recorded';$paymentBreakdown[$method]=($paymentBreakdown[$method]??0)+$revenue;
 }
 $grossProfit=$reportPeriods['all']['profit'];
