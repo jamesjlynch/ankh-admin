@@ -508,15 +508,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
 
   if($tool==='lookup_product'){
    $query=trim((string)($args['query']??''));if($query==='')throw new Exception('Tell me which product to look up.');
-   $query=$aliasProduct($query);$qNorm=$normProduct($query);
+   $query=$aliasProduct($query);$qNorm=$normProduct($query);$spokenStrength=null;
+   if(preg_match('/(\\d+(?:\\.\\d+)?)\\s*(?:mg|milligrams?)/i',$query,$strengthMatch))$spokenStrength=(float)$strengthMatch[1];
    $rows=$db->query('SELECT id,name,price,cost,stock_qty,low_stock_at,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
    $ranked=[];
    foreach($rows as $row){
-    $nNorm=$normProduct((string)$row['name']);$score=0;
+    $name=(string)$row['name'];$nNorm=$normProduct($name);$score=0;
     if($nNorm===$qNorm)$score=10000;
     elseif($qNorm!==''&&str_contains($nNorm,$qNorm))$score=8000-abs(strlen($nNorm)-strlen($qNorm));
     elseif($nNorm!==''&&str_contains($qNorm,$nNorm))$score=7000-abs(strlen($nNorm)-strlen($qNorm));
     else{$distance=levenshtein($qNorm,$nNorm);$score=4000-($distance*100);}
+    if($spokenStrength!==null){
+     if(preg_match('/(\\d+(?:\\.\\d+)?)\\s*mg/i',$name,$nameStrength)){
+      $score+=(abs((float)$nameStrength[1]-$spokenStrength)<0.0001)?3500:-5000;
+     }else{$score-=2500;}
+    }
     $ranked[]=['score'=>$score,'row'=>$row];
    }
    usort($ranked,fn($a,$b)=>$b['score']<=>$a['score']);
@@ -1451,18 +1457,23 @@ function assistantRealtimeCleanup(){
 function assistantCloseRealtime(){
  assistantRealtimeCleanup();if(ankhAssistantOverlay)ankhAssistantOverlay.hidden=true;document.body.classList.remove('assistant-overlay-open');
 }
-async function assistantRunRealtimeTool(item){
- if(!item?.call_id||ankhHandledCalls.has(item.call_id)||!ankhRealtimeDc||ankhRealtimeDc.readyState!=='open')return;
- ankhHandledCalls.add(item.call_id);assistantRealtimeState('thinking','Checking ANKH…','I’m looking that up in the live admin data.');
- let args={};try{args=JSON.parse(item.arguments||'{}')}catch(_){}
+async function assistantFetchRealtimeTool(item){
+ if(!item?.call_id||ankhHandledCalls.has(item.call_id))return null;
+ ankhHandledCalls.add(item.call_id);let args={};try{args=JSON.parse(item.arguments||'{}')}catch(_){}
  let output;
  try{
   const response=await fetch('?api=assistant-tool',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:<?=json_encode($_SESSION['csrf'])?>,name:item.name,args})});
   const payload=await response.json().catch(()=>({ok:false,error:'The ANKH data tool returned an unreadable response.'}));
   output=payload.ok?payload.result:{error:payload.error||'Could not read ANKH data.'};
  }catch(error){output={error:error?.message||'Could not read ANKH data.'}}
+ return {call_id:item.call_id,output};
+}
+async function assistantRunRealtimeTools(calls){
+ if(!calls.length||!ankhRealtimeDc||ankhRealtimeDc.readyState!=='open')return;
+ assistantRealtimeState('thinking','Checking ANKH…','I’m looking that up in the live admin data.');
+ const results=(await Promise.all(calls.map(assistantFetchRealtimeTool))).filter(Boolean);
  if(!ankhRealtimeDc||ankhRealtimeDc.readyState!=='open')return;
- ankhRealtimeDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:item.call_id,output:JSON.stringify(output)}}));
+ results.forEach(result=>ankhRealtimeDc.send(JSON.stringify({type:'conversation.item.create',item:{type:'function_call_output',call_id:result.call_id,output:JSON.stringify(result.output)}})));
  ankhRealtimeDc.send(JSON.stringify({type:'response.create'}));
 }
 function assistantHandleRealtimeEvent(event){
@@ -1479,10 +1490,11 @@ function assistantHandleRealtimeEvent(event){
   ankhRealtimeTranscript+=(event.delta||'');
  }else if(event.type==='response.output_audio_transcript.done'){
   const text=(event.transcript||ankhRealtimeTranscript||'').trim();if(text)assistantAddLiveLog(text);ankhRealtimeTranscript='';
+ }else if(event.type==='response.output_audio.done'){
+  if(ankhRealtimeConnected)setTimeout(()=>{if(ankhRealtimeConnected)assistantRealtimeState('listening','I’m listening…','Ask another question or follow up on what we were just talking about.')},300);
  }else if(event.type==='response.done'){
   const outputs=Array.isArray(event.response?.output)?event.response.output:[];const calls=outputs.filter(item=>item?.type==='function_call');
-  if(calls.length){calls.forEach(assistantRunRealtimeTool)}
-  else if(ankhRealtimeConnected){setTimeout(()=>{if(ankhRealtimeConnected&&!ankhAssistantOverlay?.classList.contains('speaking'))assistantRealtimeState('listening','I’m listening…','Ask another question or follow up on what we were just talking about.')},250)}
+  if(calls.length)assistantRunRealtimeTools(calls);
  }else if(event.type==='error'){
   const message=event.error?.message||'The live voice session hit an error.';assistantRealtimeState('error','Voice connection issue',message);
  }
