@@ -1033,3 +1033,37 @@ input[type="date"]{
     padding:3px 6px;
   }
 }
+
+/* Named delivery assignees */
+.order-ref-row{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+  margin-bottom:3px;
+}
+.order-ref-row .ref{margin:0}
+.delivery-assignee.assignee-james{
+  border-color:#3d6f8f;
+  background:#162734;
+  color:#8fd1ff;
+}
+.delivery-assignee.assignee-tony{
+  border-color:#7b4f86;
+  background:#2a1b30;
+  color:#e1a8ee;
+}
+.delivery-assignee.assignee-unassigned{
+  border-color:#46494b;
+  background:#171819;
+  color:#aaa79f;
+}
+
+@media(max-width:760px){
+  .order-ref-row{gap:5px;margin-bottom:2px}
+  .order-ref-row .delivery-assignee{
+    min-height:20px;
+    padding:3px 6px;
+    font-size:8px;
+  }
+}
