@@ -46,6 +46,7 @@ function upsertOrder_(ss, order) {
     dateOrText_(order.created),
     String(order.customer || ''),
     String(order.phone || ''),
+    String(order.referrer || ''),
     String(order.address || ''),
     String(order.status || 'New'),
     Number(order.total_pence || 0) / 100,
