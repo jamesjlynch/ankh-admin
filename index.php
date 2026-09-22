@@ -319,10 +319,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
    'file'=>new CURLFile($tmp,$mime,$filename),
    'model'=>'gpt-4o-mini-transcribe',
    'language'=>'en',
-   'prompt'=>'ANKH order entry. Product names may include: '.implode(', ',$productNames).'. Formats: Pen, Cartridge, Vial. Delivery people: James, Tony.'
+   'prompt'=>'ANKH order entry. IMPORTANT: when the speaker says "Reta", "Reeta", "Rita" or "Rayta" as a product name, transcribe it as Retatrutide. Product names may include: '.implode(', ',$productNames).'. Formats: Pen, Cartridge, Vial. Delivery people: James, Tony.'
   ],true);
   $transcript=trim((string)($transcription['text']??''));
   if($transcript==='')voiceJson(['ok'=>false,'error'=>'I could not hear an order. Please try again.'],422);
+  // Product speech alias: customers commonly say "Reta" for Retatrutide.
+  // Only normalise common mishearings when they appear in a product-like context.
+  $parserTranscript=preg_replace(
+   '/\\b(?:reta|rita|reeta|rayta)\\b(?=\\s*[,.-]?\\s*(?:(?:10|20)\\s*(?:mg|milligrams?)|(?:pen|vial|cartridge)\\b))/i',
+   'Retatrutide',
+   $transcript
+  )??$transcript;
 
   $customerList=array_map(fn($c)=>['id'=>(int)$c['id'],'name'=>(string)$c['name']],$voiceCustomers);
   $schema=[
@@ -352,8 +359,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
    ],
    'required'=>['customer_id','customer_name','phone','address','referrer','delivery_method','assigned_to','payment_method','notes','lines','questions','needs_review']
   ];
-  $instructions="Convert a spoken ANKH order into a draft. Never invent customer contact details, products, strengths, quantities, formats, payment methods or delivery people. Use an existing customer_id only when the spoken customer clearly matches the supplied customer list. If an existing customer is chosen, leave phone and address blank because the app fills them from its database. Product_name must be an exact supplied catalogue value. If a product is mentioned without enough strength information to choose exactly, do not guess: omit that line and add a short question. If Pen/Cartridge/Vial was not said, use an empty presentation and ask which format. 'family and friends', 'friends and family', or 'F&F' means family_friends=true. Delivery defaults to Local Delivery only if no delivery method was said. Assignment is only James or Tony when explicitly stated. Return a draft only; never imply it has been saved.";
-  $input=json_encode(['transcript'=>$transcript,'customers'=>$customerList,'products'=>$productNames],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+  $instructions="Convert a spoken ANKH order into a draft. ANKH speech alias rule: 'Reta' means Retatrutide. If the transcript contains Reta, Rita, Reeta or Rayta in a clear product context, especially next to 10mg, 20mg, pen, vial or cartridge, interpret it as Retatrutide rather than a person's name. Never invent customer contact details, products, strengths, quantities, formats, payment methods or delivery people. Use an existing customer_id only when the spoken customer clearly matches the supplied customer list. If an existing customer is chosen, leave phone and address blank because the app fills them from its database. Product_name must be an exact supplied catalogue value. If a product is mentioned without enough strength information to choose exactly, do not guess: omit that line and add a short question. If Pen/Cartridge/Vial was not said, use an empty presentation and ask which format. 'family and friends', 'friends and family', or 'F&F' means family_friends=true. Delivery defaults to Local Delivery only if no delivery method was said. Assignment is only James or Tony when explicitly stated. Return a draft only; never imply it has been saved.";
+  $input=json_encode(['transcript'=>$parserTranscript,'customers'=>$customerList,'products'=>$productNames],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
   $response=openAiCurlJson('https://api.openai.com/v1/responses',['Content-Type: application/json'],json_encode([
    'model'=>'gpt-5.6-luna','store'=>false,'reasoning'=>['effort'=>'none'],'instructions'=>$instructions,'input'=>$input,
    'text'=>['format'=>['type'=>'json_schema','name'=>'ankh_voice_order','strict'=>true,'schema'=>$schema]]
@@ -561,7 +568,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile39"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile40"></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -816,7 +823,20 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show.</p>
 <?php elseif($view==='new'):?>
-<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><div class="new-order-tools"><button type="button" id="voice-order-button" class="voice-order-button" data-ready="<?=$voiceOrderReady?'1':'0'?>"><span aria-hidden="true">🎙</span><span>Voice order</span></button><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><div class="new-order-tools"><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<section class="voice-order-launch">
+ <div class="voice-order-launch-copy">
+  <span class="voice-order-launch-kicker">AI VOICE ORDER</span>
+  <h2>Add your order with your voice</h2>
+  <p>Tap the microphone and say the customer’s name, product and strength, quantity, Pen / Cartridge / Vial, delivery method and James or Tony if it’s assigned.</p>
+  <div class="voice-order-example"><span>Try saying</span><q>Sarah Jones, two Reta 10mg pens, local delivery, assign to James.</q></div>
+ </div>
+ <button type="button" id="voice-order-button" class="voice-order-launch-button" data-ready="<?=$voiceOrderReady?'1':'0'?>" aria-label="Start a voice order">
+  <span class="voice-launch-rings" aria-hidden="true"></span>
+  <span class="voice-launch-mic" aria-hidden="true">🎙</span>
+  <strong>Start voice order</strong>
+ </button>
+</section>
 <section id="voice-order-panel" class="voice-order-panel" hidden>
 <div class="voice-order-state"><span id="voice-order-pulse" class="voice-order-pulse" aria-hidden="true"></span><div><strong id="voice-order-title">Voice order</strong><p id="voice-order-message">Speak the order and I’ll prepare a draft for you to check.</p></div></div>
 <div id="voice-order-transcript" class="voice-order-transcript" hidden></div>
@@ -1301,14 +1321,14 @@ function applyVoiceDraft(payload){
  voiceOrderPanel?.scrollIntoView({behavior:'smooth',block:'start'});
 }
 async function sendVoiceOrder(blob,mime){
- setVoiceState('Building draft','Transcribing your order and matching it to ANKH products…','working');voiceOrderButton.disabled=true;voiceOrderButton.innerHTML='<span aria-hidden="true">…</span><span>Working</span>';
+ setVoiceState('Building draft','Transcribing your order and matching it to ANKH products…','working');voiceOrderButton.disabled=true;voiceOrderButton.classList.remove('recording');voiceOrderButton.classList.add('working');voiceOrderButton.querySelector('strong').textContent='Working…';
  try{
   const data=new FormData();data.append('csrf',<?=json_encode($_SESSION['csrf'])?>);data.append('audio',blob,mime.includes('mp4')?'voice-order.m4a':'voice-order.webm');
   const response=await fetch('?api=voice-order',{method:'POST',body:data,credentials:'same-origin'});const payload=await response.json().catch(()=>({ok:false,error:'Voice ordering returned an unreadable response.'}));
   if(!response.ok||!payload.ok)throw new Error(payload.error||'Voice ordering failed.');
   applyVoiceDraft(payload);
  }catch(error){setVoiceState('Couldn’t build the draft',error?.message||'Please try recording the order again.','error')}
- finally{voiceOrderButton.disabled=false;voiceOrderButton.innerHTML='<span aria-hidden="true">🎙</span><span>Voice order</span>'}
+ finally{voiceOrderButton.disabled=false;voiceOrderButton.classList.remove('working','recording');voiceOrderButton.querySelector('strong').textContent='Start voice order'}
 }
 async function startVoiceOrder(){
  if(voiceOrderButton?.dataset.ready!=='1'){
@@ -1319,14 +1339,14 @@ async function startVoiceOrder(){
   voiceStream=await navigator.mediaDevices.getUserMedia({audio:true});voiceChunks=[];const mime=voiceMimeType();voiceRecorder=mime?new MediaRecorder(voiceStream,{mimeType:mime}):new MediaRecorder(voiceStream);
   voiceRecorder.addEventListener('dataavailable',event=>{if(event.data?.size)voiceChunks.push(event.data)});
   voiceRecorder.addEventListener('stop',()=>{const type=voiceRecorder.mimeType||mime||'audio/mp4',blob=new Blob(voiceChunks,{type});stopVoiceTracks();if(blob.size>100)sendVoiceOrder(blob,type);else setVoiceState('No audio captured','Try again and speak after the microphone starts.','error')},{once:true});
-  voiceRecorder.start();voiceOrderButton.innerHTML='<span aria-hidden="true">■</span><span>Stop & build draft</span>';setVoiceState('Listening…','Say the customer, products, quantities, Pen/Cartridge/Vial, delivery and James or Tony if assigned.','recording');
+  voiceRecorder.start();voiceOrderButton.classList.add('recording');voiceOrderButton.querySelector('strong').textContent='Listening…';setVoiceState('Listening…','Say the customer, products, quantities, Pen/Cartridge/Vial, delivery and James or Tony if assigned.','recording');
   voiceStopTimer=setTimeout(()=>{if(voiceRecorder?.state==='recording')stopVoiceOrderRecording()},60000);
  }catch(error){stopVoiceTracks();setVoiceState('Microphone permission needed','Allow microphone access in Safari and try again.','error')}
 }
 function stopVoiceOrderRecording(){
  if(voiceRecorder?.state!=='recording')return;
  setVoiceState('Building draft','Transcribing your order and matching it to ANKH products…','working');
- voiceOrderButton.disabled=true;voiceOrderButton.innerHTML='<span aria-hidden="true">…</span><span>Working</span>';
+ voiceOrderButton.disabled=true;voiceOrderButton.classList.add('working');voiceOrderButton.querySelector('strong').textContent='Working…';
  voiceRecorder.stop();
 }
 voiceOrderButton?.addEventListener('click',()=>{if(voiceRecorder?.state==='recording')stopVoiceOrderRecording();else startVoiceOrder()});
