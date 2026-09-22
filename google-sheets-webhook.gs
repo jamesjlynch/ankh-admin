@@ -47,9 +47,13 @@ function upsertOrder_(ss, order) {
   const items = ss.getSheetByName(ITEMS_SHEET);
   if (!orders || !items) throw new Error('Orders sheets are missing');
 
+  ensureHeaders_(orders, items);
+
   const reference = String(order.reference || '').trim();
   if (!reference) throw new Error('Order reference is missing');
 
+  // A:J remains backwards-compatible with the original ANKH sheet.
+  // K:S adds payment, delivery and cost details.
   const row = [
     reference,
     dateOrText_(order.created),
@@ -60,7 +64,16 @@ function upsertOrder_(ss, order) {
     String(order.status || 'New'),
     Number(order.total_pence || 0) / 100,
     String(order.notes || ''),
-    new Date()
+    new Date(),
+    String(order.payment_method || ''),
+    String(order.delivery_method || ''),
+    String(order.tracking_reference || ''),
+    Number(order.delivery_charge_pence || 0) / 100,
+    Number(order.postage_cost_pence || 0) / 100,
+    Number(order.payment_fee_pence || 0) / 100,
+    dateOrText_(order.payment_date),
+    dateOrText_(order.delivery_date),
+    String(order.presentation || '')
   ];
 
   const existingRow = findOrderRow_(orders, reference);
@@ -78,12 +91,24 @@ function upsertOrder_(ss, order) {
     Number(item.quantity || 0),
     Number(item.unit_price_pence || 0) / 100,
     (Number(item.unit_price_pence || 0) * Number(item.quantity || 0)) / 100,
-    String(order.status || 'New')
+    String(order.status || 'New'),
+    item.unit_cost_pence === null || item.unit_cost_pence === undefined ? '' : Number(item.unit_cost_pence) / 100
   ]).filter(row => row[2] > 0);
 
   if (itemRows.length) {
-    items.getRange(items.getLastRow() + 1, 1, itemRows.length, 6).setValues(itemRows);
+    items.getRange(items.getLastRow() + 1, 1, itemRows.length, 7).setValues(itemRows);
   }
+}
+
+function ensureHeaders_(orders, items) {
+  const orderHeaders = [
+    'Order ID','Created','Customer','Phone','Referrer','Address','Status','Total (£)','Notes','Last Synced',
+    'Payment Method','Delivery Method','Tracking / Reference','Delivery Charge (£)','Postage Cost (£)',
+    'Payment Fee (£)','Payment Date','Delivery Date','Product Type'
+  ];
+  const itemHeaders = ['Order ID','Product','Quantity','Unit Price (£)','Line Total (£)','Status','Unit Cost (£)'];
+  orders.getRange(1, 1, 1, orderHeaders.length).setValues([orderHeaders]);
+  items.getRange(1, 1, 1, itemHeaders.length).setValues([itemHeaders]);
 }
 
 function deleteOrder_(ss, reference) {
