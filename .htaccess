@@ -1,0 +1,6 @@
+Options -Indexes
+DirectoryIndex index.php
+AddHandler application/x-httpd-ea-php82 .php
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://lynchdev.co.uk%{REQUEST_URI} [R=301,L]
