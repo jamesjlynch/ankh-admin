@@ -336,7 +336,7 @@ function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','products','customers','sheets','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile20"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile21"></head><body>
 <?php if(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
@@ -513,40 +513,47 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show.</p>
 <?php elseif($view==='new'):?>
-<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Type</span></span><i></i><span data-progress-step="3">3<span>Products</span></span><i></i><span data-progress-step="4">4<span>Save</span></span></div></div>
 <form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order">
 
 <section class="wizard-step" data-wizard-step="1">
-<div class="wizard-step-head"><span class="wizard-kicker">STEP 1 OF 3</span><h2>Customer</h2><p class="muted">Choose an existing customer or enter a new one.</p></div>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 1 OF 4</span><h2>Customer</h2><p class="muted">Choose an existing customer or enter a new one.</p></div>
 <?php if($recentCustomers && !$newOrderCustomer):?><div class="recent-customers"><span class="order-check-label">Recent customers</span><div class="recent-customer-chips"><?php foreach($recentCustomers as $recent):?><button type="button" class="recent-customer" data-recent-customer="<?=$recent['id']?>"><?=e($recent['name'])?></button><?php endforeach;?></div></div><?php endif;?>
 <div class="two"><div class="customer-search-wrap"><label>Customer name<input id="customer-search" name="customer" maxlength="160" required autocomplete="off" placeholder="Start typing name or phone…" value="<?=e($_POST['customer']??($newOrderCustomer['name']??''))?>"></label><div id="customer-results" class="customer-results" role="listbox" hidden></div></div><label>Phone<input id="customer-phone" name="phone" maxlength="40" type="tel" autocomplete="tel" value="<?=e($_POST['phone']??($newOrderCustomer['phone']??''))?>"></label></div>
 <label>Referrer <span class="muted">(optional)</span><input id="customer-referrer" name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist>
 <label>Delivery address<textarea id="customer-address" name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??($newOrderCustomer['address']??''))?></textarea></label>
 <label class="order-date-field">Order date <span class="muted">(defaults to today)</span><input id="order-date" name="order_date" type="date" required max="<?=e($now->format('Y-m-d'))?>" value="<?=e($_POST['order_date']??$now->format('Y-m-d'))?>"></label>
-<div class="wizard-actions wizard-actions-next"><button type="button" data-wizard-next="2">Next · Add products →</button></div>
+<div class="wizard-actions wizard-actions-next"><button type="button" data-wizard-next="2">Next · Choose type →</button></div>
 </section>
 
 <section class="wizard-step" data-wizard-step="2" hidden>
-<div class="wizard-step-head"><span class="wizard-kicker">STEP 2 OF 3</span><h2>Products</h2><p class="muted">Choose the supply type, then add the peptide.</p></div>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 2 OF 4</span><h2>Product type</h2><p class="muted">Choose how this order will be supplied.</p></div>
 <input type="hidden" id="presentation" name="presentation" value="<?=e($_POST['presentation']??$repeatPresentation)?>">
 <div class="presentation-picker" aria-label="Choose product type">
 <button type="button" data-presentation="Pen"><strong>Pen</strong><span>Peptide price + £20</span></button>
 <button type="button" data-presentation="Cartridge"><strong>Cartridge</strong><span>Peptide price</span></button>
 <button type="button" data-presentation="Vial"><strong>Vial</strong><span>Peptide price</span></button>
 </div>
-<div id="product-choice-area" hidden>
+
+<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="1">← Back</button><button type="button" data-wizard-next="3">Next · Choose peptide →</button></div>
+</section>
+
+<section class="wizard-step" data-wizard-step="4" hidden>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 3 OF 4</span><h2>Products</h2><p class="muted">Find the peptide and choose the strength.</p></div>
+<div id="product-choice-area">
 <div class="product-search-wrap"><label for="product-search">Find a peptide or product<input id="product-search" type="search" placeholder="Tap for Retatrutide or start typing…" autocomplete="off" aria-autocomplete="list" aria-controls="product-results"></label><div id="product-results" class="product-results" role="listbox" hidden></div></div>
 <div id="strength-picker" class="strength-picker" hidden><div class="strength-picker-head"><div><span class="muted">Choose strength</span><strong id="strength-product-name"></strong></div><button type="button" id="close-strength-picker" class="strength-close" aria-label="Close strength choices">×</button></div><div id="strength-options" class="strength-options"></div></div>
 <div id="selected-products">
 <?php foreach($products as $p):if(!$p['active'])continue;$postedQty=(int)($_POST['qty'][$p['id']]??($repeatQty[$p['id']]??0));$postedPrice=$_POST['price'][$p['id']]??($repeatPrices[$p['id']]??number_format((int)$p['price']/100,2,'.',''));$baseName=$p['name'];$strength='';if(preg_match('/\s+(\d+(?:\.\d+)?\s*(?:mg|ml|iu))$/i',$p['name'],$pm)){$strength=$pm[1];$baseName=trim(substr($p['name'],0,-strlen($pm[0])));} ?><div class="product-pick<?=$postedQty>0?' picked':''?>" data-product-id="<?=$p['id']?>" data-product-name="<?=e(strtolower($p['name']))?>" data-product-label="<?=e($p['name'])?>" data-product-base="<?=e($baseName)?>" data-product-strength="<?=e($strength)?>" data-standard-price="<?=e(number_format((int)$p['price']/100,2,'.',''))?>" <?=$postedQty>0?'':'hidden'?>><span><?=e($p['name'])?><small>Standard <?=money($p['price'])?></small></span><div class="stepper"><button type="button" data-change="-1" aria-label="Remove one <?=e($p['name'])?>">−</button><input inputmode="numeric" aria-label="<?=e($p['name'])?> quantity" class="quantity" name="qty[<?=$p['id']?>]" type="number" min="0" max="999" value="<?=$postedQty?>"><button type="button" data-change="1" aria-label="Add one <?=e($p['name'])?>">+</button></div><label class="order-price">Price each for this order (£)<input class="line-price" name="price[<?=$p['id']?>]" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($postedPrice)?>"></label></div><?php endforeach;?>
 </div>
 <p id="selected-empty" class="selected-empty">No products added yet.</p>
+
 </div>
-<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="1">← Back</button><button type="button" data-wizard-next="3">Next · Check order →</button></div>
+<div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="3">← Back</button><button type="button" data-wizard-next="4">Next · Check order →</button></div>
 </section>
 
 <section class="wizard-step" data-wizard-step="3" hidden>
-<div class="wizard-step-head"><span class="wizard-kicker">STEP 3 OF 3</span><h2>Check & save</h2><p class="muted">Check the important details, then save.</p></div>
+<div class="wizard-step-head"><span class="wizard-kicker">STEP 4 OF 4</span><h2>Check & save</h2><p class="muted">Check the important details, then save.</p></div>
 <div class="order-check">
 <div class="order-check-section"><span class="order-check-label">Customer</span><strong id="check-customer">—</strong><small id="check-customer-detail"></small></div>
 <div class="order-check-section"><span class="order-check-label">Order date</span><strong id="check-order-date">—</strong></div>
@@ -657,8 +664,8 @@ function showWizardStep(step){
  wizardProgress.forEach(item=>{const n=Number(item.dataset.progressStep);item.classList.toggle('active',n===Number(step));item.classList.toggle('done',n<Number(step))});
  document.activeElement?.blur();
  wizard.scrollIntoView({behavior:'smooth',block:'start'});
- if(Number(step)===2){setTimeout(()=>{productSearch?.focus();showProductResults()},250)}
- if(Number(step)===3)buildOrderCheck();
+ if(Number(step)===3){setTimeout(()=>{productSearch?.focus();showProductResults()},250)}
+ if(Number(step)===4)buildOrderCheck();
  if(typeof saveDraftOrder==='function')saveDraftOrder();
 }
 function selectedOrderRows(){return productRows.filter(row=>Number(row.querySelector('.quantity')?.value||0)>0)}
@@ -676,7 +683,7 @@ document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventL
  const next=Number(button.dataset.wizardNext);
  if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}const orderDate=document.querySelector('#order-date');if(!orderDate?.value||!orderDate.checkValidity()){orderDate?.reportValidity();orderDate?.focus();return}}
  if(next===3&&!presentationInput?.value){alert('Choose Pen, Cartridge or Vial first.');return}
- if(next===3&&!selectedOrderRows().length){alert('Add at least one product before continuing.');productSearch?.focus();showProductResults();return}
+ if(next===4&&!selectedOrderRows().length){alert('Add at least one product before continuing.');productSearch?.focus();showProductResults();return}
  showWizardStep(next);
 }));
 document.querySelectorAll('[data-wizard-back]').forEach(button=>button.addEventListener('click',()=>showWizardStep(Number(button.dataset.wizardBack))));
@@ -709,7 +716,7 @@ function restoreDraftOrder(){
  if(customerSearch)customerSearch.value=draft.customer||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
  const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
  productRows.forEach(row=>{const id=row.dataset.productId,q=row.querySelector('.quantity'),p=row.querySelector('.line-price');if(draft.qty?.[id]){q.value=draft.qty[id];row.hidden=false}if(draft.price?.[id]&&p)p.value=draft.price[id]});
- if(draft.presentation)setPresentation(draft.presentation);updateTotal();if(clearDraftButton)clearDraftButton.hidden=false;showWizardStep(Math.min(3,Math.max(1,Number(draft.step)||1)));
+ if(draft.presentation)setPresentation(draft.presentation);updateTotal();if(clearDraftButton)clearDraftButton.hidden=false;showWizardStep(Math.min(4,Math.max(1,Number(draft.step)||1)));
 }
 clearDraftButton?.addEventListener('click',()=>{try{localStorage.removeItem(orderDraftKey)}catch(_){}location.href='?view=new'});
 function setPresentation(value){
