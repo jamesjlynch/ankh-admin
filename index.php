@@ -27,147 +27,73 @@ if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTE
 $statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Cancelled'];
 
 // Keep the live order catalogue complete without overwriting manually managed prices.
-$catalogSeed=[
- 'FOXO4 10mg',
- 'SS-31 50mg',
- 'Tesamorelin 20mg',
- 'Retatrutide 60mg',
- 'Tirzepatide 120mg',
- 'Retatrutide 50mg',
- 'Survotitude 10mg',
- 'Tirzepatide 100mg',
- 'Tirzepatide 90mg',
- 'Retatrutide 40mg',
- 'Klow (BT10+BC10+CU50+KP10) 80mg',
- 'Tirzepatide 80mg',
- 'Cagrilintide 10mg',
- 'MOTS-C 40mg',
- 'Glow (BT10+BPC10+CU50) 70mg',
- 'Retatrutide 30mg',
- 'Tirzepatide 70mg',
- 'IGF-1 LR3 1mg',
- 'Tesamorelin 10mg',
- 'VIP 10mg',
- 'Tirzepatide 60mg',
- 'CJC-1295 with DAC 5mg',
- 'BPC+TB 20mg',
- 'Adipotide 5mg',
- 'CS10 (Cagrilintide 5mg + Semaglutide 5mg) 10mg',
- 'NAD+ 1000mg',
- 'Thymosin Alpha-1 10mg',
- 'Epitalon 50mg',
- 'Tirzepatide 50mg',
- 'HCG 10000iu',
- 'TB-500 10mg',
- 'CJC-1295 No DAC 10mg',
- 'Sermorelin Acetate 10mg',
- 'Tirzepatide 40mg',
- 'Retatrutide 20mg',
- 'Oxytocin Acetate 10mg',
- '5-amino-1mq 50mg',
- 'MOTS-C 20mg',
- 'Cagrilintide 5mg',
- 'CJC-1295 without DAC 5mg + IPA 5mg 10mg',
- 'Retatrutide 15mg',
- 'KissPeptin-10 10mg',
- 'DSIP 15mg',
- 'BPC+TB 10mg',
- 'Tirzepatide 30mg',
- 'AOD9604 5mg',
- 'Retatrutide 10mg',
- 'Semaglutide 30mg',
- 'Thymosin Alpha-1 5mg',
- 'Tesamorelin 5mg',
- 'LL-37 5mg',
- 'PEG-MGF 2mg',
- 'SS-31 10mg',
- 'Hexarelin Acetate 5mg',
- 'NAD+ 500mg',
- 'DSIP 10mg',
- 'Tirzepatide 20mg',
- 'Semaglutide 20mg',
- 'CJC-1295 No DAC 5mg',
- 'TB-500 5mg',
- 'HCG 5000iu',
- '5-amino-1mq 5mg',
- 'CJC-1295 with DAC 2mg',
- 'Ipamorelin 10mg',
- 'Selank 10mg',
- 'Semax 10mg',
- 'Lemon Bottle 10ml',
- 'Tirzepatide 15mg',
- 'Sermorelin Acetate 5mg',
- 'Semaglutide 15mg',
- 'Retatrutide 5mg',
- 'KPV 10mg',
- 'BPC-157 10mg',
- 'HMG 75iu',
- 'KissPeptin-10 5mg',
- 'Melanotan 1 10mg',
- 'Melatonin 10mg',
- 'MOTS-C 10mg',
- 'Oxytocin Acetate 5mg',
- 'Thymalin 10mg',
- 'AICAR 50mg',
- 'MGF 2mg',
- 'Semaglutide 10mg',
- 'Tirzepatide 10mg',
- 'GHK-CU 100mg',
- 'PT-141 10mg',
- 'AOD9604 2mg',
- 'Tesamorelin 2mg',
- 'GHRP-2 Acetate 10mg',
- 'GHRP-6 Acetate 10mg',
- 'MT-2 (Melanotan 2 Acetate) 10mg',
- 'NAD+ 100mg',
- 'SNAP-8 10mg',
- 'Selank 5mg',
- 'Semax 5mg',
- 'TB-500 2mg',
- 'DSIP 5mg',
- 'IGF-1 LR3 0.1mg',
- 'Glutathione 600mg',
- 'Tirzepatide 5mg',
- 'BPC-157 5mg',
- 'CJC-1295 No DAC 2mg',
- 'Gonadorelin Acetate 2mg',
- 'Ipamorelin 5mg',
- 'Oxytocin Acetate 2mg',
- 'L-Carnitine 10ml',
- 'Semaglutide 5mg',
- 'Epitalon 10mg',
- 'Hyrolonic Acid 1ml',
- 'GHK-CU 50mg',
- 'GHRP-2 Acetate 5mg',
- 'GHRP-6 Acetate 5mg',
- 'BAC Water 10ml',
- 'BAC Water 3ml',
- 'Acetic Acid 0.6% 10ml',
- 'Acetic Acid 0.6% 3ml',
-];
-$hasProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) LIMIT 1');
-$addProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,0,1)');
-foreach($catalogSeed as $catalogName){
- $hasProduct->execute([$catalogName]);
- if(!$hasProduct->fetchColumn())$addProduct->execute([$catalogName]);
-}
-$oldAutoSeed=[
- 'BPC + TB Stack 10mg','BPC + TB Stack 20mg','Glow Stack 70mg',
- 'Tirzepatide (Mounjaro) 10mg','Tirzepatide (Mounjaro) 20mg','Tirzepatide (Mounjaro) 30mg',
- 'Reusable Pen','V2 Reusable Pen','V3 Reusable Pen','Cartridge','Peptide Storage Case','Starter Kit',
- 'BAC Water 5ml'
-];
-$hideOld=$db->prepare('UPDATE products SET active=0 WHERE name=? AND price=0');
-foreach($oldAutoSeed as $oldName){
- if(!in_array($oldName,$catalogSeed,true))$hideOld->execute([$oldName]);
-}
-
 function setting(PDO $db,string $key,string $default=''):string{
  $q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$key]);$v=$q->fetchColumn();
  return $v===false?$default:(string)$v;
 }
+
 function saveSetting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)')->execute([$key,$value]);
+}
+
+// Current retail catalogue from the ANKH price-list artwork supplied 22 Sep 2026.
+// Exact penny prices from the detailed Gym & Performance list take precedence
+// where the two supplied posters show rounded versions of the same price.
+$currentRetailCatalog=[
+ 'BPC-157 5mg'=>1499,
+ 'BPC-157 10mg'=>2699,
+ 'TB-500 2mg'=>1399,
+ 'TB-500 5mg'=>2799,
+ 'GHK-CU 50mg'=>2250,
+ 'SS-31 10mg'=>4499,
+ 'CJC-1295 without DAC 2mg'=>1199,
+ 'CJC-1295 without DAC 5mg'=>2099,
+ 'CJC-1295 with DAC 2mg'=>1799,
+ 'CJC-1295 with DAC 5mg'=>3599,
+ 'CJC-1295 MOD without DAC 5mg'=>2099,
+ 'Ipamorelin 5mg'=>1699,
+ 'GHRP-2 5mg'=>799,
+ 'GHRP-2 10mg'=>1599,
+ 'IGF-1 LR3 1mg'=>4899,
+ 'MGF 2mg'=>1199,
+ 'PEG-MGF 2mg'=>1799,
+ 'MOTS-C 10mg'=>2499,
+ 'NAD+ 500mg'=>5499,
+ 'Tesamorelin 2mg'=>2299,
+ 'Tesamorelin 10mg'=>4499,
+ 'Retatrutide 10mg'=>4500,
+ 'Melanotan 1 10mg'=>2499,
+ 'KissPeptin-10 5mg'=>2499,
+ 'DSIP 5mg'=>1100,
+ 'Epitalon 10mg'=>1600,
+ 'Selank 5mg'=>1500,
+ 'Semax 5mg'=>1500,
+ 'SNAP-8 10mg'=>1800,
+ 'Glow Stack'=>8000,
+ 'Wolverine Stack'=>4000,
+ 'BAC Water 3ml'=>300,
+ 'BAC Water 10ml'=>399,
+ 'Acetic Acid 0.6% 10ml'=>499
+];
+$catalogVersion='retail-posters-2026-09-22-v1';
+if(setting($db,'retail_catalog_version')!==$catalogVersion){
+ $db->beginTransaction();
+ try{
+  $db->exec('UPDATE products SET active=0');
+  $findProduct=$db->prepare('SELECT id FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
+  $updateProduct=$db->prepare('UPDATE products SET price=?,active=1 WHERE id=?');
+  $insertProduct=$db->prepare('INSERT INTO products(name,price,active) VALUES (?,?,1)');
+  foreach($currentRetailCatalog as $retailName=>$retailPrice){
+   $findProduct->execute([$retailName]);$existingId=$findProduct->fetchColumn();
+   if($existingId)$updateProduct->execute([$retailPrice,(int)$existingId]);
+   else $insertProduct->execute([$retailName,$retailPrice]);
+  }
+  saveSetting($db,'retail_catalog_version',$catalogVersion);
+  $db->commit();
+ }catch(Throwable $catalogError){
+  if($db->inTransaction())$db->rollBack();
+  throw $catalogError;
+ }
 }
 function sheetsWebhookValid(string $url):bool{
  $p=parse_url($url);$host=strtolower((string)($p['host']??''));
@@ -283,7 +209,7 @@ $view=in_array($_GET['view']??'', ['orders','new','products','customers','sheets
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Your order desk.</h1><p class="muted">Sign in to manage ANKH orders.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>Password<input type="password" name="password" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
 <?php else:
-$products=$db->query('SELECT * FROM products ORDER BY name')->fetchAll(PDO::FETCH_ASSOC);
+$products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Cancelled'])));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'])?$o['total']:0,$orders));
@@ -321,7 +247,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if(!$products):?><p>Add products in the <a href="?view=products">Products tab</a> first.</p><?php endif;?>
 <h2 class="step">3. Check and save</h2><div class="line"><strong>Product subtotal</strong><strong id="subtotal">£0.00</strong></div><label>Notes (optional)<textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label><p class="muted">Saving records the order. It does not take payment or message the customer.</p><button class="save-order">Save this order</button></form>
 <?php elseif($view==='products'):?>
-<h1>Products</h1><p class="muted">Changes apply to new orders. Existing orders keep their original prices. Product names are based on the <a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1yhC2UBJn5kCe7a2IL7CEg3KcmX6s1e2lNXTOVegniYk/edit?usp=drivesdk">Supplier Price List ↗</a>.</p>
+<h1>Products</h1><p class="muted">The active list is the current ANKH retail range from your price-list artwork. Supplier costs still come from the <a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/1yhC2UBJn5kCe7a2IL7CEg3KcmX6s1e2lNXTOVegniYk/edit?usp=drivesdk">Supplier Price List ↗</a>.</p>
 <form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><h2>Add product</h2><div class="two"><label>Name and strength<input name="name" required maxlength="160" placeholder="Product name · 5mg"></label><label>Price (£)<input name="price" type="number" min="0" max="100000" step=".01" required></label></div><button>Add product</button></form>
 <?php foreach($products as $p):?><details class="order"><summary><h2><?=e($p['name'])?></h2><span><?=money($p['price'])?> · <?=$p['active']?'Active':'Hidden'?></span></summary><form method="post" class="detail"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><input type="hidden" name="id" value="<?=$p['id']?>"><label>Name<input name="name" required maxlength="160" value="<?=e($p['name'])?>"></label><label>Price (£)<input name="price" type="number" min="0" max="100000" step=".01" required value="<?=e($p['price']/100)?>"></label><label class="check"><input type="checkbox" name="active" <?=$p['active']?'checked':''?>> Available for new orders</label><button>Save product</button></form></details><?php endforeach;?>
 <?php elseif($view==='sheets'):?>
