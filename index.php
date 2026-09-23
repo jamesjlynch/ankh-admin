@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NUL
 CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0));
 CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE, phone TEXT NOT NULL DEFAULT "", address TEXT NOT NULL DEFAULT "", created TEXT NOT NULL, UNIQUE(name,phone));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, credential_id TEXT NOT NULL UNIQUE, public_key_pem TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT "Passkey", created TEXT NOT NULL);');
+CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, credential_id TEXT NOT NULL UNIQUE, public_key_pem TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT "Passkey", created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, amount INTEGER NOT NULL CHECK(amount>0), method TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", created TEXT NOT NULL);');
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -49,6 +50,17 @@ if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("A
 if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN low_stock_at INTEGER NOT NULL DEFAULT 2");
 $customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
+$db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
+$db->exec("INSERT INTO payments(order_id,amount,method,note,created)
+ SELECT o.id,
+  COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0),
+  COALESCE(o.payment_method,''),'Imported from existing paid order',
+  CASE WHEN trim(COALESCE(o.payment_date,''))<>'' THEN o.payment_date ELSE o.created END
+ FROM orders o
+ WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')
+ AND (COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0))>0
+ AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.order_id=o.id)");
+
 
 // Bring existing order customers into the standalone customer list, newest details first.
 $existingOrderCustomers=$db->query("SELECT customer,phone,address,created FROM orders WHERE trim(customer)<>'' ORDER BY id DESC")->fetchAll(PDO::FETCH_ASSOC);
@@ -435,6 +447,28 @@ function postedMoneyPence($value,string $label):int{
  if($number===false||$number<0||$number>100000)throw new Exception('Check the '.$label.' amount.');
  return (int)round($number*100);
 }
+function orderTotalPence(PDO $db,int $orderId):int{
+ $q=$db->prepare("SELECT COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) FROM orders o WHERE o.id=?");$q->execute([$orderId]);$v=$q->fetchColumn();
+ if($v===false)throw new Exception('Order could not be found.');return (int)$v;
+}
+function orderPaidPence(PDO $db,int $orderId):int{
+ $q=$db->prepare('SELECT COALESCE(SUM(amount),0) FROM payments WHERE order_id=?');$q->execute([$orderId]);return (int)$q->fetchColumn();
+}
+function orderBalancePence(PDO $db,int $orderId):int{return max(0,orderTotalPence($db,$orderId)-orderPaidPence($db,$orderId));}
+function refreshOrderPaymentState(PDO $db,int $orderId):void{
+ $total=orderTotalPence($db,$orderId);$paid=orderPaidPence($db,$orderId);$balance=max(0,$total-$paid);
+ $q=$db->prepare('SELECT status FROM orders WHERE id=?');$q->execute([$orderId]);$status=(string)$q->fetchColumn();
+ if($balance<=0 && in_array($status,['New','Awaiting payment'],true)){
+  $last=$db->prepare('SELECT method,created FROM payments WHERE order_id=? ORDER BY datetime(created) DESC,id DESC LIMIT 1');$last->execute([$orderId]);$p=$last->fetch(PDO::FETCH_ASSOC)?:[];
+  $date=!empty($p['created'])?date('Y-m-d',strtotime((string)$p['created'])):date('Y-m-d');
+  $db->prepare("UPDATE orders SET status='Paid',payment_date=?,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$date,(string)($p['method']??''),(string)($p['method']??''),$orderId]);
+ }elseif($balance>0 && $status==='Paid'){
+  $db->prepare("UPDATE orders SET status='Awaiting payment',payment_date='' WHERE id=?")->execute([$orderId]);
+ }elseif($balance>0 && $status==='New'){
+  $db->prepare("UPDATE orders SET status='Awaiting payment' WHERE id=?")->execute([$orderId]);
+ }
+}
+
 
 if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='order-pdf'){
  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600){http_response_code(401);exit('Please sign in again.');}
@@ -998,6 +1032,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $q=$db->prepare('UPDATE customers SET archived=? WHERE id=?');$q->execute([$archive,$customerId]);
    if(!$q->rowCount())throw new Exception('Customer could not be found.');
   }
+  if($action==='payment_add'){
+   $orderId=(int)($_POST['id']??0);$amount=postedMoneyPence($_POST['amount']??'','payment');$method=trim((string)($_POST['method']??''));$note=trim((string)($_POST['note']??''));$date=orderActionDate((string)($_POST['payment_date']??''),'payment');
+   if($amount<=0)throw new Exception('Enter a payment amount greater than zero.');if(!in_array($method,$paymentMethods,true))throw new Exception('Choose how the payment was received.');if(strlen($note)>500)throw new Exception('Payment note is too long.');
+   $balance=orderBalancePence($db,$orderId);if($balance<=0)throw new Exception('This order has no outstanding balance.');if($amount>$balance)throw new Exception('Payment is more than the outstanding balance of '.money($balance).'.');
+   $created=(new DateTimeImmutable($date.' 12:00:00',new DateTimeZone('Europe/London')))->setTimezone(new DateTimeZone('UTC'))->format('c');
+   $db->prepare('INSERT INTO payments(order_id,amount,method,note,created) VALUES (?,?,?,?,?)')->execute([$orderId,$amount,$method,$note,$created]);refreshOrderPaymentState($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
+  }
+  if($action==='payment_delete'){
+   $paymentId=(int)($_POST['payment_id']??0);$q=$db->prepare('SELECT order_id FROM payments WHERE id=?');$q->execute([$paymentId]);$orderId=(int)$q->fetchColumn();if($orderId<1)throw new Exception('Payment could not be found.');
+   $db->prepare('DELETE FROM payments WHERE id=?')->execute([$paymentId]);refreshOrderPaymentState($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
+  }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
    if(!in_array($newStatus,$statuses,true))throw new Exception('Choose a valid status.');
@@ -1011,6 +1056,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($newStatus==='Paid'){
     if($paymentDate==='')$paymentDate=(string)($existingDates['payment_date']?:$todayAction);
     if($paymentMethod==='' && (string)$existingDates['payment_method']==='')throw new Exception('Choose how the payment was received.');
+    $useMethod=$paymentMethod!==''?$paymentMethod:(string)$existingDates['payment_method'];$balance=orderBalancePence($db,$orderId);
+    if($balance>0){$created=(new DateTimeImmutable($paymentDate.' 12:00:00',new DateTimeZone('Europe/London')))->setTimezone(new DateTimeZone('UTC'))->format('c');$db->prepare('INSERT INTO payments(order_id,amount,method,note,created) VALUES (?,?,?,?,?)')->execute([$orderId,$balance,$useMethod,'Balance marked paid',$created]);}
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
    $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
@@ -1028,6 +1075,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->fetchColumn())throw new Exception('Order could not be found.');
    $reference='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
    $db->beginTransaction();
+   $db->prepare('DELETE FROM payments WHERE order_id=?')->execute([$orderId]);
    $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
    $db->prepare('DELETE FROM orders WHERE id=?')->execute([$orderId]);
    $db->commit();
@@ -1113,7 +1161,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))))));
+ $flash=$action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
@@ -1153,7 +1201,7 @@ document.querySelector('#passkey-login')?.addEventListener('click',async event=>
 </script></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
-$orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
+$orders=$db->query("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) AS paid_amount FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
 $paid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?$o['total']:0,$orders));
@@ -1249,9 +1297,9 @@ foreach($orders as $dashboardOrder){
   if($salesTs>=$todayStart)$todaySales+=(int)$dashboardOrder['total'];
   if($salesTs>=$monthStart)$monthSales+=(int)$dashboardOrder['total'];
  }
- if(in_array($dashboardOrder['status'],['New','Awaiting payment'],true))$unpaidBalance+=(int)$dashboardOrder['total'];
+ if($dashboardOrder['status']!=='Cancelled')$unpaidBalance+=max(0,(int)$dashboardOrder['total']-(int)($dashboardOrder['paid_amount']??0));
 }
-$awaitingPayment=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['New','Awaiting payment'],true)));
+$awaitingPayment=array_values(array_filter($orders,fn($o)=>$o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0));
 $awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true)));
 usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 usort($awaitingDelivery,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
