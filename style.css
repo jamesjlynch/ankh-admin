@@ -1921,3 +1921,29 @@ body.assistant-overlay-open{overflow:hidden}
   font-size:9px;
   line-height:1.35;
 }
+
+.paired-pen-row{
+  position:relative;
+  margin-top:-4px;
+  margin-left:18px;
+  border-color:#5b4a2d;
+  background:linear-gradient(145deg,#181713,#121314);
+}
+.paired-pen-row:before{
+  content:"";
+  position:absolute;
+  left:-12px;
+  top:-15px;
+  width:11px;
+  height:34px;
+  border-left:1px solid #6b5734;
+  border-bottom:1px solid #6b5734;
+  border-radius:0 0 0 8px;
+}
+.paired-pen-row .line-price-field{
+  position:relative;
+}
+@media(max-width:760px){
+  .paired-pen-row{margin-left:10px}
+  .paired-pen-row:before{left:-7px}
+}
