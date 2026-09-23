@@ -11,7 +11,7 @@ git merge --ff-only origin/main
 /opt/cpanel/ea-php82/root/usr/bin/php -r 'if (PHP_VERSION_ID < 80100 || !extension_loaded("pdo_sqlite")) { fwrite(STDERR, "PHP 8.1+ and PDO SQLite required\n"); exit(1); }'
 target=/home/lynchde1/public_html/ankh-admin
 mkdir -p "$target"
-for file in .htaccess style.css setup.php index.php; do
+for file in .htaccess style.css setup.php index.php manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
   install -m 644 "$file" "$target/.$file.deploy"
   mv "$target/.$file.deploy" "$target/$file"
 done
