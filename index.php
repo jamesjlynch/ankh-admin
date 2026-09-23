@@ -1068,13 +1068,28 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile46"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile47"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
 <?php elseif(!$auth): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Enter your PIN.</h1><p class="muted">Use your 4-digit ANKH Admin PIN.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
-<form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>4-digit PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password"></label><button>Sign in →</button></form></main>
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>4-digit PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password"></label><button>Sign in →</button></form>
+<?php if($passkeyCount>0):?><div class="login-divider"><span>or</span></div><button type="button" id="passkey-login" class="passkey-login">◎ Use Face ID / Passkey</button><p id="passkey-login-status" class="muted passkey-status"></p><?php endif;?>
+<script>
+function ankhB64ToBuffer(value){value=value.replace(/-/g,'+').replace(/_/g,'/');while(value.length%4)value+='=';const raw=atob(value),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out.buffer}
+function ankhBufferToB64(buffer){const bytes=new Uint8Array(buffer);let raw='';bytes.forEach(b=>raw+=String.fromCharCode(b));return btoa(raw).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+document.querySelector('#passkey-login')?.addEventListener('click',async event=>{
+ const button=event.currentTarget,status=document.querySelector('#passkey-login-status');button.disabled=true;if(status)status.textContent='Waiting for Face ID / passkey…';
+ try{
+  const start=await fetch('?api=passkey-options',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:<?=json_encode($_SESSION['csrf'])?>,kind:'login'})});const payload=await start.json();if(!start.ok||!payload.ok)throw new Error(payload.error||'Passkey could not start.');
+  const opts=payload.publicKey;opts.challenge=ankhB64ToBuffer(opts.challenge);opts.allowCredentials=(opts.allowCredentials||[]).map(c=>({...c,id:ankhB64ToBuffer(c.id)}));
+  const cred=await navigator.credentials.get({publicKey:opts});if(!cred)throw new Error('Passkey was cancelled.');
+  const finish=await fetch('?api=passkey-login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:<?=json_encode($_SESSION['csrf'])?>,rawId:ankhBufferToB64(cred.rawId),clientDataJSON:ankhBufferToB64(cred.response.clientDataJSON),authenticatorData:ankhBufferToB64(cred.response.authenticatorData),signature:ankhBufferToB64(cred.response.signature)})});const done=await finish.json();if(!finish.ok||!done.ok)throw new Error(done.error||'Passkey sign-in failed.');location.href='./?view=dashboard';
+ }catch(error){if(status)status.textContent=error?.message||'Passkey sign-in failed.'}
+ finally{button.disabled=false}
+});
+</script></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query('SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC')->fetchAll(PDO::FETCH_ASSOC);
@@ -1550,6 +1565,10 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
 <a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
 </div>
+<div class="more-grid utility-grid">
+<section class="panel device-card"><span class="more-icon">⌂</span><div><h2>Install ANKH</h2><p>Add ANKH to your iPhone Home Screen for a full-screen app experience.</p></div><button type="button" id="install-ankh-app" class="quiet">Install / instructions</button><div id="install-ankh-help" class="install-help" hidden><strong>On iPhone</strong><p>Open this page in Safari, tap Share, then choose <b>Add to Home Screen</b>.</p></div></section>
+<section class="panel device-card"><span class="more-icon">◎</span><div><h2>Face ID / Passkey</h2><p>Use your iPhone passkey instead of entering the PIN on future sign-ins. PIN stays available as a fallback.</p><small><?=$passkeyCount?> passkey<?=$passkeyCount===1?'':'s'?> registered</small></div><button type="button" id="setup-passkey" class="quiet">Set up Face ID / Passkey</button><p id="setup-passkey-status" class="muted passkey-status"></p></section>
+</div>
 
 <?php else:?>
 <div id="order-saved-marker"></div>
@@ -1591,6 +1610,30 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
  </section>
 </div>
 <script>
+let ankhInstallPrompt=null;
+addEventListener('beforeinstallprompt',event=>{event.preventDefault();ankhInstallPrompt=event});
+function ankhHaptic(ms=8){try{if(navigator.vibrate)navigator.vibrate(ms)}catch(_){}}
+document.addEventListener('click',event=>{if(event.target.closest('button,a,.line-format-button,.customer-result,.product-result'))ankhHaptic(7)},{passive:true});
+document.querySelector('#install-ankh-app')?.addEventListener('click',async()=>{
+ const help=document.querySelector('#install-ankh-help');
+ if(ankhInstallPrompt){ankhInstallPrompt.prompt();try{await ankhInstallPrompt.userChoice}catch(_){}ankhInstallPrompt=null}
+ else if(help)help.hidden=!help.hidden;
+});
+function ankhB64ToBuffer(value){value=value.replace(/-/g,'+').replace(/_/g,'/');while(value.length%4)value+='=';const raw=atob(value),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out.buffer}
+function ankhBufferToB64(buffer){const bytes=new Uint8Array(buffer);let raw='';bytes.forEach(b=>raw+=String.fromCharCode(b));return btoa(raw).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
+document.querySelector('#setup-passkey')?.addEventListener('click',async event=>{
+ const button=event.currentTarget,status=document.querySelector('#setup-passkey-status');button.disabled=true;if(status)status.textContent='Waiting for your iPhone…';
+ try{
+  if(!window.PublicKeyCredential||!navigator.credentials)throw new Error('Passkeys are not available in this browser.');
+  const start=await fetch('?api=passkey-options',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:<?=json_encode($_SESSION['csrf'])?>,kind:'register'})});const payload=await start.json();if(!start.ok||!payload.ok)throw new Error(payload.error||'Passkey setup could not start.');
+  const opts=payload.publicKey;opts.challenge=ankhB64ToBuffer(opts.challenge);opts.user.id=ankhB64ToBuffer(opts.user.id);
+  const cred=await navigator.credentials.create({publicKey:opts});if(!cred)throw new Error('Passkey setup was cancelled.');
+  const finish=await fetch('?api=passkey-register',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:<?=json_encode($_SESSION['csrf'])?>,name:'iPhone / Face ID',rawId:ankhBufferToB64(cred.rawId),clientDataJSON:ankhBufferToB64(cred.response.clientDataJSON),attestationObject:ankhBufferToB64(cred.response.attestationObject)})});const done=await finish.json();if(!finish.ok||!done.ok)throw new Error(done.error||'Passkey could not be saved.');
+  if(status)status.textContent='Face ID / Passkey is ready ✓';ankhHaptic(20);
+ }catch(error){if(status)status.textContent=error?.message||'Passkey setup failed.'}
+ finally{button.disabled=false}
+});
+
 const orderDraftKey='ankh-order-draft-v2';
 if(document.querySelector('#order-saved-marker')){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
 document.querySelectorAll('[data-copy-text]').forEach(button=>button.addEventListener('click',async()=>{const value=button.dataset.copyText||'';try{await navigator.clipboard.writeText(value);const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}catch(_){const area=document.createElement('textarea');area.value=value;document.body.append(area);area.select();document.execCommand('copy');area.remove()}}));
