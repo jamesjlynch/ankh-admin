@@ -1062,11 +1062,15 @@ foreach($dashboardItems as $dashboardItem){
  }
  if($cost!==null)$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;else{$uncostedSales+=$line;$orderMissingCost[$orderId]=true;}
  $penRevenue=0;
- if($presentationCost>0){
-  $penCostLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penCostLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penCostLine;$penCostAll+=$penCostLine;
-  if((string)$dashboardItem['presentation']==='Pen')$penRevenue=2000*$qty;
+ if((string)$dashboardItem['presentation']==='Pen'){
+  $penRevenue=2000*$qty;
   $topSelling['Pen']??=['qty'=>0,'revenue'=>0];$topSelling['Pen']['qty']+=$qty;$topSelling['Pen']['revenue']+=$penRevenue;
-  $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];$productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$penRevenue;$productProfit['Pen']['cogs']+=$penCostLine;
+  $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];$productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$penRevenue;
+  if($presentationCost>0){
+   $penCostLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penCostLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penCostLine;$penCostAll+=$penCostLine;$productProfit['Pen']['cogs']+=$penCostLine;
+  }else{
+   $productProfit['Pen']['missing_cost']=true;$orderMissingCost[$orderId]=true;$uncostedSales+=$penRevenue;
+  }
  }
  $peptideRevenue=max(0,$line-$penRevenue);
  $topSelling[$name]??=['qty'=>0,'revenue'=>0];$topSelling[$name]['qty']+=$qty;$topSelling[$name]['revenue']+=$peptideRevenue;
