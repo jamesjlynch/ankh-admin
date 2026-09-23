@@ -664,6 +664,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='realtime-token'
     'parameters'=>['type'=>'object','additionalProperties'=>false,'properties'=>(object)[]]
    ],
    [
+    'type'=>'function','name'=>'get_customer_balance',
+    'description'=>'Find a customer and return exactly how much they still owe across all non-cancelled orders, including partial payments.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>['customer_name'=>['type'=>'string']],
+     'required'=>['customer_name']
+    ]
+   ],
+   [
     'type'=>'function','name'=>'get_deliveries',
     'description'=>'List current paid, packed or dispatched orders still needing delivery. Can filter to James or Tony.',
     'parameters'=>[
@@ -696,7 +705,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='realtime-token'
    ]
   ];
 
-  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payments or deliveries, ALWAYS use the appropriate tool rather than guessing. Product retail price means the current catalogue selling price. The standalone Pen catalogue price is £20, but individual Pen order lines may be manually discounted, so an order lookup may show a lower actual price charged. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
+  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payment history, customer balances or deliveries, ALWAYS use the appropriate tool rather than guessing. If asked how much a named customer owes, use get_customer_balance and report the actual remaining balance after partial payments. Product retail price means the current catalogue selling price. The standalone Pen catalogue price is £20, but individual Pen order lines may be manually discounted, so an order lookup may show a lower actual price charged. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
 
   $sessionConfig=[
    'session'=>[
@@ -809,12 +818,30 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
    }
    $result=['period'=>$label,'sales'=>$moneyTool($sales),'gross_profit'=>$moneyTool($profit),'completed_orders'=>$count,'orders_with_missing_cost'=>$missing];
   }elseif($tool==='get_outstanding_payments'){
-   $rows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total
-    FROM orders o LEFT JOIN items i ON i.order_id=o.id
-    WHERE o.status IN ('New','Awaiting payment')
-    GROUP BY o.id ORDER BY datetime(o.created) ASC,o.id ASC")->fetchAll(PDO::FETCH_ASSOC);
-   $total=0;$orders=[];foreach($rows as $row){$total+=(int)$row['total'];$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'amount'=>$moneyTool((int)$row['total']),'created'=>(string)$row['created']];}
+   $rows=$db->query("SELECT o.id,o.customer,o.created,
+    COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,
+    COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid
+    FROM orders o WHERE o.status<>'Cancelled'
+    AND (COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0))>COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0)
+    ORDER BY datetime(o.created) ASC,o.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+   $total=0;$orders=[];foreach($rows as $row){$balance=max(0,(int)$row['total']-(int)$row['paid']);$total+=$balance;$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'order_total'=>$moneyTool((int)$row['total']),'paid'=>$moneyTool((int)$row['paid']),'balance'=>$moneyTool($balance),'created'=>(string)$row['created']];}
    $result=['count'=>count($orders),'total_outstanding'=>$moneyTool($total),'orders'=>$orders];
+  }elseif($tool==='get_customer_balance'){
+   $customer=trim((string)($args['customer_name']??''));if($customer==='')throw new Exception('Tell me the customer name.');
+   $q=$db->prepare("SELECT DISTINCT customer FROM orders WHERE lower(customer) LIKE lower(?) ORDER BY customer COLLATE NOCASE LIMIT 8");$q->execute(['%'.$customer.'%']);$names=$q->fetchAll(PDO::FETCH_COLUMN);
+   if(!$names)$result=['found'=>false,'customer_query'=>$customer];
+   else{
+    $exact=array_values(array_filter($names,fn($n)=>strtolower(trim((string)$n))===strtolower($customer)));
+    if(count($names)>1&&!$exact)$result=['found'=>true,'ambiguous'=>true,'customer_query'=>$customer,'customer_matches'=>array_values($names)];
+    else{
+     $chosen=(string)($exact[0]??$names[0]);$q=$db->prepare("SELECT o.id,
+      COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,
+      COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid
+      FROM orders o WHERE o.customer=? AND o.status<>'Cancelled' ORDER BY o.id");$q->execute([$chosen]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);
+     $owed=0;$open=[];foreach($rows as $row){$balance=max(0,(int)$row['total']-(int)$row['paid']);if($balance<=0)continue;$owed+=$balance;$open[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'balance'=>$moneyTool($balance),'paid'=>$moneyTool((int)$row['paid']),'total'=>$moneyTool((int)$row['total'])];}
+     $result=['found'=>true,'ambiguous'=>false,'customer'=>$chosen,'total_owed'=>$moneyTool($owed),'outstanding_orders'=>$open,'count'=>count($open)];
+    }
+   }
   }elseif($tool==='get_deliveries'){
    $assignee=(string)($args['assignee']??'');$sql="SELECT id,customer,status,assigned_to,delivery_method,created FROM orders WHERE status IN ('Paid','Packed','Dispatched')";$params=[];
    if(in_array($assignee,['James','Tony'],true)){$sql.=" AND assigned_to=?";$params[]=$assignee;}
@@ -833,19 +860,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
     $exact=array_values(array_filter($names,fn($n)=>strtolower(trim((string)$n))===strtolower($customer)));
     if(count($names)>1&&!$exact)$result=['found'=>true,'ambiguous'=>true,'customer_query'=>$customer,'customer_matches'=>array_values($names)];
     else{
-     $chosen=(string)($exact[0]??$names[0]);$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.customer=? GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 1");$q->execute([$chosen]);$row=$q->fetch(PDO::FETCH_ASSOC);
+     $chosen=(string)($exact[0]??$names[0]);$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.customer=? GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 1");$q->execute([$chosen]);$row=$q->fetch(PDO::FETCH_ASSOC);
      if(!$row)$result=['found'=>false,'customer_query'=>$customer];
      else{$iq=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$iq->execute([(int)$row['id']]);$items=[];foreach($iq->fetchAll(PDO::FETCH_ASSOC) as $it){if(strtolower(trim((string)$it['name']))==='pen')continue;$items[]=['name'=>(string)$it['name'],'quantity'=>(int)$it['quantity'],'presentation'=>(string)$it['presentation']];}
-      $result=['found'=>true,'ambiguous'=>false,'customer'=>(string)$row['customer'],'reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'created'=>(string)$row['created'],'status'=>(string)$row['status'],'total'=>$moneyTool((int)$row['total']),'delivery_method'=>(string)($row['delivery_method']??''),'assigned_to'=>(string)($row['assigned_to']??''),'items'=>$items];
+      $result=['found'=>true,'ambiguous'=>false,'customer'=>(string)$row['customer'],'reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'created'=>(string)$row['created'],'status'=>(string)$row['status'],'total'=>$moneyTool((int)$row['total']),'paid'=>$moneyTool((int)$row['paid']),'balance'=>$moneyTool(max(0,(int)$row['total']-(int)$row['paid'])),'delivery_method'=>(string)($row['delivery_method']??''),'assigned_to'=>(string)($row['assigned_to']??''),'items'=>$items];
      }
     }
    }
   }elseif($tool==='lookup_order'){
    $query=trim((string)($args['query']??''));if($query==='')throw new Exception('Tell me which order to look up.');
    $digits=preg_replace('/\\D+/','',$query);$rows=[];
-   if($digits!==''){$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.id=? GROUP BY o.id LIMIT 1");$q->execute([(int)$digits]);$one=$q->fetch(PDO::FETCH_ASSOC);if($one)$rows=[$one];}
-   if(!$rows){$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE lower(o.customer) LIKE lower(?) GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 5");$q->execute(['%'.$query.'%']);$rows=$q->fetchAll(PDO::FETCH_ASSOC);}
-   $orders=[];foreach($rows as $row){$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'status'=>(string)$row['status'],'total'=>$moneyTool((int)$row['total']),'created'=>(string)$row['created'],'assigned_to'=>(string)($row['assigned_to']??''),'delivery_method'=>(string)($row['delivery_method']??'')];}
+   if($digits!==''){$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.id=? GROUP BY o.id LIMIT 1");$q->execute([(int)$digits]);$one=$q->fetch(PDO::FETCH_ASSOC);if($one)$rows=[$one];}
+   if(!$rows){$q=$db->prepare("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE lower(o.customer) LIKE lower(?) GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC LIMIT 5");$q->execute(['%'.$query.'%']);$rows=$q->fetchAll(PDO::FETCH_ASSOC);}
+   $orders=[];foreach($rows as $row){$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'status'=>(string)$row['status'],'total'=>$moneyTool((int)$row['total']),'paid'=>$moneyTool((int)($row['paid']??0)),'balance'=>$moneyTool(max(0,(int)$row['total']-(int)($row['paid']??0))),'created'=>(string)$row['created'],'assigned_to'=>(string)($row['assigned_to']??''),'delivery_method'=>(string)($row['delivery_method']??'')];}
    $result=['found'=>count($orders)>0,'query'=>$query,'orders'=>$orders];
   }else{
    voiceJson(['ok'=>false,'error'=>'Unknown ANKH Assistant tool.'],400);
@@ -936,16 +963,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-assistant
      if(!in_array((string)$row['status'],$paidForAssistant,true))continue;$ts=strtotime((string)(($row['payment_date']??'')?:$row['created']))?:0;if($ts<$todayStartAssistant)continue;
      $rev=(int)$row['total'];$todayRevenue+=$rev;$todayProfit+=$rev-(int)($itemCosts[(int)$row['id']]??0)-(int)($row['postage_cost']??0);$todayOrders++;
     }
-    $unpaidRows=$db->query("SELECT o.id,o.customer,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.status IN ('New','Awaiting payment') GROUP BY o.id")->fetchAll(PDO::FETCH_ASSOC);
+    $unpaidRows=$db->query("SELECT o.id,o.customer,COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid FROM orders o WHERE o.status<>'Cancelled' AND (COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0))>COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0)")->fetchAll(PDO::FETCH_ASSOC);
+    foreach($unpaidRows as &$ur)$ur['outstanding']=max(0,(int)$ur['total']-(int)$ur['paid']);unset($ur);
     $deliveryRows=$db->query("SELECT id FROM orders WHERE status IN ('Paid','Packed','Dispatched')")->fetchAll(PDO::FETCH_ASSOC);
     $lowRows=$db->query("SELECT id FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at")->fetchAll(PDO::FETCH_ASSOC);
-    $unpaidTotal=array_sum(array_map(fn($r)=>(int)$r['total'],$unpaidRows));
+    $unpaidTotal=array_sum(array_map(fn($r)=>(int)$r['outstanding'],$unpaidRows));
     $answer='Today you have '.$moneySpeak($todayRevenue).' in sales and '.$moneySpeak($todayProfit).' gross profit from '.$todayOrders.' completed order'.($todayOrders===1?'':'s').'. There are '.count($unpaidRows).' outstanding payment'.(count($unpaidRows)===1?'':'s').' worth '.$moneySpeak($unpaidTotal).', '.count($deliveryRows).' order'.(count($deliveryRows)===1?'':'s').' still to deliver, and '.count($lowRows).' low-stock product'.(count($lowRows)===1?'':'s').'.';
    }
   }elseif($kind==='outstanding_payments'){
-   $rows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) total FROM orders o LEFT JOIN items i ON i.order_id=o.id WHERE o.status IN ('New','Awaiting payment') GROUP BY o.id ORDER BY datetime(o.created) ASC,o.id ASC")->fetchAll(PDO::FETCH_ASSOC);
-   $total=array_sum(array_map(fn($r)=>(int)$r['total'],$rows));
-   foreach($rows as $r)$items[]=['reference'=>'ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),'title'=>(string)$r['customer'],'detail'=>$moneySpeak((int)$r['total']).' outstanding'];
+   $rows=$db->query("SELECT o.id,o.customer,o.created,COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid FROM orders o WHERE o.status<>'Cancelled' AND (COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0))>COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) ORDER BY datetime(o.created) ASC,o.id ASC")->fetchAll(PDO::FETCH_ASSOC);
+   foreach($rows as &$row)$row['outstanding']=max(0,(int)$row['total']-(int)$row['paid']);unset($row);
+   $total=array_sum(array_map(fn($r)=>(int)$r['outstanding'],$rows));
+   foreach($rows as $r)$items[]=['reference'=>'ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),'title'=>(string)$r['customer'],'detail'=>$moneySpeak((int)$r['outstanding']).' outstanding'];
    if(!$rows)$answer='There are no outstanding payments.';
    else{$names=array_slice(array_map(fn($r)=>(string)$r['customer'],$rows),0,5);$answer='There are '.count($rows).' outstanding payment'.(count($rows)===1?'':'s').' worth '.$moneySpeak($total).'. '.implode(', ',$names).(count($rows)>5?' and '.(count($rows)-5).' more.':'.');}
   }elseif(in_array($kind,['delivery_needed','assigned_delivery'],true)){
