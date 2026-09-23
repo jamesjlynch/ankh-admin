@@ -364,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
    ],
    'required'=>['customer_id','customer_name','phone','address','referrer','delivery_method','assigned_to','payment_method','notes','lines','questions','needs_review']
   ];
-  $instructions="Convert a spoken ANKH order into a draft. ANKH speech alias rule: 'Reta' means Retatrutide. If the transcript contains Reta, Rita, Reeta or Rayta in a clear product context, especially next to 10mg, 20mg, pen, vial or cartridge, interpret it as Retatrutide rather than a person's name. Never invent customer contact details, products, strengths, quantities, formats, payment methods or delivery people. Use an existing customer_id only when the spoken customer clearly matches the supplied customer list. If an existing customer is chosen, leave phone and address blank because the app fills them from its database. Product_name must be an exact supplied catalogue value. If a product is mentioned without enough strength information to choose exactly, do not guess: omit that line and add a short question. The standalone catalogue product named Pen is an accessory sold on its own: for that product use presentation='' and do not ask for Pen/Cartridge/Vial. For every other product, if Pen/Cartridge/Vial was not said, use an empty presentation and ask which format. 'family and friends', 'friends and family', or 'F&F' means family_friends=true. Delivery defaults to Local Delivery only if no delivery method was said. Assignment is only James or Tony when explicitly stated. Return a draft only; never imply it has been saved.";
+  $instructions="Convert a spoken ANKH order into a draft. ANKH speech alias rule: 'Reta' means Retatrutide. If the transcript contains Reta, Rita, Reeta or Rayta in a clear product context, especially next to 10mg, 20mg, pen, vial or cartridge, interpret it as Retatrutide rather than a person's name. Never invent customer contact details, products, strengths, quantities, formats, payment methods or delivery people. Use an existing customer_id only when the spoken customer clearly matches the supplied customer list. If an existing customer is chosen, leave phone and address blank because the app fills them from its database. Product_name must be an exact supplied catalogue value. If a product is mentioned without enough strength information to choose exactly, do not guess: omit that line and add a short question. The standalone catalogue product named Pen is an accessory sold on its own: for that product use presentation='' and do not ask for Pen/Cartridge/Vial. If a peptide is requested in a Pen, return the peptide with presentation='Pen' only; do not also return a Pen product because the app automatically creates a separate editable Pen row. For every other product, if Pen/Cartridge/Vial was not said, use an empty presentation and ask which format. 'family and friends', 'friends and family', or 'F&F' means family_friends=true. Delivery defaults to Local Delivery only if no delivery method was said. Assignment is only James or Tony when explicitly stated. Return a draft only; never imply it has been saved.";
   $input=json_encode(['transcript'=>$parserTranscript,'customers'=>$customerList,'products'=>$productNames],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
   $response=openAiCurlJson('https://api.openai.com/v1/responses',['Content-Type: application/json'],json_encode([
    'model'=>'gpt-5.6-luna','store'=>false,'reasoning'=>['effort'=>'none'],'instructions'=>$instructions,'input'=>$input,
@@ -380,14 +380,19 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
   }
 
   $productByName=[];foreach($activeProducts as $p)$productByName[(string)$p['name']]=$p;
-  $lines=[];
+  $penProduct=$productByName['Pen']??null;$lines=[];
   foreach(($draft['lines']??[]) as $line){
    $name=(string)($line['product_name']??'');if(!isset($productByName[$name]))continue;$p=$productByName[$name];
    $isStandalonePen=strtolower(trim($name))==='pen';
    $qty=max(1,min(99,(int)($line['quantity']??1)));$presentation=$isStandalonePen?'':(in_array(($line['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$line['presentation']:'');
    $base=(int)$p['price']/100;$canDiscount=!$isStandalonePen&&(bool)preg_match('/\d+(?:\.\d+)?\s*mg$/i',$name);$discount=$canDiscount&&!empty($line['family_friends']);
-   $price=max(0,$base-($discount?5:0)+(!$isStandalonePen&&$presentation==='Pen'?20:0));
-   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price];
+   $price=max(0,$base-($discount?5:0));
+   $pairId='voice_'.count($lines).'_'.substr(hash('sha256',$name.'|'.$qty.'|'.count($lines)),0,10);
+   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price,'pair_id'=>$pairId,'paired_pen'=>false];
+   if(!$isStandalonePen && $presentation==='Pen' && $penProduct){
+    $penBase=(int)$penProduct['price']/100;
+    $lines[]=['product_id'=>(int)$penProduct['id'],'name'=>'Pen','quantity'=>$qty,'presentation'=>'','base_price'=>$penBase,'discount'=>false,'price'=>$penBase,'pair_id'=>$pairId,'paired_pen'=>true,'paired_with_name'=>$name];
+   }
   }
   $draft['lines']=$lines;
   voiceJson(['ok'=>true,'transcript'=>$transcript,'draft'=>$draft]);
@@ -866,18 +871,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     elseif(!in_array($format,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial for every peptide.');
     $basePrice=postedMoneyPence($line['base_price']??number_format((int)$p['price']/100,2,'.',''),'base price');
     if($basePrice<0)$basePrice=(int)$p['price'];
-    $discount=(!$isStandalonePen&&$discountFlag)?min(500,$basePrice):0;$formatCharge=(!$isStandalonePen&&$format==='Pen')?2000:0;
-    $calculatedPrice=max(0,$basePrice-$discount+$formatCharge);
+    $discount=(!$isStandalonePen&&$discountFlag)?min(500,$basePrice):0;$formatCharge=0;
+    $calculatedPrice=max(0,$basePrice-$discount);
     $postedPrice=postedMoneyPence($line['price']??number_format($calculatedPrice/100,2,'.',''),'line price');
     $costKey=strtolower(trim((string)$p['name']));$saved=$existingItemCosts[$costKey]??null;
     $productCost=$saved&&array_key_exists('cost',$saved)?$saved['cost']:($p['cost']===null?null:(int)$p['cost']);
-    $penCostSetting=setting($db,'pen_cost_pence','');$presentationCost=(!$isStandalonePen&&$format==='Pen')?($penCostSetting!==''?(int)$penCostSetting:0):0;
-    if($saved && !$isStandalonePen && $format==='Pen' && (int)$saved['presentation_cost']>0)$presentationCost=(int)$saved['presentation_cost'];
+    $presentationCost=0;
     $lines[]=['product'=>$p,'qty'=>(int)$qty,'presentation'=>$format,'base_price'=>$basePrice,'discount'=>$discount,'price'=>$postedPrice,'cost'=>$productCost,'presentation_cost'=>$presentationCost];
-    $presentations[$format]=true;
+    if($format!=='')$presentations[$format]=true;
    }
    if(!$lines)throw new Exception('Add at least one product.');
-   $orderPresentation=count($presentations)===1?(string)array_key_first($presentations):'Mixed';
+   $orderPresentation=count($presentations)===1?(string)array_key_first($presentations):(count($presentations)>1?'Mixed':'');
 
    if($isEdit){
     $originalLocal=(new DateTimeImmutable((string)$existingOrder['created']))->setTimezone($orderTz);
@@ -903,7 +907,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $penCost=postedMoneyPence($_POST['pen_cost']??'','pen cost');saveSetting($db,'pen_cost_pence',(string)$penCost);
    $db->prepare("UPDATE products SET cost=? WHERE lower(trim(name))='pen'")->execute([$penCost]);
    $db->prepare("UPDATE items SET cost=? WHERE cost IS NULL AND lower(trim(name))='pen'")->execute([$penCost]);
-   $db->prepare("UPDATE items SET presentation_cost=? WHERE presentation='Pen' AND presentation_cost=0")->execute([$penCost]);
+   $db->prepare("UPDATE items SET presentation_cost=? WHERE presentation='Pen' AND presentation_cost=0 AND lower(trim(name))<>'pen' AND NOT EXISTS (SELECT 1 FROM items p WHERE p.order_id=items.order_id AND lower(trim(p.name))='pen')")->execute([$penCost]);
   }
   if($action==='sheets_settings'){
    $url=trim((string)($_POST['webhook']??''));
@@ -933,7 +937,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile44"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile45"></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -986,13 +990,14 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
   $repeatPaymentMethod=(string)($repeatOrder['payment_method']??'');$repeatDeliveryMethod=(string)($repeatOrder['delivery_method']??'');$repeatTrackingReference=(string)($repeatOrder['tracking_reference']??'');$repeatDeliveryCharge=(int)($repeatOrder['delivery_charge']??0);$repeatPostageCost=(int)($repeatOrder['postage_cost']??0);$repeatPaymentFee=(int)($repeatOrder['payment_fee']??0);
   $nameToProduct=[];foreach($products as $rp)if((int)$rp['active']===1)$nameToProduct[strtolower(trim((string)$rp['name']))]=$rp;
   $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
-  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ri){
+  $repeatItems=$q->fetchAll(PDO::FETCH_ASSOC);$repeatPairCounter=0;$repeatPenProduct=$nameToProduct['pen']??null;
+  foreach($repeatItems as $ri){
    $isStandalonePen=strtolower(trim((string)$ri['name']))==='pen';
-   if($isStandalonePen && $ri['base_price']===null)continue;
    $p=$nameToProduct[strtolower(trim((string)$ri['name']))]??null;if(!$p)continue;
    $format=$isStandalonePen?'':(in_array((string)$ri['presentation'],['Pen','Cartridge','Vial'],true)?(string)$ri['presentation']:(in_array((string)($repeatOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$repeatOrder['presentation']:'Vial'));
-   $base=$ri['base_price']===null?(int)$p['price']:(int)$ri['base_price'];$discount=!$isStandalonePen&&(int)($ri['discount']??0)>0;
-   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$base/100,'discount'=>$discount,'price'=>$isStandalonePen?(int)$ri['price']/100:max(0,$base-($discount?500:0)+($format==='Pen'?2000:0))/100];
+   $base=$ri['base_price']===null?(int)$p['price']:(int)$ri['base_price'];$discount=!$isStandalonePen&&(int)($ri['discount']??0)>0;$pairId='repeat_'.(++$repeatPairCounter);
+   $linePrice=$isStandalonePen?(int)$ri['price']:max(0,$base-($discount?500:0));
+   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$linePrice/100,'pair_id'=>$pairId,'paired_pen'=>false];
   }
  }
 }
@@ -1001,17 +1006,15 @@ if($view==='edit' && (int)($_GET['id']??0)>0){
  if($editOrder){
   $nameToProduct=[];foreach($products as $ep)$nameToProduct[strtolower(trim((string)$ep['name']))]=$ep;
   $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$editId]);
-  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $ei){
+  $editItems=$q->fetchAll(PDO::FETCH_ASSOC);$editPairCounter=0;
+  foreach($editItems as $ei){
    $isStandalonePen=strtolower(trim((string)$ei['name']))==='pen';
-   if($isStandalonePen && $ei['base_price']===null)continue;
    $p=$nameToProduct[strtolower(trim((string)$ei['name']))]??null;if(!$p)continue;
    $hasLineFormat=!$isStandalonePen&&in_array((string)$ei['presentation'],['Pen','Cartridge','Vial'],true);
    $format=$isStandalonePen?'':($hasLineFormat?(string)$ei['presentation']:(in_array((string)($editOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$editOrder['presentation']:'Vial'));
-   $base=$ei['base_price']===null?(int)$p['price']:(int)$ei['base_price'];$discount=!$isStandalonePen&&(int)($ei['discount']??0)>0;
-   // Legacy orders stored the £20 Pen charge as a separate item. Rebuild that charge
-   // into the peptide line when editing so it cannot disappear.
-   $editPrice=$isStandalonePen?(int)$ei['price']:($hasLineFormat?(int)$ei['price']:max(0,$base-($discount?500:0)+($format==='Pen'?2000:0)));
-   $editLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ei['quantity'],'presentation'=>$format,'base_price'=>$base/100,'discount'=>$discount,'price'=>$editPrice/100];
+   $base=$ei['base_price']===null?(int)$p['price']:(int)$ei['base_price'];$discount=!$isStandalonePen&&(int)($ei['discount']??0)>0;$pairId='edit_'.(++$editPairCounter);
+   $editPrice=$isStandalonePen?(int)$ei['price']:max(0,$base-($discount?500:0));
+   $editLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ei['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$editPrice/100,'pair_id'=>$pairId,'paired_pen'=>false];
   }
  }
 }
@@ -1051,7 +1054,8 @@ if($todoOrderIds){
  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $todoItem)$todoItems[(int)$todoItem['order_id']][]=$todoItem;
 }
 $grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$orderPenCostById=[];$orderMissingCost=[];$productProfit=[];$penCostAll=0;
-$dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.presentation,i.presentation_cost,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
+$dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.presentation,i.presentation_cost,i.base_price,i.discount,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
+$ordersWithPenRows=[];foreach($dashboardItems as $itemForPenCheck)if(strtolower(trim((string)$itemForPenCheck['name']))==='pen')$ordersWithPenRows[(int)$itemForPenCheck['order_id']]=true;
 foreach($dashboardItems as $dashboardItem){
  $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$presentationCost=(int)($dashboardItem['presentation_cost']??0);$name=(string)$dashboardItem['name'];
  if(strtolower(trim($name))==='pen'){
@@ -1064,14 +1068,18 @@ foreach($dashboardItems as $dashboardItem){
  }
  if($cost!==null)$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$cost*$qty;else{$uncostedSales+=$line;$orderMissingCost[$orderId]=true;}
  $penRevenue=0;
- if((string)$dashboardItem['presentation']==='Pen'){
-  $penRevenue=2000*$qty;
-  $topSelling['Pen']??=['qty'=>0,'revenue'=>0];$topSelling['Pen']['qty']+=$qty;$topSelling['Pen']['revenue']+=$penRevenue;
-  $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];$productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$penRevenue;
-  if($presentationCost>0){
-   $penCostLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penCostLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penCostLine;$penCostAll+=$penCostLine;$productProfit['Pen']['cogs']+=$penCostLine;
-  }else{
-   $productProfit['Pen']['missing_cost']=true;$orderMissingCost[$orderId]=true;$uncostedSales+=$penRevenue;
+ if((string)$dashboardItem['presentation']==='Pen' && empty($ordersWithPenRows[$orderId])){
+  $baseSnapshot=$dashboardItem['base_price']===null?null:(int)$dashboardItem['base_price'];$discountSnapshot=(int)($dashboardItem['discount']??0);
+  $expectedPeptideUnit=$baseSnapshot===null?max(0,(int)$dashboardItem['price']-2000):max(0,$baseSnapshot-$discountSnapshot);
+  $penRevenue=max(0,((int)$dashboardItem['price']-$expectedPeptideUnit)*$qty);
+  if($penRevenue>0){
+   $topSelling['Pen']??=['qty'=>0,'revenue'=>0];$topSelling['Pen']['qty']+=$qty;$topSelling['Pen']['revenue']+=$penRevenue;
+   $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];$productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$penRevenue;
+   if($presentationCost>0){
+    $penCostLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penCostLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penCostLine;$penCostAll+=$penCostLine;$productProfit['Pen']['cogs']+=$penCostLine;
+   }else{
+    $productProfit['Pen']['missing_cost']=true;$orderMissingCost[$orderId]=true;$uncostedSales+=$penRevenue;
+   }
   }
  }
  $peptideRevenue=max(0,$line-$penRevenue);
@@ -1612,12 +1620,28 @@ function lineData(card){
   presentation:card.querySelector('[data-line-presentation]')?.value||'',
   base_price:Number(card.querySelector('[data-line-base-price]')?.value||0),
   discount:card.querySelector('[data-line-discount]')?.value==='1',
-  price:Number(card.querySelector('[data-line-price]')?.value||0)
+  price:Number(card.querySelector('[data-line-price]')?.value||0),
+  pair_id:card.dataset.pairId||'',
+  paired_pen:card.dataset.pairedPen==='1',
+  paired_with_name:card.dataset.pairedWithName||''
  };
 }
 function calculatedLinePrice(card){
- const data=lineData(card);if(isStandalonePenCard(card))return Math.max(0,data.base_price);
- return Math.max(0,data.base_price-(data.discount?5:0)+(data.presentation==='Pen'?20:0));
+ const data=lineData(card);if(isStandalonePenCard(card))return Math.max(0,data.price||data.base_price);
+ return Math.max(0,data.base_price-(data.discount?5:0));
+}
+function penCatalogProduct(){return productCatalog.find(p=>p.active&&(p.name||'').trim().toLowerCase()==='pen')||null}
+function pairedPenCardFor(card){const pairId=card?.dataset?.pairId;if(!pairId)return null;return selectedOrderCards().find(other=>other!==card&&other.dataset.pairedPen==='1'&&other.dataset.pairId===pairId)||null}
+function ensurePairedPenRow(card){
+ if(!card||isStandalonePenCard(card)||lineData(card).presentation!=='Pen'||pairedPenCardFor(card))return;
+ const pen=penCatalogProduct();if(!pen)return;const d=lineData(card),pairId=card.dataset.pairId||('pair_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7));card.dataset.pairId=pairId;
+ addOrderLine({product_id:pen.id,quantity:Math.max(1,d.quantity),presentation:'',base_price:pen.price,discount:false,price:pen.price,pair_id:pairId,paired_pen:true,paired_with_name:card.dataset.productName||''},false,card);
+}
+function removePairedPenRow(card){const pen=pairedPenCardFor(card);if(pen)pen.remove()}
+function selectLineFormat(card,hiddenPresentation,value){
+ const previous=hiddenPresentation.value;hiddenPresentation.value=value;recalculateLinePrice(card);
+ if(value==='Pen')ensurePairedPenRow(card);else if(previous==='Pen')removePairedPenRow(card);
+ updateSelectedState();updateTotal();saveDraftOrder();
 }
 function refreshLineVisuals(card){
  const data=lineData(card);
@@ -1626,7 +1650,7 @@ function refreshLineVisuals(card){
  const priceOut=card.querySelector('[data-line-total]');if(priceOut)priceOut.textContent=moneyFormat(data.price*data.quantity);
 }
 function recalculateLinePrice(card){
- const price=card.querySelector('[data-line-price]');if(price)price.value=calculatedLinePrice(card).toFixed(2);refreshLineVisuals(card);updateTotal();
+ const price=card.querySelector('[data-line-price]');if(price&&!isStandalonePenCard(card))price.value=calculatedLinePrice(card).toFixed(2);refreshLineVisuals(card);updateTotal();
 }
 function updateSelectedState(){
  const cards=selectedOrderCards(),count=cards.length,hasReadyLine=cards.some(card=>isStandalonePenCard(card)||!!lineData(card).presentation);
@@ -1649,17 +1673,18 @@ function createFormatButton(value,icon){
  const iconSpan=document.createElement('span');iconSpan.className='line-format-icon';iconSpan.textContent=icon;
  const label=document.createElement('strong');label.textContent=value;button.append(iconSpan,label);return button;
 }
-function addOrderLine(data={},scroll=true){
+function addOrderLine(data={},scroll=true,insertAfterCard=null){
  if(!selectedLinesContainer)return null;
  const product=productCatalog.find(p=>Number(p.id)===Number(data.product_id));if(!product)return null;
  const key='l'+(++lineCounter)+'_'+Date.now().toString(36),standalonePen=(product.name||'').trim().toLowerCase()==='pen';
  const base=Number(data.base_price??product.price)||0,qty=Math.max(1,Number(data.quantity)||1),presentation=standalonePen?'':(data.presentation||''),discount=standalonePen?false:!!data.discount;
- const initialCalculated=standalonePen?base:Math.max(0,base-(discount?5:0)+(presentation==='Pen'?20:0));
+ const initialCalculated=standalonePen?base:Math.max(0,base-(discount?5:0));
  const price=data.price===undefined||data.price===null?initialCalculated:Number(data.price);
+ const pairId=data.pair_id||('pair_'+Date.now().toString(36)+'_'+lineCounter),pairedPen=standalonePen&&!!data.paired_pen,pairedWithName=data.paired_with_name||'';
 
- const card=document.createElement('article');card.className='order-line-card';card.dataset.productName=product.name;card.dataset.productStrength=product.strength||'';
+ const card=document.createElement('article');card.className='order-line-card'+(pairedPen?' paired-pen-row':'');card.dataset.productName=product.name;card.dataset.productStrength=product.strength||'';card.dataset.pairId=pairId;card.dataset.pairedPen=pairedPen?'1':'0';card.dataset.pairedWithName=pairedWithName;
  const head=document.createElement('div');head.className='order-line-head';
- const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=product.name;const baseText=document.createElement('small');baseText.textContent=standalonePen?'List price '+moneyFormat(base)+' · manual discount available':'Product '+moneyFormat(base);titleWrap.append(title,baseText);
+ const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=product.name;const baseText=document.createElement('small');baseText.textContent=standalonePen?(pairedPen&&pairedWithName?'Pen for '+pairedWithName+' · list price '+moneyFormat(base):'List price '+moneyFormat(base)+' · manual discount available'):'Product '+moneyFormat(base);titleWrap.append(title,baseText);
  const remove=document.createElement('button');remove.type='button';remove.className='line-remove';remove.setAttribute('aria-label','Remove '+product.name);remove.textContent='×';head.append(titleWrap,remove);card.append(head);
 
  const hiddenProduct=document.createElement('input');hiddenProduct.type='hidden';hiddenProduct.name='lines['+key+'][product_id]';hiddenProduct.value=String(product.id);hiddenProduct.dataset.lineProduct='';
@@ -1671,7 +1696,7 @@ function addOrderLine(data={},scroll=true){
  if(!standalonePen){
   const formatTitle=document.createElement('span');formatTitle.className='line-section-label';formatTitle.textContent='Choose format';
   const formats=document.createElement('div');formats.className='line-format-picker';
-  [['Pen','▯'],['Cartridge','▤'],['Vial','◉']].forEach(([value,icon])=>{const button=createFormatButton(value,icon);button.addEventListener('click',()=>{hiddenPresentation.value=value;recalculateLinePrice(card);updateSelectedState();saveDraftOrder()});formats.append(button)});
+  [['Pen','▯'],['Cartridge','▤'],['Vial','◉']].forEach(([value,icon])=>{const button=createFormatButton(value,icon);button.addEventListener('click',()=>selectLineFormat(card,hiddenPresentation,value));formats.append(button)});
   card.append(formatTitle,formats);
  }
 
@@ -1690,13 +1715,13 @@ function addOrderLine(data={},scroll=true){
  controls.append(qtyWrap,priceLabel);card.append(controls);
  const lineTotal=document.createElement('div');lineTotal.className='line-card-total';lineTotal.innerHTML='<span>Line total</span><strong data-line-total></strong>';card.append(lineTotal);
 
- remove.addEventListener('click',()=>{card.remove();updateSelectedState();updateTotal();saveDraftOrder()});
+ remove.addEventListener('click',()=>{if(pairedPen){const parent=selectedOrderCards().find(other=>other.dataset.pairId===card.dataset.pairId&&other.dataset.pairedPen!=='1');if(parent){const p=parent.querySelector('[data-line-presentation]');if(p&&p.value==='Pen'){p.value='';recalculateLinePrice(parent)}}}else removePairedPenRow(card);card.remove();updateSelectedState();updateTotal();saveDraftOrder()});
  minus.addEventListener('click',()=>{qtyInput.value=String(Math.max(1,Number(qtyInput.value||1)-1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});
  plus.addEventListener('click',()=>{qtyInput.value=String(Math.min(999,Number(qtyInput.value||1)+1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});
  qtyInput.addEventListener('input',()=>{if(Number(qtyInput.value)<1)qtyInput.value='1';refreshLineVisuals(card);updateTotal();saveDraftOrder()});
  priceInput.addEventListener('input',()=>{refreshLineVisuals(card);updateTotal();saveDraftOrder()});
 
- selectedLinesContainer.append(card);refreshLineVisuals(card);updateSelectedState();updateTotal();
+ if(insertAfterCard&&insertAfterCard.parentNode===selectedLinesContainer)insertAfterCard.after(card);else selectedLinesContainer.append(card);refreshLineVisuals(card);updateSelectedState();updateTotal();
  if(scroll){productSearch?.blur();if(!productSearchMoved)setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'center'}),80);else setTimeout(()=>productSearchWrap?.scrollIntoView({behavior:'smooth',block:'center'}),80)}
  return card;
 }
@@ -1795,9 +1820,19 @@ function restoreDraftOrder(){
 }
 clearDraftButton?.addEventListener('click',()=>{try{localStorage.removeItem(orderDraftKey)}catch(_){}location.href='?view=new'});
 
+function reconcilePenRows(){
+ const peptidePens=selectedOrderCards().filter(card=>!isStandalonePenCard(card)&&lineData(card).presentation==='Pen');
+ const loosePens=selectedOrderCards().filter(card=>isStandalonePenCard(card)&&card.dataset.pairedPen!=='1');
+ peptidePens.forEach(card=>{
+  if(pairedPenCardFor(card))return;
+  const pen=loosePens.shift();
+  if(pen){pen.dataset.pairedPen='1';pen.dataset.pairId=card.dataset.pairId;pen.dataset.pairedWithName=card.dataset.productName||'';pen.classList.add('paired-pen-row');const small=pen.querySelector('.order-line-head small');if(small)small.textContent='Pen for '+(card.dataset.productName||'product')+' · list price '+moneyFormat(lineData(pen).base_price)}
+  else ensurePairedPenRow(card);
+ });
+}
 const restoredDraft=restoreDraftOrder();
 if(!restoredDraft)initialOrderLines.forEach(line=>addOrderLine(line,false));
-togglePostageFields();updateTotal();
+reconcilePenRows();togglePostageFields();updateTotal();
 wizard?.addEventListener('input',saveDraftOrder);wizard?.addEventListener('change',saveDraftOrder);
 
 const voiceOrderButton=document.querySelector('#voice-order-button'),voiceOrderPanel=document.querySelector('#voice-order-panel'),voiceOrderTitle=document.querySelector('#voice-order-title'),voiceOrderMessage=document.querySelector('#voice-order-message'),voiceOrderTranscript=document.querySelector('#voice-order-transcript'),voiceOrderQuestions=document.querySelector('#voice-order-questions'),voiceOrderPulse=document.querySelector('#voice-order-pulse');
