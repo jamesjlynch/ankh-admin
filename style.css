@@ -1913,3 +1913,11 @@ body.assistant-overlay-open{overflow:hidden}
   .ankh-assistant-live-log{max-height:180px}
   .assistant-live-controls{position:sticky;bottom:-1px;padding-top:8px;background:linear-gradient(180deg,transparent,#101112 28%)}
 }
+
+.line-price-help{
+  display:block;
+  margin-top:5px;
+  color:#8f8b82;
+  font-size:9px;
+  line-height:1.35;
+}
