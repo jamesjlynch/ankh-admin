@@ -1,0 +1,21 @@
+{
+  "name": "ANKH Admin",
+  "short_name": "ANKH",
+  "description": "ANKH Peptides private order desk",
+  "id": "./",
+  "start_url": "./?view=dashboard",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#101112",
+  "theme_color": "#101112",
+  "orientation": "portrait-primary",
+  "icons": [
+    {"src":"icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ],
+  "shortcuts": [
+    {"name":"New order","short_name":"New","url":"./?view=new"},
+    {"name":"Orders","short_name":"Orders","url":"./?view=orders"},
+    {"name":"Customers","short_name":"Customers","url":"./?view=customers"}
+  ]
+}
