@@ -1975,3 +1975,29 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
   aside{padding-top:max(14px,env(safe-area-inset-top))}
   header{padding-top:max(8px,env(safe-area-inset-top))}
 }
+
+/* Customer account */
+.customer-account-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.customer-account-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.customer-account-stats article{padding:14px;border:1px solid #323335;border-radius:14px;background:#141516}
+.customer-account-stats article.attention{border-color:#69502d;background:#1c1811}
+.customer-account-stats span,.customer-account-stats small{display:block;color:#8f8b82}
+.customer-account-stats span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px}
+.customer-account-stats strong{display:block;margin:5px 0 3px;color:#f2ead8;font-size:23px}
+.customer-account-stats small{font-size:9px}
+.customer-account-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.customer-account-orders{overflow:hidden}
+.customer-account-order{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px 0;border-top:1px solid #2b2c2e}
+.customer-account-order:first-of-type{border-top:0}
+.customer-account-order>div:first-child strong,.customer-account-order>div:first-child small{display:block}
+.customer-account-order>div:first-child strong{margin-top:4px;color:#e9e4da;font-size:11px}
+.customer-account-order>div:first-child small{margin-top:2px;color:#8f8b82;font-size:9px}
+.customer-account-order>div:nth-child(2){text-align:right}
+.customer-account-order>div:nth-child(2)>strong{display:block;margin-bottom:5px;color:#f3ead5}
+.customer-account-order-actions{grid-column:1/-1;display:flex;gap:7px}
+.customer-account-link{border-color:#715c34;color:#ecdcb5}
+@media(max-width:760px){
+ .customer-account-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .customer-account-grid{grid-template-columns:1fr}
+ .customer-account-heading{align-items:flex-start}
+}
