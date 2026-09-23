@@ -2023,3 +2023,12 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
  .payment-ledger{padding:10px}
  .payment-ledger-head strong{font-size:16px}
 }
+
+/* Expanded product profitability */
+.expanded-profit-table td:first-child{min-width:190px}
+.expanded-profit-table td>strong{display:block;color:#eee8dc}
+.price-mix{display:block;margin-top:4px;color:#b9a373;font-size:8px;line-height:1.4;white-space:normal}
+@media(max-width:760px){
+ .expanded-profit-table{min-width:880px}
+ button:active,.button:active,.quick-action:active,.line-format-button:active{transform:scale(.985)}
+}
