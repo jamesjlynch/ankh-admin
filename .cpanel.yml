@@ -4,4 +4,4 @@ deployment:
     - /bin/mkdir -p /home/lynchde1/public_html/ankh-admin
     - /opt/cpanel/ea-php82/root/usr/bin/php -l index.php
     - /opt/cpanel/ea-php82/root/usr/bin/php -l setup.php
-    - /bin/cp .htaccess index.php style.css setup.php /home/lynchde1/public_html/ankh-admin/
+    - /bin/cp .htaccess index.php style.css setup.php manifest.webmanifest service-worker.js offline.html icon.svg splash.svg /home/lynchde1/public_html/ankh-admin/
