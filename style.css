@@ -1947,3 +1947,31 @@ body.assistant-overlay-open{overflow:hidden}
   .paired-pen-row{margin-left:10px}
   .paired-pen-row:before{left:-7px}
 }
+
+/* iPhone / PWA refinements */
+html{background:#101112}
+body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+.login-divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:#666;font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.login-divider:before,.login-divider:after{content:"";height:1px;flex:1;background:#2d2f31}
+.passkey-login{width:100%;min-height:52px;border:1px solid #6c5934;background:#211c13;color:#f1e3c0;border-radius:14px;font-weight:900}
+.passkey-status{min-height:1.2em;margin-top:7px;font-size:10px}
+.utility-grid{margin-top:14px}
+.device-card{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start}
+.device-card>.more-icon{grid-row:1/3}
+.device-card>button{grid-column:1/-1;width:100%}
+.device-card small{display:block;margin-top:5px;color:#807b72}
+.install-help{grid-column:1/-1;padding:10px 12px;border:1px solid #37342d;border-radius:11px;background:#111214}
+.install-help p{margin:4px 0 0;color:#a5a097;font-size:11px;line-height:1.45}
+@media(max-width:760px){
+  button,.button,.quick-action,input,select,textarea{min-height:48px}
+  input,select,textarea{font-size:16px}
+  .quiet,.quick-action{padding-top:10px;padding-bottom:10px}
+  .mobile-nav{padding-bottom:max(8px,env(safe-area-inset-bottom))}
+  main{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+  .customer-plus{min-width:50px;min-height:50px}
+  .line-format-button,.strength-option,.product-result,.customer-result{min-height:50px}
+}
+@media(display-mode:standalone){
+  aside{padding-top:max(14px,env(safe-area-inset-top))}
+  header{padding-top:max(8px,env(safe-area-inset-top))}
+}
