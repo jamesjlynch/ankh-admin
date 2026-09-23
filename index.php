@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL,
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, status TEXT NOT NULL DEFAULT "New", created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0));
 CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE, phone TEXT NOT NULL DEFAULT "", address TEXT NOT NULL DEFAULT "", created TEXT NOT NULL, UNIQUE(name,phone));
-CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);');
+CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, credential_id TEXT NOT NULL UNIQUE, public_key_pem TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT "Passkey", created TEXT NOT NULL);');
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -263,6 +264,81 @@ function voiceJson(array $data,int $status=200):never{
  http_response_code($status);header('Content-Type: application/json; charset=utf-8');echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
 }
 
+
+function b64urlEncode(string $data):string{return rtrim(strtr(base64_encode($data),'+/','-_'),'=');}
+function b64urlDecode(string $value):string{
+ $pad=strlen($value)%4;if($pad)$value.=str_repeat('=',4-$pad);
+ $decoded=base64_decode(strtr($value,'-_','+/'),true);if($decoded===false)throw new Exception('Invalid passkey data.');
+ return $decoded;
+}
+function cborReadLength(string $data,int &$offset,int $additional):int{
+ if($additional<24)return $additional;
+ if($additional===24){if($offset>=strlen($data))throw new Exception('Invalid passkey CBOR.');return ord($data[$offset++]);}
+ if($additional===25){if($offset+2>strlen($data))throw new Exception('Invalid passkey CBOR.');$v=unpack('n',substr($data,$offset,2))[1];$offset+=2;return (int)$v;}
+ if($additional===26){if($offset+4>strlen($data))throw new Exception('Invalid passkey CBOR.');$v=unpack('N',substr($data,$offset,4))[1];$offset+=4;return (int)$v;}
+ throw new Exception('Unsupported passkey CBOR length.');
+}
+function cborRead(string $data,int &$offset){
+ if($offset>=strlen($data))throw new Exception('Invalid passkey CBOR.');
+ $first=ord($data[$offset++]);$major=$first>>5;$additional=$first&31;
+ if($major===7){
+  if($additional===20)return false;if($additional===21)return true;if($additional===22||$additional===23)return null;
+  throw new Exception('Unsupported passkey CBOR value.');
+ }
+ $length=cborReadLength($data,$offset,$additional);
+ if($major===0)return $length;
+ if($major===1)return -1-$length;
+ if($major===2){if($offset+$length>strlen($data))throw new Exception('Invalid passkey CBOR bytes.');$v=substr($data,$offset,$length);$offset+=$length;return $v;}
+ if($major===3){if($offset+$length>strlen($data))throw new Exception('Invalid passkey CBOR text.');$v=substr($data,$offset,$length);$offset+=$length;return $v;}
+ if($major===4){$arr=[];for($i=0;$i<$length;$i++)$arr[]=cborRead($data,$offset);return $arr;}
+ if($major===5){$map=[];for($i=0;$i<$length;$i++){$k=cborRead($data,$offset);$map[$k]=cborRead($data,$offset);}return $map;}
+ if($major===6)return cborRead($data,$offset);
+ throw new Exception('Unsupported passkey CBOR type.');
+}
+function webauthnRpId():string{
+ $host=strtolower((string)($_SERVER['HTTP_HOST']??''));$host=preg_replace('/:\d+$/','',$host)??$host;
+ if($host==='')throw new Exception('Passkey host could not be determined.');return $host;
+}
+function webauthnOrigin():string{
+ $https=(!empty($_SERVER['HTTPS'])&&strtolower((string)$_SERVER['HTTPS'])!=='off') || (string)($_SERVER['HTTP_X_FORWARDED_PROTO']??'')==='https';
+ return ($https?'https':'http').'://'.strtolower((string)($_SERVER['HTTP_HOST']??''));
+}
+function webauthnClientData(string $encoded,string $type,string $challenge):array{
+ $raw=b64urlDecode($encoded);$data=json_decode($raw,true);
+ if(!is_array($data) || (string)($data['type']??'')!==$type || !hash_equals($challenge,(string)($data['challenge']??'')))throw new Exception('Passkey challenge did not match.');
+ if((string)($data['origin']??'')!==webauthnOrigin())throw new Exception('Passkey origin did not match this app.');
+ if(!empty($data['crossOrigin']))throw new Exception('Cross-origin passkeys are not allowed.');
+ return ['raw'=>$raw,'json'=>$data];
+}
+function webauthnAuthData(string $authData,bool $registration=false):array{
+ if(strlen($authData)<37)throw new Exception('Passkey authenticator data is incomplete.');
+ $rpHash=substr($authData,0,32);$flags=ord($authData[32]);$count=(int)unpack('N',substr($authData,33,4))[1];
+ if(!hash_equals(hash('sha256',webauthnRpId(),true),$rpHash))throw new Exception('Passkey is for a different site.');
+ if(($flags&0x01)!==0x01 || ($flags&0x04)!==0x04)throw new Exception('Face ID, Touch ID or device verification is required.');
+ $out=['flags'=>$flags,'count'=>$count];
+ if($registration){
+  if(($flags&0x40)!==0x40 || strlen($authData)<55)throw new Exception('Passkey registration data is incomplete.');
+  $offset=53;$credentialLength=(int)unpack('n',substr($authData,$offset,2))[1];$offset+=2;
+  if($credentialLength<1 || $offset+$credentialLength>strlen($authData))throw new Exception('Passkey credential ID is invalid.');
+  $credentialId=substr($authData,$offset,$credentialLength);$offset+=$credentialLength;
+  $coseOffset=$offset;$cose=cborRead($authData,$coseOffset);
+  if(!is_array($cose))throw new Exception('Passkey public key is invalid.');
+  $out['credential_id']=$credentialId;$out['cose']=$cose;
+ }
+ return $out;
+}
+function webauthnCoseToPem(array $cose):string{
+ if((int)($cose[1]??0)!==2 || (int)($cose[3]??0)!==-7 || (int)($cose[-1]??0)!==1)throw new Exception('This passkey algorithm is not supported.');
+ $x=$cose[-2]??'';$y=$cose[-3]??'';if(!is_string($x)||!is_string($y)||strlen($x)!==32||strlen($y)!==32)throw new Exception('Passkey public key coordinates are invalid.');
+ $der=hex2bin('3059301306072a8648ce3d020106082a8648ce3d03010703420004').$x.$y;
+ return "-----BEGIN PUBLIC KEY-----\n".chunk_split(base64_encode($der),64,"\n")."-----END PUBLIC KEY-----\n";
+}
+function passkeyChallengeValid(string $kind):string{
+ $challenge=(string)($_SESSION['passkey_challenge']??'');$challengeKind=(string)($_SESSION['passkey_kind']??'');$created=(int)($_SESSION['passkey_created']??0);
+ if($challenge===''||$challengeKind!==$kind||time()-$created>300)throw new Exception('Passkey request expired. Please try again.');
+ return $challenge;
+}
+
 // One-time 4-digit PIN setup. Only a SHA-256 hash of the setup token is stored here.
 $pinSetupTokenHash='64a1ea8550f3bb078a15088090d021b056d8bdad6ee24d1346e7603693b1cbea';
 $savedAdminPinHash=setting($db,'admin_pin_hash','');
@@ -303,6 +379,60 @@ function postedMoneyPence($value,string $label):int{
  $number=filter_var($raw,FILTER_VALIDATE_FLOAT);
  if($number===false||$number<0||$number>100000)throw new Exception('Check the '.$label.' amount.');
  return (int)round($number*100);
+}
+
+if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-options'){
+ try{
+  $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))$body=$_POST;
+  if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  $kind=(string)($body['kind']??'login');$register=$kind==='register';
+  if($register && (empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600))voiceJson(['ok'=>false,'error'=>'Please sign in with your PIN first.'],401);
+  $challenge=b64urlEncode(random_bytes(32));$_SESSION['passkey_challenge']=$challenge;$_SESSION['passkey_kind']=$register?'register':'login';$_SESSION['passkey_created']=time();
+  if($register){
+   $userId=setting($db,'passkey_user_id','');if($userId===''){$userId=b64urlEncode(random_bytes(32));saveSetting($db,'passkey_user_id',$userId);}
+   voiceJson(['ok'=>true,'publicKey'=>[
+    'challenge'=>$challenge,'rp'=>['name'=>'ANKH Admin','id'=>webauthnRpId()],'user'=>['id'=>$userId,'name'=>'ankh-admin','displayName'=>'ANKH Admin'],
+    'pubKeyCredParams'=>[['type'=>'public-key','alg'=>-7]],'timeout'=>60000,'attestation'=>'none',
+    'authenticatorSelection'=>['authenticatorAttachment'=>'platform','residentKey'=>'preferred','userVerification'=>'required']
+   ]]);
+  }
+  $rows=$db->query('SELECT credential_id FROM passkeys ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+  if(!$rows)voiceJson(['ok'=>false,'error'=>'No passkey has been set up yet. Use your PIN, then add Face ID / Passkey from More.'],404);
+  voiceJson(['ok'=>true,'publicKey'=>[
+   'challenge'=>$challenge,'rpId'=>webauthnRpId(),'timeout'=>60000,'userVerification'=>'required',
+   'allowCredentials'=>array_map(fn($id)=>['type'=>'public-key','id'=>(string)$id],$rows)
+  ]]);
+ }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey could not start.'],500);}
+}
+if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-register'){
+ try{
+  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
+  $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))voiceJson(['ok'=>false,'error'=>'Invalid passkey response.'],400);
+  if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  $challenge=passkeyChallengeValid('register');$client=webauthnClientData((string)($body['clientDataJSON']??''),'webauthn.create',$challenge);
+  $attestation=b64urlDecode((string)($body['attestationObject']??''));$offset=0;$decoded=cborRead($attestation,$offset);
+  if(!is_array($decoded)||!isset($decoded['authData'])||!is_string($decoded['authData']))throw new Exception('Passkey attestation was invalid.');
+  $auth=webauthnAuthData($decoded['authData'],true);$rawId=b64urlDecode((string)($body['rawId']??''));
+  if(!hash_equals($auth['credential_id'],$rawId))throw new Exception('Passkey credential did not match.');
+  $pem=webauthnCoseToPem($auth['cose']);$credential=b64urlEncode($rawId);$name=trim((string)($body['name']??'iPhone / Face ID'))?:'iPhone / Face ID';
+  $q=$db->prepare('INSERT OR REPLACE INTO passkeys(credential_id,public_key_pem,sign_count,name,created) VALUES (?,?,?,?,?)');$q->execute([$credential,$pem,(int)$auth['count'],substr($name,0,80),gmdate('c')]);
+  unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);voiceJson(['ok'=>true]);
+ }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey could not be saved.'],500);}
+}
+if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-login'){
+ try{
+  $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))voiceJson(['ok'=>false,'error'=>'Invalid passkey response.'],400);
+  if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
+  $challenge=passkeyChallengeValid('login');$client=webauthnClientData((string)($body['clientDataJSON']??''),'webauthn.get',$challenge);
+  $credential=(string)($body['rawId']??'');$q=$db->prepare('SELECT * FROM passkeys WHERE credential_id=?');$q->execute([$credential]);$passkey=$q->fetch(PDO::FETCH_ASSOC);if(!$passkey)throw new Exception('This passkey is not registered with ANKH.');
+  $authData=b64urlDecode((string)($body['authenticatorData']??''));$auth=webauthnAuthData($authData,false);$signature=b64urlDecode((string)($body['signature']??''));
+  $signed=$authData.hash('sha256',$client['raw'],true);$verified=openssl_verify($signed,$signature,(string)$passkey['public_key_pem'],OPENSSL_ALGO_SHA256);
+  if($verified!==1)throw new Exception('Passkey signature could not be verified.');
+  $oldCount=(int)$passkey['sign_count'];$newCount=(int)$auth['count'];if($oldCount>0&&$newCount>0&&$newCount<=$oldCount)throw new Exception('Passkey counter check failed.');
+  $db->prepare('UPDATE passkeys SET sign_count=? WHERE id=?')->execute([$newCount,(int)$passkey['id']]);
+  unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  voiceJson(['ok'=>true]);
+ }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey sign-in failed.'],500);}
 }
 
 if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
@@ -929,6 +1059,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();}
 }
+$passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
 $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
