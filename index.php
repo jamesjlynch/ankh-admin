@@ -110,7 +110,7 @@ $currentRetailCatalog=[
  'BAC Water 3ml'=>300,
  'BAC Water 10ml'=>399,
  'Acetic Acid 0.6% 10ml'=>499,
- 'Pen'=>1500
+ 'Pen'=>2000
 ];
 $currentSupplierCosts=[
  'BPC-157 5mg'=>283,'BPC-157 10mg'=>484,
@@ -132,7 +132,7 @@ $currentSupplierCosts=[
 ];
 $configuredStandalonePenCost=setting($db,'pen_cost_pence','');
 if($configuredStandalonePenCost!=='' && ctype_digit($configuredStandalonePenCost))$currentSupplierCosts['Pen']=(int)$configuredStandalonePenCost;
-$catalogVersion='retail-posters-2026-09-23-v4';
+$catalogVersion='retail-posters-2026-09-23-v5';
 $findProduct=$db->prepare('SELECT id,cost FROM products WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');
 $insertProduct=$db->prepare('INSERT INTO products(name,price,cost,active) VALUES (?,?,?,1)');
 $fillProductCost=$db->prepare('UPDATE products SET cost=? WHERE id=? AND cost IS NULL');
@@ -147,6 +147,8 @@ foreach($currentRetailCatalog as $retailName=>$retailPrice){
   if(isset($currentSupplierCosts[$retailName]))$fillProductCost->execute([$currentSupplierCosts[$retailName],$existingId]);
  }
 }
+// Standalone Pen list price is £20. Migrate the previously seeded £15 price only.
+$db->exec("UPDATE products SET price=2000 WHERE lower(trim(name))='pen' AND price=1500");
 
 // Only deactivate products outside the current retail range when the catalogue changes.
 if(setting($db,'retail_catalog_version')!==$catalogVersion){
@@ -462,7 +464,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='realtime-token'
    ]
   ];
 
-  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payments or deliveries, ALWAYS use the appropriate tool rather than guessing. Product retail price means the selling price. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
+  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payments or deliveries, ALWAYS use the appropriate tool rather than guessing. Product retail price means the current catalogue selling price. The standalone Pen catalogue price is £20, but individual Pen order lines may be manually discounted, so an order lookup may show a lower actual price charged. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
 
   $sessionConfig=[
    'session'=>[
@@ -931,7 +933,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile43"></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>ANKH • Order desk</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23101112'/%3E%3Ctext x='6' y='26' font-size='28' fill='%23dfb666'%3E☥%3C/text%3E%3C/svg%3E"><link rel="stylesheet" href="style.css?v=mobile44"></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1657,7 +1659,7 @@ function addOrderLine(data={},scroll=true){
 
  const card=document.createElement('article');card.className='order-line-card';card.dataset.productName=product.name;card.dataset.productStrength=product.strength||'';
  const head=document.createElement('div');head.className='order-line-head';
- const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=product.name;const baseText=document.createElement('small');baseText.textContent=(standalonePen?'Standalone accessory ':'Product ')+moneyFormat(base);titleWrap.append(title,baseText);
+ const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=product.name;const baseText=document.createElement('small');baseText.textContent=standalonePen?'List price '+moneyFormat(base)+' · manual discount available':'Product '+moneyFormat(base);titleWrap.append(title,baseText);
  const remove=document.createElement('button');remove.type='button';remove.className='line-remove';remove.setAttribute('aria-label','Remove '+product.name);remove.textContent='×';head.append(titleWrap,remove);card.append(head);
 
  const hiddenProduct=document.createElement('input');hiddenProduct.type='hidden';hiddenProduct.name='lines['+key+'][product_id]';hiddenProduct.value=String(product.id);hiddenProduct.dataset.lineProduct='';
@@ -1683,7 +1685,8 @@ function addOrderLine(data={},scroll=true){
  const qtyWrap=document.createElement('div');qtyWrap.className='line-quantity';const qtyLabel=document.createElement('span');qtyLabel.textContent='Quantity';
  const stepper=document.createElement('div');stepper.className='stepper';const minus=document.createElement('button');minus.type='button';minus.textContent='−';const qtyInput=document.createElement('input');qtyInput.type='number';qtyInput.min='1';qtyInput.max='999';qtyInput.inputMode='numeric';qtyInput.name='lines['+key+'][quantity]';qtyInput.value=String(qty);qtyInput.dataset.lineQuantity='';const plus=document.createElement('button');plus.type='button';plus.textContent='+';
  stepper.append(minus,qtyInput,plus);qtyWrap.append(qtyLabel,stepper);
- const priceLabel=document.createElement('label');priceLabel.className='line-price-field';priceLabel.textContent='Price each (£)';const priceInput=document.createElement('input');priceInput.type='number';priceInput.min='0';priceInput.max='100000';priceInput.step='.01';priceInput.inputMode='decimal';priceInput.name='lines['+key+'][price]';priceInput.value=(Number.isFinite(price)?price:initialCalculated).toFixed(2);priceInput.dataset.linePrice='';priceLabel.append(priceInput);
+ const priceLabel=document.createElement('label');priceLabel.className='line-price-field';priceLabel.textContent=standalonePen?'Final pen price (£)':'Price each (£)';const priceInput=document.createElement('input');priceInput.type='number';priceInput.min='0';priceInput.max='100000';priceInput.step='.01';priceInput.inputMode='decimal';priceInput.name='lines['+key+'][price]';priceInput.value=(Number.isFinite(price)?price:initialCalculated).toFixed(2);priceInput.dataset.linePrice='';priceLabel.append(priceInput);
+ if(standalonePen){const priceHelp=document.createElement('small');priceHelp.className='line-price-help';priceHelp.textContent='Edit this amount to apply a manual discount. Profit uses the final price charged.';priceLabel.append(priceHelp)}
  controls.append(qtyWrap,priceLabel);card.append(controls);
  const lineTotal=document.createElement('div');lineTotal.className='line-card-total';lineTotal.innerHTML='<span>Line total</span><strong data-line-total></strong>';card.append(lineTotal);
 
