@@ -1127,7 +1127,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile47"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
@@ -1235,6 +1235,9 @@ foreach($orders as $recentOrder){
 }
 $savedOrder=null;
 if($view==='saved' && (int)($_GET['id']??0)>0)$savedOrder=orderForSheet($db,(int)$_GET['id']);
+$customerAccount=null;
+if($view==='customer' && (int)($_GET['id']??0)>0){$q=$db->prepare('SELECT * FROM customers WHERE id=?');$q->execute([(int)$_GET['id']]);$customerAccount=$q->fetch(PDO::FETCH_ASSOC)?:null;}
+
 
 // Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
@@ -1332,7 +1335,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="<?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
-<a class="<?=$view==='customers'?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=$view==='products'?'selected':''?>" href="?view=products"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="nav-label">Products</span></a>
 <a class="<?=$view==='reports'?'selected':''?>" href="?view=reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></svg></span><span class="nav-label">Reports</span></a>
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
@@ -1341,7 +1344,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
-<a class="<?=$view==='customers'?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['more','products','reports','sheets'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header><?php if($testingNoAuth):?><p class="error" style="background:#3b301b;border-color:#79622d;color:#f5d991">TEST MODE · Password temporarily disabled</p><?php endif;?>
@@ -1558,7 +1561,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="detail">
 <div class="customer-metrics"><div><span>Spent</span><strong><?=money($customerSpent)?></strong></div><div><span>Orders</span><strong><?=count($history)?></strong></div><div><span>Last order</span><strong><?=$lastOrder?e(date('d M y',strtotime($lastOrder['created']))):'—'?></strong></div></div>
 <?php if($c['address']):?><p class="address"><?=nl2br(e($c['address']))?></p><?php endif;?>
-<div class="customer-quick-actions"><?php if(!$c['archived']):?><a class="quick-action" href="?view=new&amp;customer_id=<?=$c['id']?>">+ New order</a><?php if($lastOrder):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$lastOrder['id']?>">Repeat last</a><?php endif;?><?php endif;?><?php if(trim((string)$c['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$c['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$c['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($c['address'])?>">Copy address</button><?php endif;?></div>
+<div class="customer-quick-actions"><a class="quick-action customer-account-link" href="?view=customer&amp;id=<?=$c['id']?>">Open account</a><?php if(!$c['archived']):?><a class="quick-action" href="?view=new&amp;customer_id=<?=$c['id']?>">+ New order</a><?php if($lastOrder):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$lastOrder['id']?>">Repeat last</a><?php endif;?><?php endif;?><?php if(trim((string)$c['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$c['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$c['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($c['address'])?>">Copy address</button><?php endif;?></div>
 <?php if($usualProducts):?><div class="usual-products"><span class="order-check-label">Usual products</span><div class="product-chips"><?php foreach($usualProducts as $usual):?><span><?=e($usual['name'])?> <b>×<?=$usual['qty']?></b></span><?php endforeach;?></div></div><?php endif;?>
 <div class="customer-actions"><button type="button" class="quiet edit-customer-button" data-edit-customer="<?=$c['id']?>" aria-expanded="false">Edit customer</button></div>
 <form method="post" class="customer-edit-form" data-customer-form="<?=$c['id']?>" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><input type="hidden" name="id" value="<?=$c['id']?>"><div class="two"><label>Name<input name="name" maxlength="160" required value="<?=e($c['name'])?>"></label><label>Phone<input name="phone" maxlength="40" type="tel" value="<?=e($c['phone'])?>"></label></div><label>Address<textarea name="address" maxlength="2000"><?=e($c['address'])?></textarea></label><div class="customer-edit-actions"><button>Save changes</button><button type="button" class="quiet" data-cancel-customer-edit="<?=$c['id']?>">Cancel</button></div></form>
@@ -1569,6 +1572,40 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </div>
 <p id="customer-page-empty" class="empty" hidden>No customers match that search.</p>
 <?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;?>
+
+<?php elseif($view==='customer'):?>
+<?php if(!$customerAccount):?>
+<div class="heading"><div><h1>Customer account</h1></div><a class="quick-action" href="?view=customers">← Customers</a></div><p class="error">That customer could not be found.</p>
+<?php else:
+ $accountKey=strtolower(trim((string)$customerAccount['name'])).'|'.trim((string)$customerAccount['phone']);$accountHistory=$customerOrderHistory[$accountKey]??[];
+ $accountPaid=array_values(array_filter($accountHistory,fn($o)=>in_array($o['status'],$paidStatuses,true)));$accountPaidCount=count($accountPaid);
+ $accountSpend=array_sum(array_map(fn($o)=>(int)$o['total'],$accountPaid));$accountAverage=$accountPaidCount?intdiv($accountSpend,$accountPaidCount):0;
+ $accountOutstanding=array_sum(array_map(fn($o)=>in_array($o['status'],['New','Awaiting payment'],true)?(int)$o['total']:0,$accountHistory));
+ $accountProfit=0;foreach($accountPaid as $accountOrder){$oid=(int)$accountOrder['id'];$accountProfit+=(int)$accountOrder['total']-(int)($orderCostById[$oid]??0)-(int)($accountOrder['postage_cost']??0);}
+ $accountLast=$accountHistory[0]??null;$accountFavourites=array_slice($customerProductCounts[$accountKey]??[],0,5);
+?>
+<div class="heading customer-account-heading"><div><p class="eyebrow">CUSTOMER ACCOUNT</p><h1><?=e($customerAccount['name'])?></h1><p class="muted"><?=e($customerAccount['phone']?:'No phone saved')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p></div><a class="quick-action" href="?view=customers">← Customers</a></div>
+<div class="customer-account-actions"><?php if(!$customerAccount['archived']):?><a class="button" href="?view=new&amp;customer_id=<?=$customerAccount['id']?>">+ New order</a><?php if($accountLast):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$accountLast['id']?>">Repeat last order</a><?php endif;?><?php endif;?><?php if(trim((string)$customerAccount['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$customerAccount['phone']))?>">Call</a><?php endif;?></div>
+<div class="customer-account-stats">
+ <article><span>Lifetime spend</span><strong><?=money($accountSpend)?></strong><small><?=$accountPaidCount?> completed order<?=$accountPaidCount===1?'':'s'?></small></article>
+ <article><span>Profit generated</span><strong><?=money($accountProfit)?></strong><small>Saved costs &amp; postage deducted</small></article>
+ <article class="<?=$accountOutstanding>0?'attention':''?>"><span>Outstanding</span><strong><?=money($accountOutstanding)?></strong><small>Current unpaid balance</small></article>
+ <article><span>Average order</span><strong><?=money($accountAverage)?></strong><small>Completed orders</small></article>
+ <article><span>Total orders</span><strong><?=count($accountHistory)?></strong><small>Including open orders</small></article>
+ <article><span>Last order</span><strong><?=$accountLast?e(date('d M y',strtotime($accountLast['created']))):'—'?></strong><small><?=$accountLast?'ANK-'.str_pad((string)$accountLast['id'],4,'0',STR_PAD_LEFT):'No orders yet'?></small></article>
+</div>
+<div class="customer-account-grid">
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CONTACT</p><h2>Customer details</h2></div></div><?php if($customerAccount['address']):?><p class="address"><?=nl2br(e($customerAccount['address']))?></p><?php else:?><p class="muted">No address saved.</p><?php endif;?><div class="customer-quick-actions"><?php if($customerAccount['address']):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($customerAccount['address'])?>">Copy address</button><?php endif;?></div></section>
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">FAVOURITES</p><h2>Most ordered products</h2></div></div><?php if($accountFavourites):foreach($accountFavourites as $fav):?><div class="dashboard-row"><span><?=e($fav['name'])?></span><strong>×<?=$fav['qty']?></strong></div><?php endforeach;else:?><p class="muted">No product history yet.</p><?php endif;?></section>
+</div>
+<section class="panel customer-account-orders"><div class="dashboard-panel-head"><div><p class="eyebrow">HISTORY</p><h2>Orders</h2><p class="muted">Every order for this customer, newest first.</p></div></div>
+<?php if($accountHistory):foreach($accountHistory as $ao):?><div class="customer-account-order">
+ <div><a href="?view=edit&amp;id=<?=$ao['id']?>" class="ref">ANK-<?=str_pad((string)$ao['id'],4,'0',STR_PAD_LEFT)?></a><strong><?=e(date('d M Y',strtotime($ao['created'])))?></strong><small><?=e($ao['status'])?><?php if($ao['payment_method']):?> · <?=e($ao['payment_method'])?><?php endif;?></small></div>
+ <div><strong><?=money($ao['total'])?></strong><span class="badge status-<?=e(statusClass($ao['status']))?>"><?=e($ao['status'])?></span></div>
+ <div class="customer-account-order-actions"><a class="quick-action" href="?view=new&amp;repeat_order=<?=$ao['id']?>">Repeat</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$ao['id']?>&amp;type=receipt">Receipt</a></div>
+</div><?php endforeach;else:?><p class="muted">No orders yet.</p><?php endif;?>
+</section>
+<?php endif;?>
 
 <?php elseif($view==='reports'):?>
 <div class="heading"><div><h1>Profit & reports</h1><p class="muted page-description">Paid sales less product costs, pen costs and postage.</p></div><a class="quick-action" href="?view=more">← More</a></div>
