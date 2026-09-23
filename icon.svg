@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" rx="112" fill="#101112"/>
+<circle cx="256" cy="256" r="184" fill="none" stroke="#3e3424" stroke-width="3"/>
+<circle cx="256" cy="256" r="156" fill="#171611"/>
+<text x="256" y="343" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="286" fill="#dfb666">☥</text>
+<path d="M138 403h236" stroke="#6f5a32" stroke-width="3" stroke-linecap="round"/>
+</svg>
