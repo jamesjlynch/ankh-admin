@@ -1350,8 +1350,10 @@ foreach($dashboardItems as $dashboardItem){
  if(strtolower(trim($name))==='pen'){
   if($cost!==null){$standalonePenCost=$cost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$standalonePenCost;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$standalonePenCost;$penCostAll+=$standalonePenCost;}else{$uncostedSales+=$line;$orderMissingCost[$orderId]=true;}
   $topSelling['Pen']??=['qty'=>0,'revenue'=>0];$topSelling['Pen']['qty']+=$qty;$topSelling['Pen']['revenue']+=$line;
-  $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];
-  $productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$line;
+  $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'list_revenue'=>0,'discount_total'=>0,'prices'=>[],'missing_cost'=>false];
+  $penListUnit=$dashboardItem['base_price']===null?(int)$dashboardItem['price']:(int)$dashboardItem['base_price'];$penActualUnit=(int)$dashboardItem['price'];
+  $productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$line;$productProfit['Pen']['list_revenue']+=$penListUnit*$qty;$productProfit['Pen']['discount_total']+=max(0,($penListUnit-$penActualUnit)*$qty);
+  $productProfit['Pen']['prices'][$penActualUnit]=($productProfit['Pen']['prices'][$penActualUnit]??0)+$qty;
   if($cost!==null)$productProfit['Pen']['cogs']+=$cost*$qty;else$productProfit['Pen']['missing_cost']=true;
   continue;
  }
@@ -1363,7 +1365,7 @@ foreach($dashboardItems as $dashboardItem){
   $penRevenue=max(0,((int)$dashboardItem['price']-$expectedPeptideUnit)*$qty);
   if($penRevenue>0){
    $topSelling['Pen']??=['qty'=>0,'revenue'=>0];$topSelling['Pen']['qty']+=$qty;$topSelling['Pen']['revenue']+=$penRevenue;
-   $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];$productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$penRevenue;
+   $productProfit['Pen']??=['units'=>0,'revenue'=>0,'cogs'=>0,'list_revenue'=>0,'discount_total'=>0,'prices'=>[],'missing_cost'=>false];$productProfit['Pen']['units']+=$qty;$productProfit['Pen']['revenue']+=$penRevenue;$productProfit['Pen']['list_revenue']+=$penRevenue;$embeddedUnit=$qty>0?(int)round($penRevenue/$qty):0;$productProfit['Pen']['prices'][$embeddedUnit]=($productProfit['Pen']['prices'][$embeddedUnit]??0)+$qty;
    if($presentationCost>0){
     $penCostLine=$presentationCost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$penCostLine;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$penCostLine;$penCostAll+=$penCostLine;$productProfit['Pen']['cogs']+=$penCostLine;
    }else{
@@ -1373,8 +1375,11 @@ foreach($dashboardItems as $dashboardItem){
  }
  $peptideRevenue=max(0,$line-$penRevenue);
  $topSelling[$name]??=['qty'=>0,'revenue'=>0];$topSelling[$name]['qty']+=$qty;$topSelling[$name]['revenue']+=$peptideRevenue;
- $productProfit[$name]??=['units'=>0,'revenue'=>0,'cogs'=>0,'missing_cost'=>false];
+ $productProfit[$name]??=['units'=>0,'revenue'=>0,'cogs'=>0,'list_revenue'=>0,'discount_total'=>0,'prices'=>[],'missing_cost'=>false];
  $productProfit[$name]['units']+=$qty;$productProfit[$name]['revenue']+=$peptideRevenue;
+ $productListUnit=$dashboardItem['base_price']===null?($qty>0?(int)round($peptideRevenue/$qty):0):(int)$dashboardItem['base_price'];
+ $productProfit[$name]['list_revenue']+=$productListUnit*$qty;$productProfit[$name]['discount_total']+=max(0,$productListUnit*$qty-$peptideRevenue);
+ $actualProductUnit=$qty>0?(int)round($peptideRevenue/$qty):0;$productProfit[$name]['prices'][$actualProductUnit]=($productProfit[$name]['prices'][$actualProductUnit]??0)+$qty;
  if($cost!==null)$productProfit[$name]['cogs']+=$cost*$qty;else$productProfit[$name]['missing_cost']=true;
 }
 uasort($topSelling,fn($a,$b)=>$b['qty']<=>$a['qty'] ?: $b['revenue']<=>$a['revenue']);$topSelling=array_slice($topSelling,0,5,true);
@@ -1734,10 +1739,13 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">COST SETTINGS</p><h2>Pen cost</h2></div></div><p class="muted">This is the cost to you for one pen. New pen orders snapshot this cost so historical profit stays unchanged if the price changes later.</p><form method="post"><?php csrf();?><input type="hidden" name="action" value="profit_settings"><input type="hidden" name="return" value="reports"><label>Pen unit cost (£)<input name="pen_cost" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($penUnitCost===''?'':number_format((int)$penUnitCost/100,2,'.',''))?>" placeholder="Enter your actual cost"></label><button>Save pen cost</button></form></section>
 </div>
 
-<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">PRODUCTS</p><h2>Profit by product</h2></div></div>
-<div class="profit-table-wrap"><table class="profit-table"><thead><tr><th>Product</th><th>Units</th><th>Sales</th><th>Cost</th><th>Profit</th><th>Margin</th></tr></thead><tbody>
-<?php foreach($productProfit as $productName=>$pp):$ppProfit=$pp['revenue']-$pp['cogs'];$margin=$pp['revenue']>0?($ppProfit/$pp['revenue']*100):0;?><tr><td><?=e($productName)?><?=$pp['missing_cost']?' <small>cost missing</small>':''?></td><td><?=$pp['units']?></td><td><?=money($pp['revenue'])?></td><td><?=money($pp['cogs'])?></td><td><?=money($ppProfit)?></td><td><?=number_format($margin,1)?>%</td></tr><?php endforeach;?>
-<?php if(!$productProfit):?><tr><td colspan="6" class="muted">No paid product sales yet.</td></tr><?php endif;?>
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">PRODUCTS</p><h2>Profit by product</h2><p class="muted">Units, actual selling price, discounts, cost, gross profit and margin. Pen price mix uses the final price recorded on each order.</p></div></div>
+<div class="profit-table-wrap"><table class="profit-table expanded-profit-table"><thead><tr><th>Product</th><th>Units</th><th>Avg sold</th><th>Avg discount</th><th>Revenue</th><th>Cost</th><th>Gross profit</th><th>Margin</th></tr></thead><tbody>
+<?php foreach($productProfit as $productName=>$pp):
+ $ppProfit=$pp['revenue']-$pp['cogs'];$margin=$pp['revenue']>0?($ppProfit/$pp['revenue']*100):0;$avgSold=$pp['units']?intdiv((int)$pp['revenue'],(int)$pp['units']):0;$avgDiscount=$pp['units']?intdiv((int)($pp['discount_total']??0),(int)$pp['units']):0;
+ $priceMix=$pp['prices']??[];ksort($priceMix,SORT_NUMERIC);
+?><tr><td><strong><?=e($productName)?></strong><?=$pp['missing_cost']?' <small>cost missing</small>':''?><?php if(strtolower(trim((string)$productName))==='pen'&&$priceMix):?><small class="price-mix"><?php $mix=[];foreach($priceMix as $price=>$units)$mix[]=money((int)$price).' × '.$units;echo e(implode(' · ',$mix));?></small><?php endif;?></td><td><?=$pp['units']?></td><td><?=money($avgSold)?></td><td><?=money($avgDiscount)?></td><td><?=money($pp['revenue'])?></td><td><?=money($pp['cogs'])?></td><td><?=money($ppProfit)?></td><td><?=number_format($margin,1)?>%</td></tr><?php endforeach;?>
+<?php if(!$productProfit):?><tr><td colspan="8" class="muted">No paid product sales yet.</td></tr><?php endif;?>
 </tbody></table></div></section>
 
 <?php elseif($view==='more'):?>
