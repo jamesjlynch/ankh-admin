@@ -65,6 +65,8 @@ if(!in_array('presentation',array_column($itemColumns,'name'),true))$db->exec("A
 if(!in_array('presentation_cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation_cost INTEGER NOT NULL DEFAULT 0");
 if(!in_array('base_price',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN base_price INTEGER DEFAULT NULL");
 if(!in_array('discount',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN discount INTEGER NOT NULL DEFAULT 0");
+if(!in_array('recurring',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN recurring INTEGER NOT NULL DEFAULT 0");
+if(!in_array('cycle_weeks',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cycle_weeks INTEGER NOT NULL DEFAULT 0");
 $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
@@ -79,6 +81,10 @@ if(!in_array('last_delivery_date',array_column($retaColumns,'name'),true))$db->e
 if(!in_array('expected_cost',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN expected_cost INTEGER NOT NULL DEFAULT 0");
 if(!in_array('expected_profit',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN expected_profit INTEGER NOT NULL DEFAULT 0");
 if(!in_array('cost_missing',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN cost_missing INTEGER NOT NULL DEFAULT 0");
+if(!in_array('product_name',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN product_name TEXT NOT NULL DEFAULT ''");
+if(!in_array('presentation',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
+if(!in_array('quantity',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1");
+if(!in_array('cycle_weeks',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN cycle_weeks INTEGER NOT NULL DEFAULT 4");
 
 
 $db->exec("INSERT INTO payments(order_id,amount,method,note,created)
@@ -501,84 +507,110 @@ function refreshOrderPaymentState(PDO $db,int $orderId):void{
  }
 }
 function isRetaProductName(string $name):bool{return str_starts_with(strtolower(trim($name)),'retatrutide');}
-function retaCycleSnapshot(array $lines):?array{
- $retaRevenue=0;$retaCost=0;$retaPenUnits=0;$parts=[];$costMissing=false;
- foreach($lines as $line){
-  $productName=(string)($line['product']['name']??$line['name']??'');if(!isRetaProductName($productName))continue;
-  $qty=max(0,(int)($line['qty']??$line['quantity']??0));if($qty<1)continue;
-  $retaRevenue+=(int)($line['price']??0)*$qty;
-  $lineCost=$line['cost']??null;if($lineCost===null)$costMissing=true;else$retaCost+=(int)$lineCost*$qty;
-  $presentationCost=(int)($line['presentation_cost']??0);if($presentationCost>0)$retaCost+=$presentationCost*$qty;
-  if((string)($line['presentation']??'')==='Pen')$retaPenUnits+=$qty;
-  $parts[]=$qty.' × '.$productName.((string)($line['presentation']??'')!==''?' · '.(string)$line['presentation']:'');
- }
- if(!$parts)return null;
- $penRemaining=$retaPenUnits;$penRevenue=0;$penCost=0;$penCount=0;
- if($penRemaining>0){
-  foreach($lines as $line){
-   $productName=strtolower(trim((string)($line['product']['name']??$line['name']??'')));if($productName!=='pen'||$penRemaining<=0)continue;
-   $available=max(0,(int)($line['qty']??$line['quantity']??0));$qty=min($penRemaining,$available);if($qty<1)continue;
-   $penRevenue+=(int)($line['price']??0)*$qty;
-   $lineCost=$line['cost']??null;if($lineCost===null)$costMissing=true;else$penCost+=(int)$lineCost*$qty;
-   $penCount+=$qty;$penRemaining-=$qty;
-  }
-  if($penCount>0)$parts[]=$penCount.' × Pen';
- }
- $value=$retaRevenue+$penRevenue;$cost=$retaCost+$penCost;
- return ['expected_value'=>$value,'expected_cost'=>$cost,'expected_profit'=>$value-$cost,'cost_missing'=>$costMissing?1:0,'summary'=>implode(' + ',$parts)];
+function defaultCycleWeeksForProduct(string $name):int{
+ $name=strtolower(trim($name));if(str_starts_with($name,'retatrutide'))return 4;if(str_starts_with($name,'ghk-cu')||str_starts_with($name,'ghk cu'))return 8;return 4;
 }
-function retaOrderLines(PDO $db,int $orderId):array{
- $q=$db->prepare('SELECT name,price,cost,presentation,presentation_cost,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$orderId]);$lines=[];
- foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row)$lines[]=['product'=>['name'=>(string)$row['name']],'qty'=>(int)$row['quantity'],'presentation'=>(string)$row['presentation'],'price'=>(int)$row['price'],'cost'=>$row['cost']===null?null:(int)$row['cost'],'presentation_cost'=>(int)($row['presentation_cost']??0)];
- return $lines;
+function cycleOrderLines(PDO $db,int $orderId):array{
+ $q=$db->prepare('SELECT id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks FROM items WHERE order_id=? ORDER BY id');$q->execute([$orderId]);
+ return $q->fetchAll(PDO::FETCH_ASSOC);
 }
-function syncRetaCycleFromDeliveredOrder(PDO $db,int $orderId,bool $forceHistorical=false):void{
- $q=$db->prepare('SELECT customer,phone,created,delivery_date,status,delivery_charge,postage_cost FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)return;
- $deliveryDate=trim((string)($order['delivery_date']??''));if($deliveryDate===''){
-  $now=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Delivery date removed',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
+function syncProductCyclesFromDeliveredOrder(PDO $db,int $orderId,bool $forceHistorical=false):void{
+ $q=$db->prepare('SELECT customer,phone,created,delivery_date,status FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)return;
+ $deliveryDate=trim((string)($order['delivery_date']??''));$now=gmdate('c');
+ if($deliveryDate===''){
+  $db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Waiting for delivery date',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
  }
  if(!$forceHistorical && $deliveryDate<'2026-09-24')return;
- $lines=retaOrderLines($db,$orderId);$snapshot=retaCycleSnapshot($lines);
- if($snapshot){$snapshot['expected_value']+=(int)($order['delivery_charge']??0);$snapshot['expected_cost']+=(int)($order['postage_cost']??0);$snapshot['expected_profit']=$snapshot['expected_value']-$snapshot['expected_cost'];}
- if(!$snapshot){
-  $now=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Reta removed from latest order',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
+ $lines=cycleOrderLines($db,$orderId);$recurring=[];
+ foreach($lines as $line){
+  $name=(string)$line['name'];if(strtolower(trim($name))==='pen')continue;
+  $isRecurring=(int)($line['recurring']??0)===1;
+  if(!$isRecurring && isRetaProductName($name) && (int)($line['cycle_weeks']??0)===0)$isRecurring=true;
+  if(!$isRecurring)continue;
+  $weeks=(int)($line['cycle_weeks']??0);if($weeks<1||$weeks>52)$weeks=defaultCycleWeeksForProduct($name);
+  $line['cycle_weeks']=$weeks;$recurring[]=$line;
  }
- $orderDate=date('Y-m-d',strtotime((string)$order['created']));$tz=new DateTimeZone('Europe/London');$due=(new DateTimeImmutable($deliveryDate,$tz))->modify('+28 days')->format('Y-m-d');$now=gmdate('c');
- $q=$db->prepare("SELECT id,last_delivery_date,last_order_date FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) AND trim(phone)=trim(?) ORDER BY id DESC LIMIT 1");$q->execute([(string)$order['customer'],(string)$order['phone']]);$existing=$q->fetch(PDO::FETCH_ASSOC);
- if($existing){
-  $existingDelivery=trim((string)($existing['last_delivery_date']??''));if($existingDelivery!==''&&$existingDelivery>$deliveryDate)return;
-  $db->prepare("UPDATE reta_cycles SET customer_name=?,phone=?,last_order_id=?,last_order_date=?,last_delivery_date=?,next_due_date=?,expected_value=?,expected_cost=?,expected_profit=?,cost_missing=?,product_summary=?,cycle_days=28,updated=?,ended_at='',end_reason='' WHERE id=?")
-   ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderDate,$deliveryDate,$due,(int)$snapshot['expected_value'],(int)$snapshot['expected_cost'],(int)$snapshot['expected_profit'],(int)$snapshot['cost_missing'],(string)$snapshot['summary'],$now,(int)$existing['id']]);
- }else{
-  $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,last_delivery_date,next_due_date,expected_value,expected_cost,expected_profit,cost_missing,product_summary,cycle_days,active,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,28,1,?,?)")
-   ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderId,$orderDate,$deliveryDate,$due,(int)$snapshot['expected_value'],(int)$snapshot['expected_cost'],(int)$snapshot['expected_profit'],(int)$snapshot['cost_missing'],(string)$snapshot['summary'],$now,$now]);
+ $currentIds=[];$orderDate=date('Y-m-d',strtotime((string)$order['created']));$tz=new DateTimeZone('Europe/London');
+ $penRows=array_values(array_filter($lines,fn($l)=>strtolower(trim((string)$l['name']))==='pen'));
+ $penUnits=array_sum(array_map(fn($l)=>(int)$l['quantity'],$penRows));$penRevenue=array_sum(array_map(fn($l)=>(int)$l['price']*(int)$l['quantity'],$penRows));
+ $penCost=0;$penCostMissing=false;foreach($penRows as $pen){if($pen['cost']===null)$penCostMissing=true;else$penCost+=(int)$pen['cost']*(int)$pen['quantity'];}
+ $avgPenRevenue=$penUnits>0?(int)round($penRevenue/$penUnits):0;$avgPenCost=$penUnits>0?(int)round($penCost/$penUnits):0;
+
+ foreach($recurring as $line){
+  $name=(string)$line['name'];$qty=max(1,(int)$line['quantity']);$presentation=(string)$line['presentation'];$weeks=(int)$line['cycle_weeks'];$days=$weeks*7;
+  $value=(int)$line['price']*$qty;$cost=0;$costMissing=false;
+  if($line['cost']===null)$costMissing=true;else$cost+=(int)$line['cost']*$qty;
+  if((int)($line['presentation_cost']??0)>0)$cost+=(int)$line['presentation_cost']*$qty;
+  $summary=$qty.' × '.$name.($presentation!==''?' · '.$presentation:'');
+  if($presentation==='Pen'){
+   $value+=$avgPenRevenue*$qty;
+   if($penUnits>0){$cost+=$avgPenCost*$qty;if($penCostMissing)$costMissing=true;$summary.=' + '.$qty.' × Pen';}
+  }
+  $profit=$value-$cost;$due=(new DateTimeImmutable($deliveryDate,$tz))->modify('+'.$weeks.' weeks')->format('Y-m-d');
+  $q=$db->prepare("SELECT * FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) AND trim(phone)=trim(?) AND lower(trim(product_name))=lower(trim(?)) ORDER BY id DESC LIMIT 1");
+  $q->execute([(string)$order['customer'],(string)$order['phone'],$name]);$existing=$q->fetch(PDO::FETCH_ASSOC);
+  if($existing){
+   $existingDelivery=trim((string)($existing['last_delivery_date']??''));if($existingDelivery!==''&&$existingDelivery>$deliveryDate){$currentIds[]=(int)$existing['id'];continue;}
+   $db->prepare("UPDATE reta_cycles SET customer_name=?,phone=?,last_order_id=?,last_order_date=?,last_delivery_date=?,next_due_date=?,expected_value=?,expected_cost=?,expected_profit=?,cost_missing=?,product_summary=?,product_name=?,presentation=?,quantity=?,cycle_days=?,cycle_weeks=?,updated=?,ended_at='',end_reason='' WHERE id=?")
+    ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderDate,$deliveryDate,$due,$value,$cost,$profit,$costMissing?1:0,$summary,$name,$presentation,$qty,$days,$weeks,$now,(int)$existing['id']]);
+   $currentIds[]=(int)$existing['id'];
+  }else{
+   $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,last_delivery_date,next_due_date,expected_value,expected_cost,expected_profit,cost_missing,product_summary,product_name,presentation,quantity,cycle_days,cycle_weeks,active,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,?,?)")
+    ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderId,$orderDate,$deliveryDate,$due,$value,$cost,$profit,$costMissing?1:0,$summary,$name,$presentation,$qty,$days,$weeks,$now,$now]);
+   $currentIds[]=(int)$db->lastInsertId();
+  }
+ }
+ $q=$db->prepare("SELECT id FROM reta_cycles WHERE active=1 AND last_order_id=?");$q->execute([$orderId]);
+ foreach($q->fetchAll(PDO::FETCH_COLUMN) as $cycleId){
+  if(in_array((int)$cycleId,$currentIds,true))continue;
+  $db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Recurring option removed from order',updated=? WHERE id=?")->execute([$now,$now,(int)$cycleId]);
  }
 }
+function syncRetaCycleFromDeliveredOrder(PDO $db,int $orderId,bool $forceHistorical=false):void{syncProductCyclesFromDeliveredOrder($db,$orderId,$forceHistorical);}
 function retaProjection(array $cycles,DateTimeImmutable $today,int $days):array{
- $end=$today->modify('+'.max(0,$days-1).' days');$orders=0;$revenue=0;$profit=0;$costMissing=0;
+ $end=$today->modify('+'.max(0,$days-1).' days');$orders=0;$revenue=0;$profit=0;$costMissing=0;$stock=[];
  foreach($cycles as $cycle){
   $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$today->getTimezone());if(!$due)continue;
-  if($due<$today){
-   if($days>=1){$orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;}
-   continue;
+  $interval=max(7,(int)($cycle['cycle_days']??((int)($cycle['cycle_weeks']??4)*7)));
+  if($due<$today)$due=$today;
+  while($due<=$end){
+   $orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;
+   $name=(string)($cycle['product_name']?:$cycle['product_summary']);$qty=max(1,(int)($cycle['quantity']??1));$stock[$name]=($stock[$name]??0)+$qty;
+   if((string)($cycle['presentation']??'')==='Pen')$stock['Pen']=($stock['Pen']??0)+$qty;
+   $due=$due->modify('+'.$interval.' days');
   }
-  while($due<=$end){$orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;$due=$due->modify('+28 days');}
  }
- return ['orders'=>$orders,'revenue'=>$revenue,'profit'=>$profit,'cost_missing'=>$costMissing];
+ return ['orders'=>$orders,'revenue'=>$revenue,'profit'=>$profit,'cost_missing'=>$costMissing,'stock'=>$stock];
 }
-
-
-
-if(setting($db,'reta_delivery_projection_v1')!=='done'){
- $cycles=$db->query("SELECT id,last_order_id,active FROM reta_cycles")->fetchAll(PDO::FETCH_ASSOC);
+function cycleOccurrences(array $cycles,DateTimeImmutable $today,int $weeks):array{
+ $end=$today->modify('+'.max(1,$weeks).' weeks');$rows=[];
  foreach($cycles as $cycle){
-  $orderId=(int)($cycle['last_order_id']??0);if($orderId<1)continue;
-  $q=$db->prepare('SELECT delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$delivery=(string)($q->fetchColumn()?:'');
-  if($delivery!=='')syncRetaCycleFromDeliveredOrder($db,$orderId,true);
-  elseif((int)$cycle['active']===1){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Waiting for delivery date',updated=? WHERE id=?")->execute([$nowCycle,$nowCycle,(int)$cycle['id']]);}
+  $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$today->getTimezone());if(!$due)continue;
+  $interval=max(7,(int)($cycle['cycle_days']??((int)($cycle['cycle_weeks']??4)*7)));$guard=0;
+  while($due<$today && $guard++<60)$due=$due->modify('+'.$interval.' days');
+  while($due<=$end && $guard++<100){$copy=$cycle;$copy['occurrence_date']=$due->format('Y-m-d');$rows[]=$copy;$due=$due->modify('+'.$interval.' days');}
  }
- saveSetting($db,'reta_delivery_projection_v1','done');
+ usort($rows,fn($a,$b)=>strcmp((string)$a['occurrence_date'],(string)$b['occurrence_date'])?:strcmp((string)$a['customer_name'],(string)$b['customer_name']));
+ return $rows;
 }
+
+
+
+if(setting($db,'cycle_planner_migration_v1')!=='done'){
+ $legacy=$db->query("SELECT * FROM reta_cycles WHERE last_order_id IS NOT NULL ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+ foreach($legacy as $cycle){
+  $orderId=(int)($cycle['last_order_id']??0);if($orderId<1)continue;
+  $weeks=max(1,(int)round(max(7,(int)($cycle['cycle_days']??28))/7));
+  $q=$db->prepare("SELECT id,name,presentation,quantity FROM items WHERE order_id=? AND lower(name) LIKE 'retatrutide%' ORDER BY id");$q->execute([$orderId]);$retaItems=$q->fetchAll(PDO::FETCH_ASSOC);
+  foreach($retaItems as $idx=>$item){
+   $db->prepare('UPDATE items SET recurring=1,cycle_weeks=? WHERE id=?')->execute([$weeks,(int)$item['id']]);
+   if($idx===0 && trim((string)($cycle['product_name']??''))==='')$db->prepare('UPDATE reta_cycles SET product_name=?,presentation=?,quantity=?,cycle_weeks=? WHERE id=?')->execute([(string)$item['name'],(string)$item['presentation'],(int)$item['quantity'],$weeks,(int)$cycle['id']]);
+  }
+  $q=$db->prepare('SELECT delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$delivery=(string)($q->fetchColumn()?:'');if($delivery!=='')syncProductCyclesFromDeliveredOrder($db,$orderId,true);
+ }
+ saveSetting($db,'cycle_planner_migration_v1','done');
+}
+
 
 if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='order-pdf'){
  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600){http_response_code(401);exit('Please sign in again.');}
@@ -1353,7 +1385,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile49"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile50"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
