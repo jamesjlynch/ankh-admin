@@ -1370,7 +1370,7 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
    $format=$isStandalonePen?'':(in_array((string)$ri['presentation'],['Pen','Cartridge','Vial'],true)?(string)$ri['presentation']:(in_array((string)($repeatOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$repeatOrder['presentation']:'Vial'));
    $base=$ri['base_price']===null?(int)$p['price']:(int)$ri['base_price'];$discount=!$isStandalonePen&&(int)($ri['discount']??0)>0;$pairId='repeat_'.(++$repeatPairCounter);
    $linePrice=$isStandalonePen?(int)$ri['price']:max(0,$base-($discount?500:0));
-   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$linePrice/100,'pair_id'=>$pairId,'paired_pen'=>false];
+   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$linePrice/100,'pair_id'=>$pairId,'paired_pen'=>false,'from_repeat'=>true];
   }
  }
 }
@@ -1599,7 +1599,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show.</p>
 <?php elseif($view==='new'):?>
-<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><?php endif;?></div><div class="new-order-tools"><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><div class="repeat-order-note"><strong>Current repeat only</strong><span>Remove any product they no longer want or take. The previous order stays unchanged.</span></div><?php endif;?></div><div class="new-order-tools"><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
 <section class="voice-order-launch">
  <div class="voice-order-launch-copy">
   <span class="voice-order-launch-kicker">AI VOICE ORDER</span>
@@ -2084,7 +2084,8 @@ function lineData(card){
   price:Number(card.querySelector('[data-line-price]')?.value||0),
   pair_id:card.dataset.pairId||'',
   paired_pen:card.dataset.pairedPen==='1',
-  paired_with_name:card.dataset.pairedWithName||''
+  paired_with_name:card.dataset.pairedWithName||'',
+  from_repeat:card.dataset.fromRepeat==='1'
  };
 }
 function calculatedLinePrice(card){
@@ -2141,12 +2142,12 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
  const base=Number(data.base_price??product.price)||0,qty=Math.max(1,Number(data.quantity)||1),presentation=standalonePen?'':(data.presentation||''),discount=standalonePen?false:!!data.discount;
  const initialCalculated=standalonePen?base:Math.max(0,base-(discount?5:0));
  const price=data.price===undefined||data.price===null?initialCalculated:Number(data.price);
- const pairId=data.pair_id||('pair_'+Date.now().toString(36)+'_'+lineCounter),pairedPen=standalonePen&&!!data.paired_pen,pairedWithName=data.paired_with_name||'';
+ const pairId=data.pair_id||('pair_'+Date.now().toString(36)+'_'+lineCounter),pairedPen=standalonePen&&!!data.paired_pen,pairedWithName=data.paired_with_name||'',fromRepeat=!!data.from_repeat;
 
- const card=document.createElement('article');card.className='order-line-card'+(pairedPen?' paired-pen-row':'');card.dataset.productName=product.name;card.dataset.productStrength=product.strength||'';card.dataset.pairId=pairId;card.dataset.pairedPen=pairedPen?'1':'0';card.dataset.pairedWithName=pairedWithName;
+ const card=document.createElement('article');card.className='order-line-card'+(pairedPen?' paired-pen-row':'')+(fromRepeat?' repeat-source-line':'');card.dataset.productName=product.name;card.dataset.productStrength=product.strength||'';card.dataset.pairId=pairId;card.dataset.pairedPen=pairedPen?'1':'0';card.dataset.pairedWithName=pairedWithName;card.dataset.fromRepeat=fromRepeat?'1':'0';
  const head=document.createElement('div');head.className='order-line-head';
  const titleWrap=document.createElement('div');const title=document.createElement('h3');title.textContent=product.name;const baseText=document.createElement('small');baseText.textContent=standalonePen?(pairedPen&&pairedWithName?'Pen for '+pairedWithName+' · list price '+moneyFormat(base):'List price '+moneyFormat(base)+' · manual discount available'):'Product '+moneyFormat(base);titleWrap.append(title,baseText);
- const remove=document.createElement('button');remove.type='button';remove.className='line-remove';remove.setAttribute('aria-label','Remove '+product.name);remove.textContent='×';head.append(titleWrap,remove);card.append(head);
+ const remove=document.createElement('button');remove.type='button';remove.className='line-remove'+(fromRepeat&&!pairedPen?' repeat-line-remove':'');remove.setAttribute('aria-label',(fromRepeat?'Remove from this repeat order: ':'Remove ')+product.name);remove.textContent=fromRepeat&&!pairedPen?'Remove from this order':'×';head.append(titleWrap,remove);card.append(head);
 
  const hiddenProduct=document.createElement('input');hiddenProduct.type='hidden';hiddenProduct.name='lines['+key+'][product_id]';hiddenProduct.value=String(product.id);hiddenProduct.dataset.lineProduct='';
  const hiddenBase=document.createElement('input');hiddenBase.type='hidden';hiddenBase.name='lines['+key+'][base_price]';hiddenBase.value=base.toFixed(2);hiddenBase.dataset.lineBasePrice='';
@@ -2176,7 +2177,7 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
  controls.append(qtyWrap,priceLabel);card.append(controls);
  const lineTotal=document.createElement('div');lineTotal.className='line-card-total';lineTotal.innerHTML='<span>Line total</span><strong data-line-total></strong>';card.append(lineTotal);
 
- remove.addEventListener('click',()=>{if(pairedPen){const parent=selectedOrderCards().find(other=>other.dataset.pairId===card.dataset.pairId&&other.dataset.pairedPen!=='1');if(parent){const p=parent.querySelector('[data-line-presentation]');if(p&&p.value==='Pen'){p.value='';recalculateLinePrice(parent)}}}else removePairedPenRow(card);card.remove();updateSelectedState();updateTotal();saveDraftOrder()});
+ remove.addEventListener('click',()=>{if(fromRepeat&&!pairedPen&&!confirm('Remove '+product.name+' from this current repeat order? The previous order will stay unchanged.'))return;if(pairedPen){const parent=selectedOrderCards().find(other=>other.dataset.pairId===card.dataset.pairId&&other.dataset.pairedPen!=='1');if(parent){const p=parent.querySelector('[data-line-presentation]');if(p&&p.value==='Pen'){p.value='';recalculateLinePrice(parent)}}}else removePairedPenRow(card);card.remove();updateSelectedState();updateTotal();saveDraftOrder()});
  minus.addEventListener('click',()=>{qtyInput.value=String(Math.max(1,Number(qtyInput.value||1)-1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});
  plus.addEventListener('click',()=>{qtyInput.value=String(Math.min(999,Number(qtyInput.value||1)+1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});
  qtyInput.addEventListener('input',()=>{if(Number(qtyInput.value)<1)qtyInput.value='1';refreshLineVisuals(card);updateTotal();saveDraftOrder()});
