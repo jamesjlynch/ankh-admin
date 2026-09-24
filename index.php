@@ -794,6 +794,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='realtime-token'
     'parameters'=>['type'=>'object','additionalProperties'=>false,'properties'=>(object)[]]
    ],
    [
+    'type'=>'function','name'=>'get_reta_forecast',
+    'description'=>'Get recurring Retatrutide (Reta) reminders and projected orders, revenue and profit for the next 4, 8 or 12 weeks.',
+    'parameters'=>[
+     'type'=>'object','additionalProperties'=>false,
+     'properties'=>['weeks'=>['type'=>'integer','enum'=>[4,8,12]]],
+     'required'=>['weeks']
+    ]
+   ],
+   [
     'type'=>'function','name'=>'lookup_customer_last_order',
     'description'=>'Find a customer and return their most recent ANKH order. Ask for clarification if multiple customer names match.',
     'parameters'=>[
@@ -813,7 +822,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='realtime-token'
    ]
   ];
 
-  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payment history, customer balances or deliveries, ALWAYS use the appropriate tool rather than guessing. If asked how much a named customer owes, use get_customer_balance and report the actual remaining balance after partial payments. Product retail price means the current catalogue selling price. The standalone Pen catalogue price is £20, but individual Pen order lines may be manually discounted, so an order lookup may show a lower actual price charged. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
+  $instructions="You are ANKH Assistant, a conversational voice assistant inside the private ANKH Peptides admin app. Speak naturally in concise British English, like a helpful colleague. This is a live conversation: remember the product, customer, timeframe and topic from previous turns so follow-up questions such as 'what about in a pen?', 'what did it cost us?', 'what about last month?' and 'how many are left?' make sense without the user repeating everything. Reta, Reeta, Rita or Rayta said as a product means Retatrutide. For factual ANKH prices, supplier costs, stock, orders, sales, gross profit, payment history, customer balances or deliveries, ALWAYS use the appropriate tool rather than guessing. If asked how much a named customer owes, use get_customer_balance and report the actual remaining balance after partial payments. For recurring Reta questions such as who is due, what is projected in the next month, or projected Reta profit, use get_reta_forecast. Product retail price means the current catalogue selling price. The standalone Pen catalogue price is £20, but individual Pen order lines may be manually discounted, so an order lookup may show a lower actual price charged. 'Cost us', 'our cost', 'supplier cost' or similar means the saved supplier cost. If the user simply asks 'what does it cost?' and context is unclear, briefly give both retail and supplier cost or ask which they mean. If a product lookup returns multiple strengths, ask which strength rather than choosing one. Monetary values are GBP. Gross profit means completed sales minus saved product cost, pen cost and postage; mention when missing saved costs make the result incomplete. This assistant is read-only: never claim you changed an order, payment, delivery, stock or customer. Do not provide peptide dosing, administration or medical advice; say this assistant is for ANKH business/admin information. Keep spoken answers short enough to feel conversational, but include the exact figure or names the user asked for.";
 
   $sessionConfig=[
    'session'=>[
@@ -960,6 +969,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
    $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
    $products=[];foreach($rows as $row)$products[]=['name'=>(string)$row['name'],'stock_qty'=>(int)$row['stock_qty'],'low_stock_at'=>(int)$row['low_stock_at']];
    $result=['count'=>count($products),'products'=>$products];
+  }elseif($tool==='get_reta_forecast'){
+   $weeks=(int)($args['weeks']??4);if(!in_array($weeks,[4,8,12],true))$weeks=4;
+   $tzForecast=new DateTimeZone('Europe/London');$todayForecast=new DateTimeImmutable('today',$tzForecast);
+   $cycles=$db->query("SELECT * FROM reta_cycles WHERE active=1 ORDER BY date(next_due_date),customer_name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+   $forecast=retaProjection($cycles,$todayForecast,$weeks*7);$upcoming=[];
+   foreach($cycles as $cycle){$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tzForecast);if(!$due)continue;$days=(int)$todayForecast->diff($due)->format('%r%a');if($days>($weeks*7-1))continue;$upcoming[]=['customer'=>(string)$cycle['customer_name'],'next_due'=>(string)$cycle['next_due_date'],'days_from_today'=>$days,'products'=>(string)$cycle['product_summary'],'projected_value'=>$moneyTool((int)$cycle['expected_value']),'projected_profit'=>$moneyTool((int)$cycle['expected_profit']),'cost_missing'=>(bool)$cycle['cost_missing']];}
+   $result=['weeks'=>$weeks,'active_customers'=>count($cycles),'projected_orders'=>$forecast['orders'],'projected_revenue'=>$moneyTool($forecast['revenue']),'projected_profit'=>$moneyTool($forecast['profit']),'cost_missing_occurrences'=>$forecast['cost_missing'],'upcoming'=>$upcoming];
   }elseif($tool==='lookup_customer_last_order'){
    $customer=trim((string)($args['customer_name']??''));if($customer==='')throw new Exception('Tell me the customer name.');
    $q=$db->prepare("SELECT DISTINCT customer FROM orders WHERE lower(customer) LIKE lower(?) ORDER BY customer COLLATE NOCASE LIMIT 8");$q->execute(['%'.$customer.'%']);$names=$q->fetchAll(PDO::FETCH_COLUMN);
