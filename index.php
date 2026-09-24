@@ -755,7 +755,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
    $base=(int)$p['price']/100;$canDiscount=!$isStandalonePen&&(bool)preg_match('/\d+(?:\.\d+)?\s*mg$/i',$name);$discount=$canDiscount&&!empty($line['family_friends']);
    $price=max(0,$base-($discount?5:0));
    $pairId='voice_'.count($lines).'_'.substr(hash('sha256',$name.'|'.$qty.'|'.count($lines)),0,10);
-   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price,'pair_id'=>$pairId,'paired_pen'=>false];
+   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price,'pair_id'=>$pairId,'paired_pen'=>false,'recurring'=>(int)($ei['recurring']??0)===1,'cycle_weeks'=>(int)($ei['cycle_weeks']??0)];
    if(!$isStandalonePen && $presentation==='Pen' && $penProduct){
     $penBase=(int)$penProduct['price']/100;
     $lines[]=['product_id'=>(int)$penProduct['id'],'name'=>'Pen','quantity'=>$qty,'presentation'=>'','base_price'=>$penBase,'discount'=>false,'price'=>$penBase,'pair_id'=>$pairId,'paired_pen'=>true,'paired_with_name'=>$name];
@@ -1233,18 +1233,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='reta_cycle_stop'){
    $cycleId=(int)($_POST['cycle_id']??0);$reason=trim((string)($_POST['reason']??'Stopped manually'))?:'Stopped manually';if(strlen($reason)>240)$reason=substr($reason,0,240);
    $nowCycle=gmdate('c');$q=$db->prepare('UPDATE reta_cycles SET active=0,ended_at=?,end_reason=?,updated=? WHERE id=?');$q->execute([$nowCycle,$reason,$nowCycle,$cycleId]);
-   if(!$q->rowCount())throw new Exception('Reta cycle could not be found.');
+   if(!$q->rowCount())throw new Exception('Cycle could not be found.');
   }
   if($action==='reta_cycle_resume'){
    $cycleId=(int)($_POST['cycle_id']??0);$due=trim((string)($_POST['next_due_date']??''));$tzCycle=new DateTimeZone('Europe/London');$date=DateTimeImmutable::createFromFormat('!Y-m-d',$due,$tzCycle);
    if(!$date||$date->format('Y-m-d')!==$due)throw new Exception('Choose a valid next expected date.');
    $nowCycle=gmdate('c');$q=$db->prepare("UPDATE reta_cycles SET active=1,next_due_date=?,ended_at='',end_reason='',updated=? WHERE id=?");$q->execute([$due,$nowCycle,$cycleId]);
-   if(!$q->rowCount())throw new Exception('Reta cycle could not be found.');
+   if(!$q->rowCount())throw new Exception('Cycle could not be found.');
   }
   if($action==='reta_cycle_start_order'){
    $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$delivery=(string)($q->fetchColumn()?:'');if($delivery==='')throw new Exception('Add the delivery date first. The 4-week reminder starts from the delivery date.');
-   $snapshot=retaCycleSnapshot(retaOrderLines($db,$orderId));if(!$snapshot)throw new Exception('That order does not contain Retatrutide.');
-   syncRetaCycleFromDeliveredOrder($db,$orderId,true);
+   $q=$db->prepare('SELECT COUNT(*) FROM items WHERE order_id=? AND recurring=1');$q->execute([$orderId]);if((int)$q->fetchColumn()<1)throw new Exception('That order does not have any recurring products selected.');
+   syncProductCyclesFromDeliveredOrder($db,$orderId,true);
   }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
@@ -1264,15 +1264,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
    $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
-   if($newStatus==='Delivered')syncRetaCycleFromDeliveredOrder($db,$orderId);
-   if($newStatus==='Cancelled'){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Latest order cancelled',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);}
+   if($newStatus==='Delivered')syncProductCyclesFromDeliveredOrder($db,$orderId);
+   if($newStatus==='Cancelled'){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Latest recurring order cancelled',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);}
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_dates'){
    $orderId=(int)($_POST['id']??0);$paymentDate=orderActionDate((string)($_POST['payment_date']??''),'payment');$deliveryDate=orderActionDate((string)($_POST['delivery_date']??''),'delivery');
    $q=$db->prepare('UPDATE orders SET payment_date=?,delivery_date=? WHERE id=?');$q->execute([$paymentDate,$deliveryDate,$orderId]);
    if(!$q->rowCount()){$check=$db->prepare('SELECT id FROM orders WHERE id=?');$check->execute([$orderId]);if(!$check->fetchColumn())throw new Exception('Order could not be found.');}
-   syncRetaCycleFromDeliveredOrder($db,$orderId);
+   syncProductCyclesFromDeliveredOrder($db,$orderId);
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_delete'){
@@ -1309,12 +1309,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $lines=[];$presentations=[];
    foreach(($_POST['lines']??[]) as $lineKey=>$line){
     if(!is_array($line))continue;
-    $productId=(int)($line['product_id']??0);$qty=filter_var($line['quantity']??0,FILTER_VALIDATE_INT);$format=trim((string)($line['presentation']??''));$discountFlag=((string)($line['discount']??'0'))==='1';
+    $productId=(int)($line['product_id']??0);$qty=filter_var($line['quantity']??0,FILTER_VALIDATE_INT);$format=trim((string)($line['presentation']??''));$discountFlag=((string)($line['discount']??'0'))==='1';$recurringFlag=((string)($line['recurring']??''))==='1';$cycleWeeks=(int)($line['cycle_weeks']??0);
     if($productId<1||$qty===false||$qty<1||$qty>999)throw new Exception('Check the product quantities.');
     $q=$db->prepare($isEdit?'SELECT * FROM products WHERE id=?':'SELECT * FROM products WHERE id=? AND active=1');$q->execute([$productId]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product is unavailable.');
     $isStandalonePen=strtolower(trim((string)$p['name']))==='pen';
-    if($isStandalonePen)$format='';
+    $isReta=isRetaProductName((string)$p['name']);
+    if($isStandalonePen){$format='';$recurringFlag=false;$cycleWeeks=0;}
     elseif(!in_array($format,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial for every peptide.');
+    if($isReta && !array_key_exists('recurring',$line))$recurringFlag=true;
+    if($recurringFlag){if($cycleWeeks<1||$cycleWeeks>52)$cycleWeeks=defaultCycleWeeksForProduct((string)$p['name']);}else$cycleWeeks=0;
     $basePrice=postedMoneyPence($line['base_price']??number_format((int)$p['price']/100,2,'.',''),'base price');
     if($basePrice<0)$basePrice=(int)$p['price'];
     $discount=(!$isStandalonePen&&$discountFlag)?min(500,$basePrice):0;$formatCharge=0;
@@ -1323,7 +1326,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $costKey=strtolower(trim((string)$p['name']));$saved=$existingItemCosts[$costKey]??null;
     $productCost=$saved&&array_key_exists('cost',$saved)?$saved['cost']:($p['cost']===null?null:(int)$p['cost']);
     $presentationCost=0;
-    $lines[]=['product'=>$p,'qty'=>(int)$qty,'presentation'=>$format,'base_price'=>$basePrice,'discount'=>$discount,'price'=>$postedPrice,'cost'=>$productCost,'presentation_cost'=>$presentationCost];
+    $lines[]=['product'=>$p,'qty'=>(int)$qty,'presentation'=>$format,'base_price'=>$basePrice,'discount'=>$discount,'price'=>$postedPrice,'cost'=>$productCost,'presentation_cost'=>$presentationCost,'recurring'=>$recurringFlag?1:0,'cycle_weeks'=>$cycleWeeks];
     if($format!=='')$presentations[$format]=true;
    }
    if(!$lines)throw new Exception('Add at least one product.');
@@ -1344,9 +1347,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
    }
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
-   $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity) VALUES (?,?,?,?,?,?,?,?,?)');
-   foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty']]);
-   if($isEdit && !empty($existingOrder['delivery_date']))syncRetaCycleFromDeliveredOrder($db,$orderId);
+   $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
+   foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
+   if($isEdit)syncProductCyclesFromDeliveredOrder($db,$orderId);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
@@ -1369,7 +1372,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='reta_cycle_stop'?'Reta repeat stopped.':($action==='reta_cycle_resume'?'Reta repeat restarted.':($action==='reta_cycle_start_order'?'Reta 4-week cycle started.':($action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))))))));
+ $flash=$action==='reta_cycle_stop'?'Recurring cycle stopped.':($action==='reta_cycle_resume'?'Recurring cycle restarted.':($action==='reta_cycle_start_order'?'Recurring cycle started.':($action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
@@ -1452,7 +1455,7 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
   $repeatOrderData=$repeatOrder;$newOrderCustomer=['name'=>$repeatOrder['customer'],'phone'=>$repeatOrder['phone'],'address'=>$repeatOrder['address']];
   $repeatPaymentMethod=(string)($repeatOrder['payment_method']??'');$repeatDeliveryMethod=(string)($repeatOrder['delivery_method']??'');$repeatTrackingReference=(string)($repeatOrder['tracking_reference']??'');$repeatDeliveryCharge=(int)($repeatOrder['delivery_charge']??0);$repeatPostageCost=(int)($repeatOrder['postage_cost']??0);$repeatPaymentFee=(int)($repeatOrder['payment_fee']??0);
   $nameToProduct=[];foreach($products as $rp)if((int)$rp['active']===1)$nameToProduct[strtolower(trim((string)$rp['name']))]=$rp;
-  $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
+  $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity,recurring,cycle_weeks FROM items WHERE order_id=? ORDER BY id');$q->execute([$repeatId]);
   $repeatItems=$q->fetchAll(PDO::FETCH_ASSOC);$repeatPairCounter=0;$repeatPenProduct=$nameToProduct['pen']??null;
   foreach($repeatItems as $ri){
    $isStandalonePen=strtolower(trim((string)$ri['name']))==='pen';
@@ -1460,7 +1463,7 @@ if($view==='new' && (int)($_GET['repeat_order']??0)>0){
    $format=$isStandalonePen?'':(in_array((string)$ri['presentation'],['Pen','Cartridge','Vial'],true)?(string)$ri['presentation']:(in_array((string)($repeatOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$repeatOrder['presentation']:'Vial'));
    $base=$ri['base_price']===null?(int)$p['price']:(int)$ri['base_price'];$discount=!$isStandalonePen&&(int)($ri['discount']??0)>0;$pairId='repeat_'.(++$repeatPairCounter);
    $linePrice=$isStandalonePen?(int)$ri['price']:max(0,$base-($discount?500:0));
-   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$linePrice/100,'pair_id'=>$pairId,'paired_pen'=>false,'from_repeat'=>true];
+   $repeatLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ri['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$linePrice/100,'pair_id'=>$pairId,'paired_pen'=>false,'from_repeat'=>true,'recurring'=>(int)($ri['recurring']??0)===1,'cycle_weeks'=>(int)($ri['cycle_weeks']??0)];
   }
  }
 }
@@ -1468,7 +1471,7 @@ if($view==='edit' && (int)($_GET['id']??0)>0){
  $editId=(int)$_GET['id'];$q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$editId]);$editOrder=$q->fetch(PDO::FETCH_ASSOC)?:null;
  if($editOrder){
   $nameToProduct=[];foreach($products as $ep)$nameToProduct[strtolower(trim((string)$ep['name']))]=$ep;
-  $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$editId]);
+  $q=$db->prepare('SELECT name,price,base_price,discount,presentation,quantity,recurring,cycle_weeks FROM items WHERE order_id=? ORDER BY id');$q->execute([$editId]);
   $editItems=$q->fetchAll(PDO::FETCH_ASSOC);$editPairCounter=0;
   foreach($editItems as $ei){
    $isStandalonePen=strtolower(trim((string)$ei['name']))==='pen';
