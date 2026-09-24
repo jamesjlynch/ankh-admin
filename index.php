@@ -1501,11 +1501,17 @@ if($view==='customer' && (int)($_GET['id']??0)>0){$q=$db->prepare('SELECT * FROM
 // Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
 $retaToday=$now->setTime(0,0);
-$retaCyclesActive=$db->query("SELECT * FROM reta_cycles WHERE active=1 ORDER BY date(next_due_date),customer_name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+$retaCyclesActive=$db->query("SELECT * FROM reta_cycles WHERE active=1 ORDER BY date(next_due_date),customer_name COLLATE NOCASE,product_name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
 $retaCyclesStopped=$db->query("SELECT * FROM reta_cycles WHERE active=0 ORDER BY datetime(updated) DESC,id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
-$retaForecast4=retaProjection($retaCyclesActive,$retaToday,28);$retaForecast8=retaProjection($retaCyclesActive,$retaToday,56);$retaForecast12=retaProjection($retaCyclesActive,$retaToday,84);
+$retaForecast4=retaProjection($retaCyclesActive,$retaToday,28);$retaForecast5=retaProjection($retaCyclesActive,$retaToday,35);$retaForecast8=retaProjection($retaCyclesActive,$retaToday,56);$retaForecast12=retaProjection($retaCyclesActive,$retaToday,84);
 $retaDue7=array_values(array_filter($retaCyclesActive,function($cycle)use($retaToday){$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$retaToday->getTimezone());return $due && $due<=$retaToday->modify('+7 days');}));
 $retaOverdue=array_values(array_filter($retaCyclesActive,function($cycle)use($retaToday){$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$retaToday->getTimezone());return $due && $due<$retaToday;}));
+$cycleHorizonWeeks=in_array((int)($_GET['weeks']??8),[4,5,8,12],true)?(int)($_GET['weeks']??8):8;
+$cycleForecast=retaProjection($retaCyclesActive,$retaToday,$cycleHorizonWeeks*7);
+$cycleOccurrences=cycleOccurrences($retaCyclesActive,$retaToday,$cycleHorizonWeeks);
+$productStockMap=[];foreach($products as $stockProduct)$productStockMap[strtolower(trim((string)$stockProduct['name']))]=$stockProduct;
+$cycleStockRows=[];foreach(($cycleForecast['stock']??[]) as $productName=>$needed){$stockProduct=$productStockMap[strtolower(trim((string)$productName))]??null;$current=$stockProduct&&$stockProduct['stock_qty']!==null?(int)$stockProduct['stock_qty']:null;$cycleStockRows[]=['name'=>$productName,'needed'=>(int)$needed,'current'=>$current,'shortfall'=>$current===null?null:max(0,(int)$needed-$current)];}
+usort($cycleStockRows,fn($a,$b)=>(($b['shortfall']??-1)<=>($a['shortfall']??-1))?:strcmp((string)$a['name'],(string)$b['name']));
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
 $todaySales=0;$monthSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
@@ -1636,11 +1642,11 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </section></div><?php endif;?>
 
 <section class="panel dashboard-reta-panel">
-<div class="dashboard-panel-head"><div><p class="eyebrow">RECURRING RETA</p><h2>4-week reminders</h2><p class="muted">Forecasted from each customer’s latest Reta delivery date.</p></div><a href="?view=reta">Manage →</a></div>
-<div class="reta-dashboard-stats"><div><span>Active</span><strong><?=count($retaCyclesActive)?></strong></div><div><span>Due / overdue 7 days</span><strong><?=count($retaDue7)?></strong></div><div><span>Next 4 weeks</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=money($retaForecast4['profit'])?> projected profit</small></div></div>
+<div class="dashboard-panel-head"><div><p class="eyebrow">CYCLE PLANNER</p><h2>Recurring order forecast</h2><p class="muted">Expected repeats calculated from each product’s delivery date and cycle.</p></div><a href="?view=reta">Open planner →</a></div>
+<div class="reta-dashboard-stats"><div><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong></div><div><span>Due / overdue 7 days</span><strong><?=count($retaDue7)?></strong></div><div><span>Next 4 weeks</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=money($retaForecast4['profit'])?> projected profit</small></div></div>
 <?php if($retaCyclesActive):foreach(array_slice($retaCyclesActive,0,4) as $cycle):$dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;?>
-<div class="dashboard-row reta-dashboard-row"><span><b><?=e($cycle['customer_name'])?></b><small><?=e($cycle['product_summary'])?></small></span><strong><?=$daysAway<0?'Overdue '.abs($daysAway).'d':($daysAway===0?'Due today':'Due '.e(date('d M',strtotime($cycle['next_due_date']))))?></strong></div>
-<?php endforeach;else:?><p class="muted">No recurring Reta reminders yet. A cycle starts when a Reta order receives a delivery date.</p><?php endif;?>
+<div class="dashboard-row reta-dashboard-row"><span><b><?=e($cycle['customer_name'])?></b><small><?=e($cycle['product_summary'])?> · every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks</small></span><strong><?=$daysAway<0?'Overdue '.abs($daysAway).'d':($daysAway===0?'Due today':'Due '.e(date('d M',strtotime($cycle['next_due_date']))))?></strong></div>
+<?php endforeach;else:?><p class="muted">No recurring cycles yet. Retatrutide defaults to every 4 weeks; other products can be switched on per order.</p><?php endif;?>
 </section>
 
 <?php if($awaitingPayment||$awaitingDelivery):?><section class="todo-board">
@@ -1976,7 +1982,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="more-grid">
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products & stock</h2><p>Prices, supplier costs, availability and stock levels.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
-<a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Recurring Reta</h2><p>28-day reminders, upcoming repeat orders and projected sales &amp; profit.</p></div><b>›</b></a>
+<a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle Planner</h2><p>Recurring order calendar, demand forecast, projected profit and stock needed.</p></div><b>›</b></a>
 <a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
 </div>
 <div class="more-grid utility-grid">
