@@ -2064,3 +2064,54 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
 @media(max-width:760px){
  .repeat-line-remove{min-height:40px;padding:0 11px}
 }
+
+/* Recurring Reta forecast */
+.dashboard-reta-panel{margin:14px 0}
+.reta-dashboard-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.reta-dashboard-stats>div{padding:11px;border:1px solid #313233;border-radius:12px;background:#121314}
+.reta-dashboard-stats span,.reta-dashboard-stats small{display:block;color:#8f8b82;font-size:9px}
+.reta-dashboard-stats span{text-transform:uppercase;letter-spacing:.6px;font-weight:800}
+.reta-dashboard-stats strong{display:block;margin:4px 0;color:#eee6d6;font-size:18px}
+.reta-dashboard-row span small{display:block;margin-top:2px;color:#89857c;font-size:9px;font-weight:500}
+.reta-forecast-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.reta-forecast-grid article{padding:14px;border:1px solid #353536;border-radius:15px;background:#141516}
+.reta-forecast-grid span,.reta-forecast-grid small{display:block;color:#8f8b82}
+.reta-forecast-grid span{font-size:9px;font-weight:900;letter-spacing:.7px;text-transform:uppercase}
+.reta-forecast-grid strong{display:block;margin:6px 0 4px;color:#f1e7d2;font-size:24px}
+.reta-forecast-grid small{font-size:9px;line-height:1.35}
+.reta-cycle-list{display:grid;gap:10px}
+.reta-cycle-card{padding:14px;border:1px solid #353536;border-radius:14px;background:#121314}
+.reta-cycle-card.soon{border-color:#65532f;background:#17150f}
+.reta-cycle-card.overdue{border-color:#754545;background:#1b1212}
+.reta-cycle-card.stopped{opacity:.78}
+.reta-cycle-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.reta-cycle-top h3{margin:5px 0 3px;color:#f1eadc;font-size:16px}
+.reta-cycle-top p{margin:0;color:#aaa49a;font-size:10px;line-height:1.4}
+.reta-cycle-top small{display:block;margin-top:4px;color:#817d75;font-size:9px}
+.reta-due-badge{display:inline-flex;padding:4px 7px;border:1px solid #5b4b2d;border-radius:999px;color:#d9bd7f;font-size:8px;font-weight:900;letter-spacing:.6px}
+.reta-cycle-card.overdue .reta-due-badge{border-color:#7a4545;color:#e8aaaa}
+.reta-cycle-money{text-align:right;flex:0 0 auto}
+.reta-cycle-money strong{display:block;color:#f2e6ca;font-size:18px}
+.reta-cycle-money small{display:block;margin-top:3px;color:#8f8b82;font-size:9px}
+.reta-cycle-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px}
+.reta-cycle-meta span{padding:8px;border:1px solid #2d2e30;border-radius:9px;color:#b5afa3;font-size:9px}
+.reta-cycle-meta b{display:block;margin-bottom:3px;color:#7f7b73;font-size:8px;text-transform:uppercase;letter-spacing:.5px}
+.reta-cycle-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:12px}
+.reta-cycle-actions form{margin:0}
+.reta-stopped{margin-top:12px}
+.reta-stopped>summary{cursor:pointer;color:#a9a49a;font-weight:800}
+.reta-stopped .reta-cycle-list{margin-top:12px}
+.reta-resume-form{display:flex;align-items:end;gap:8px;margin-top:10px}
+.reta-resume-form label{flex:1}
+@media(max-width:760px){
+ .reta-dashboard-stats{grid-template-columns:1fr 1fr}
+ .reta-dashboard-stats>div:last-child{grid-column:1/-1}
+ .reta-forecast-grid{grid-template-columns:1fr 1fr}
+ .reta-cycle-top{display:block}
+ .reta-cycle-money{text-align:left;margin-top:9px}
+ .reta-cycle-meta{grid-template-columns:1fr 1fr}
+ .reta-cycle-meta span:last-child{grid-column:1/-1}
+ .reta-cycle-actions>*{flex:1 1 auto}
+ .reta-cycle-actions form button{width:100%}
+ .reta-resume-form{display:grid}
+}
