@@ -2239,3 +2239,25 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
  .cycle-planner-grid{grid-template-columns:1fr}
  .cycle-forecast-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+
+.line-cycle-quick{
+  display:flex;
+  flex-wrap:wrap;
+  gap:5px;
+}
+.line-cycle-quick button{
+  min-height:34px;
+  padding:6px 9px;
+  border:1px solid #343638;
+  border-radius:999px;
+  background:#151617;
+  color:#aaa69c;
+  font-size:9px;
+  font-weight:800;
+}
+.line-cycle-quick button.selected{
+  border-color:#80693a;
+  background:#2a2316;
+  color:var(--gold);
+}
+.customer-cycle-panel{margin-bottom:12px}
