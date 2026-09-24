@@ -1240,6 +1240,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $nowCycle=gmdate('c');$q=$db->prepare("UPDATE reta_cycles SET active=1,next_due_date=?,ended_at='',end_reason='',updated=? WHERE id=?");$q->execute([$due,$nowCycle,$cycleId]);
    if(!$q->rowCount())throw new Exception('Cycle could not be found.');
   }
+  if($action==='cycle_amend'){
+   $cycleId=(int)($_POST['cycle_id']??0);$due=trim((string)($_POST['next_due_date']??''));$weeks=(int)($_POST['cycle_weeks']??0);
+   $tzCycle=new DateTimeZone('Europe/London');$date=DateTimeImmutable::createFromFormat('!Y-m-d',$due,$tzCycle);
+   if(!$date||$date->format('Y-m-d')!==$due)throw new Exception('Choose a valid next expected date.');
+   if($weeks<1||$weeks>52)throw new Exception('Choose a cycle between 1 and 52 weeks.');
+   $nowCycle=gmdate('c');$q=$db->prepare("UPDATE reta_cycles SET next_due_date=?,cycle_weeks=?,cycle_days=?,updated=? WHERE id=? AND active=1");$q->execute([$due,$weeks,$weeks*7,$nowCycle,$cycleId]);
+   if(!$q->rowCount())throw new Exception('Cycle could not be found.');
+  }
   if($action==='reta_cycle_start_order'){
    $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$delivery=(string)($q->fetchColumn()?:'');if($delivery==='')throw new Exception('Add the delivery date first. The recurring reminder starts from the delivery date.');
    $q=$db->prepare('SELECT COUNT(*) FROM items WHERE order_id=? AND recurring=1');$q->execute([$orderId]);if((int)$q->fetchColumn()<1)throw new Exception('That order does not have any recurring products selected.');
@@ -1315,7 +1323,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $isReta=isRetaProductName((string)$p['name']);
     if($isStandalonePen){$format='';$recurringFlag=false;$cycleWeeks=0;}
     elseif(!in_array($format,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial for every peptide.');
-    if($isReta && !array_key_exists('recurring',$line))$recurringFlag=true;
+    if($isReta && !$isEdit){$recurringFlag=true;if($cycleWeeks<1||$cycleWeeks>52)$cycleWeeks=4;}
     if($recurringFlag){if($cycleWeeks<1||$cycleWeeks>52)$cycleWeeks=defaultCycleWeeksForProduct((string)$p['name']);}else$cycleWeeks=0;
     $basePrice=postedMoneyPence($line['base_price']??number_format((int)$p['price']/100,2,'.',''),'base price');
     if($basePrice<0)$basePrice=(int)$p['price'];
@@ -1348,6 +1356,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
    $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
    foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
+   if($deliveryDate!=='')syncProductCyclesFromDeliveredOrder($db,$orderId,true);
    if($isEdit)syncProductCyclesFromDeliveredOrder($db,$orderId);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
@@ -1371,7 +1380,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='reta_cycle_stop'?'Recurring cycle stopped.':($action==='reta_cycle_resume'?'Recurring cycle restarted.':($action==='reta_cycle_start_order'?'Recurring cycles started.':($action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))))))));
+ $flash=$action==='reta_cycle_stop'?'Recurring cycle stopped.':($action==='reta_cycle_resume'?'Recurring cycle restarted.':($action==='cycle_amend'?'Recurring cycle updated.':$action==='reta_cycle_start_order'?'Recurring cycles started.':($action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
@@ -1387,7 +1396,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile54"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile55"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1641,32 +1650,16 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </section></div><?php endif;?>
 
 <section class="panel dashboard-reta-panel cycle-preview-card">
-<div class="cycle-preview-head">
- <div><p class="eyebrow">CYCLE PLANNER</p><h2>Recurring orders</h2><p>Forecast from each customer’s delivery date and saved cycle.</p></div>
- <a class="cycle-preview-link" href="?view=reta">View planner <span>→</span></a>
-</div>
-
-<div class="cycle-preview-metrics">
- <article><span>Active</span><strong><?=count($retaCyclesActive)?></strong><small>cycles</small></article>
- <article><span>Due soon</span><strong><?=count($retaDue7)?></strong><small>next 7 days</small></article>
- <article><span>4-week forecast</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=money($retaForecast4['profit'])?> profit</small></article>
-</div>
-
-<?php if($retaCyclesActive):?>
-<div class="cycle-preview-list-head"><span>Next due</span><small><?=count($retaCyclesActive)?> active cycle<?=count($retaCyclesActive)===1?'':'s'?></small></div>
-<div class="cycle-preview-list">
-<?php foreach(array_slice($retaCyclesActive,0,3) as $cycle):
- $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;
- $cycleWeeks=max(1,(int)($cycle['cycle_weeks']??4));$dueTone=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');
-?>
-<a class="cycle-preview-row <?=$dueTone?>" href="?view=edit&amp;id=<?=(int)$cycle['last_order_id']?>">
- <div class="cycle-preview-copy"><strong><?=e($cycle['customer_name'])?></strong><span><?=e($cycle['product_summary'])?></span><small>Every <?=$cycleWeeks?> weeks</small></div>
- <div class="cycle-preview-date"><strong><?=$daysAway<0?'Overdue':($daysAway===0?'Today':e(date('d M',strtotime($cycle['next_due_date']))))?></strong><?php if($daysAway>0):?><small><?=$daysAway?> day<?=$daysAway===1?'':'s'?></small><?php elseif($daysAway<0):?><small><?=abs($daysAway)?> day<?=abs($daysAway)===1?'':'s'?> late</small><?php endif;?></div>
+<div class="cycle-preview-head"><div><p class="eyebrow">UPCOMING CYCLES</p><h2>Next 7 days</h2></div><a class="cycle-preview-link" href="?view=reta">Calendar <span>→</span></a></div>
+<?php if($retaDue7):?><div class="cycle-preview-list">
+<?php foreach(array_slice($retaDue7,0,4) as $cycle):
+ $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;$dueTone=$daysAway<0?'overdue':($daysAway<=2?'soon':'future');?>
+<a class="cycle-preview-row <?=$dueTone?>" href="?view=customer&amp;id=<?=urlencode((string)($customerIdByKey[strtolower(trim((string)$cycle['customer_name'])).'|'.trim((string)$cycle['phone'])]??''))?>">
+ <div class="cycle-preview-copy"><strong><?=e($cycle['customer_name'])?></strong><span><?=e($cycle['product_name']?:$cycle['product_summary'])?><?php if((int)($cycle['quantity']??1)>1):?> × <?=(int)$cycle['quantity']?><?php endif;?></span></div>
+ <div class="cycle-preview-date"><strong><?=$daysAway<0?'Overdue':($daysAway===0?'Today':($daysAway===1?'Tomorrow':e(date('D d',strtotime($cycle['next_due_date'])))))?></strong><small><?=max(1,(int)($cycle['cycle_weeks']??4))?> week cycle</small></div>
 </a>
-<?php endforeach;?>
-</div>
-<?php if(count($retaCyclesActive)>3):?><a class="cycle-preview-more" href="?view=reta">+ <?=count($retaCyclesActive)-3?> more upcoming cycle<?=count($retaCyclesActive)-3===1?'':'s'?></a><?php endif;?>
-<?php else:?><div class="cycle-preview-empty"><span>↻</span><div><strong>No recurring cycles yet</strong><p>Retatrutide defaults to every 4 weeks when an order is set as recurring.</p></div></div><?php endif;?>
+<?php endforeach;?></div><?php if(count($retaDue7)>4):?><a class="cycle-preview-more" href="?view=reta">+ <?=count($retaDue7)-4?> more due soon</a><?php endif;?>
+<?php else:?><div class="cycle-preview-clear"><span>✓</span><div><strong>Nothing due in the next 7 days</strong><small><?=count($retaCyclesActive)?> active recurring cycle<?=count($retaCyclesActive)===1?'':'s'?></small></div></div><?php endif;?>
 </section>
 
 <?php if($awaitingPayment||$awaitingDelivery):?><section class="todo-board">
@@ -1908,7 +1901,17 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CONTACT</p><h2>Customer details</h2></div></div><?php if($customerAccount['address']):?><p class="address"><?=nl2br(e($customerAccount['address']))?></p><?php else:?><p class="muted">No address saved.</p><?php endif;?><div class="customer-quick-actions"><?php if($customerAccount['address']):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($customerAccount['address'])?>">Copy address</button><?php endif;?></div></section>
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">FAVOURITES</p><h2>Most ordered products</h2></div></div><?php if($accountFavourites):foreach($accountFavourites as $fav):?><div class="dashboard-row"><span><?=e($fav['name'])?></span><strong>×<?=$fav['qty']?></strong></div><?php endforeach;else:?><p class="muted">No product history yet.</p><?php endif;?></section>
 </div>
-<?php if($accountCycles):?><section class="panel customer-cycle-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CYCLE PLANNER</p><h2>Recurring products</h2></div><a href="?view=reta">Open planner →</a></div><?php foreach($accountCycles as $cycle):?><div class="dashboard-row"><span><b><?=e($cycle['product_summary']?:$cycle['product_name'])?></b><small>Every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks</small></span><strong><?=e(date('d M',strtotime($cycle['next_due_date'])))?></strong></div><?php endforeach;?></section><?php endif;?>
+<?php if($accountCycles):?><section class="panel customer-cycle-panel">
+<div class="cycle-customer-head"><div><p class="eyebrow">RECURRING</p><h2>Recurring peptides</h2><p>Manage this customer’s expected repeat orders.</p></div><a class="cycle-preview-link" href="?view=reta">Calendar →</a></div>
+<div class="customer-cycle-list">
+<?php foreach($accountCycles as $cycle):$cycleDue=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$cycleDays=$cycleDue?(int)$retaToday->diff($cycleDue)->format('%r%a'):0;?>
+<article class="customer-cycle-card">
+ <div class="customer-cycle-main"><div class="cycle-product-icon">↻</div><div><span class="cycle-active-pill">ACTIVE</span><h3><?=e($cycle['product_name']?:$cycle['product_summary'])?></h3><p><?=e($cycle['presentation']?:'Peptide')?> · every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks</p></div></div>
+ <div class="customer-cycle-due"><span>Next expected</span><strong><?=e(date('D d M',strtotime($cycle['next_due_date'])))?></strong><small><?=$cycleDays<0?abs($cycleDays).' days overdue':($cycleDays===0?'Due today':$cycleDays.' days away')?></small></div>
+ <details class="customer-cycle-edit"><summary>Amend cycle</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="cycle_amend"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="customer"><input type="hidden" name="customer_id" value="<?=$customerAccount['id']?>"><label>Next expected date<input type="date" name="next_due_date" value="<?=e($cycle['next_due_date'])?>" required></label><label>Repeat every<div class="cycle-weeks-field"><input type="number" name="cycle_weeks" min="1" max="52" value="<?=max(1,(int)($cycle['cycle_weeks']??4))?>" required><span>weeks</span></div></label><button>Save changes</button></form></details>
+ <form method="post" class="customer-cycle-cancel" onsubmit="return confirm('Cancel this recurring <?=e(addslashes((string)($cycle['product_name']?:'peptide')))?> cycle?');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="reason" value="Cancelled from customer account"><input type="hidden" name="return" value="customer"><input type="hidden" name="customer_id" value="<?=$customerAccount['id']?>"><button type="submit">Cancel recurring</button></form>
+</article>
+<?php endforeach;?></div></section><?php endif;?>
 <section class="panel customer-account-orders"><div class="dashboard-panel-head"><div><p class="eyebrow">HISTORY</p><h2>Orders</h2><p class="muted">Every order for this customer, newest first.</p></div></div>
 <?php if($accountHistory):foreach($accountHistory as $ao):?><div class="customer-account-order">
  <div><a href="?view=edit&amp;id=<?=$ao['id']?>" class="ref">ANK-<?=str_pad((string)$ao['id'],4,'0',STR_PAD_LEFT)?></a><strong><?=e(date('d M Y',strtotime($ao['created'])))?></strong><small><?=e($ao['status'])?><?php if($ao['payment_method']):?> · <?=e($ao['payment_method'])?><?php endif;?></small></div>
@@ -1919,7 +1922,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php endif;?>
 
 <?php elseif($view==='reta'):?>
-<div class="heading reta-heading"><div><p class="eyebrow">CYCLE PLANNER</p><h1>Recurring order forecast</h1><p class="muted page-description">Expected repeat orders based on each product’s delivery date and selected cycle. These are forecasts, not guaranteed sales.</p></div><a class="quick-action" href="?view=dashboard">← Dashboard</a></div>
+<div class="heading reta-heading"><div><p class="eyebrow">CYCLE PLANNER</p><h1>Upcoming cycles</h1><p class="muted page-description">Customers who may be ready for their next peptide order.</p></div><a class="quick-action" href="?view=dashboard">← Dashboard</a></div>
 
 <div class="cycle-horizon-tabs"><?php foreach([4,5,8,12] as $weeks):?><a href="?view=reta&amp;weeks=<?=$weeks?>" class="<?=$cycleHorizonWeeks===$weeks?'selected':''?>"><?=$weeks?> weeks</a><?php endforeach;?></div>
 
