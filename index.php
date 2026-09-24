@@ -533,12 +533,13 @@ function retaOrderLines(PDO $db,int $orderId):array{
  return $lines;
 }
 function syncRetaCycleFromDeliveredOrder(PDO $db,int $orderId,bool $forceHistorical=false):void{
- $q=$db->prepare('SELECT customer,phone,created,delivery_date,status FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)return;
+ $q=$db->prepare('SELECT customer,phone,created,delivery_date,status,delivery_charge,postage_cost FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)return;
  $deliveryDate=trim((string)($order['delivery_date']??''));if($deliveryDate===''){
   $now=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Delivery date removed',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
  }
  if(!$forceHistorical && $deliveryDate<'2026-09-24')return;
  $lines=retaOrderLines($db,$orderId);$snapshot=retaCycleSnapshot($lines);
+ if($snapshot){$snapshot['expected_value']+=(int)($order['delivery_charge']??0);$snapshot['expected_cost']+=(int)($order['postage_cost']??0);$snapshot['expected_profit']=$snapshot['expected_value']-$snapshot['expected_cost'];}
  if(!$snapshot){
   $now=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Reta removed from latest order',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
  }
