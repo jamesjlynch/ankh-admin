@@ -33,8 +33,12 @@ CREATE TABLE IF NOT EXISTS reta_cycles (
  source_order_id INTEGER DEFAULT NULL,
  last_order_id INTEGER DEFAULT NULL,
  last_order_date TEXT NOT NULL,
+ last_delivery_date TEXT NOT NULL DEFAULT "",
  next_due_date TEXT NOT NULL,
  expected_value INTEGER NOT NULL DEFAULT 0,
+ expected_cost INTEGER NOT NULL DEFAULT 0,
+ expected_profit INTEGER NOT NULL DEFAULT 0,
+ cost_missing INTEGER NOT NULL DEFAULT 0,
  product_summary TEXT NOT NULL DEFAULT "",
  cycle_days INTEGER NOT NULL DEFAULT 28,
  active INTEGER NOT NULL DEFAULT 1,
@@ -70,6 +74,12 @@ if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("A
 $db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
 $db->exec('CREATE INDEX IF NOT EXISTS idx_reta_cycles_due ON reta_cycles(active,next_due_date)');
 $db->exec('CREATE INDEX IF NOT EXISTS idx_reta_cycles_customer ON reta_cycles(customer_name,phone)');
+$retaColumns=$db->query('PRAGMA table_info(reta_cycles)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('last_delivery_date',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN last_delivery_date TEXT NOT NULL DEFAULT ''");
+if(!in_array('expected_cost',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN expected_cost INTEGER NOT NULL DEFAULT 0");
+if(!in_array('expected_profit',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN expected_profit INTEGER NOT NULL DEFAULT 0");
+if(!in_array('cost_missing',array_column($retaColumns,'name'),true))$db->exec("ALTER TABLE reta_cycles ADD COLUMN cost_missing INTEGER NOT NULL DEFAULT 0");
+
 
 $db->exec("INSERT INTO payments(order_id,amount,method,note,created)
  SELECT o.id,
@@ -492,49 +502,82 @@ function refreshOrderPaymentState(PDO $db,int $orderId):void{
 }
 function isRetaProductName(string $name):bool{return str_starts_with(strtolower(trim($name)),'retatrutide');}
 function retaCycleSnapshot(array $lines):?array{
- $retaValue=0;$retaPenUnits=0;$parts=[];
+ $retaRevenue=0;$retaCost=0;$retaPenUnits=0;$parts=[];$costMissing=false;
  foreach($lines as $line){
-  $productName=(string)($line['product']['name']??'');if(!isRetaProductName($productName))continue;
-  $qty=(int)($line['qty']??0);if($qty<1)continue;
-  $retaValue+=(int)($line['price']??0)*$qty;if((string)($line['presentation']??'')==='Pen')$retaPenUnits+=$qty;
+  $productName=(string)($line['product']['name']??$line['name']??'');if(!isRetaProductName($productName))continue;
+  $qty=max(0,(int)($line['qty']??$line['quantity']??0));if($qty<1)continue;
+  $retaRevenue+=(int)($line['price']??0)*$qty;
+  $lineCost=$line['cost']??null;if($lineCost===null)$costMissing=true;else$retaCost+=(int)$lineCost*$qty;
+  $presentationCost=(int)($line['presentation_cost']??0);if($presentationCost>0)$retaCost+=$presentationCost*$qty;
+  if((string)($line['presentation']??'')==='Pen')$retaPenUnits+=$qty;
   $parts[]=$qty.' × '.$productName.((string)($line['presentation']??'')!==''?' · '.(string)$line['presentation']:'');
  }
  if(!$parts)return null;
- $penRemaining=$retaPenUnits;$penValue=0;$penCount=0;
+ $penRemaining=$retaPenUnits;$penRevenue=0;$penCost=0;$penCount=0;
  if($penRemaining>0){
   foreach($lines as $line){
-   $productName=strtolower(trim((string)($line['product']['name']??'')));if($productName!=='pen'||$penRemaining<=0)continue;
-   $qty=min($penRemaining,max(0,(int)($line['qty']??0)));if($qty<1)continue;
-   $penValue+=(int)($line['price']??0)*$qty;$penCount+=$qty;$penRemaining-=$qty;
+   $productName=strtolower(trim((string)($line['product']['name']??$line['name']??'')));if($productName!=='pen'||$penRemaining<=0)continue;
+   $available=max(0,(int)($line['qty']??$line['quantity']??0));$qty=min($penRemaining,$available);if($qty<1)continue;
+   $penRevenue+=(int)($line['price']??0)*$qty;
+   $lineCost=$line['cost']??null;if($lineCost===null)$costMissing=true;else$penCost+=(int)$lineCost*$qty;
+   $penCount+=$qty;$penRemaining-=$qty;
   }
   if($penCount>0)$parts[]=$penCount.' × Pen';
  }
- return ['expected_value'=>$retaValue+$penValue,'summary'=>implode(' + ',$parts)];
+ $value=$retaRevenue+$penRevenue;$cost=$retaCost+$penCost;
+ return ['expected_value'=>$value,'expected_cost'=>$cost,'expected_profit'=>$value-$cost,'cost_missing'=>$costMissing?1:0,'summary'=>implode(' + ',$parts)];
 }
-function updateRetaCycleFromOrder(PDO $db,int $orderId,string $customer,string $phone,string $orderDate,array $lines):void{
- // No historical backfill: automatic tracking starts with orders dated 24 Sep 2026 onward.
- if($orderDate<'2026-09-24')return;
- $snapshot=retaCycleSnapshot($lines);
+function retaOrderLines(PDO $db,int $orderId):array{
+ $q=$db->prepare('SELECT name,price,cost,presentation,presentation_cost,quantity FROM items WHERE order_id=? ORDER BY id');$q->execute([$orderId]);$lines=[];
+ foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row)$lines[]=['product'=>['name'=>(string)$row['name']],'qty'=>(int)$row['quantity'],'presentation'=>(string)$row['presentation'],'price'=>(int)$row['price'],'cost'=>$row['cost']===null?null:(int)$row['cost'],'presentation_cost'=>(int)($row['presentation_cost']??0)];
+ return $lines;
+}
+function syncRetaCycleFromDeliveredOrder(PDO $db,int $orderId,bool $forceHistorical=false):void{
+ $q=$db->prepare('SELECT customer,phone,created,delivery_date,status FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)return;
+ $deliveryDate=trim((string)($order['delivery_date']??''));if($deliveryDate===''){
+  $now=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Delivery date removed',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
+ }
+ if(!$forceHistorical && $deliveryDate<'2026-09-24')return;
+ $lines=retaOrderLines($db,$orderId);$snapshot=retaCycleSnapshot($lines);
  if(!$snapshot){
-  $q=$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Reta removed from latest order',updated=? WHERE active=1 AND last_order_id=?");
-  $now=gmdate('c');$q->execute([$now,$now,$orderId]);return;
+  $now=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Reta removed from latest order',updated=? WHERE active=1 AND last_order_id=?")->execute([$now,$now,$orderId]);return;
  }
- $tz=new DateTimeZone('Europe/London');$due=(new DateTimeImmutable($orderDate,$tz))->modify('+28 days')->format('Y-m-d');$now=gmdate('c');
- $q=$db->prepare("SELECT id FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) AND trim(phone)=trim(?) ORDER BY id DESC LIMIT 1");$q->execute([$customer,$phone]);$existing=(int)$q->fetchColumn();
- if($existing>0){
-  $db->prepare("UPDATE reta_cycles SET customer_name=?,phone=?,last_order_id=?,last_order_date=?,next_due_date=?,expected_value=?,product_summary=?,cycle_days=28,updated=?,ended_at='',end_reason='' WHERE id=?")
-   ->execute([$customer,$phone,$orderId,$orderDate,$due,(int)$snapshot['expected_value'],(string)$snapshot['summary'],$now,$existing]);
+ $orderDate=date('Y-m-d',strtotime((string)$order['created']));$tz=new DateTimeZone('Europe/London');$due=(new DateTimeImmutable($deliveryDate,$tz))->modify('+28 days')->format('Y-m-d');$now=gmdate('c');
+ $q=$db->prepare("SELECT id,last_delivery_date,last_order_date FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) AND trim(phone)=trim(?) ORDER BY id DESC LIMIT 1");$q->execute([(string)$order['customer'],(string)$order['phone']]);$existing=$q->fetch(PDO::FETCH_ASSOC);
+ if($existing){
+  $existingDelivery=trim((string)($existing['last_delivery_date']??''));if($existingDelivery!==''&&$existingDelivery>$deliveryDate)return;
+  $db->prepare("UPDATE reta_cycles SET customer_name=?,phone=?,last_order_id=?,last_order_date=?,last_delivery_date=?,next_due_date=?,expected_value=?,expected_cost=?,expected_profit=?,cost_missing=?,product_summary=?,cycle_days=28,updated=?,ended_at='',end_reason='' WHERE id=?")
+   ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderDate,$deliveryDate,$due,(int)$snapshot['expected_value'],(int)$snapshot['expected_cost'],(int)$snapshot['expected_profit'],(int)$snapshot['cost_missing'],(string)$snapshot['summary'],$now,(int)$existing['id']]);
  }else{
-  $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,next_due_date,expected_value,product_summary,cycle_days,active,created,updated) VALUES (?,?,?,?,?,?,?,?,28,1,?,?)")
-   ->execute([$customer,$phone,$orderId,$orderId,$orderDate,$due,(int)$snapshot['expected_value'],(string)$snapshot['summary'],$now,$now]);
+  $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,last_delivery_date,next_due_date,expected_value,expected_cost,expected_profit,cost_missing,product_summary,cycle_days,active,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,28,1,?,?)")
+   ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderId,$orderDate,$deliveryDate,$due,(int)$snapshot['expected_value'],(int)$snapshot['expected_cost'],(int)$snapshot['expected_profit'],(int)$snapshot['cost_missing'],(string)$snapshot['summary'],$now,$now]);
  }
 }
-function retaForecastRows(PDO $db,string $start,string $end):array{
- $q=$db->prepare("SELECT * FROM reta_cycles WHERE active=1 AND date(next_due_date)>=date(?) AND date(next_due_date)<=date(?) ORDER BY date(next_due_date),customer_name COLLATE NOCASE");
- $q->execute([$start,$end]);return $q->fetchAll(PDO::FETCH_ASSOC);
+function retaProjection(array $cycles,DateTimeImmutable $today,int $days):array{
+ $end=$today->modify('+'.max(1,$days).' days');$orders=0;$revenue=0;$profit=0;$costMissing=0;
+ foreach($cycles as $cycle){
+  $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$today->getTimezone());if(!$due)continue;
+  if($due<$today){
+   if($days>=1){$orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;}
+   continue;
+  }
+  while($due<=$end){$orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;$due=$due->modify('+28 days');}
+ }
+ return ['orders'=>$orders,'revenue'=>$revenue,'profit'=>$profit,'cost_missing'=>$costMissing];
 }
 
 
+
+if(setting($db,'reta_delivery_projection_v1')!=='done'){
+ $cycles=$db->query("SELECT id,last_order_id,active FROM reta_cycles")->fetchAll(PDO::FETCH_ASSOC);
+ foreach($cycles as $cycle){
+  $orderId=(int)($cycle['last_order_id']??0);if($orderId<1)continue;
+  $q=$db->prepare('SELECT delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$delivery=(string)($q->fetchColumn()?:'');
+  if($delivery!=='')syncRetaCycleFromDeliveredOrder($db,$orderId,true);
+  elseif((int)$cycle['active']===1){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Waiting for delivery date',updated=? WHERE id=?")->execute([$nowCycle,$nowCycle,(int)$cycle['id']]);}
+ }
+ saveSetting($db,'reta_delivery_projection_v1','done');
+}
 
 if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='order-pdf'){
  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600){http_response_code(401);exit('Please sign in again.');}
