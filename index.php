@@ -1387,7 +1387,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile53"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile54"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1640,12 +1640,33 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php $rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;?>
 </section></div><?php endif;?>
 
-<section class="panel dashboard-reta-panel">
-<div class="dashboard-panel-head"><div><p class="eyebrow">CYCLE PLANNER</p><h2>Recurring order forecast</h2><p class="muted">Expected repeats calculated from each product’s delivery date and cycle.</p></div><a href="?view=reta">Open planner →</a></div>
-<div class="reta-dashboard-stats"><div><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong></div><div><span>Due / overdue 7 days</span><strong><?=count($retaDue7)?></strong></div><div><span>Next 4 weeks</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=money($retaForecast4['profit'])?> projected profit</small></div></div>
-<?php if($retaCyclesActive):foreach(array_slice($retaCyclesActive,0,4) as $cycle):$dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;?>
-<div class="dashboard-row reta-dashboard-row"><span><b><?=e($cycle['customer_name'])?></b><small><?=e($cycle['product_summary'])?> · every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks</small></span><strong><?=$daysAway<0?'Overdue '.abs($daysAway).'d':($daysAway===0?'Due today':'Due '.e(date('d M',strtotime($cycle['next_due_date']))))?></strong></div>
-<?php endforeach;else:?><p class="muted">No recurring cycles yet. Retatrutide defaults to every 4 weeks; other products can be switched on per order.</p><?php endif;?>
+<section class="panel dashboard-reta-panel cycle-preview-card">
+<div class="cycle-preview-head">
+ <div><p class="eyebrow">CYCLE PLANNER</p><h2>Recurring orders</h2><p>Forecast from each customer’s delivery date and saved cycle.</p></div>
+ <a class="cycle-preview-link" href="?view=reta">View planner <span>→</span></a>
+</div>
+
+<div class="cycle-preview-metrics">
+ <article><span>Active</span><strong><?=count($retaCyclesActive)?></strong><small>cycles</small></article>
+ <article><span>Due soon</span><strong><?=count($retaDue7)?></strong><small>next 7 days</small></article>
+ <article><span>4-week forecast</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=money($retaForecast4['profit'])?> profit</small></article>
+</div>
+
+<?php if($retaCyclesActive):?>
+<div class="cycle-preview-list-head"><span>Next due</span><small><?=count($retaCyclesActive)?> active cycle<?=count($retaCyclesActive)===1?'':'s'?></small></div>
+<div class="cycle-preview-list">
+<?php foreach(array_slice($retaCyclesActive,0,3) as $cycle):
+ $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;
+ $cycleWeeks=max(1,(int)($cycle['cycle_weeks']??4));$dueTone=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');
+?>
+<a class="cycle-preview-row <?=$dueTone?>" href="?view=edit&amp;id=<?=(int)$cycle['last_order_id']?>">
+ <div class="cycle-preview-copy"><strong><?=e($cycle['customer_name'])?></strong><span><?=e($cycle['product_summary'])?></span><small>Every <?=$cycleWeeks?> weeks</small></div>
+ <div class="cycle-preview-date"><strong><?=$daysAway<0?'Overdue':($daysAway===0?'Today':e(date('d M',strtotime($cycle['next_due_date']))))?></strong><?php if($daysAway>0):?><small><?=$daysAway?> day<?=$daysAway===1?'':'s'?></small><?php elseif($daysAway<0):?><small><?=abs($daysAway)?> day<?=abs($daysAway)===1?'':'s'?> late</small><?php endif;?></div>
+</a>
+<?php endforeach;?>
+</div>
+<?php if(count($retaCyclesActive)>3):?><a class="cycle-preview-more" href="?view=reta">+ <?=count($retaCyclesActive)-3?> more upcoming cycle<?=count($retaCyclesActive)-3===1?'':'s'?></a><?php endif;?>
+<?php else:?><div class="cycle-preview-empty"><span>↻</span><div><strong>No recurring cycles yet</strong><p>Retatrutide defaults to every 4 weeks when an order is set as recurring.</p></div></div><?php endif;?>
 </section>
 
 <?php if($awaitingPayment||$awaitingDelivery):?><section class="todo-board">
