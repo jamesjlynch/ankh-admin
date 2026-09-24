@@ -1323,7 +1323,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $isReta=isRetaProductName((string)$p['name']);
     if($isStandalonePen){$format='';$recurringFlag=false;$cycleWeeks=0;}
     elseif(!in_array($format,['Pen','Cartridge','Vial'],true))throw new Exception('Choose Pen, Cartridge or Vial for every peptide.');
-    if($isReta && !$isEdit){$recurringFlag=true;if($cycleWeeks<1||$cycleWeeks>52)$cycleWeeks=4;}
+    if($isReta && !$isEdit && !array_key_exists('recurring',$line)){$recurringFlag=true;if($cycleWeeks<1||$cycleWeeks>52)$cycleWeeks=4;}
     if($recurringFlag){if($cycleWeeks<1||$cycleWeeks>52)$cycleWeeks=defaultCycleWeeksForProduct((string)$p['name']);}else$cycleWeeks=0;
     $basePrice=postedMoneyPence($line['base_price']??number_format((int)$p['price']/100,2,'.',''),'base price');
     if($basePrice<0)$basePrice=(int)$p['price'];
@@ -2393,17 +2393,21 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
 
  if(!standalonePen){
   const cycleWrap=document.createElement('div');cycleWrap.className='line-cycle-wrap'+(recurring?' selected':'');
-  const cycleToggle=document.createElement('button');cycleToggle.type='button';cycleToggle.className='line-cycle-toggle';cycleToggle.setAttribute('aria-pressed',recurring?'true':'false');
-  const cycleCopy=document.createElement('span');cycleCopy.innerHTML='<strong>↻ Recurring cycle</strong><small>Forecast another order from the delivery date</small>';
-  const cycleStatus=document.createElement('b');cycleStatus.textContent=recurring?'Every '+cycleWeeks+' weeks':'Off';cycleToggle.append(cycleCopy,cycleStatus);
-  const cycleOptions=document.createElement('div');cycleOptions.className='line-cycle-options';cycleOptions.hidden=!recurring;
+  let cycleExpanded=false;
+  const cycleToggle=document.createElement('button');cycleToggle.type='button';cycleToggle.className='line-cycle-toggle';cycleToggle.setAttribute('aria-expanded','false');cycleToggle.setAttribute('aria-label','Show recurring cycle options');
+  const cycleCopy=document.createElement('span');cycleCopy.innerHTML='<strong>↻ Recurring cycle</strong><small>Tap to change the schedule</small>';
+  const cycleSummary=document.createElement('span');cycleSummary.className='line-cycle-summary';
+  const cycleStatus=document.createElement('b');const cycleChevron=document.createElement('i');cycleChevron.className='line-cycle-chevron';cycleChevron.setAttribute('aria-hidden','true');cycleChevron.textContent='⌄';cycleSummary.append(cycleStatus,cycleChevron);cycleToggle.append(cycleCopy,cycleSummary);
+  const cycleOptions=document.createElement('div');cycleOptions.className='line-cycle-options';cycleOptions.hidden=true;
   const cycleLabel=document.createElement('label');cycleLabel.textContent='Repeat every';const cycleInput=document.createElement('input');cycleInput.type='number';cycleInput.min='1';cycleInput.max='52';cycleInput.step='1';cycleInput.inputMode='numeric';cycleInput.value=String(cycleWeeks);cycleInput.setAttribute('aria-label','Repeat every number of weeks');
   const cycleSuffix=document.createElement('span');cycleSuffix.textContent='weeks';cycleLabel.append(cycleInput,cycleSuffix);
   const cycleQuick=document.createElement('div');cycleQuick.className='line-cycle-quick';[4,5,8,12].forEach(weeks=>{const chip=document.createElement('button');chip.type='button';chip.textContent=weeks+' wk';chip.dataset.cycleQuick=String(weeks);chip.addEventListener('click',()=>{hiddenRecurring.value='1';hiddenCycleWeeks.value=String(weeks);cycleInput.value=String(weeks);refreshCycle();saveDraftOrder()});cycleQuick.append(chip)});
   const cycleHint=document.createElement('small');cycleHint.textContent=isReta?'Retatrutide defaults to 4 weeks.':(isGhk?'GHK suggestion: 8 weeks.':'Choose the customer’s usual cycle.');
-  cycleOptions.append(cycleLabel,cycleQuick,cycleHint);cycleWrap.append(cycleToggle,cycleOptions);card.append(cycleWrap);
-  const refreshCycle=()=>{const on=hiddenRecurring.value==='1',weeks=Math.min(52,Math.max(1,Number(hiddenCycleWeeks.value)||suggestedWeeks));hiddenCycleWeeks.value=String(weeks);cycleInput.value=String(weeks);cycleWrap.classList.toggle('selected',on);cycleToggle.setAttribute('aria-pressed',on?'true':'false');cycleStatus.textContent=on?'Every '+weeks+' weeks':'Off';cycleOptions.hidden=!on;cycleQuick.querySelectorAll('button').forEach(chip=>chip.classList.toggle('selected',Number(chip.dataset.cycleQuick)===weeks))};
-  cycleToggle.addEventListener('click',()=>{hiddenRecurring.value=hiddenRecurring.value==='1'?'0':'1';if(hiddenRecurring.value==='1'&&Number(hiddenCycleWeeks.value)<1)hiddenCycleWeeks.value=String(suggestedWeeks);refreshCycle();saveDraftOrder()});
+  const cycleAction=document.createElement('button');cycleAction.type='button';cycleAction.className='line-cycle-action';
+  cycleOptions.append(cycleLabel,cycleQuick,cycleHint,cycleAction);cycleWrap.append(cycleToggle,cycleOptions);card.append(cycleWrap);
+  const refreshCycle=()=>{const on=hiddenRecurring.value==='1',weeks=Math.min(52,Math.max(1,Number(hiddenCycleWeeks.value)||suggestedWeeks));hiddenCycleWeeks.value=String(weeks);cycleInput.value=String(weeks);cycleWrap.classList.toggle('selected',on);cycleStatus.textContent=on?'Every '+weeks+' weeks':'Off';cycleAction.textContent=on?'Remove recurrence':'Enable recurrence';cycleAction.setAttribute('aria-pressed',on?'true':'false');cycleOptions.hidden=!cycleExpanded;cycleToggle.setAttribute('aria-expanded',cycleExpanded?'true':'false');cycleChevron.textContent=cycleExpanded?'⌃':'⌄';cycleQuick.querySelectorAll('button').forEach(chip=>chip.classList.toggle('selected',Number(chip.dataset.cycleQuick)===weeks))};
+  cycleToggle.addEventListener('click',()=>{cycleExpanded=!cycleExpanded;refreshCycle()});
+  cycleAction.addEventListener('click',()=>{hiddenRecurring.value=hiddenRecurring.value==='1'?'0':'1';if(hiddenRecurring.value==='1'&&Number(hiddenCycleWeeks.value)<1)hiddenCycleWeeks.value=String(suggestedWeeks);refreshCycle();saveDraftOrder()});
   cycleInput.addEventListener('input',()=>{let weeks=Math.min(52,Math.max(1,Number(cycleInput.value)||suggestedWeeks));hiddenCycleWeeks.value=String(weeks);hiddenRecurring.value='1';refreshCycle();saveDraftOrder()});
   refreshCycle();
  }
