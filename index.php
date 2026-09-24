@@ -753,10 +753,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-order'){
    $base=(int)$p['price']/100;$canDiscount=!$isStandalonePen&&(bool)preg_match('/\d+(?:\.\d+)?\s*mg$/i',$name);$discount=$canDiscount&&!empty($line['family_friends']);
    $price=max(0,$base-($discount?5:0));
    $pairId='voice_'.count($lines).'_'.substr(hash('sha256',$name.'|'.$qty.'|'.count($lines)),0,10);
-   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price,'pair_id'=>$pairId,'paired_pen'=>false,'recurring'=>(int)($ei['recurring']??0)===1,'cycle_weeks'=>(int)($ei['cycle_weeks']??0)];
+   $lines[]=['product_id'=>(int)$p['id'],'name'=>$name,'quantity'=>$qty,'presentation'=>$presentation,'base_price'=>$base,'discount'=>$discount,'price'=>$price,'pair_id'=>$pairId,'paired_pen'=>false,'recurring'=>isRetaProductName($name),'cycle_weeks'=>isRetaProductName($name)?4:defaultCycleWeeksForProduct($name)];
    if(!$isStandalonePen && $presentation==='Pen' && $penProduct){
     $penBase=(int)$penProduct['price']/100;
-    $lines[]=['product_id'=>(int)$penProduct['id'],'name'=>'Pen','quantity'=>$qty,'presentation'=>'','base_price'=>$penBase,'discount'=>false,'price'=>$penBase,'pair_id'=>$pairId,'paired_pen'=>true,'paired_with_name'=>$name];
+    $lines[]=['product_id'=>(int)$penProduct['id'],'name'=>'Pen','quantity'=>$qty,'presentation'=>'','base_price'=>$penBase,'discount'=>false,'price'=>$penBase,'pair_id'=>$pairId,'paired_pen'=>true,'paired_with_name'=>$name,'recurring'=>false,'cycle_weeks'=>0];
    }
   }
   $draft['lines']=$lines;
