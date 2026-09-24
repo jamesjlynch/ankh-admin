@@ -538,7 +538,7 @@ function refreshOrderPaymentState(PDO $db,int $orderId):void{
  }
 }
 function addStockMovement(PDO $db,int $productId,string $type,int $delta,string $note='',?int $orderId=null,string $supplier='',string $batch='',string $expiry='',?int $unitCost=null):void{
- if($delta===0)return;
+ if($delta===0&&$type!=='opening')return;
  $q=$db->prepare('INSERT INTO stock_movements(product_id,movement_type,quantity_change,order_id,note,supplier,batch_reference,expiry_date,unit_cost,created) VALUES (?,?,?,?,?,?,?,?,?,?)');
  $q->execute([$productId,$type,$delta,$orderId,$note,$supplier,$batch,$expiry,$unitCost,gmdate('c')]);
 }
@@ -1262,7 +1262,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='stock_receive'){
    $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$supplier=trim((string)($_POST['supplier']??''));$batch=trim((string)($_POST['batch_reference']??''));$expiry=trim((string)($_POST['expiry_date']??''));$note=trim((string)($_POST['note']??''));$unitCostRaw=trim((string)($_POST['unit_cost']??''));$unitCost=$unitCostRaw===''?null:postedMoneyPence($unitCostRaw,'unit cost');
    if($productId<1||$quantity===false||$quantity<1||$quantity>999999||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details.');
-   if($expiry!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry)||!DateTimeImmutable::createFromFormat('!Y-m-d',$expiry)))throw new Exception('Enter a valid expiry date.');
+   if($expiry!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry)||!checkdate((int)substr($expiry,5,2),(int)substr($expiry,8,2),(int)substr($expiry,0,4))))throw new Exception('Enter a valid expiry date.');
    $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked!==1)throw new Exception('Set an opening count before receiving stock.');
    $db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=COALESCE(stock_qty,0)+? WHERE id=?')->execute([(int)$quantity,$productId]);addStockMovement($db,$productId,'received',(int)$quantity,$note,null,$supplier,$batch,$expiry,$unitCost);$db->commit();
   }
