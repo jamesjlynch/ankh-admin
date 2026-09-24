@@ -1897,32 +1897,59 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php endif;?>
 
 <?php elseif($view==='reta'):?>
-<div class="heading reta-heading"><div><p class="eyebrow">RECURRING RETA</p><h1>Reta 4-week forecast</h1><p class="muted page-description">Each active customer is projected every 28 days from their latest Reta delivery date.</p></div><a class="quick-action" href="?view=dashboard">← Dashboard</a></div>
-<div class="reta-forecast-grid">
- <article><span>Active customers</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($retaOverdue)?> overdue</small></article>
- <article><span>Next 4 weeks</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=$retaForecast4['orders']?> projected order<?=$retaForecast4['orders']===1?'':'s'?> · <?=money($retaForecast4['profit'])?> profit</small></article>
- <article><span>Next 8 weeks</span><strong><?=money($retaForecast8['revenue'])?></strong><small><?=$retaForecast8['orders']?> projected orders · <?=money($retaForecast8['profit'])?> profit</small></article>
- <article><span>Next 12 weeks</span><strong><?=money($retaForecast12['revenue'])?></strong><small><?=$retaForecast12['orders']?> projected orders · <?=money($retaForecast12['profit'])?> profit</small></article>
-</div>
-<?php if($retaForecast12['cost_missing']):?><p class="error report-warning">Some recurring Reta products do not have a saved supplier cost, so projected profit may be overstated for <?=$retaForecast12['cost_missing']?> projected occurrence<?=$retaForecast12['cost_missing']===1?'':'s'?>.</p><?php endif;?>
+<div class="heading reta-heading"><div><p class="eyebrow">CYCLE PLANNER</p><h1>Recurring order forecast</h1><p class="muted page-description">Expected repeat orders based on each product’s delivery date and selected cycle. These are forecasts, not guaranteed sales.</p></div><a class="quick-action" href="?view=dashboard">← Dashboard</a></div>
 
-<section class="panel reta-cycle-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">ACTIVE</p><h2>Upcoming Reta orders</h2><p class="muted">When the next Reta order is delivered, its new delivery date automatically resets the following reminder by another 28 days.</p></div></div>
-<?php if($retaCyclesActive):?><div class="reta-cycle-list"><?php foreach($retaCyclesActive as $cycle):
- $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;
- $dueClass=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');
-?>
-<article class="reta-cycle-card <?=$dueClass?>">
- <div class="reta-cycle-top"><div><span class="reta-due-badge"><?=$daysAway<0?'OVERDUE '.abs($daysAway).' DAYS':($daysAway===0?'DUE TODAY':($daysAway===1?'DUE TOMORROW':'DUE '.strtoupper(e(date('d M',strtotime($cycle['next_due_date']))))))?></span><h3><?=e($cycle['customer_name'])?></h3><p><?=e($cycle['product_summary'])?></p></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong><small><?=money($cycle['expected_profit'])?> projected profit<?=$cycle['cost_missing']?' · cost missing':''?></small></div></div>
- <div class="reta-cycle-meta"><span><b>Last delivered</b><?=e($cycle['last_delivery_date']?date('d M Y',strtotime($cycle['last_delivery_date'])):'—')?></span><span><b>Next expected</b><?=e(date('d M Y',strtotime($cycle['next_due_date'])))?></span><span><b>Cycle</b>Every 28 days</span></div>
- <div class="reta-cycle-actions"><?php if((int)$cycle['last_order_id']>0):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$cycle['last_order_id']?>">Create repeat order</a><a class="quick-action" href="?view=edit&amp;id=<?=$cycle['last_order_id']?>">Last order</a><?php endif;?>
- <form method="post" onsubmit="return confirm('Remove <?=e(addslashes($cycle['customer_name']))?> from recurring Reta reminders?');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="reason" value="Customer no longer wishes to purchase recurring Reta"><input type="hidden" name="return" value="reta"><button class="quiet danger-button">Stop recurring</button></form></div>
-</article>
-<?php endforeach;?></div><?php else:?><p class="empty">No active recurring Reta orders yet. Once a Reta order is marked delivered, its first reminder will be scheduled for 28 days after that delivery date.</p><?php endif;?>
+<div class="cycle-horizon-tabs"><?php foreach([4,5,8,12] as $weeks):?><a href="?view=reta&amp;weeks=<?=$weeks?>" class="<?=$cycleHorizonWeeks===$weeks?'selected':''?>"><?=$weeks?> weeks</a><?php endforeach;?></div>
+
+<div class="reta-forecast-grid cycle-forecast-grid">
+ <article><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($retaOverdue)?> currently overdue</small></article>
+ <article><span>Expected repeats</span><strong><?=$cycleForecast['orders']?></strong><small>Next <?=$cycleHorizonWeeks?> weeks</small></article>
+ <article><span>Projected sales</span><strong><?=money($cycleForecast['revenue'])?></strong><small>Forecast only</small></article>
+ <article><span>Projected gross profit</span><strong><?=money($cycleForecast['profit'])?></strong><small>Based on saved product costs</small></article>
+</div>
+<?php if($cycleForecast['cost_missing']):?><p class="error report-warning"><?=$cycleForecast['cost_missing']?> projected occurrence<?=$cycleForecast['cost_missing']===1?' has':'s have'?> missing supplier cost data, so projected profit may be overstated.</p><?php endif;?>
+
+<div class="cycle-planner-grid">
+<section class="panel cycle-calendar-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CALENDAR</p><h2>Expected orders · next <?=$cycleHorizonWeeks?> weeks</h2><p class="muted">A delivery rolls that product’s next expected date forward by its chosen cycle.</p></div></div>
+<?php if($cycleOccurrences):
+ $currentWeek='';
+ foreach($cycleOccurrences as $occ):
+  $date=(string)$occ['occurrence_date'];$dateObj=DateTimeImmutable::createFromFormat('!Y-m-d',$date,$tz);$weekStartLabel=$dateObj?$dateObj->modify('monday this week')->format('Y-m-d'):$date;
+  if($weekStartLabel!==$currentWeek):$currentWeek=$weekStartLabel;?>
+  <div class="cycle-week-heading"><span>Week of <?=e(date('d M',strtotime($currentWeek)))?></span></div>
+ <?php endif;
+  $daysAway=$dateObj?(int)$retaToday->diff($dateObj)->format('%r%a'):0;$dueClass=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');?>
+ <article class="reta-cycle-card cycle-calendar-card <?=$dueClass?>">
+  <div class="reta-cycle-top"><div><span class="reta-due-badge"><?=$daysAway<0?'OVERDUE':($daysAway===0?'DUE TODAY':e(strtoupper(date('D d M',strtotime($date)))))?></span><h3><?=e($occ['customer_name'])?></h3><p><?=e($occ['product_summary'])?></p></div><div class="reta-cycle-money"><strong><?=money($occ['expected_value'])?></strong><small><?=money($occ['expected_profit'])?> projected profit<?=$occ['cost_missing']?' · cost missing':''?></small></div></div>
+  <div class="reta-cycle-meta"><span><b>Last delivered</b><?=e($occ['last_delivery_date']?date('d M Y',strtotime($occ['last_delivery_date'])):'—')?></span><span><b>Expected</b><?=e(date('d M Y',strtotime($date)))?></span><span><b>Cycle</b>Every <?=max(1,(int)($occ['cycle_weeks']??4))?> weeks</span></div>
+  <div class="reta-cycle-actions"><?php if((int)$occ['last_order_id']>0):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$occ['last_order_id']?>">Create repeat order</a><a class="quick-action" href="?view=edit&amp;id=<?=$occ['last_order_id']?>">Edit cycle</a><?php endif;?></div>
+ </article>
+ <?php endforeach;?>
+<?php else:?><p class="empty">Nothing is currently forecast in the next <?=$cycleHorizonWeeks?> weeks.</p><?php endif;?>
 </section>
 
-<?php if($retaCyclesStopped):?><details class="panel reta-stopped"><summary>Stopped recurring customers (<?=count($retaCyclesStopped)?>)</summary><div class="reta-cycle-list stopped"><?php foreach($retaCyclesStopped as $cycle):?>
-<article class="reta-cycle-card stopped"><div class="reta-cycle-top"><div><h3><?=e($cycle['customer_name'])?></h3><p><?=e($cycle['product_summary'])?></p><small><?=e($cycle['end_reason']?:'Stopped')?></small></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong></div></div>
-<form method="post" class="reta-resume-form"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_resume"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="reta"><label>Restart next expected date<input type="date" name="next_due_date" value="<?=e($retaToday->modify('+28 days')->format('Y-m-d'))?>" required></label><button class="quiet">Restart recurring</button></form></article>
+<section class="panel cycle-stock-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK FORECAST</p><h2>What you may need</h2><p class="muted">Expected units required for the selected <?=$cycleHorizonWeeks?>-week window.</p></div></div>
+<?php if($cycleStockRows):?><div class="cycle-stock-list"><?php foreach($cycleStockRows as $stock):?>
+<div class="cycle-stock-row<?=($stock['shortfall']??0)>0?' short':''?>"><div><strong><?=e($stock['name'])?></strong><small><?=$stock['current']===null?'Stock not being tracked':'Current stock '.$stock['current']?></small></div><div><span>Need <?=$stock['needed']?></span><?php if($stock['shortfall']!==null):?><b><?=$stock['shortfall']>0?'Short '.$stock['shortfall']:'Covered'?></b><?php endif;?></div></div>
+<?php endforeach;?></div><?php else:?><p class="muted">No recurring stock demand in this window yet.</p><?php endif;?>
+</section>
+</div>
+
+<section class="panel reta-cycle-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">ACTIVE CYCLES</p><h2>Customers & products</h2><p class="muted">Retatrutide defaults to 4 weeks. Any other product can be switched on and given its own cycle from the order screen.</p></div></div>
+<?php if($retaCyclesActive):?><div class="reta-cycle-list"><?php foreach($retaCyclesActive as $cycle):
+ $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;$dueClass=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');?>
+<article class="reta-cycle-card <?=$dueClass?>">
+ <div class="reta-cycle-top"><div><span class="reta-due-badge"><?=$daysAway<0?'OVERDUE '.abs($daysAway).' DAYS':($daysAway===0?'DUE TODAY':($daysAway===1?'DUE TOMORROW':'NEXT '.strtoupper(e(date('d M',strtotime($cycle['next_due_date']))))))?></span><h3><?=e($cycle['customer_name'])?></h3><p><?=e($cycle['product_summary'])?></p></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong><small><?=money($cycle['expected_profit'])?> projected profit<?=$cycle['cost_missing']?' · cost missing':''?></small></div></div>
+ <div class="reta-cycle-meta"><span><b>Last delivered</b><?=e($cycle['last_delivery_date']?date('d M Y',strtotime($cycle['last_delivery_date'])):'—')?></span><span><b>Next expected</b><?=e(date('d M Y',strtotime($cycle['next_due_date'])))?></span><span><b>Cycle</b>Every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks</span></div>
+ <div class="reta-cycle-actions"><?php if((int)$cycle['last_order_id']>0):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$cycle['last_order_id']?>">Create repeat order</a><a class="quick-action" href="?view=edit&amp;id=<?=$cycle['last_order_id']?>">Edit last order</a><?php endif;?>
+ <form method="post" onsubmit="return confirm('Stop this recurring cycle for <?=e(addslashes($cycle['customer_name']))?>?');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="reason" value="Recurring cycle stopped manually"><input type="hidden" name="return" value="reta"><button class="quiet danger-button">Stop cycle</button></form></div>
+</article>
+<?php endforeach;?></div><?php else:?><p class="empty">No active cycles yet. Add a Retatrutide order and it defaults to 4 weeks, or switch on Recurring cycle for another product.</p><?php endif;?>
+</section>
+
+<?php if($retaCyclesStopped):?><details class="panel reta-stopped"><summary>Stopped cycles (<?=count($retaCyclesStopped)?>)</summary><div class="reta-cycle-list stopped"><?php foreach($retaCyclesStopped as $cycle):?>
+<article class="reta-cycle-card stopped"><div class="reta-cycle-top"><div><h3><?=e($cycle['customer_name'])?></h3><p><?=e($cycle['product_summary']?:$cycle['product_name'])?></p><small><?=e($cycle['end_reason']?:'Stopped')?></small></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong></div></div>
+<form method="post" class="reta-resume-form"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_resume"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="reta"><label>Restart next expected date<input type="date" name="next_due_date" value="<?=e($retaToday->modify('+'.max(1,(int)($cycle['cycle_weeks']??4)).' weeks')->format('Y-m-d'))?>" required></label><button class="quiet">Restart cycle</button></form></article>
 <?php endforeach;?></div></details><?php endif;?>
 
 <?php elseif($view==='reports'):?>
