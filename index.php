@@ -1388,7 +1388,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile50"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile51"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2222,7 +2222,9 @@ function lineData(card){
   pair_id:card.dataset.pairId||'',
   paired_pen:card.dataset.pairedPen==='1',
   paired_with_name:card.dataset.pairedWithName||'',
-  from_repeat:card.dataset.fromRepeat==='1'
+  from_repeat:card.dataset.fromRepeat==='1',
+  recurring:card.querySelector('[data-line-recurring]')?.value==='1',
+  cycle_weeks:Number(card.querySelector('[data-line-cycle-weeks]')?.value||0)
  };
 }
 function calculatedLinePrice(card){
@@ -2276,6 +2278,9 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
  if(!selectedLinesContainer)return null;
  const product=productCatalog.find(p=>Number(p.id)===Number(data.product_id));if(!product)return null;
  const key='l'+(++lineCounter)+'_'+Date.now().toString(36),standalonePen=(product.name||'').trim().toLowerCase()==='pen';
+ const lowerProduct=(product.name||'').trim().toLowerCase(),isReta=lowerProduct.startsWith('retatrutide'),isGhk=lowerProduct.startsWith('ghk-cu')||lowerProduct.startsWith('ghk cu');
+ const recurring=standalonePen?false:(data.recurring===undefined||data.recurring===null?isReta:!!data.recurring);
+ const suggestedWeeks=isReta?4:(isGhk?8:4),cycleWeeks=standalonePen?0:Math.min(52,Math.max(1,Number(data.cycle_weeks)||suggestedWeeks));
  const base=Number(data.base_price??product.price)||0,qty=Math.max(1,Number(data.quantity)||1),presentation=standalonePen?'':(data.presentation||''),discount=standalonePen?false:!!data.discount;
  const initialCalculated=standalonePen?base:Math.max(0,base-(discount?5:0));
  const price=data.price===undefined||data.price===null?initialCalculated:Number(data.price);
@@ -2290,7 +2295,9 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
  const hiddenBase=document.createElement('input');hiddenBase.type='hidden';hiddenBase.name='lines['+key+'][base_price]';hiddenBase.value=base.toFixed(2);hiddenBase.dataset.lineBasePrice='';
  const hiddenPresentation=document.createElement('input');hiddenPresentation.type='hidden';hiddenPresentation.name='lines['+key+'][presentation]';hiddenPresentation.value=presentation;hiddenPresentation.dataset.linePresentation='';
  const hiddenDiscount=document.createElement('input');hiddenDiscount.type='hidden';hiddenDiscount.name='lines['+key+'][discount]';hiddenDiscount.value=discount?'1':'0';hiddenDiscount.dataset.lineDiscount='';
- card.append(hiddenProduct,hiddenBase,hiddenPresentation,hiddenDiscount);
+ const hiddenRecurring=document.createElement('input');hiddenRecurring.type='hidden';hiddenRecurring.name='lines['+key+'][recurring]';hiddenRecurring.value=recurring?'1':'0';hiddenRecurring.dataset.lineRecurring='';
+ const hiddenCycleWeeks=document.createElement('input');hiddenCycleWeeks.type='hidden';hiddenCycleWeeks.name='lines['+key+'][cycle_weeks]';hiddenCycleWeeks.value=String(cycleWeeks);hiddenCycleWeeks.dataset.lineCycleWeeks='';
+ card.append(hiddenProduct,hiddenBase,hiddenPresentation,hiddenDiscount,hiddenRecurring,hiddenCycleWeeks);
 
  if(!standalonePen){
   const formatTitle=document.createElement('span');formatTitle.className='line-section-label';formatTitle.textContent='Choose format';
@@ -2303,6 +2310,22 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
   const family=document.createElement('button');family.type='button';family.className='family-discount line-family-discount';family.dataset.familyLine='';family.setAttribute('aria-pressed',discount?'true':'false');
   const familyLabel=document.createElement('span');familyLabel.textContent='Family & Friends';const familyValue=document.createElement('strong');familyValue.textContent='−£5';family.append(familyLabel,familyValue);
   family.addEventListener('click',()=>{hiddenDiscount.value=hiddenDiscount.value==='1'?'0':'1';recalculateLinePrice(card);saveDraftOrder()});card.append(family);
+ }
+
+ if(!standalonePen){
+  const cycleWrap=document.createElement('div');cycleWrap.className='line-cycle-wrap'+(recurring?' selected':'');
+  const cycleToggle=document.createElement('button');cycleToggle.type='button';cycleToggle.className='line-cycle-toggle';cycleToggle.setAttribute('aria-pressed',recurring?'true':'false');
+  const cycleCopy=document.createElement('span');cycleCopy.innerHTML='<strong>↻ Recurring cycle</strong><small>Forecast another order from the delivery date</small>';
+  const cycleStatus=document.createElement('b');cycleStatus.textContent=recurring?'Every '+cycleWeeks+' weeks':'Off';cycleToggle.append(cycleCopy,cycleStatus);
+  const cycleOptions=document.createElement('div');cycleOptions.className='line-cycle-options';cycleOptions.hidden=!recurring;
+  const cycleLabel=document.createElement('label');cycleLabel.textContent='Repeat every';const cycleInput=document.createElement('input');cycleInput.type='number';cycleInput.min='1';cycleInput.max='52';cycleInput.step='1';cycleInput.inputMode='numeric';cycleInput.value=String(cycleWeeks);cycleInput.setAttribute('aria-label','Repeat every number of weeks');
+  const cycleSuffix=document.createElement('span');cycleSuffix.textContent='weeks';cycleLabel.append(cycleInput,cycleSuffix);
+  const cycleHint=document.createElement('small');cycleHint.textContent=isReta?'Retatrutide defaults to 4 weeks.':(isGhk?'GHK suggestion: 8 weeks.':'Choose the customer’s usual cycle.');
+  cycleOptions.append(cycleLabel,cycleHint);cycleWrap.append(cycleToggle,cycleOptions);card.append(cycleWrap);
+  const refreshCycle=()=>{const on=hiddenRecurring.value==='1',weeks=Math.min(52,Math.max(1,Number(hiddenCycleWeeks.value)||suggestedWeeks));hiddenCycleWeeks.value=String(weeks);cycleInput.value=String(weeks);cycleWrap.classList.toggle('selected',on);cycleToggle.setAttribute('aria-pressed',on?'true':'false');cycleStatus.textContent=on?'Every '+weeks+' weeks':'Off';cycleOptions.hidden=!on};
+  cycleToggle.addEventListener('click',()=>{hiddenRecurring.value=hiddenRecurring.value==='1'?'0':'1';if(hiddenRecurring.value==='1'&&Number(hiddenCycleWeeks.value)<1)hiddenCycleWeeks.value=String(suggestedWeeks);refreshCycle();saveDraftOrder()});
+  cycleInput.addEventListener('input',()=>{let weeks=Math.min(52,Math.max(1,Number(cycleInput.value)||suggestedWeeks));hiddenCycleWeeks.value=String(weeks);hiddenRecurring.value='1';refreshCycle();saveDraftOrder()});
+  refreshCycle();
  }
 
  const controls=document.createElement('div');controls.className='line-controls';
