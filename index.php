@@ -71,6 +71,35 @@ $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_A
 if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
 if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN low_stock_at INTEGER NOT NULL DEFAULT 2");
+if(!in_array('stock_tracking',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking INTEGER NOT NULL DEFAULT 0");
+if(!in_array('stock_tracking_since',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking_since TEXT NOT NULL DEFAULT ''");
+if(!in_array('product_id',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN product_id INTEGER DEFAULT NULL");
+$db->exec('CREATE TABLE IF NOT EXISTS stock_movements (
+ id INTEGER PRIMARY KEY,
+ product_id INTEGER NOT NULL REFERENCES products(id),
+ movement_type TEXT NOT NULL,
+ quantity_change INTEGER NOT NULL,
+ order_id INTEGER DEFAULT NULL,
+ supplier TEXT NOT NULL DEFAULT "",
+ batch_reference TEXT NOT NULL DEFAULT "",
+ expiry_date TEXT NOT NULL DEFAULT "",
+ unit_cost INTEGER DEFAULT NULL,
+ note TEXT NOT NULL DEFAULT "",
+ created TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS stock_delivery_events (
+ order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+ recorded_at TEXT NOT NULL,
+ delivery_date TEXT NOT NULL DEFAULT ""
+);
+CREATE TABLE IF NOT EXISTS stock_fulfilments (
+ order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+ product_id INTEGER NOT NULL REFERENCES products(id),
+ quantity INTEGER NOT NULL,
+ PRIMARY KEY(order_id,product_id)
+);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_movements(product_id,created);
+CREATE INDEX IF NOT EXISTS idx_stock_moves_created ON stock_movements(created);');
 $customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
 $db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
@@ -210,6 +239,8 @@ if(setting($db,'retail_catalog_version')!==$catalogVersion){
  saveSetting($db,'retail_catalog_version',$catalogVersion);
 }
 
+// Link legacy order lines to products for accurate stock movements.
+$db->exec("UPDATE items SET product_id=(SELECT p.id FROM products p WHERE lower(trim(p.name))=lower(trim(items.name)) ORDER BY p.id LIMIT 1) WHERE product_id IS NULL");
 // Cost snapshots: fill only legacy rows that do not already have a saved cost.
 $db->exec("UPDATE items SET cost=(SELECT p.cost FROM products p WHERE lower(trim(p.name))=lower(trim(items.name)) LIMIT 1) WHERE cost IS NULL AND lower(trim(name))<>'pen'");
 $db->exec("UPDATE items SET base_price=price WHERE base_price IS NULL AND lower(trim(name))<>'pen'");
@@ -505,6 +536,43 @@ function refreshOrderPaymentState(PDO $db,int $orderId):void{
  }elseif($balance>0 && $status==='New'){
   $db->prepare("UPDATE orders SET status='Awaiting payment' WHERE id=?")->execute([$orderId]);
  }
+}
+function addStockMovement(PDO $db,int $productId,string $type,int $delta,string $note='',?int $orderId=null,string $supplier='',string $batch='',string $expiry='',?int $unitCost=null):void{
+ if($delta===0)return;
+ $q=$db->prepare('INSERT INTO stock_movements(product_id,movement_type,quantity_change,order_id,note,supplier,batch_reference,expiry_date,unit_cost,created) VALUES (?,?,?,?,?,?,?,?,?,?)');
+ $q->execute([$productId,$type,$delta,$orderId,$note,$supplier,$batch,$expiry,$unitCost,gmdate('c')]);
+}
+function reconcileDeliveredStock(PDO $db,int $orderId,bool $createEvent=false):void{
+ $ownsTransaction=!$db->inTransaction();if($ownsTransaction)$db->beginTransaction();
+ try{
+  if($createEvent){
+   $q=$db->prepare('SELECT delivery_date,status FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$order)throw new Exception('Order could not be found for stock update.');
+   if($order['status']==='Cancelled')throw new Exception('A cancelled order cannot reduce stock.');
+   $deliveryDate=(string)($order['delivery_date']?:date('Y-m-d'));
+   $db->prepare('INSERT OR IGNORE INTO stock_delivery_events(order_id,recorded_at,delivery_date) VALUES (?,?,?)')->execute([$orderId,gmdate('c'),$deliveryDate]);
+  }
+  $q=$db->prepare('SELECT delivery_date FROM stock_delivery_events WHERE order_id=?');$q->execute([$orderId]);$eventDate=$q->fetchColumn();
+  if($eventDate===false){if($ownsTransaction)$db->commit();return;}
+  $eventDate=(string)$eventDate;
+  $q=$db->prepare("SELECT COALESCE(i.product_id,(SELECT p.id FROM products p WHERE lower(trim(p.name))=lower(trim(i.name)) ORDER BY p.id LIMIT 1)) AS product_id,SUM(i.quantity) AS quantity FROM items i WHERE i.order_id=? GROUP BY product_id");$q->execute([$orderId]);$desired=[];
+  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $line){
+   $productId=(int)($line['product_id']??0);if($productId<1)continue;
+   $p=$db->prepare('SELECT stock_tracking,stock_tracking_since FROM products WHERE id=?');$p->execute([$productId]);$product=$p->fetch(PDO::FETCH_ASSOC);
+   if(!$product||(int)$product['stock_tracking']!==1)continue;
+   $since=substr((string)$product['stock_tracking_since'],0,10);if($eventDate!==''&&$since!==''&&$eventDate<$since)continue;
+   $desired[$productId]=(int)$line['quantity'];
+  }
+  $q=$db->prepare('SELECT product_id,quantity FROM stock_fulfilments WHERE order_id=?');$q->execute([$orderId]);$previous=[];
+  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row)$previous[(int)$row['product_id']]=(int)$row['quantity'];
+  foreach(array_unique(array_merge(array_keys($previous),array_keys($desired))) as $productId){
+   $before=$previous[$productId]??0;$after=$desired[$productId]??0;$delta=$before-$after;
+   if($delta!==0){$db->prepare('UPDATE products SET stock_qty=COALESCE(stock_qty,0)+? WHERE id=?')->execute([$delta,$productId]);addStockMovement($db,(int)$productId,$before===0?'order_delivery':'order_edit',$delta,$before===0?'Delivered order':'Delivered order contents updated',$orderId);}
+   if($after>0)$db->prepare('INSERT INTO stock_fulfilments(order_id,product_id,quantity) VALUES (?,?,?) ON CONFLICT(order_id,product_id) DO UPDATE SET quantity=excluded.quantity')->execute([$orderId,$productId,$after]);
+   else$db->prepare('DELETE FROM stock_fulfilments WHERE order_id=? AND product_id=?')->execute([$orderId,$productId]);
+  }
+  if($ownsTransaction)$db->commit();
+ }catch(Throwable $ex){if($ownsTransaction&&$db->inTransaction())$db->rollBack();throw $ex;}
 }
 function isRetaProductName(string $name):bool{return str_starts_with(strtolower(trim($name)),'retatrutide');}
 function defaultCycleWeeksForProduct(string $name):int{
@@ -904,7 +972,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
    $query=trim((string)($args['query']??''));if($query==='')throw new Exception('Tell me which product to look up.');
    $query=$aliasProduct($query);$qNorm=$normProduct($query);$spokenStrength=null;
    if(preg_match('/(\\d+(?:\\.\\d+)?)\\s*(?:mg|milligrams?)/i',$query,$strengthMatch))$spokenStrength=(float)$strengthMatch[1];
-   $rows=$db->query('SELECT id,name,price,cost,stock_qty,low_stock_at,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+   $rows=$db->query('SELECT id,name,price,cost,stock_qty,low_stock_at,stock_tracking,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
    $ranked=[];
    foreach($rows as $row){
     $name=(string)$row['name'];$nNorm=$normProduct($name);$score=0;
@@ -938,8 +1006,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
      'supplier_product_cost'=>$cost===null?null:$moneyTool($cost),
      'pen_unit_cost'=>$penUnitCost===null?null:$moneyTool($penUnitCost),
      'supplier_cost_with_pen'=>($cost!==null&&$penUnitCost!==null)?$moneyTool($cost+$penUnitCost):null,
-     'stock_qty'=>$row['stock_qty']===null?null:(int)$row['stock_qty'],
-     'low_stock_at'=>$row['stock_qty']===null?null:(int)$row['low_stock_at']
+     'stock_qty'=>(int)($row['stock_tracking']??0)===1&&$row['stock_qty']!==null?(int)$row['stock_qty']:null,
+     'low_stock_at'=>(int)($row['stock_tracking']??0)===1&&$row['stock_qty']!==null?(int)$row['low_stock_at']:null
     ];
    }
    if(!$matches)$result=['found'=>false,'query'=>$query,'message'=>'No matching active ANKH product was found.'];
@@ -996,7 +1064,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='assistant-tool'
    foreach($rows as $row)$orders[]=['reference'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT),'customer'=>(string)$row['customer'],'status'=>(string)$row['status'],'assigned_to'=>(string)($row['assigned_to']?:'Unassigned'),'delivery_method'=>(string)($row['delivery_method']?:'Not set'),'created'=>(string)$row['created']];
    $result=['assignee'=>$assignee?:'All','count'=>count($orders),'orders'=>$orders];
   }elseif($tool==='get_low_stock'){
-   $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+   $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_tracking=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
    $products=[];foreach($rows as $row)$products[]=['name'=>(string)$row['name'],'stock_qty'=>(int)$row['stock_qty'],'low_stock_at'=>(int)$row['low_stock_at']];
    $result=['count'=>count($products),'products'=>$products];
   }elseif($tool==='get_cycle_forecast'){
@@ -1121,7 +1189,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-assistant
     $unpaidRows=$db->query("SELECT o.id,o.customer,COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid FROM orders o WHERE o.status<>'Cancelled' AND (COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0))>COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0)")->fetchAll(PDO::FETCH_ASSOC);
     foreach($unpaidRows as &$ur)$ur['outstanding']=max(0,(int)$ur['total']-(int)$ur['paid']);unset($ur);
     $deliveryRows=$db->query("SELECT id FROM orders WHERE status IN ('Paid','Packed','Dispatched')")->fetchAll(PDO::FETCH_ASSOC);
-    $lowRows=$db->query("SELECT id FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at")->fetchAll(PDO::FETCH_ASSOC);
+    $lowRows=$db->query("SELECT id FROM products WHERE active=1 AND stock_tracking=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at")->fetchAll(PDO::FETCH_ASSOC);
     $unpaidTotal=array_sum(array_map(fn($r)=>(int)$r['outstanding'],$unpaidRows));
     $answer='Today you have '.$moneySpeak($todayRevenue).' in sales and '.$moneySpeak($todayProfit).' gross profit from '.$todayOrders.' completed order'.($todayOrders===1?'':'s').'. There are '.count($unpaidRows).' outstanding payment'.(count($unpaidRows)===1?'':'s').' worth '.$moneySpeak($unpaidTotal).', '.count($deliveryRows).' order'.(count($deliveryRows)===1?'':'s').' still to deliver, and '.count($lowRows).' low-stock product'.(count($lowRows)===1?'':'s').'.';
    }
@@ -1141,7 +1209,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-assistant
    if(!$rows)$answer=$kind==='assigned_delivery'&&$assignee!==''?$assignee.' has no orders waiting for delivery.':'There are no orders waiting for delivery.';
    else{$names=array_slice(array_map(fn($r)=>(string)$r['customer'],$rows),0,5);$answer=$label.' '.count($rows).' order'.(count($rows)===1?'':'s').' waiting for delivery: '.implode(', ',$names).(count($rows)>5?' and '.(count($rows)-5).' more.':'.');}
   }elseif($kind==='low_stock'){
-   $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+   $rows=$db->query("SELECT name,stock_qty,low_stock_at FROM products WHERE active=1 AND stock_tracking=1 AND stock_qty IS NOT NULL AND stock_qty<=low_stock_at ORDER BY stock_qty ASC,name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
    foreach($rows as $r)$items[]=['reference'=>'Stock','title'=>(string)$r['name'],'detail'=>(int)$r['stock_qty'].' left'];
    if(!$rows)$answer='Nothing currently tracked is at or below its low-stock level.';
    else{$names=array_slice(array_map(fn($r)=>(string)$r['name'].' with '.(int)$r['stock_qty'].' left',$rows),0,5);$answer=count($rows).' product'.(count($rows)===1?' is':'s are').' low on stock: '.implode(', ',$names).(count($rows)>5?' and '.(count($rows)-5).' more.':'.');}
@@ -1185,13 +1253,33 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
+  if($action==='stock_open'){
+   $productId=(int)($_POST['product_id']??0);$opening=filter_var($_POST['opening_qty']??'',FILTER_VALIDATE_INT);
+   if($productId<1||$opening===false||$opening<0||$opening>999999||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical opening count.');
+   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked===1)throw new Exception('Stock tracking is already enabled for this product.');
+   $db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=?,stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(int)$opening,(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);addStockMovement($db,$productId,'opening',(int)$opening,'Confirmed physical opening count');$db->commit();
+  }
+  if($action==='stock_receive'){
+   $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$supplier=trim((string)($_POST['supplier']??''));$batch=trim((string)($_POST['batch_reference']??''));$expiry=trim((string)($_POST['expiry_date']??''));$note=trim((string)($_POST['note']??''));$unitCostRaw=trim((string)($_POST['unit_cost']??''));$unitCost=$unitCostRaw===''?null:postedMoneyPence($unitCostRaw,'unit cost');
+   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details.');
+   if($expiry!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry)||!DateTimeImmutable::createFromFormat('!Y-m-d',$expiry)))throw new Exception('Enter a valid expiry date.');
+   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked!==1)throw new Exception('Set an opening count before receiving stock.');
+   $db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=COALESCE(stock_qty,0)+? WHERE id=?')->execute([(int)$quantity,$productId]);addStockMovement($db,$productId,'received',(int)$quantity,$note,null,$supplier,$batch,$expiry,$unitCost);$db->commit();
+  }
+  if($action==='stock_count'){
+   $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$note=trim((string)($_POST['note']??''));
+   if($productId<1||$counted===false||$counted<0||$counted>999999||strlen($note)>500)throw new Exception('Enter a valid physical stock count.');
+   $q=$db->prepare('SELECT stock_qty,stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Set an opening count before adjusting stock.');
+   $before=(int)($product['stock_qty']??0);$delta=(int)$counted-$before;
+   if($delta!==0){$db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=? WHERE id=?')->execute([(int)$counted,$productId]);addStockMovement($db,$productId,'count_adjustment',$delta,$note!==''?$note:'Physical count correction');$db->commit();}
+  }
   if($action==='product'){
    $name=trim($_POST['name']??'');$price=filter_var($_POST['price']??'',FILTER_VALIDATE_FLOAT);
    $costRaw=trim((string)($_POST['cost']??''));$stockRaw=trim((string)($_POST['stock_qty']??''));$lowRaw=trim((string)($_POST['low_stock_at']??'2'));
    $cost=$costRaw===''?null:filter_var($costRaw,FILTER_VALIDATE_FLOAT);$stock=$stockRaw===''?null:filter_var($stockRaw,FILTER_VALIDATE_INT);$low=filter_var($lowRaw,FILTER_VALIDATE_INT);
    if(!$name || strlen($name)>160 || $price===false || $price<0 || $price>100000 || ($costRaw!==''&&($cost===false||$cost<0||$cost>100000)) || ($stockRaw!==''&&($stock===false||$stock<0||$stock>999999)) || $low===false || $low<0 || $low>999999)throw new Exception('Enter valid product, price and stock details.');
    $id=(int)($_POST['id']??0);$costPence=$cost===null?null:(int)round($cost*100);
-   if($id){$q=$db->prepare('UPDATE products SET name=?,price=?,cost=?,stock_qty=?,low_stock_at=?,active=? WHERE id=?');$q->execute([$name,(int)round($price*100),$costPence,$stock,$low,isset($_POST['active'])?1:0,$id]);}
+   if($id){$q=$db->prepare('SELECT stock_tracking,stock_qty FROM products WHERE id=?');$q->execute([$id]);$existingProduct=$q->fetch(PDO::FETCH_ASSOC);if(!$existingProduct)throw new Exception('Product could not be found.');if((int)$existingProduct['stock_tracking']===1)$stock=$existingProduct['stock_qty']===null?0:(int)$existingProduct['stock_qty'];$q=$db->prepare('UPDATE products SET name=?,price=?,cost=?,stock_qty=?,low_stock_at=?,active=? WHERE id=?');$q->execute([$name,(int)round($price*100),$costPence,$stock,$low,isset($_POST['active'])?1:0,$id]);}
    else{$q=$db->prepare('INSERT INTO products(name,price,cost,stock_qty,low_stock_at) VALUES (?,?,?,?,?)');$q->execute([$name,(int)round($price*100),$costPence,$stock,$low]);}
   }
   if($action==='customer'){
@@ -1260,7 +1348,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($currentStatus===false)throw new Exception('Order could not be found.');
    if($currentStatus==='Cancelled')throw new Exception('A cancelled order cannot be marked delivered.');
    $db->prepare('UPDATE orders SET delivery_date=? WHERE id=?')->execute([$deliveryDate,$orderId]);
-   syncProductCyclesFromDeliveredOrder($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
+   reconcileDeliveredStock($db,$orderId,true);syncProductCyclesFromDeliveredOrder($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
@@ -1270,7 +1358,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $deliveryDate=array_key_exists('delivery_date',$_POST)?orderActionDate((string)$_POST['delivery_date'],'delivery'):'';
    $paymentMethod=trim((string)($_POST['payment_method']??''));
    if($paymentMethod!==''&&!in_array($paymentMethod,$paymentMethods,true))throw new Exception('Choose a valid payment method.');
-   $q=$db->prepare('SELECT payment_date,delivery_date,payment_method FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
+   $q=$db->prepare('SELECT status,payment_date,delivery_date,payment_method FROM orders WHERE id=?');$q->execute([$orderId]);$existingDates=$q->fetch(PDO::FETCH_ASSOC);
    if(!$existingDates)throw new Exception('Order could not be found.');
    if($newStatus==='Paid'){
     if($paymentDate==='')$paymentDate=(string)($existingDates['payment_date']?:$todayAction);
@@ -1280,7 +1368,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
    $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
-   if($newStatus==='Delivered')syncProductCyclesFromDeliveredOrder($db,$orderId);
+   if($newStatus==='Delivered'){if((string)$existingDates['status']!=='Delivered')reconcileDeliveredStock($db,$orderId,true);syncProductCyclesFromDeliveredOrder($db,$orderId);}
    if($newStatus==='Cancelled'){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Latest recurring order cancelled',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);}
    $syncError=syncOrderToSheet($db,$orderId);
   }
@@ -1342,7 +1430,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $costKey=strtolower(trim((string)$p['name']));$saved=$existingItemCosts[$costKey]??null;
     $productCost=$saved&&array_key_exists('cost',$saved)?$saved['cost']:($p['cost']===null?null:(int)$p['cost']);
     $presentationCost=0;
-    $lines[]=['product'=>$p,'qty'=>(int)$qty,'presentation'=>$format,'base_price'=>$basePrice,'discount'=>$discount,'price'=>$postedPrice,'cost'=>$productCost,'presentation_cost'=>$presentationCost,'recurring'=>$recurringFlag?1:0,'cycle_weeks'=>$cycleWeeks];
+    $lines[]=['product_id'=>(int)$p['id'],'product'=>$p,'qty'=>(int)$qty,'presentation'=>$format,'base_price'=>$basePrice,'discount'=>$discount,'price'=>$postedPrice,'cost'=>$productCost,'presentation_cost'=>$presentationCost,'recurring'=>$recurringFlag?1:0,'cycle_weeks'=>$cycleWeeks];
     if($format!=='')$presentations[$format]=true;
    }
    if(!$lines)throw new Exception('Add at least one product.');
@@ -1363,10 +1451,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $db->prepare('INSERT INTO orders(customer,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
    }
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
-   $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
-   foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
+   $insertItem=$db->prepare('INSERT INTO items(order_id,product_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+   foreach($lines as $line)$insertItem->execute([$orderId,$line['product_id'],$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
    if($deliveryDate!=='')syncProductCyclesFromDeliveredOrder($db,$orderId,true);
-   if($isEdit)syncProductCyclesFromDeliveredOrder($db,$orderId);
+   if($isEdit){reconcileDeliveredStock($db,$orderId,false);syncProductCyclesFromDeliveredOrder($db,$orderId);}
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
@@ -1401,6 +1489,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'profit_settings'=>'Profit settings saved.',
   'order_delete'=>'Order deleted.',
   'order_dates'=>'Order dates updated.',
+  'stock_open'=>'Opening stock count saved; stock tracking is now active.',
+  'stock_receive'=>'Stock receipt saved.',
+  'stock_count'=>'Physical stock count reconciled.',
   'delivery_mark'=>'Delivery recorded; balance remains outstanding.',
   'status'=>'Order status updated.',
   'product'=>'Product saved.',
@@ -1425,7 +1516,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile55"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
@@ -1451,6 +1542,8 @@ document.querySelector('#passkey-login')?.addEventListener('click',async event=>
 </script></main>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
+$stockProducts=$db->query('SELECT * FROM products ORDER BY active DESC,name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+$recentStockMovements=$db->query('SELECT sm.*,p.name AS product_name FROM stock_movements sm JOIN products p ON p.id=sm.product_id ORDER BY datetime(sm.created) DESC,sm.id DESC LIMIT 60')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) AS paid_amount FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
@@ -1549,7 +1642,7 @@ $cycleHorizonWeeks=in_array((int)($_GET['weeks']??8),[4,5,8,12],true)?(int)($_GE
 $cycleForecast=retaProjection($retaCyclesActive,$retaToday,$cycleHorizonWeeks*7);
 $cycleOccurrences=cycleOccurrences($retaCyclesActive,$retaToday,$cycleHorizonWeeks);
 $productStockMap=[];foreach($products as $stockProduct)$productStockMap[strtolower(trim((string)$stockProduct['name']))]=$stockProduct;
-$cycleStockRows=[];foreach(($cycleForecast['stock']??[]) as $productName=>$needed){$stockProduct=$productStockMap[strtolower(trim((string)$productName))]??null;$current=$stockProduct&&$stockProduct['stock_qty']!==null?(int)$stockProduct['stock_qty']:null;$cycleStockRows[]=['name'=>$productName,'needed'=>(int)$needed,'current'=>$current,'shortfall'=>$current===null?null:max(0,(int)$needed-$current)];}
+$cycleStockRows=[];foreach(($cycleForecast['stock']??[]) as $productName=>$needed){$stockProduct=$productStockMap[strtolower(trim((string)$productName))]??null;$current=$stockProduct&&(int)($stockProduct['stock_tracking']??0)===1&&$stockProduct['stock_qty']!==null?(int)$stockProduct['stock_qty']:null;$cycleStockRows[]=['name'=>$productName,'needed'=>(int)$needed,'current'=>$current,'shortfall'=>$current===null?null:max(0,(int)$needed-$current)];}
 usort($cycleStockRows,fn($a,$b)=>(($b['shortfall']??-1)<=>($a['shortfall']??-1))?:strcmp((string)$a['name'],(string)$b['name']));
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
 $todaySales=0;$monthSales=0;$unpaidBalance=0;
@@ -1639,7 +1732,7 @@ foreach($orders as $reportOrder){
 usort($reportOrderRows,fn($a,$b)=>$b['ts']<=>$a['ts'] ?: $b['id']<=>$a['id']);
 $selectedReportOrders=array_values(array_filter($reportOrderRows,fn($row)=>$row['ts']>=$reportPeriods[$reportPeriodKey]['start']));
 $grossProfit=$reportPeriods['all']['profit'];
-$trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && $p['stock_qty']!==null));
+$trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && (int)($p['stock_tracking']??0)===1 && $p['stock_qty']!==null));
 $lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=(int)$p['low_stock_at']));
 $penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
@@ -1850,14 +1943,39 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php endif;?>
 
 <?php elseif($view==='products'):?>
-<div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div></div>
+<div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><a class="quick-action" href="?view=stock">Stock control →</a></div>
 <form method="post" class="panel"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><h2>Add product</h2>
 <div class="product-admin-grid"><label>Name and strength<input name="name" required maxlength="160" placeholder="Product name · 5mg"></label><label>Retail price (£)<input name="price" type="number" min="0" max="100000" step=".01" required></label><label>Cost (£) <span class="muted">(optional)</span><input name="cost" type="number" min="0" max="100000" step=".01"></label><label>Stock <span class="muted">(optional)</span><input name="stock_qty" type="number" min="0" max="999999" step="1" placeholder="Not tracked"></label><label>Low-stock alert<input name="low_stock_at" type="number" min="0" max="999999" step="1" value="2"></label></div>
 <button>Add product</button></form>
-<?php foreach($products as $p):$costMapped=isset($currentSupplierCosts[$p['name']]);?><details class="order product-admin-card"><summary><div><h2><?=e($p['name'])?></h2><span class="muted"><?=money($p['price'])?> retail<?php if($p['cost']!==null):?> · <?=money($p['cost'])?> cost<?php endif;?></span></div><div class="product-admin-summary"><span><?=$p['active']?'Active':'Hidden'?></span><small><?=$p['stock_qty']===null?'Stock not tracked':e($p['stock_qty']).' in stock'?></small></div></summary><form method="post" class="detail"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><input type="hidden" name="id" value="<?=$p['id']?>">
+<?php foreach($products as $p):$costMapped=isset($currentSupplierCosts[$p['name']]);?><details class="order product-admin-card"><summary><div><h2><?=e($p['name'])?></h2><span class="muted"><?=money($p['price'])?> retail<?php if($p['cost']!==null):?> · <?=money($p['cost'])?> cost<?php endif;?></span></div><div class="product-admin-summary"><span><?=$p['active']?'Active':'Hidden'?></span><small><?=$p['stock_tracking']?e($p['stock_qty']).' tracked':($p['stock_qty']===null?'Stock not set up':'Manual · '.e($p['stock_qty']))?></small></div></summary><form method="post" class="detail"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><input type="hidden" name="id" value="<?=$p['id']?>">
 <label>Name<input name="name" required maxlength="160" value="<?=e($p['name'])?>"></label>
-<div class="product-admin-grid"><label>Retail price (£)<input name="price" type="number" min="0" max="100000" step=".01" required value="<?=e(number_format($p['price']/100,2,'.',''))?>"></label><label>Cost (£)<?php if($costMapped):?> <span class="muted">Supplier list</span><?php endif;?><input name="cost" type="number" min="0" max="100000" step=".01" value="<?=$p['cost']===null?'':e(number_format($p['cost']/100,2,'.',''))?>" <?=$costMapped?'readonly':''?>></label><label>Stock quantity<input name="stock_qty" type="number" min="0" max="999999" step="1" placeholder="Leave blank to stop tracking" value="<?=$p['stock_qty']===null?'':e($p['stock_qty'])?>"></label><label>Low-stock alert<input name="low_stock_at" type="number" min="0" max="999999" step="1" value="<?=e($p['low_stock_at'])?>"></label></div>
+<div class="product-admin-grid"><label>Retail price (£)<input name="price" type="number" min="0" max="100000" step=".01" required value="<?=e(number_format($p['price']/100,2,'.',''))?>"></label><label>Cost (£)<?php if($costMapped):?> <span class="muted">Supplier list</span><?php endif;?><input name="cost" type="number" min="0" max="100000" step=".01" value="<?=$p['cost']===null?'':e(number_format($p['cost']/100,2,'.',''))?>" <?=$costMapped?'readonly':''?>></label><label>Stock quantity<input name="stock_qty" type="number" min="0" max="999999" step="1" placeholder="Leave blank to stop tracking" value="<?=$p['stock_qty']===null?'':e($p['stock_qty'])?>" <?=$p['stock_tracking']?'readonly':''?>></label><label>Low-stock alert<input name="low_stock_at" type="number" min="0" max="999999" step="1" value="<?=e($p['low_stock_at'])?>"></label></div>
 <label class="check"><input type="checkbox" name="active" <?=$p['active']?'checked':''?>> Available for new orders</label><button>Save product</button></form></details><?php endforeach;?>
+<?php elseif($view==='stock'):?>
+<div class="heading"><div><h1>Stock control</h1><p class="muted page-description">Set an opening count when you are ready. Existing manual counts are untouched until you confirm one.</p></div><a class="quick-action" href="?view=products">Products</a></div>
+<div class="panel stock-intro"><strong>Inventory setup is opt-in.</strong><span>Untracked products are never deducted on delivery. Once tracking is active, receipts and physical counts are recorded here and delivered orders update stock automatically.</span></div>
+<div class="stock-product-list">
+<?php foreach($stockProducts as $sp):?>
+<details class="order stock-product-card"><summary><div><h2><?=e($sp['name'])?></h2><span class="muted"><?=money($sp['price'])?> retail</span></div><div class="stock-summary"><span class="<?=$sp['stock_tracking']?'stock-enabled':'stock-disabled'?>"><?=$sp['stock_tracking']?'Tracking on':'Not set up'?></span><strong><?=$sp['stock_tracking']?e($sp['stock_qty']):($sp['stock_qty']===null?'—':'Manual · '.e($sp['stock_qty']))?></strong></div></summary>
+<div class="stock-product-body">
+<?php if(!(int)$sp['stock_tracking']):?>
+<p class="muted">Confirm the physical count to start the movement ledger. The old manual number is only a suggestion until you confirm the actual count.</p>
+<form method="post" class="stock-form"><?php csrf();?><input type="hidden" name="action" value="stock_open"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><label>Opening physical count<input name="opening_qty" type="number" min="0" max="999999" step="1" required value="<?=$sp['stock_qty']===null?'':e($sp['stock_qty'])?>" placeholder="Count units on hand"></label><label class="stock-confirm"><input type="checkbox" name="confirm_opening" value="1" required> I have counted this product</label><button>Confirm opening count</button></form>
+<?php else:?>
+<div class="stock-on-hand"><span>On hand</span><strong><?=e($sp['stock_qty'])?></strong><small>Low-stock alert at <?=e($sp['low_stock_at'])?></small></div>
+<form method="post" class="stock-form stock-receive-form"><?php csrf();?><input type="hidden" name="action" value="stock_receive"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><h3>Receive stock</h3><label>Quantity received<input name="quantity" type="number" min="1" max="999999" step="1" required></label><label>Supplier <span class="muted">(optional)</span><input name="supplier" maxlength="160"></label><label>Batch / lot <span class="muted">(optional)</span><input name="batch_reference" maxlength="160"></label><label>Expiry date <span class="muted">(optional)</span><input name="expiry_date" type="date"></label><label>Unit cost (£) <span class="muted">(optional)</span><input name="unit_cost" type="number" min="0" max="100000" step=".01"></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500"></label><button>Save receipt</button></form>
+<form method="post" class="stock-form stock-count-form"><?php csrf();?><input type="hidden" name="action" value="stock_count"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><h3>Reconcile physical count</h3><label>Counted on hand<input name="counted_qty" type="number" min="0" max="999999" step="1" value="<?=e($sp['stock_qty'])?>" required></label><label>Reason <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Damage, loss or count correction"></label><button class="quiet">Save count correction</button></form>
+<?php endif;?>
+</div></details>
+<?php endforeach;?>
+</div>
+<section class="panel stock-history"><div class="dashboard-panel-head"><div><p class="eyebrow">MOVEMENT HISTORY</p><h2>Recent stock changes</h2></div></div>
+<?php if($recentStockMovements):?><div class="stock-movement-list"><?php foreach($recentStockMovements as $move):
+ $moveLabel=match($move['movement_type']){'opening'=>'Opening count','received'=>'Stock received','count_adjustment'=>'Count correction','order_delivery'=>'Delivered order','order_edit'=>'Delivered order edit',default=>'Stock movement'};
+ $delta=(int)$move['quantity_change'];?> 
+<article class="stock-movement-row"><div><strong><?=e($move['product_name'])?></strong><small><?=e(date('d M Y H:i',strtotime($move['created'])))?> · <?=e($moveLabel)?><?php if($move['supplier']!==''):?> · <?=e($move['supplier'])?><?php endif;?><?php if($move['batch_reference']!==''):?> · Batch <?=e($move['batch_reference'])?><?php endif;?><?php if($move['expiry_date']!==''):?> · Exp <?=e($move['expiry_date'])?><?php endif;?><?php if($move['note']!==''):?> · <?=e($move['note'])?><?php endif;?></small></div><b class="<?=$delta<0?'stock-negative':'stock-positive'?>"><?=$delta>0?'+':''?><?=$delta?></b></article>
+<?php endforeach;?></div><?php else:?><p class="muted">No stock movements yet. Confirm an opening count to start.</p><?php endif;?>
+</section>
 <?php elseif($view==='sheets'):?>
 <div class="heading"><div><h1>Google Sheets</h1><p class="muted page-description">Order backup and reporting connection.</p></div></div>
 <section class="panel">
@@ -2064,7 +2182,8 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
-<a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products & stock</h2><p>Prices, supplier costs, availability and stock levels.</p></div><b>›</b></a>
+<a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
+<a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2><p>Opening counts, receipts, adjustments and movement history.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle Planner</h2><p>Recurring order calendar, demand forecast, projected profit and stock needed.</p></div><b>›</b></a>
 <a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
