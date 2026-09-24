@@ -2032,3 +2032,35 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
  .expanded-profit-table{min-width:880px}
  button:active,.button:active,.quick-action:active,.line-format-button:active{transform:scale(.985)}
 }
+
+/* Repeat-order removal controls */
+.repeat-order-note{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  margin-top:8px;
+  padding:9px 11px;
+  border:1px solid #4e4028;
+  border-radius:11px;
+  background:#17140f;
+}
+.repeat-order-note strong{color:var(--gold);font-size:9px;text-transform:uppercase;letter-spacing:.7px}
+.repeat-order-note span{color:#a29b8e;font-size:10px;line-height:1.4}
+.repeat-source-line{border-color:#3b372f}
+.repeat-line-remove{
+  width:auto;
+  min-width:0;
+  height:auto;
+  min-height:34px;
+  padding:0 10px;
+  border:1px solid #5a3939;
+  border-radius:999px;
+  background:#241515;
+  color:#e4b1b1;
+  font-size:9px;
+  font-weight:800;
+}
+.repeat-line-remove:hover{border-color:#8a4f4f}
+@media(max-width:760px){
+ .repeat-line-remove{min-height:40px;padding:0 11px}
+}
