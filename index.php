@@ -25,7 +25,24 @@ CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT N
 CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE, phone TEXT NOT NULL DEFAULT "", address TEXT NOT NULL DEFAULT "", created TEXT NOT NULL, UNIQUE(name,phone));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, credential_id TEXT NOT NULL UNIQUE, public_key_pem TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT "Passkey", created TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, amount INTEGER NOT NULL CHECK(amount>0), method TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", created TEXT NOT NULL);');
+CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, amount INTEGER NOT NULL CHECK(amount>0), method TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS reta_cycles (
+ id INTEGER PRIMARY KEY,
+ customer_name TEXT NOT NULL,
+ phone TEXT NOT NULL DEFAULT "",
+ source_order_id INTEGER DEFAULT NULL,
+ last_order_id INTEGER DEFAULT NULL,
+ last_order_date TEXT NOT NULL,
+ next_due_date TEXT NOT NULL,
+ expected_value INTEGER NOT NULL DEFAULT 0,
+ product_summary TEXT NOT NULL DEFAULT "",
+ cycle_days INTEGER NOT NULL DEFAULT 28,
+ active INTEGER NOT NULL DEFAULT 1,
+ created TEXT NOT NULL,
+ updated TEXT NOT NULL,
+ ended_at TEXT NOT NULL DEFAULT "",
+ end_reason TEXT NOT NULL DEFAULT ""
+);');
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -51,6 +68,9 @@ if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec
 $customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
 $db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
+$db->exec('CREATE INDEX IF NOT EXISTS idx_reta_cycles_due ON reta_cycles(active,next_due_date)');
+$db->exec('CREATE INDEX IF NOT EXISTS idx_reta_cycles_customer ON reta_cycles(customer_name,phone)');
+
 $db->exec("INSERT INTO payments(order_id,amount,method,note,created)
  SELECT o.id,
   COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0),
@@ -470,6 +490,50 @@ function refreshOrderPaymentState(PDO $db,int $orderId):void{
   $db->prepare("UPDATE orders SET status='Awaiting payment' WHERE id=?")->execute([$orderId]);
  }
 }
+function isRetaProductName(string $name):bool{return str_starts_with(strtolower(trim($name)),'retatrutide');}
+function retaCycleSnapshot(array $lines):?array{
+ $retaValue=0;$retaPenUnits=0;$parts=[];
+ foreach($lines as $line){
+  $productName=(string)($line['product']['name']??'');if(!isRetaProductName($productName))continue;
+  $qty=(int)($line['qty']??0);if($qty<1)continue;
+  $retaValue+=(int)($line['price']??0)*$qty;if((string)($line['presentation']??'')==='Pen')$retaPenUnits+=$qty;
+  $parts[]=$qty.' × '.$productName.((string)($line['presentation']??'')!==''?' · '.(string)$line['presentation']:'');
+ }
+ if(!$parts)return null;
+ $penRemaining=$retaPenUnits;$penValue=0;$penCount=0;
+ if($penRemaining>0){
+  foreach($lines as $line){
+   $productName=strtolower(trim((string)($line['product']['name']??'')));if($productName!=='pen'||$penRemaining<=0)continue;
+   $qty=min($penRemaining,max(0,(int)($line['qty']??0)));if($qty<1)continue;
+   $penValue+=(int)($line['price']??0)*$qty;$penCount+=$qty;$penRemaining-=$qty;
+  }
+  if($penCount>0)$parts[]=$penCount.' × Pen';
+ }
+ return ['expected_value'=>$retaValue+$penValue,'summary'=>implode(' + ',$parts)];
+}
+function updateRetaCycleFromOrder(PDO $db,int $orderId,string $customer,string $phone,string $orderDate,array $lines):void{
+ // No historical backfill: automatic tracking starts with orders dated 24 Sep 2026 onward.
+ if($orderDate<'2026-09-24')return;
+ $snapshot=retaCycleSnapshot($lines);
+ if(!$snapshot){
+  $q=$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Reta removed from latest order',updated=? WHERE active=1 AND last_order_id=?");
+  $now=gmdate('c');$q->execute([$now,$now,$orderId]);return;
+ }
+ $tz=new DateTimeZone('Europe/London');$due=(new DateTimeImmutable($orderDate,$tz))->modify('+28 days')->format('Y-m-d');$now=gmdate('c');
+ $q=$db->prepare("SELECT id FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) AND trim(phone)=trim(?) ORDER BY id DESC LIMIT 1");$q->execute([$customer,$phone]);$existing=(int)$q->fetchColumn();
+ if($existing>0){
+  $db->prepare("UPDATE reta_cycles SET customer_name=?,phone=?,last_order_id=?,last_order_date=?,next_due_date=?,expected_value=?,product_summary=?,cycle_days=28,updated=?,ended_at='',end_reason='' WHERE id=?")
+   ->execute([$customer,$phone,$orderId,$orderDate,$due,(int)$snapshot['expected_value'],(string)$snapshot['summary'],$now,$existing]);
+ }else{
+  $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,next_due_date,expected_value,product_summary,cycle_days,active,created,updated) VALUES (?,?,?,?,?,?,?,?,28,1,?,?)")
+   ->execute([$customer,$phone,$orderId,$orderId,$orderDate,$due,(int)$snapshot['expected_value'],(string)$snapshot['summary'],$now,$now]);
+ }
+}
+function retaForecastRows(PDO $db,string $start,string $end):array{
+ $q=$db->prepare("SELECT * FROM reta_cycles WHERE active=1 AND date(next_due_date)>=date(?) AND date(next_due_date)<=date(?) ORDER BY date(next_due_date),customer_name COLLATE NOCASE");
+ $q->execute([$start,$end]);return $q->fetchAll(PDO::FETCH_ASSOC);
+}
+
 
 
 if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='order-pdf'){
@@ -1074,6 +1138,26 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $paymentId=(int)($_POST['payment_id']??0);$q=$db->prepare('SELECT order_id FROM payments WHERE id=?');$q->execute([$paymentId]);$orderId=(int)$q->fetchColumn();if($orderId<1)throw new Exception('Payment could not be found.');
    $db->prepare('DELETE FROM payments WHERE id=?')->execute([$paymentId]);refreshOrderPaymentState($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
   }
+  if($action==='reta_cycle_stop'){
+   $cycleId=(int)($_POST['cycle_id']??0);$reason=trim((string)($_POST['reason']??'Stopped manually'))?:'Stopped manually';if(strlen($reason)>240)$reason=substr($reason,0,240);
+   $nowCycle=gmdate('c');$q=$db->prepare('UPDATE reta_cycles SET active=0,ended_at=?,end_reason=?,updated=? WHERE id=?');$q->execute([$nowCycle,$reason,$nowCycle,$cycleId]);
+   if(!$q->rowCount())throw new Exception('Reta cycle could not be found.');
+  }
+  if($action==='reta_cycle_resume'){
+   $cycleId=(int)($_POST['cycle_id']??0);$due=trim((string)($_POST['next_due_date']??''));$tzCycle=new DateTimeZone('Europe/London');$date=DateTimeImmutable::createFromFormat('!Y-m-d',$due,$tzCycle);
+   if(!$date||$date->format('Y-m-d')!==$due)throw new Exception('Choose a valid next expected date.');
+   $nowCycle=gmdate('c');$q=$db->prepare("UPDATE reta_cycles SET active=1,next_due_date=?,ended_at='',end_reason='',updated=? WHERE id=?");$q->execute([$due,$nowCycle,$cycleId]);
+   if(!$q->rowCount())throw new Exception('Reta cycle could not be found.');
+  }
+  if($action==='reta_cycle_start_order'){
+   $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT customer,phone,created FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)throw new Exception('Order could not be found.');
+   $iq=$db->prepare("SELECT p.id product_id,p.name product_name,i.price,i.quantity,i.presentation,i.base_price,i.discount,i.cost FROM items i LEFT JOIN products p ON lower(trim(p.name))=lower(trim(i.name)) WHERE i.order_id=? ORDER BY i.id");$iq->execute([$orderId]);$raw=$iq->fetchAll(PDO::FETCH_ASSOC);$lines=[];
+   foreach($raw as $ri)$lines[]=['product'=>['name'=>(string)($ri['product_name']??'')],'qty'=>(int)$ri['quantity'],'presentation'=>(string)$ri['presentation'],'price'=>(int)$ri['price']];
+   if(!retaCycleSnapshot($lines))throw new Exception('That order does not contain Retatrutide.');
+   $orderDate=date('Y-m-d',strtotime((string)$order['created']));$snapshot=retaCycleSnapshot($lines);$due=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->modify('+28 days')->format('Y-m-d');$nowCycle=gmdate('c');
+   $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,next_due_date,expected_value,product_summary,cycle_days,active,created,updated) VALUES (?,?,?,?,?,?,?,?,28,1,?,?)")
+    ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderId,$orderDate,$due,(int)$snapshot['expected_value'],(string)$snapshot['summary'],$nowCycle,$nowCycle]);
+  }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
    if(!in_array($newStatus,$statuses,true))throw new Exception('Choose a valid status.');
@@ -1092,6 +1176,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
    $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
+   if($newStatus==='Cancelled'){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Latest order cancelled',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);}
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_dates'){
@@ -1106,6 +1191,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->fetchColumn())throw new Exception('Order could not be found.');
    $reference='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
    $db->beginTransaction();
+   $nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Source order deleted',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);
    $db->prepare('DELETE FROM payments WHERE order_id=?')->execute([$orderId]);
    $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
    $db->prepare('DELETE FROM orders WHERE id=?')->execute([$orderId]);
@@ -1170,6 +1256,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
    $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity) VALUES (?,?,?,?,?,?,?,?,?)');
    foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty']]);
+   updateRetaCycleFromOrder($db,$orderId,$name,$phone,$orderDate,$lines);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
@@ -1192,7 +1279,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':'')))))))))));
+ $flash=$action==='reta_cycle_stop'?'Reta repeat stopped.':($action==='reta_cycle_resume'?'Reta repeat restarted.':($action==='reta_cycle_start_order'?'Reta 4-week cycle started.':($action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))))))));
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
