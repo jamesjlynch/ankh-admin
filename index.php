@@ -554,7 +554,7 @@ function syncRetaCycleFromDeliveredOrder(PDO $db,int $orderId,bool $forceHistori
  }
 }
 function retaProjection(array $cycles,DateTimeImmutable $today,int $days):array{
- $end=$today->modify('+'.max(1,$days).' days');$orders=0;$revenue=0;$profit=0;$costMissing=0;
+ $end=$today->modify('+'.max(0,$days-1).' days');$orders=0;$revenue=0;$profit=0;$costMissing=0;
  foreach($cycles as $cycle){
   $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$today->getTimezone());if(!$due)continue;
   if($due<$today){
@@ -1334,9 +1334,9 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile48"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile49"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1448,6 +1448,12 @@ if($view==='customer' && (int)($_GET['id']??0)>0){$q=$db->prepare('SELECT * FROM
 
 // Dashboard figures use paid/packed/dispatched/delivered orders as completed sales.
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('now',$tz);
+$retaToday=$now->setTime(0,0);
+$retaCyclesActive=$db->query("SELECT * FROM reta_cycles WHERE active=1 ORDER BY date(next_due_date),customer_name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+$retaCyclesStopped=$db->query("SELECT * FROM reta_cycles WHERE active=0 ORDER BY datetime(updated) DESC,id DESC LIMIT 50")->fetchAll(PDO::FETCH_ASSOC);
+$retaForecast4=retaProjection($retaCyclesActive,$retaToday,28);$retaForecast8=retaProjection($retaCyclesActive,$retaToday,56);$retaForecast12=retaProjection($retaCyclesActive,$retaToday,84);
+$retaDue7=array_values(array_filter($retaCyclesActive,function($cycle)use($retaToday){$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$retaToday->getTimezone());return $due && $due<=$retaToday->modify('+7 days');}));
+$retaOverdue=array_values(array_filter($retaCyclesActive,function($cycle)use($retaToday){$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$retaToday->getTimezone());return $due && $due<$retaToday;}));
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
 $todaySales=0;$monthSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
@@ -1576,6 +1582,14 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($topSelling):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
 <?php $rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;?>
 </section></div><?php endif;?>
+
+<section class="panel dashboard-reta-panel">
+<div class="dashboard-panel-head"><div><p class="eyebrow">RECURRING RETA</p><h2>4-week reminders</h2><p class="muted">Forecasted from each customer’s latest Reta delivery date.</p></div><a href="?view=reta">Manage →</a></div>
+<div class="reta-dashboard-stats"><div><span>Active</span><strong><?=count($retaCyclesActive)?></strong></div><div><span>Due / overdue 7 days</span><strong><?=count($retaDue7)?></strong></div><div><span>Next 4 weeks</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=money($retaForecast4['profit'])?> projected profit</small></div></div>
+<?php if($retaCyclesActive):foreach(array_slice($retaCyclesActive,0,4) as $cycle):$dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;?>
+<div class="dashboard-row reta-dashboard-row"><span><b><?=e($cycle['customer_name'])?></b><small><?=e($cycle['product_summary'])?></small></span><strong><?=$daysAway<0?'Overdue '.abs($daysAway).'d':($daysAway===0?'Due today':'Due '.e(date('d M',strtotime($cycle['next_due_date']))))?></strong></div>
+<?php endforeach;else:?><p class="muted">No recurring Reta reminders yet. A cycle starts when a Reta order receives a delivery date.</p><?php endif;?>
+</section>
 
 <?php if($awaitingPayment||$awaitingDelivery):?><section class="todo-board">
 <div class="todo-board-head"><div><p class="eyebrow">TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><?php if($awaitingPayment):?><span><?=count($awaitingPayment)?> payment</span><?php endif;?><?php if($awaitingDelivery):?><span><?=count($awaitingDelivery)?> delivery</span><?php endif;?></div></div>
@@ -1824,6 +1838,35 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </section>
 <?php endif;?>
 
+<?php elseif($view==='reta'):?>
+<div class="heading reta-heading"><div><p class="eyebrow">RECURRING RETA</p><h1>Reta 4-week forecast</h1><p class="muted page-description">Each active customer is projected every 28 days from their latest Reta delivery date.</p></div><a class="quick-action" href="?view=dashboard">← Dashboard</a></div>
+<div class="reta-forecast-grid">
+ <article><span>Active customers</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($retaOverdue)?> overdue</small></article>
+ <article><span>Next 4 weeks</span><strong><?=money($retaForecast4['revenue'])?></strong><small><?=$retaForecast4['orders']?> projected order<?=$retaForecast4['orders']===1?'':'s'?> · <?=money($retaForecast4['profit'])?> profit</small></article>
+ <article><span>Next 8 weeks</span><strong><?=money($retaForecast8['revenue'])?></strong><small><?=$retaForecast8['orders']?> projected orders · <?=money($retaForecast8['profit'])?> profit</small></article>
+ <article><span>Next 12 weeks</span><strong><?=money($retaForecast12['revenue'])?></strong><small><?=$retaForecast12['orders']?> projected orders · <?=money($retaForecast12['profit'])?> profit</small></article>
+</div>
+<?php if($retaForecast12['cost_missing']):?><p class="error report-warning">Some recurring Reta products do not have a saved supplier cost, so projected profit may be overstated for <?=$retaForecast12['cost_missing']?> projected occurrence<?=$retaForecast12['cost_missing']===1?'':'s'?>.</p><?php endif;?>
+
+<section class="panel reta-cycle-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">ACTIVE</p><h2>Upcoming Reta orders</h2><p class="muted">When the next Reta order is delivered, its new delivery date automatically resets the following reminder by another 28 days.</p></div></div>
+<?php if($retaCyclesActive):?><div class="reta-cycle-list"><?php foreach($retaCyclesActive as $cycle):
+ $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;
+ $dueClass=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');
+?>
+<article class="reta-cycle-card <?=$dueClass?>">
+ <div class="reta-cycle-top"><div><span class="reta-due-badge"><?=$daysAway<0?'OVERDUE '.abs($daysAway).' DAYS':($daysAway===0?'DUE TODAY':($daysAway===1?'DUE TOMORROW':'DUE '.strtoupper(e(date('d M',strtotime($cycle['next_due_date']))))))?></span><h3><?=e($cycle['customer_name'])?></h3><p><?=e($cycle['product_summary'])?></p></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong><small><?=money($cycle['expected_profit'])?> projected profit<?=$cycle['cost_missing']?' · cost missing':''?></small></div></div>
+ <div class="reta-cycle-meta"><span><b>Last delivered</b><?=e($cycle['last_delivery_date']?date('d M Y',strtotime($cycle['last_delivery_date'])):'—')?></span><span><b>Next expected</b><?=e(date('d M Y',strtotime($cycle['next_due_date'])))?></span><span><b>Cycle</b>Every 28 days</span></div>
+ <div class="reta-cycle-actions"><?php if((int)$cycle['last_order_id']>0):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$cycle['last_order_id']?>">Create repeat order</a><a class="quick-action" href="?view=edit&amp;id=<?=$cycle['last_order_id']?>">Last order</a><?php endif;?>
+ <form method="post" onsubmit="return confirm('Remove <?=e(addslashes($cycle['customer_name']))?> from recurring Reta reminders?');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="reason" value="Customer no longer wishes to purchase recurring Reta"><input type="hidden" name="return" value="reta"><button class="quiet danger-button">Stop recurring</button></form></div>
+</article>
+<?php endforeach;?></div><?php else:?><p class="empty">No active recurring Reta orders yet. Once a Reta order is marked delivered, its first reminder will be scheduled for 28 days after that delivery date.</p><?php endif;?>
+</section>
+
+<?php if($retaCyclesStopped):?><details class="panel reta-stopped"><summary>Stopped recurring customers (<?=count($retaCyclesStopped)?>)</summary><div class="reta-cycle-list stopped"><?php foreach($retaCyclesStopped as $cycle):?>
+<article class="reta-cycle-card stopped"><div class="reta-cycle-top"><div><h3><?=e($cycle['customer_name'])?></h3><p><?=e($cycle['product_summary'])?></p><small><?=e($cycle['end_reason']?:'Stopped')?></small></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong></div></div>
+<form method="post" class="reta-resume-form"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_resume"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="reta"><label>Restart next expected date<input type="date" name="next_due_date" value="<?=e($retaToday->modify('+28 days')->format('Y-m-d'))?>" required></label><button class="quiet">Restart recurring</button></form></article>
+<?php endforeach;?></div></details><?php endif;?>
+
 <?php elseif($view==='reports'):?>
 <div class="heading"><div><h1>Profit & reports</h1><p class="muted page-description">Paid sales less product costs, pen costs and postage.</p></div><a class="quick-action" href="?view=more">← More</a></div>
 <div class="report-periods">
@@ -1881,6 +1924,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="more-grid">
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products & stock</h2><p>Prices, supplier costs, availability and stock levels.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
+<a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Recurring Reta</h2><p>28-day reminders, upcoming repeat orders and projected sales &amp; profit.</p></div><b>›</b></a>
 <a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
 </div>
 <div class="more-grid utility-grid">
