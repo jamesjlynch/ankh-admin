@@ -1193,13 +1193,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->rowCount())throw new Exception('Reta cycle could not be found.');
   }
   if($action==='reta_cycle_start_order'){
-   $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT customer,phone,created FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)throw new Exception('Order could not be found.');
-   $iq=$db->prepare("SELECT p.id product_id,p.name product_name,i.price,i.quantity,i.presentation,i.base_price,i.discount,i.cost FROM items i LEFT JOIN products p ON lower(trim(p.name))=lower(trim(i.name)) WHERE i.order_id=? ORDER BY i.id");$iq->execute([$orderId]);$raw=$iq->fetchAll(PDO::FETCH_ASSOC);$lines=[];
-   foreach($raw as $ri)$lines[]=['product'=>['name'=>(string)($ri['product_name']??'')],'qty'=>(int)$ri['quantity'],'presentation'=>(string)$ri['presentation'],'price'=>(int)$ri['price']];
-   if(!retaCycleSnapshot($lines))throw new Exception('That order does not contain Retatrutide.');
-   $orderDate=date('Y-m-d',strtotime((string)$order['created']));$snapshot=retaCycleSnapshot($lines);$due=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->modify('+28 days')->format('Y-m-d');$nowCycle=gmdate('c');
-   $db->prepare("INSERT INTO reta_cycles(customer_name,phone,source_order_id,last_order_id,last_order_date,next_due_date,expected_value,product_summary,cycle_days,active,created,updated) VALUES (?,?,?,?,?,?,?,?,28,1,?,?)")
-    ->execute([(string)$order['customer'],(string)$order['phone'],$orderId,$orderId,$orderDate,$due,(int)$snapshot['expected_value'],(string)$snapshot['summary'],$nowCycle,$nowCycle]);
+   $orderId=(int)($_POST['id']??0);$q=$db->prepare('SELECT delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$delivery=(string)($q->fetchColumn()?:'');if($delivery==='')throw new Exception('Add the delivery date first. The 4-week reminder starts from the delivery date.');
+   $snapshot=retaCycleSnapshot(retaOrderLines($db,$orderId));if(!$snapshot)throw new Exception('That order does not contain Retatrutide.');
+   syncRetaCycleFromDeliveredOrder($db,$orderId,true);
   }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
@@ -1219,6 +1215,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
    $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
+   if($newStatus==='Delivered')syncRetaCycleFromDeliveredOrder($db,$orderId);
    if($newStatus==='Cancelled'){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Latest order cancelled',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);}
    $syncError=syncOrderToSheet($db,$orderId);
   }
@@ -1226,6 +1223,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $orderId=(int)($_POST['id']??0);$paymentDate=orderActionDate((string)($_POST['payment_date']??''),'payment');$deliveryDate=orderActionDate((string)($_POST['delivery_date']??''),'delivery');
    $q=$db->prepare('UPDATE orders SET payment_date=?,delivery_date=? WHERE id=?');$q->execute([$paymentDate,$deliveryDate,$orderId]);
    if(!$q->rowCount()){$check=$db->prepare('SELECT id FROM orders WHERE id=?');$check->execute([$orderId]);if(!$check->fetchColumn())throw new Exception('Order could not be found.');}
+   syncRetaCycleFromDeliveredOrder($db,$orderId);
    $syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='order_delete'){
@@ -1299,7 +1297,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
    $insertItem=$db->prepare('INSERT INTO items(order_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity) VALUES (?,?,?,?,?,?,?,?,?)');
    foreach($lines as $line)$insertItem->execute([$orderId,$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty']]);
-   updateRetaCycleFromOrder($db,$orderId,$name,$phone,$orderDate,$lines);
+   if($isEdit && !empty($existingOrder['delivery_date']))syncRetaCycleFromDeliveredOrder($db,$orderId);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
