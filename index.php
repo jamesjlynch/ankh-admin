@@ -1737,6 +1737,7 @@ $lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=
 $penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 
+if($view==='reports'){
 // Shared report filters and datasets. Sales, product and customer views use order date;
 // cash received uses payment date; recurring and stock views use their own event dates.
 $reportTypes=['overview','sales','profit','products','customers','recurring','stock'];
@@ -1835,6 +1836,7 @@ if($view==='reports'&&$reportExport!==''&&!$reportRangeError){
   foreach($exportRows as $csvRow){$safeRow=array_map(static function($value){if(is_string($value)&&preg_match('/^[=+@-]/',ltrim($value))&&!preg_match('/^-?\d+(?:\.\d+)?$/',$value))return "'".$value;return $value;},$csvRow);fputcsv($out,$safeRow);}
   fclose($out);exit;
  }
+}
 }
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
