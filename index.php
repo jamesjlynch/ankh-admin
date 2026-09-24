@@ -1380,11 +1380,32 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    header('Location: ./?view=sheets');exit;
   }
  }
- $flash=$action==='reta_cycle_stop'?'Recurring cycle stopped.':($action==='reta_cycle_resume'?'Recurring cycle restarted.':($action==='cycle_amend'?'Recurring cycle updated.':$action==='reta_cycle_start_order'?'Recurring cycles started.':($action==='payment_add'?'Payment recorded.':($action==='payment_delete'?'Payment removed.':($action==='order'?'Order saved.':($action==='order_edit'?'Order updated.':($action==='profit_settings'?'Profit settings saved.':($action==='order_delete'?'Order deleted.':($action==='order_dates'?'Order dates updated.':($action==='status'?'Order status updated.':($action==='product'?'Product saved.':($action==='customer'?((int)($_POST['id']??0)?'Customer updated.':'Customer added.'):($action==='customer_archive'?((($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.'):($action==='sheets_settings'?'Google Sheets connection saved.':''))))))))))))));
+ $flash=match($action){
+  'reta_cycle_stop'=>'Recurring cycle stopped.',
+  'reta_cycle_resume'=>'Recurring cycle restarted.',
+  'cycle_amend'=>'Recurring cycle updated.',
+  'reta_cycle_start_order'=>'Recurring cycles started.',
+  'payment_add'=>'Payment recorded.',
+  'payment_delete'=>'Payment removed.',
+  'order'=>'Order saved.',
+  'order_edit'=>'Order updated.',
+  'profit_settings'=>'Profit settings saved.',
+  'order_delete'=>'Order deleted.',
+  'order_dates'=>'Order dates updated.',
+  'status'=>'Order status updated.',
+  'product'=>'Product saved.',
+  'customer'=>(int)($_POST['id']??0)?'Customer updated.':'Customer added.',
+  'customer_archive'=>(($_POST['archive']??'1')==='1')?'Customer archived.':'Customer restored.',
+  'sheets_settings'=>'Google Sheets connection saved.',
+  default=>''
+ };
  if($flash!=='' && is_string($syncError) && $syncError!=='')$flash.=' Google Sheets sync failed — open the Google Sheets page to retry.';
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
- header('Location: ./?view='.urlencode($_POST['return']??'orders'));exit;
+ $returnView=(string)($_POST['return']??'orders');
+ if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
+ else header('Location: ./?view='.urlencode($returnView));
+ exit;
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();}
 }
 $passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
