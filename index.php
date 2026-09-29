@@ -479,7 +479,8 @@ function passkeyChallengeValid(string $kind):string{
 $pinSetupTokenHash='64a1ea8550f3bb078a15088090d021b056d8bdad6ee24d1346e7603693b1cbea';
 $savedAdminPinHash=setting($db,'admin_pin_hash','');
 $pinSetupComplete=$savedAdminPinHash!=='';
-$testingNoAuth=!$pinSetupComplete;
+// TEMPORARY PUBLIC TEST MODE: set false before the app is used with real data.
+$testingNoAuth=true;
 $adminPasswordHash=$pinSetupComplete?$savedAdminPinHash:(string)$config['password_hash'];
 $openAiKey=trim((string)($config['openai_api_key']??(getenv('OPENAI_API_KEY')?:'')));
 $voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
@@ -689,6 +690,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-options'
   $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))$body=$_POST;
   if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
   $kind=(string)($body['kind']??'login');$register=$kind==='register';
+  if($testingNoAuth && $register)voiceJson(['ok'=>false,'error'=>'Passkey registration is disabled while public test mode is active.'],403);
   if($register && (empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600))voiceJson(['ok'=>false,'error'=>'Please sign in with your PIN first.'],401);
   $challenge=b64urlEncode(random_bytes(32));$_SESSION['passkey_challenge']=$challenge;$_SESSION['passkey_kind']=$register?'register':'login';$_SESSION['passkey_created']=time();
   if($register){
@@ -709,6 +711,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-options'
 }
 if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-register'){
  try{
+  if($testingNoAuth)voiceJson(['ok'=>false,'error'=>'Passkey registration is disabled while public test mode is active.'],403);
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
   $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))voiceJson(['ok'=>false,'error'=>'Invalid passkey response.'],400);
   if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
@@ -1857,7 +1860,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['more','products','reports','sheets'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header><?php if($testingNoAuth):?><p class="error" style="background:#3b301b;border-color:#79622d;color:#f5d991">TEST MODE · Password temporarily disabled</p><?php endif;?>
+<main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header><?php if($testingNoAuth):?><p class="error" style="background:#3b301b;border-color:#79622d;color:#f5d991">PUBLIC TEST MODE · No PIN — anyone with this URL can view or change app data. Re-enable access control before using real data.</p><?php endif;?>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
 <?php if($view==='dashboard'): ?>
