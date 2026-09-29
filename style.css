@@ -3296,3 +3296,30 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
     gap:7px;
   }
 }
+
+
+/* Stock value and potential-profit snapshot */
+.fridge-overview-card strong em{font-size:11px;font-style:normal;font-weight:700;color:var(--muted)}
+.fridge-value-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
+.fridge-value-summary small{display:grid;gap:3px;min-width:0;color:#f0eee8;font-size:13px;font-weight:700}
+.fridge-value-summary small b{color:var(--muted);font-size:9px;font-weight:700;letter-spacing:.35px}
+.stock-product-grid[data-fridge-view] .stock-product-counts>div:not([hidden]){display:grid;gap:8px;align-items:stretch;padding:10px}
+.stock-count-head{display:flex;align-items:center;justify-content:space-between;gap:6px;min-width:0}
+.stock-count-head strong{flex:none}
+.stock-value-lines{display:grid;gap:4px;padding-top:7px;border-top:1px solid rgba(255,255,255,.07)}
+.stock-value-lines small{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0;color:#e9e5dd;font-size:10px;font-weight:700;white-space:nowrap}
+.stock-value-lines small b{color:#8f918f;font-size:9px;font-weight:700}
+.stock-product-combined .stock-value-lines small{color:#e9c978}
+@media(max-width:760px){
+ .fridge-overview-card{min-height:0}
+ .fridge-overview-card.fridge-jay,.fridge-overview-card.fridge-tony{padding:14px 12px}
+ .fridge-overview-card.fridge-jay .fridge-value-summary,.fridge-overview-card.fridge-tony .fridge-value-summary{grid-template-columns:1fr}
+ .fridge-overview-card.fridge-jay .fridge-value-summary small,.fridge-overview-card.fridge-tony .fridge-value-summary small{font-size:12px}
+ .stock-product-grid[data-fridge-view="combined"] .stock-product-counts{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .stock-product-grid[data-fridge-view="combined"] .stock-product-counts .stock-product-combined{grid-column:1/-1}
+ .stock-product-grid[data-fridge-view="combined"] .stock-product-counts .stock-product-combined .stock-value-lines{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+}
+@media(max-width:380px){
+ .fridge-value-summary{gap:6px}
+ .stock-value-lines small{font-size:9px}
+}
