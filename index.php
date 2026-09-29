@@ -73,6 +73,7 @@ if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("A
 if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN low_stock_at INTEGER NOT NULL DEFAULT 2");
 if(!in_array('stock_tracking',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking INTEGER NOT NULL DEFAULT 0");
 if(!in_array('stock_tracking_since',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking_since TEXT NOT NULL DEFAULT ''");
+foreach(['stock_jay_qty','stock_tony_qty','stock_unallocated_qty'] as $stockColumn){if(!in_array($stockColumn,array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN {$stockColumn} INTEGER NOT NULL DEFAULT 0");}
 if(!in_array('product_id',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN product_id INTEGER DEFAULT NULL");
 $db->exec('CREATE TABLE IF NOT EXISTS stock_movements (
  id INTEGER PRIMARY KEY,
@@ -80,6 +81,7 @@ $db->exec('CREATE TABLE IF NOT EXISTS stock_movements (
  movement_type TEXT NOT NULL,
  quantity_change INTEGER NOT NULL,
  order_id INTEGER DEFAULT NULL,
+ location TEXT NOT NULL DEFAULT "Unallocated",
  supplier TEXT NOT NULL DEFAULT "",
  batch_reference TEXT NOT NULL DEFAULT "",
  expiry_date TEXT NOT NULL DEFAULT "",
@@ -96,10 +98,28 @@ CREATE TABLE IF NOT EXISTS stock_fulfilments (
  order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
  product_id INTEGER NOT NULL REFERENCES products(id),
  quantity INTEGER NOT NULL,
+ location TEXT NOT NULL DEFAULT "Unallocated",
  PRIMARY KEY(order_id,product_id)
 );
 CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_movements(product_id,created);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_created ON stock_movements(created);');
+$stockMovementColumns=$db->query('PRAGMA table_info(stock_movements)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('location',array_column($stockMovementColumns,'name'),true))$db->exec("ALTER TABLE stock_movements ADD COLUMN location TEXT NOT NULL DEFAULT 'Unallocated'");
+$stockFulfilmentColumns=$db->query('PRAGMA table_info(stock_fulfilments)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('location',array_column($stockFulfilmentColumns,'name'),true))$db->exec("ALTER TABLE stock_fulfilments ADD COLUMN location TEXT NOT NULL DEFAULT 'Unallocated'");
+$stockMigrationQuery=$db->prepare("SELECT value FROM settings WHERE key='fridge_stock_migrated'");$stockMigrationQuery->execute();$stockMigrationDone=$stockMigrationQuery->fetchColumn();
+if($stockMigrationDone===false){
+ $db->beginTransaction();
+ try{
+  $legacyStock=$db->query('SELECT id,stock_qty FROM products WHERE stock_tracking=1 AND stock_qty IS NOT NULL')->fetchAll(PDO::FETCH_ASSOC);
+  $saveLegacyStock=$db->prepare('UPDATE products SET stock_unallocated_qty=? WHERE id=?');
+  foreach($legacyStock as $legacyRow)$saveLegacyStock->execute([(int)$legacyRow['stock_qty'],(int)$legacyRow['id']]);
+  $db->exec("UPDATE stock_movements SET location='Unallocated' WHERE location IS NULL OR trim(location)=''");
+  $db->exec("UPDATE stock_fulfilments SET location='Unallocated' WHERE location IS NULL OR trim(location)=''");
+  $db->prepare("INSERT OR REPLACE INTO settings(key,value) VALUES ('fridge_stock_migrated',?)")->execute([gmdate('c')]);
+  $db->commit();
+ }catch(Throwable $migrationError){if($db->inTransaction())$db->rollBack();throw $migrationError;}
+}
 $customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
 $db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
@@ -538,38 +558,76 @@ function refreshOrderPaymentState(PDO $db,int $orderId):void{
   $db->prepare("UPDATE orders SET status='Awaiting payment' WHERE id=?")->execute([$orderId]);
  }
 }
-function addStockMovement(PDO $db,int $productId,string $type,int $delta,string $note='',?int $orderId=null,string $supplier='',string $batch='',string $expiry='',?int $unitCost=null):void{
+function stockLocationName(string $location):string{
+ $key=strtolower(trim($location));
+ if(in_array($key,['jay','james',"jay's fridge"],true))return 'Jay';
+ if(in_array($key,['tony',"tony's fridge"],true))return 'Tony';
+ return 'Unallocated';
+}
+function stockLocationForAssignee(string $assignee):string{
+ $key=strtolower(trim($assignee));
+ if(in_array($key,['jay','james'],true))return 'Jay';
+ if($key==='tony')return 'Tony';
+ return 'Unallocated';
+}
+function stockLocationColumn(string $location):string{
+ return match(stockLocationName($location)){'Jay'=>'stock_jay_qty','Tony'=>'stock_tony_qty',default=>'stock_unallocated_qty'};
+}
+function setProductStockAtLocation(PDO $db,int $productId,string $location,int $quantity):void{
+ $column=stockLocationColumn($location);
+ $db->prepare("UPDATE products SET {$column}=?,stock_qty=COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0) WHERE id=?")->execute([$quantity,$productId]);
+}
+function adjustProductStockAtLocation(PDO $db,int $productId,string $location,int $delta):void{
+ $column=stockLocationColumn($location);$q=$db->prepare("SELECT {$column} FROM products WHERE id=?");$q->execute([$productId]);$current=$q->fetchColumn();
+ if($current===false)throw new Exception('Product could not be found while updating stock.');
+ setProductStockAtLocation($db,$productId,$location,(int)$current+$delta);
+}
+function addStockMovement(PDO $db,int $productId,string $type,int $delta,string $note='',?int $orderId=null,string $supplier='',string $batch='',string $expiry='',?int $unitCost=null,string $location='Unallocated'):void{
  if($delta===0&&$type!=='opening')return;
- $q=$db->prepare('INSERT INTO stock_movements(product_id,movement_type,quantity_change,order_id,note,supplier,batch_reference,expiry_date,unit_cost,created) VALUES (?,?,?,?,?,?,?,?,?,?)');
- $q->execute([$productId,$type,$delta,$orderId,$note,$supplier,$batch,$expiry,$unitCost,gmdate('c')]);
+ $q=$db->prepare('INSERT INTO stock_movements(product_id,movement_type,quantity_change,order_id,location,supplier,batch_reference,expiry_date,unit_cost,note,created) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
+ $q->execute([$productId,$type,$delta,$orderId,stockLocationName($location),$supplier,$batch,$expiry,$unitCost,$note,gmdate('c')]);
 }
 function reconcileDeliveredStock(PDO $db,int $orderId,bool $createEvent=false):void{
  $ownsTransaction=!$db->inTransaction();if($ownsTransaction)$db->beginTransaction();
  try{
   if($createEvent){
-   $q=$db->prepare('SELECT delivery_date,status FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);
-   if(!$order)throw new Exception('Order could not be found for stock update.');
-   if($order['status']==='Cancelled')throw new Exception('A cancelled order cannot reduce stock.');
-   $deliveryDate=(string)($order['delivery_date']?:date('Y-m-d'));
+   $q=$db->prepare('SELECT delivery_date,status FROM orders WHERE id=?');$q->execute([$orderId]);$eventOrder=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$eventOrder)throw new Exception('Order could not be found for stock update.');
+   if($eventOrder['status']==='Cancelled')throw new Exception('A cancelled order cannot reduce stock.');
+   $deliveryDate=(string)($eventOrder['delivery_date']?:date('Y-m-d'));
    $db->prepare('INSERT OR IGNORE INTO stock_delivery_events(order_id,recorded_at,delivery_date) VALUES (?,?,?)')->execute([$orderId,gmdate('c'),$deliveryDate]);
   }
-  $q=$db->prepare('SELECT delivery_date FROM stock_delivery_events WHERE order_id=?');$q->execute([$orderId]);$eventDate=$q->fetchColumn();
-  if($eventDate===false){if($ownsTransaction)$db->commit();return;}
-  $eventDate=(string)$eventDate;
-  $q=$db->prepare("SELECT COALESCE(i.product_id,(SELECT p.id FROM products p WHERE lower(trim(p.name))=lower(trim(i.name)) ORDER BY p.id LIMIT 1)) AS product_id,SUM(i.quantity) AS quantity FROM items i WHERE i.order_id=? GROUP BY product_id");$q->execute([$orderId]);$desired=[];
-  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $line){
-   $productId=(int)($line['product_id']??0);if($productId<1)continue;
-   $p=$db->prepare('SELECT stock_tracking,stock_tracking_since FROM products WHERE id=?');$p->execute([$productId]);$product=$p->fetch(PDO::FETCH_ASSOC);
-   if(!$product||(int)$product['stock_tracking']!==1)continue;
-   $since=substr((string)$product['stock_tracking_since'],0,10);if($eventDate!==''&&$since!==''&&$eventDate<$since)continue;
-   $desired[$productId]=(int)$line['quantity'];
+  $q=$db->prepare('SELECT status,assigned_to,created FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);
+  if(!$order)throw new Exception('Order could not be found for stock update.');
+  $orderLocation=stockLocationForAssignee((string)($order['assigned_to']??''));
+  $desired=[];
+  if((string)$order['status']!=='Cancelled'){
+   $q=$db->prepare("SELECT COALESCE(i.product_id,(SELECT p.id FROM products p WHERE lower(trim(p.name))=lower(trim(i.name)) ORDER BY p.id LIMIT 1)) AS product_id,SUM(i.quantity) AS quantity FROM items i WHERE i.order_id=? GROUP BY product_id");$q->execute([$orderId]);
+   foreach($q->fetchAll(PDO::FETCH_ASSOC) as $line){
+    $productId=(int)($line['product_id']??0);if($productId<1)continue;
+    $p=$db->prepare('SELECT stock_tracking,stock_tracking_since FROM products WHERE id=?');$p->execute([$productId]);$product=$p->fetch(PDO::FETCH_ASSOC);
+    if(!$product||(int)$product['stock_tracking']!==1)continue;
+    $since=substr((string)$product['stock_tracking_since'],0,10);$orderDay=(new DateTimeImmutable((string)$order['created']))->setTimezone(new DateTimeZone('Europe/London'))->format('Y-m-d');
+    if($since!==''&&$orderDay!==''&&$orderDay<$since)continue;
+    $desired[$productId]=['quantity'=>(int)$line['quantity'],'location'=>$orderLocation];
+   }
   }
-  $q=$db->prepare('SELECT product_id,quantity FROM stock_fulfilments WHERE order_id=?');$q->execute([$orderId]);$previous=[];
-  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row)$previous[(int)$row['product_id']]=(int)$row['quantity'];
+  $q=$db->prepare('SELECT product_id,quantity,location FROM stock_fulfilments WHERE order_id=?');$q->execute([$orderId]);$previous=[];
+  foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row)$previous[(int)$row['product_id']]=['quantity'=>(int)$row['quantity'],'location'=>stockLocationName((string)($row['location']??'Unallocated'))];
   foreach(array_unique(array_merge(array_keys($previous),array_keys($desired))) as $productId){
-   $before=$previous[$productId]??0;$after=$desired[$productId]??0;$delta=$before-$after;
-   if($delta!==0){$db->prepare('UPDATE products SET stock_qty=COALESCE(stock_qty,0)+? WHERE id=?')->execute([$delta,$productId]);addStockMovement($db,(int)$productId,$before===0?'order_delivery':'order_edit',$delta,$before===0?'Delivered order':'Delivered order contents updated',$orderId);}
-   if($after>0)$db->prepare('INSERT INTO stock_fulfilments(order_id,product_id,quantity) VALUES (?,?,?) ON CONFLICT(order_id,product_id) DO UPDATE SET quantity=excluded.quantity')->execute([$orderId,$productId,$after]);
+   $before=$previous[$productId]['quantity']??0;$after=$desired[$productId]['quantity']??0;
+   $beforeLocation=$previous[$productId]['location']??$orderLocation;$afterLocation=$desired[$productId]['location']??$beforeLocation;
+   $deltas=[];
+   if($before>0)$deltas[$beforeLocation]=($deltas[$beforeLocation]??0)+$before;
+   if($after>0)$deltas[$afterLocation]=($deltas[$afterLocation]??0)-$after;
+   foreach($deltas as $location=>$delta){
+    if($delta===0)continue;
+    adjustProductStockAtLocation($db,(int)$productId,$location,$delta);
+    $movementType=$before===0?'order_reserved':($after===0?'order_release':'order_edit');
+    $movementNote=$before===0?'Order saved; stock reserved':($after===0?'Cancelled order stock returned':'Order stock reservation updated');
+    addStockMovement($db,(int)$productId,$movementType,$delta,$movementNote,$orderId,'','','',null,$location);
+   }
+   if($after>0)$db->prepare('INSERT INTO stock_fulfilments(order_id,product_id,quantity,location) VALUES (?,?,?,?) ON CONFLICT(order_id,product_id) DO UPDATE SET quantity=excluded.quantity,location=excluded.location')->execute([$orderId,$productId,$after,$afterLocation]);
    else$db->prepare('DELETE FROM stock_fulfilments WHERE order_id=? AND product_id=?')->execute([$orderId,$productId]);
   }
   if($ownsTransaction)$db->commit();
@@ -1257,24 +1315,35 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='stock_open'){
-   $productId=(int)($_POST['product_id']??0);$opening=filter_var($_POST['opening_qty']??'',FILTER_VALIDATE_INT);
-   if($productId<1||$opening===false||$opening<0||$opening>999999||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical opening count.');
-   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked===1)throw new Exception('Stock tracking is already enabled for this product.');
-   $db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=?,stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(int)$opening,(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);addStockMovement($db,$productId,'opening',(int)$opening,'Confirmed physical opening count');$db->commit();
+   $productId=(int)($_POST['product_id']??0);$opening=filter_var($_POST['opening_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));
+   if($productId<1||$opening===false||$opening<0||$opening>999999||!in_array($location,['Jay','Tony'],true)||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical count for Jay or Tony’s fridge.');
+   $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');
+   $wasTracked=(int)$product['stock_tracking']===1;$column=stockLocationColumn($location);$before=(int)$product[$column];$delta=(int)$opening-$before;
+   $db->beginTransaction();
+   if(!$wasTracked)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);
+   setProductStockAtLocation($db,$productId,$location,(int)$opening);
+   addStockMovement($db,$productId,$wasTracked?'count_adjustment':'opening',$delta,$wasTracked?'Confirmed fridge count':'Confirmed opening fridge count',null,'','','',null,$location);
+   $db->commit();
   }
   if($action==='stock_receive'){
-   $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$supplier=trim((string)($_POST['supplier']??''));$batch=trim((string)($_POST['batch_reference']??''));$expiry=trim((string)($_POST['expiry_date']??''));$note=trim((string)($_POST['note']??''));$unitCostRaw=trim((string)($_POST['unit_cost']??''));$unitCost=$unitCostRaw===''?null:postedMoneyPence($unitCostRaw,'unit cost');
-   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details.');
+   $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$supplier=trim((string)($_POST['supplier']??''));$batch=trim((string)($_POST['batch_reference']??''));$expiry=trim((string)($_POST['expiry_date']??''));$note=trim((string)($_POST['note']??''));$unitCostRaw=trim((string)($_POST['unit_cost']??''));$unitCost=$unitCostRaw===''?null:postedMoneyPence($unitCostRaw,'unit cost');
+   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($location,['Jay','Tony'],true)||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details and choose a fridge.');
    if($expiry!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry)||!checkdate((int)substr($expiry,5,2),(int)substr($expiry,8,2),(int)substr($expiry,0,4))))throw new Exception('Enter a valid expiry date.');
-   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked!==1)throw new Exception('Set an opening count before receiving stock.');
-   $db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=COALESCE(stock_qty,0)+? WHERE id=?')->execute([(int)$quantity,$productId]);addStockMovement($db,$productId,'received',(int)$quantity,$note,null,$supplier,$batch,$expiry,$unitCost);$db->commit();
+   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked!==1)throw new Exception('Confirm a fridge opening count before receiving stock.');
+   $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$location,(int)$quantity);addStockMovement($db,$productId,'received',(int)$quantity,$note,null,$supplier,$batch,$expiry,$unitCost,$location);$db->commit();
   }
   if($action==='stock_count'){
-   $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$note=trim((string)($_POST['note']??''));
-   if($productId<1||$counted===false||$counted<0||$counted>999999||strlen($note)>500)throw new Exception('Enter a valid physical stock count.');
-   $q=$db->prepare('SELECT stock_qty,stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Set an opening count before adjusting stock.');
-   $before=(int)($product['stock_qty']??0);$delta=(int)$counted-$before;
-   if($delta!==0){$db->beginTransaction();$db->prepare('UPDATE products SET stock_qty=? WHERE id=?')->execute([(int)$counted,$productId]);addStockMovement($db,$productId,'count_adjustment',$delta,$note!==''?$note:'Physical count correction');$db->commit();}
+   $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$note=trim((string)($_POST['note']??''));
+   if($productId<1||$counted===false||$counted<0||$counted>999999||!in_array($location,['Jay','Tony'],true)||strlen($note)>500)throw new Exception('Enter a valid fridge stock count.');
+   $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');
+   $column=stockLocationColumn($location);$before=(int)$product[$column];$delta=(int)$counted-$before;
+   if($delta!==0){$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,(int)$counted);addStockMovement($db,$productId,'count_adjustment',$delta,$note!==''?$note:'Physical fridge count correction',null,'','','',null,$location);$db->commit();}
+  }
+  if($action==='stock_transfer'){
+   $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$from=stockLocationName((string)($_POST['from_location']??''));$to=stockLocationName((string)($_POST['to_location']??''));$note=trim((string)($_POST['note']??''));
+   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($from,['Jay','Tony','Unallocated'],true)||!in_array($to,['Jay','Tony'],true)||$from===$to||strlen($note)>500)throw new Exception('Choose a valid source and destination fridge, and enter a quantity.');
+   $column=stockLocationColumn($from);$q=$db->prepare("SELECT stock_tracking,{$column} AS available FROM products WHERE id=?");$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');if((int)$product['available']<(int)$quantity)throw new Exception('There is not enough stock in that location to transfer.');
+   $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$from,-(int)$quantity);adjustProductStockAtLocation($db,$productId,$to,(int)$quantity);$transferNote=$note!==''?$note:'Stock transferred between locations';addStockMovement($db,$productId,'transfer_out',-(int)$quantity,$transferNote,null,'','','',null,$from);addStockMovement($db,$productId,'transfer_in',(int)$quantity,$transferNote,null,'','','',null,$to);$db->commit();
   }
   if($action==='product'){
    $name=trim($_POST['name']??'');$price=filter_var($_POST['price']??'',FILTER_VALIDATE_FLOAT);
@@ -1371,7 +1440,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    if($newStatus==='Delivered' && $deliveryDate==='')$deliveryDate=(string)($existingDates['delivery_date']?:$todayAction);
    $db->prepare("UPDATE orders SET status=?,payment_date=CASE WHEN ?<>'' THEN ? ELSE payment_date END,delivery_date=CASE WHEN ?<>'' THEN ? ELSE delivery_date END,payment_method=CASE WHEN ?<>'' THEN ? ELSE payment_method END WHERE id=?")->execute([$newStatus,$paymentDate,$paymentDate,$deliveryDate,$deliveryDate,$paymentMethod,$paymentMethod,$orderId]);
-   if($newStatus==='Delivered'){if((string)$existingDates['status']!=='Delivered')reconcileDeliveredStock($db,$orderId,true);syncProductCyclesFromDeliveredOrder($db,$orderId);}
+   reconcileDeliveredStock($db,$orderId,$newStatus==='Delivered'&&(string)$existingDates['status']!=='Delivered');
+   if($newStatus==='Delivered')syncProductCyclesFromDeliveredOrder($db,$orderId);
    if($newStatus==='Cancelled'){$nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Latest recurring order cancelled',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);}
    $syncError=syncOrderToSheet($db,$orderId);
   }
@@ -1388,6 +1458,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->fetchColumn())throw new Exception('Order could not be found.');
    $reference='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
    $db->beginTransaction();
+   $db->prepare("UPDATE orders SET status='Cancelled' WHERE id=?")->execute([$orderId]);reconcileDeliveredStock($db,$orderId,false);
    $nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Source order deleted',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);
    $db->prepare('DELETE FROM payments WHERE order_id=?')->execute([$orderId]);
    $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
@@ -1457,7 +1528,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $insertItem=$db->prepare('INSERT INTO items(order_id,product_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
    foreach($lines as $line)$insertItem->execute([$orderId,$line['product_id'],$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
    if($deliveryDate!=='')syncProductCyclesFromDeliveredOrder($db,$orderId,true);
-   if($isEdit){reconcileDeliveredStock($db,$orderId,false);syncProductCyclesFromDeliveredOrder($db,$orderId);}
+   reconcileDeliveredStock($db,$orderId,false);
+   if($isEdit)syncProductCyclesFromDeliveredOrder($db,$orderId);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
 
@@ -1546,6 +1618,7 @@ document.querySelector('#passkey-login')?.addEventListener('click',async event=>
 <?php else:
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $stockProducts=$db->query('SELECT * FROM products ORDER BY active DESC,name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+$fridgeTotals=$db->query('SELECT COALESCE(SUM(stock_jay_qty),0) AS jay,COALESCE(SUM(stock_tony_qty),0) AS tony,COALESCE(SUM(stock_unallocated_qty),0) AS unallocated FROM products WHERE stock_tracking=1')->fetch(PDO::FETCH_ASSOC);
 $recentStockMovements=$db->query('SELECT sm.*,p.name AS product_name FROM stock_movements sm JOIN products p ON p.id=sm.product_id ORDER BY datetime(sm.created) DESC,sm.id DESC LIMIT 60')->fetchAll(PDO::FETCH_ASSOC);
 $orders=$db->query("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) AS paid_amount FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
@@ -1827,7 +1900,7 @@ $paymentMethodStmt=$db->prepare($paymentDateSql);$paymentMethodStmt->execute($pa
 $reportExport=(string)($_GET['export']??'');
 if($view==='reports'&&$reportExport!==''&&!$reportRangeError){
  $exportType=$reportType;$exportRows=[];$exportHeaders=[];
- if($reportExport==='stock-movements'){$exportType='stock-movements';$exportHeaders=['Date','Product','Movement','Change','Supplier','Batch / lot','Expiry','Unit cost (£)','Note','Order ID'];foreach($reportStockMovements as $m)$exportRows[]=[(string)$m['created'],(string)$m['product_name'],(string)$m['movement_type'],(int)$m['quantity_change'],(string)$m['supplier'],(string)$m['batch_reference'],(string)$m['expiry_date'],$m['unit_cost']===null?'':number_format((int)$m['unit_cost']/100,2,'.',''),(string)$m['note'],$m['order_id']===null?'':(int)$m['order_id']];}
+ if($reportExport==='stock-movements'){$exportType='stock-movements';$exportHeaders=['Date','Product','Location','Movement','Change','Supplier','Batch / lot','Expiry','Unit cost (£)','Note','Order ID'];foreach($reportStockMovements as $m)$exportRows[]=[(string)$m['created'],(string)$m['product_name'],(string)($m['location']??'Unallocated'),(string)$m['movement_type'],(int)$m['quantity_change'],(string)$m['supplier'],(string)$m['batch_reference'],(string)$m['expiry_date'],$m['unit_cost']===null?'':number_format((int)$m['unit_cost']/100,2,'.',''),(string)$m['note'],$m['order_id']===null?'':(int)$m['order_id']];}
  elseif($reportType==='profit'){$exportHeaders=['Order','Customer','Status','Payment date','Sales (£)','Product cost (£)','Pen cost (£)','Postage (£)','Gross profit (£)','Cost missing'];foreach($selectedReportOrders as $r)$exportRows[]=['ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),(string)$r['customer'],(string)$r['status'],(string)$r['date'],number_format((int)$r['revenue']/100,2,'.',''),number_format((int)$r['product_cost']/100,2,'.',''),number_format((int)$r['pen_cost']/100,2,'.',''),number_format((int)$r['postage']/100,2,'.',''),number_format((int)$r['profit']/100,2,'.',''),!empty($r['missing_cost'])?'Yes':'No'];}
  elseif(in_array($reportType,['sales','overview'],true)){$exportHeaders=['Order','Order date','Customer','Phone','Status','Assigned to','Order value (£)','Paid recorded (£)','Balance due (£)'];foreach($reportOrdersFiltered as $o)$exportRows[]=['ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),date('Y-m-d',(int)$o['_report_ts']),(string)$o['customer'],(string)$o['phone'],(string)$o['status'],(string)($o['assigned_to']??''),number_format((int)$o['_order_value']/100,2,'.',''),number_format((int)$o['_paid_recorded']/100,2,'.',''),number_format((int)$o['_balance_due']/100,2,'.','')];}
  elseif($reportType==='products'){$exportHeaders=['Product','Units','Orders','Average unit value (£)','Line value (£)'];foreach($reportProducts as $r)$exportRows[]=[(string)$r['name'],(int)$r['units'],(int)$r['orders'],number_format((int)$r['average_unit_value']/100,2,'.',''),number_format((int)$r['line_value']/100,2,'.','')];}
@@ -2057,29 +2130,47 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="product-admin-grid"><label>Retail price (£)<input name="price" type="number" min="0" max="100000" step=".01" required value="<?=e(number_format($p['price']/100,2,'.',''))?>"></label><label>Cost (£)<?php if($costMapped):?> <span class="muted">Supplier list</span><?php endif;?><input name="cost" type="number" min="0" max="100000" step=".01" value="<?=$p['cost']===null?'':e(number_format($p['cost']/100,2,'.',''))?>" <?=$costMapped?'readonly':''?>></label><label>Stock quantity<input name="stock_qty" type="number" min="0" max="999999" step="1" placeholder="Leave blank to stop tracking" value="<?=$p['stock_qty']===null?'':e($p['stock_qty'])?>" <?=$p['stock_tracking']?'readonly':''?>></label><label>Low-stock alert<input name="low_stock_at" type="number" min="0" max="999999" step="1" value="<?=e($p['low_stock_at'])?>"></label></div>
 <label class="check"><input type="checkbox" name="active" <?=$p['active']?'checked':''?>> Available for new orders</label><button>Save product</button></form></details><?php endforeach;?>
 <?php elseif($view==='stock'):?>
-<div class="heading"><div><h1>Stock control</h1><p class="muted page-description">Set an opening count when you are ready. Existing manual counts are untouched until you confirm one.</p></div><a class="quick-action" href="?view=products">Products</a></div>
-<div class="panel stock-intro"><strong>Inventory setup is opt-in.</strong><span>Untracked products are never deducted on delivery. Once tracking is active, receipts and physical counts are recorded here and delivered orders update stock automatically.</span></div>
+<div class="heading"><div><h1>Stock control</h1><p class="muted page-description">Track each fridge separately. Saving an assigned order reserves its products from that person’s fridge.</p></div><a class="quick-action" href="?view=products">Products</a></div>
+<div class="fridge-overview-grid">
+<article class="fridge-overview-card fridge-jay"><span>JAY’S FRIDGE</span><strong><?=e($fridgeTotals['jay']??0)?></strong><small>units across tracked products</small></article>
+<article class="fridge-overview-card fridge-tony"><span>TONY’S FRIDGE</span><strong><?=e($fridgeTotals['tony']??0)?></strong><small>units across tracked products</small></article>
+<article class="fridge-overview-card fridge-combined"><span>COMBINED FRIDGE STOCK</span><strong><?=e((int)($fridgeTotals['jay']??0)+(int)($fridgeTotals['tony']??0))?></strong><small>Jay + Tony</small></article>
+</div>
+<?php if((int)($fridgeTotals['unallocated']??0)>0):?><div class="panel fridge-legacy-note"><strong><?=e($fridgeTotals['unallocated'])?> units need assigning</strong><span>These are existing tracked counts that weren’t recorded against a fridge. Transfer them to Jay or Tony as you confirm where they’re stored.</span></div><?php endif;?>
 <div class="stock-product-list">
-<?php foreach($stockProducts as $sp):?>
-<details class="order stock-product-card"><summary><div><h2><?=e($sp['name'])?></h2><span class="muted"><?=money($sp['price'])?> retail</span></div><div class="stock-summary"><span class="<?=$sp['stock_tracking']?'stock-enabled':'stock-disabled'?>"><?=$sp['stock_tracking']?'Tracking on':'Not set up'?></span><strong><?=$sp['stock_tracking']?e($sp['stock_qty']):($sp['stock_qty']===null?'—':'Manual · '.e($sp['stock_qty']))?></strong></div></summary>
+<?php foreach($stockProducts as $sp):
+ $jayStock=(int)($sp['stock_jay_qty']??0);$tonyStock=(int)($sp['stock_tony_qty']??0);$unallocatedStock=(int)($sp['stock_unallocated_qty']??0);$combinedFridgeStock=$jayStock+$tonyStock;?>
+<details class="order stock-product-card"><summary><div><h2><?=e($sp['name'])?></h2><span class="muted"><?=money($sp['price'])?> retail</span></div><div class="stock-summary"><span class="<?=$sp['stock_tracking']?'stock-enabled':'stock-disabled'?>"><?=$sp['stock_tracking']?'Tracking on':'Not set up'?></span><strong><?=$sp['stock_tracking']?e($combinedFridgeStock).' in fridges':'—'?></strong></div></summary>
 <div class="stock-product-body">
 <?php if(!(int)$sp['stock_tracking']):?>
-<p class="muted">Confirm the physical count to start the movement ledger. The old manual number is only a suggestion until you confirm the actual count.</p>
-<form method="post" class="stock-form"><?php csrf();?><input type="hidden" name="action" value="stock_open"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><label>Opening physical count<input name="opening_qty" type="number" min="0" max="999999" step="1" required value="<?=$sp['stock_qty']===null?'':e($sp['stock_qty'])?>" placeholder="Count units on hand"></label><label class="stock-confirm"><input type="checkbox" name="confirm_opening" value="1" required> I have counted this product</label><button>Confirm opening count</button></form>
+<p class="muted">Count what’s physically in each fridge. The combined total will update automatically.</p>
+<div class="fridge-count-grid">
+<?php foreach(['Jay','Tony'] as $fridge):?><form method="post" class="panel fridge-count-card"><?php csrf();?><input type="hidden" name="action" value="stock_open"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><input type="hidden" name="location" value="<?=e($fridge)?>"><h3><?=e($fridge)?>’s fridge</h3><label>Physical count<input name="opening_qty" type="number" min="0" max="999999" step="1" required value="0"></label><label class="stock-confirm"><input type="checkbox" name="confirm_opening" value="1" required> I’ve counted this fridge</label><button>Save count</button></form><?php endforeach;?>
+</div>
 <?php else:?>
-<div class="stock-on-hand"><span>On hand</span><strong><?=e($sp['stock_qty'])?></strong><small>Low-stock alert at <?=e($sp['low_stock_at'])?></small></div>
-<form method="post" class="stock-form stock-receive-form"><?php csrf();?><input type="hidden" name="action" value="stock_receive"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><h3>Receive stock</h3><label>Quantity received<input name="quantity" type="number" min="1" max="999999" step="1" required></label><label>Supplier <span class="muted">(optional)</span><input name="supplier" maxlength="160"></label><label>Batch / lot <span class="muted">(optional)</span><input name="batch_reference" maxlength="160"></label><label>Expiry date <span class="muted">(optional)</span><input name="expiry_date" type="date"></label><label>Unit cost (£) <span class="muted">(optional)</span><input name="unit_cost" type="number" min="0" max="100000" step=".01"></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500"></label><button>Save receipt</button></form>
-<form method="post" class="stock-form stock-count-form"><?php csrf();?><input type="hidden" name="action" value="stock_count"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><h3>Reconcile physical count</h3><label>Counted on hand<input name="counted_qty" type="number" min="0" max="999999" step="1" value="<?=e($sp['stock_qty'])?>" required></label><label>Reason <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Damage, loss or count correction"></label><button class="quiet">Save count correction</button></form>
+<div class="fridge-balance-grid">
+<article class="fridge-balance-card"><span>Jay’s fridge</span><strong><?=$jayStock?></strong><small>units</small></article>
+<article class="fridge-balance-card"><span>Tony’s fridge</span><strong><?=$tonyStock?></strong><small>units</small></article>
+<article class="fridge-balance-card combined"><span>Combined</span><strong><?=$combinedFridgeStock?></strong><small>Jay + Tony</small></article>
+</div>
+<?php if($unallocatedStock>0):?><p class="fridge-unallocated-note">Unallocated legacy stock: <strong><?=$unallocatedStock?></strong> · move it into the correct fridge below.</p><?php endif;?>
+<div class="fridge-management-grid">
+<?php foreach(['Jay','Tony'] as $fridge):$fridgeColumn=stockLocationColumn($fridge);?>
+<form method="post" class="panel fridge-action-card"><?php csrf();?><input type="hidden" name="action" value="stock_count"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><input type="hidden" name="location" value="<?=e($fridge)?>"><h3>Count <?=e($fridge)?>’s fridge</h3><label>Physical count<input name="counted_qty" type="number" min="0" max="999999" step="1" required value="<?=e($sp[$fridgeColumn])?>"></label><label>Reason <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Count correction"></label><button class="quiet">Save count</button></form>
+<?php endforeach;?>
+<form method="post" class="panel fridge-action-card fridge-receive-card"><?php csrf();?><input type="hidden" name="action" value="stock_receive"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><h3>Receive stock</h3><label>Put into<select name="location" required><option value="Jay">Jay’s fridge</option><option value="Tony">Tony’s fridge</option></select></label><label>Quantity<input name="quantity" type="number" min="1" max="999999" step="1" required></label><label>Supplier <span class="muted">(optional)</span><input name="supplier" maxlength="160"></label><label>Batch / lot <span class="muted">(optional)</span><input name="batch_reference" maxlength="160"></label><label>Expiry date <span class="muted">(optional)</span><input name="expiry_date" type="date"></label><label>Unit cost (£) <span class="muted">(optional)</span><input name="unit_cost" type="number" min="0" max="100000" step=".01"></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500"></label><button>Save receipt</button></form>
+<form method="post" class="panel fridge-action-card"><?php csrf();?><input type="hidden" name="action" value="stock_transfer"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><h3>Move between locations</h3><label>From<select name="from_location" required><option value="Jay">Jay’s fridge</option><option value="Tony">Tony’s fridge</option><?php if($unallocatedStock>0):?><option value="Unallocated">Unallocated stock</option><?php endif;?></select></label><label>To<select name="to_location" required><option value="Jay">Jay’s fridge</option><option value="Tony">Tony’s fridge</option></select></label><label>Quantity<input name="quantity" type="number" min="1" max="999999" step="1" required></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500"></label><button class="quiet">Transfer stock</button></form>
+</div>
 <?php endif;?>
 </div></details>
 <?php endforeach;?>
 </div>
 <section class="panel stock-history"><div class="dashboard-panel-head"><div><p class="eyebrow">MOVEMENT HISTORY</p><h2>Recent stock changes</h2></div></div>
 <?php if($recentStockMovements):?><div class="stock-movement-list"><?php foreach($recentStockMovements as $move):
- $moveLabel=match($move['movement_type']){'opening'=>'Opening count','received'=>'Stock received','count_adjustment'=>'Count correction','order_delivery'=>'Delivered order','order_edit'=>'Delivered order edit',default=>'Stock movement'};
- $delta=(int)$move['quantity_change'];?> 
-<article class="stock-movement-row"><div><strong><?=e($move['product_name'])?></strong><small><?=e(date('d M Y H:i',strtotime($move['created'])))?> · <?=e($moveLabel)?><?php if($move['supplier']!==''):?> · <?=e($move['supplier'])?><?php endif;?><?php if($move['batch_reference']!==''):?> · Batch <?=e($move['batch_reference'])?><?php endif;?><?php if($move['expiry_date']!==''):?> · Exp <?=e($move['expiry_date'])?><?php endif;?><?php if($move['note']!==''):?> · <?=e($move['note'])?><?php endif;?></small></div><b class="<?=$delta<0?'stock-negative':'stock-positive'?>"><?=$delta>0?'+':''?><?=$delta?></b></article>
-<?php endforeach;?></div><?php else:?><p class="muted">No stock movements yet. Confirm an opening count to start.</p><?php endif;?>
+ $moveLabel=match($move['movement_type']){'opening'=>'Opening count','received'=>'Stock received','count_adjustment'=>'Count correction','transfer_out'=>'Stock transferred out','transfer_in'=>'Stock transferred in','order_reserved'=>'Order reserved','order_release'=>'Reservation released','order_delivery'=>'Delivered order','order_edit'=>'Order allocation edited',default=>'Stock movement'};
+ $delta=(int)$move['quantity_change'];$moveLocation=stockLocationName((string)($move['location']??'Unallocated'));$moveLocationLabel=$moveLocation==='Unallocated'?'Unallocated':$moveLocation.'’s fridge';?>
+<article class="stock-movement-row"><div><strong><?=e($move['product_name'])?></strong><small><?=e(date('d M Y H:i',strtotime($move['created'])))?> · <?=e($moveLabel)?> · <?=e($moveLocationLabel)?><?php if($move['supplier']!==''):?> · <?=e($move['supplier'])?><?php endif;?><?php if($move['batch_reference']!==''):?> · Batch <?=e($move['batch_reference'])?><?php endif;?><?php if($move['expiry_date']!==''):?> · Exp <?=e($move['expiry_date'])?><?php endif;?><?php if($move['note']!==''):?> · <?=e($move['note'])?><?php endif;?></small></div><b class="<?=$delta<0?'stock-negative':'stock-positive'?>"><?=$delta>0?'+':''?><?=$delta?></b></article>
+<?php endforeach;?></div><?php else:?><p class="muted">No stock movements yet. Count each fridge to start.</p><?php endif;?>
 </section>
 <?php elseif($view==='sheets'):?>
 <div class="heading"><div><h1>Google Sheets</h1><p class="muted page-description">Order backup and reporting connection.</p></div></div>
@@ -2370,7 +2461,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php foreach($reportTrackedStock as $sp):$stockLow=(int)$sp['stock_qty']<=(int)$sp['low_stock_at'];?><tr><td><?=e($sp['name'])?></td><td><?=$sp['stock_qty']?></td><td><?=$sp['low_stock_at']?></td><td><?=$sp['cost']===null?'—':money((int)$sp['cost'])?></td><td><?=$sp['cost']===null?'—':money((int)$sp['stock_qty']*(int)$sp['cost'])?></td><td><?=$stockLow?'Low stock':'In stock'?></td></tr><?php endforeach;?>
 </tbody></table></div></section><?php endif;?>
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">MOVEMENT HISTORY</p><h2>Changes in <?=e($reportWindowLabel)?></h2></div><a class="quick-action" href="<?=e($reportMovementExportUrl)?>">Export movements</a></div>
-<?php if($reportStockMovements):?><div class="profit-table-wrap"><table class="profit-table report-table"><thead><tr><th>Date</th><th>Product</th><th>Movement</th><th>Change</th><th>Supplier / batch</th><th>Expiry</th></tr></thead><tbody><?php foreach($reportStockMovements as $m):?><tr><td><?=e(date('d M Y',strtotime((string)$m['created'])))?></td><td><?=e($m['product_name'])?></td><td><?=e(str_replace('_',' ',(string)$m['movement_type']))?></td><td><?=$m['quantity_change']>0?'+':''?><?=e($m['quantity_change'])?></td><td><?=e(trim((string)$m['supplier'].' · '.(string)$m['batch_reference'],' ·'))?></td><td><?=e($m['expiry_date']?:'—')?></td></tr><?php endforeach;?></tbody></table></div><?php else:?><p class="muted">No stock movements in this date range.</p><?php endif;?>
+<?php if($reportStockMovements):?><div class="profit-table-wrap"><table class="profit-table report-table"><thead><tr><th>Date</th><th>Product</th><th>Location</th><th>Movement</th><th>Change</th><th>Supplier / batch</th><th>Expiry</th></tr></thead><tbody><?php foreach($reportStockMovements as $m):?><tr><td><?=e(date('d M Y',strtotime((string)$m['created'])))?></td><td><?=e($m['product_name'])?></td><td><?=e(stockLocationName((string)($m['location']??'Unallocated')))?></td><td><?=e(str_replace('_',' ',(string)$m['movement_type']))?></td><td><?=$m['quantity_change']>0?'+':''?><?=e($m['quantity_change'])?></td><td><?=e(trim((string)$m['supplier'].' · '.(string)$m['batch_reference'],' ·'))?></td><td><?=e($m['expiry_date']?:'—')?></td></tr><?php endforeach;?></tbody></table></div><?php else:?><p class="muted">No stock movements in this date range.</p><?php endif;?>
 </section>
 <?php endif;?>
 <?php endif;?>

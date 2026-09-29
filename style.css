@@ -2736,3 +2736,42 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
  .report-grid{break-inside:avoid}
  a{color:#222!important;text-decoration:none!important}
 }
+
+/* Jay and Tony fridge inventory */
+.fridge-overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 18px}
+.fridge-overview-card{display:flex;flex-direction:column;gap:8px;padding:18px 20px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(140deg,#202122,#171819)}
+.fridge-overview-card span{font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--muted)}
+.fridge-overview-card strong{font-size:30px;line-height:1;color:#f1d18a}
+.fridge-overview-card small{font-size:11px;color:var(--muted)}
+.fridge-overview-card.fridge-combined{border-color:#735c31;background:linear-gradient(140deg,#282216,#1a1916)}
+.fridge-legacy-note{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:0 0 16px;padding:14px 18px;border-color:#79622d;background:#221d11}
+.fridge-legacy-note strong{color:#f0cf83;white-space:nowrap}
+.fridge-legacy-note span{color:#c9c0aa;font-size:12px;line-height:1.5}
+.fridge-balance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 14px}
+.fridge-balance-card{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border:1px solid #343638;border-radius:12px;background:#191a1b}
+.fridge-balance-card span{color:var(--muted);font-size:12px}
+.fridge-balance-card strong{font-size:22px;color:#f0ece4}
+.fridge-balance-card small{color:var(--muted);font-size:10px}
+.fridge-balance-card.combined{border-color:#786034;background:#211d14}
+.fridge-balance-card.combined strong{color:var(--gold)}
+.fridge-unallocated-note{margin:0 0 14px;padding:10px 12px;border-radius:10px;background:#2a2113;color:#d7c69e;font-size:12px}
+.fridge-count-grid,.fridge-management-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.fridge-count-card,.fridge-action-card{display:grid;align-content:start;gap:10px;margin:0;padding:15px;border:1px solid var(--border);border-radius:13px;background:#191a1b}
+.fridge-count-card h3,.fridge-action-card h3{margin:0;color:#e4c879;font-size:13px}
+.fridge-count-card label,.fridge-action-card label{margin:0;font-size:11px}
+.fridge-count-card .stock-confirm{font-size:10px}
+.fridge-management-grid .fridge-receive-card{grid-column:1/-1;grid-template-columns:repeat(2,minmax(0,1fr))}
+.fridge-management-grid .fridge-receive-card h3{grid-column:1/-1}
+.fridge-management-grid .fridge-receive-card button{grid-column:1/-1}
+@media(max-width:760px){
+ .fridge-overview-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .fridge-overview-card{padding:14px}
+ .fridge-overview-card.fridge-combined{grid-column:1/-1}
+ .fridge-overview-card strong{font-size:26px}
+ .fridge-legacy-note{align-items:flex-start;flex-direction:column;gap:5px}
+ .fridge-balance-grid{grid-template-columns:1fr;gap:7px}
+ .fridge-balance-card{padding:11px 12px}
+ .fridge-count-grid,.fridge-management-grid{grid-template-columns:1fr}
+ .fridge-management-grid .fridge-receive-card{grid-column:auto;grid-template-columns:1fr}
+ .fridge-management-grid .fridge-receive-card h3,.fridge-management-grid .fridge-receive-card button{grid-column:auto}
+}
