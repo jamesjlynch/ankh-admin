@@ -121,6 +121,9 @@ if($stockMigrationDone===false){
   $db->commit();
  }catch(Throwable $migrationError){if($db->inTransaction())$db->rollBack();throw $migrationError;}
 }
+// Keep the legacy aggregate stock_qty in sync for dashboard/report code and repair any rows
+// left one save behind by the previous single-statement fridge update.
+$db->exec("UPDATE products SET stock_qty=COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0) WHERE stock_tracking=1 AND (stock_qty IS NULL OR stock_qty<>(COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0)))");
 $customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
 $db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
@@ -582,7 +585,10 @@ function stockLocationColumn(string $location):string{
 }
 function setProductStockAtLocation(PDO $db,int $productId,string $location,int $quantity):void{
  $column=stockLocationColumn($location);
- $db->prepare("UPDATE products SET {$column}=?,stock_qty=COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0) WHERE id=?")->execute([$quantity,$productId]);
+ // SQLite evaluates all SET expressions from the row's pre-update values. Updating the
+ // fridge column and legacy total in one statement therefore made stock_qty lag one save behind.
+ $db->prepare("UPDATE products SET {$column}=? WHERE id=?")->execute([$quantity,$productId]);
+ $db->prepare("UPDATE products SET stock_qty=COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0) WHERE id=?")->execute([$productId]);
 }
 function adjustProductStockAtLocation(PDO $db,int $productId,string $location,int $delta):void{
  $column=stockLocationColumn($location);$q=$db->prepare("SELECT {$column} FROM products WHERE id=?");$q->execute([$productId]);$current=$q->fetchColumn();
