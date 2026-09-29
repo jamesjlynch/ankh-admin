@@ -3326,9 +3326,16 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 
 /* Dashboard partial payments */
-.todo-balance-summary{display:grid;gap:2px;text-align:right;line-height:1.1}
-.todo-balance-summary small{color:#92948f;font-size:9px;font-weight:700}
-.todo-balance-summary strong{color:var(--gold);font-size:14px;white-space:nowrap}
+.todo-balance-summary{display:flex!important;flex-direction:column!important;align-items:flex-end!important;justify-content:center;gap:3px;min-width:74px;text-align:right;line-height:1}
+.todo-balance-summary .todo-paid-line,.todo-balance-summary .todo-due-line{display:flex!important;align-items:baseline;justify-content:flex-end;gap:4px;width:100%;white-space:nowrap}
+.todo-balance-summary b{font-weight:800}
+.todo-balance-summary small{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.45px}
+.todo-balance-summary .todo-paid-line{color:#aaa9a4}
+.todo-balance-summary .todo-paid-line b{font-size:11px}
+.todo-balance-summary .todo-paid-line small{color:#777a77}
+.todo-balance-summary .todo-due-line{color:#f0ede6}
+.todo-balance-summary .todo-due-line b{font-size:15px}
+.todo-balance-summary .todo-due-line small{color:var(--gold)}
 .todo-detail-strip .todo-paid-chip{border-color:#315f4a;background:#15251c;color:#9ed8b2}
 .todo-detail-strip .todo-due-chip{border-color:#6d572e;background:#211c12;color:var(--gold)}
 
@@ -3379,8 +3386,11 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 @media(max-width:760px){
  .todo-accordion-side{gap:6px}
- .todo-balance-summary strong{font-size:12px}
- .todo-balance-summary small{font-size:8px}
+ .todo-balance-summary{min-width:68px;gap:4px}
+ .todo-balance-summary .todo-paid-line b{font-size:10px}
+ .todo-balance-summary .todo-due-line b{font-size:13px}
+ .todo-balance-summary small{font-size:7px}
+ .todo-accordion-side .status-delivered{flex:none}
  .dashboard-payment-form{gap:12px;padding:12px;margin-top:12px!important}
  .dashboard-payment-heading strong{font-size:14px}
  .dashboard-payment-heading small{font-size:10px}
