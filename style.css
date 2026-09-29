@@ -2888,3 +2888,93 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .fridge-item-card{border-radius:14px}
  .fridge-item-head h2{font-size:16px}
 }
+
+
+/* Mobile-first product and read-only inventory refresh */
+.product-catalog-section{margin:22px 0 30px}
+.product-catalog-heading{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:0 2px 13px}
+.product-catalog-heading h2,.stock-products-section h2{margin:0;font-size:21px;letter-spacing:-.3px}
+.product-catalog-heading>span,.product-stock-heading>span:last-child{color:var(--muted);font-size:11px;text-align:right}
+.product-catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.product-tile{min-width:0;overflow:hidden;border:1px solid #303334;border-radius:15px;background:linear-gradient(150deg,#1c1e1f,#161718);transition:border-color .18s ease,background .18s ease}
+.product-tile[open]{grid-column:1/-1;border-color:#927541;background:#191a19}
+.product-tile>summary{position:relative;display:flex;min-height:150px;flex-direction:column;align-items:flex-start;gap:5px;padding:11px 9px;cursor:pointer;list-style:none}
+.product-tile>summary::-webkit-details-marker,.hidden-product-list>summary::-webkit-details-marker{display:none}
+.product-vial-icon{display:grid;width:36px;height:36px;flex:none;place-items:center;border:1px solid #66552e;border-radius:12px;background:#292317;color:#e4bd68}
+.product-vial-icon svg{width:23px;height:23px}
+.product-tile-name{display:-webkit-box;max-width:100%;overflow:hidden;color:#f2f0ea;font-size:13px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+.product-tile-strength{color:#d8b965;font-size:11px;font-weight:700}
+.product-tile-price{margin-top:auto;color:#e8e5df;font-size:12px;font-weight:700}
+.product-tile-open{position:absolute;right:8px;bottom:9px;color:#a7a49d;font-size:10px}
+.product-tile[open]>summary{min-height:84px;flex-direction:row;align-items:center;padding:13px 15px;border-bottom:1px solid #343535}
+.product-tile[open] .product-vial-icon{width:42px;height:42px}
+.product-tile[open] .product-tile-name{display:block;flex:1;font-size:16px;-webkit-line-clamp:unset}
+.product-tile[open] .product-tile-strength{padding:5px 8px;border-radius:999px;background:#30291b}
+.product-tile[open] .product-tile-price{margin:0 0 0 auto;white-space:nowrap}
+.product-tile[open] .product-tile-open{display:none}
+.product-edit-panel{padding:14px}
+.product-settings-form{display:grid;gap:12px}
+.product-settings-form>label,.product-settings-form .product-admin-grid label{min-width:0}
+.product-settings-form .product-admin-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.product-stock-editor{margin-top:15px;padding-top:14px;border-top:1px solid #353637}
+.product-stock-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.product-stock-locations{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.product-stock-count-form{display:grid;align-content:start;gap:9px;padding:12px;border:1px solid #37393a;border-radius:13px;background:#151718}
+.product-stock-count-form>strong{font-size:13px;color:#f0d083}
+.product-stock-count-form label{font-size:12px}
+.product-stock-count-form input[type=number]{min-width:0}
+.product-stock-count-form .stock-count-confirm{display:flex;align-items:center;gap:6px;font-size:10px;line-height:1.25}
+.stock-count-confirm input{width:16px;height:16px;flex:none}
+.product-stock-count-form button{width:100%;padding:9px 8px;font-size:12px}
+.hidden-product-list{margin:24px 0;border:1px solid var(--border);border-radius:16px;background:#17191a}
+.hidden-product-list>summary{display:flex;justify-content:space-between;padding:15px 17px;color:#d8b965;font-weight:700;cursor:pointer;list-style:none}
+.hidden-product-list>summary span{color:var(--muted);font-weight:500}
+.hidden-product-grid{display:grid;gap:10px;padding:0 12px 12px}
+.stock-products-section{margin:24px 0}
+.stock-products-section .dashboard-panel-head{align-items:end;margin-bottom:12px}
+.stock-product-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.stock-product-card{min-width:0;padding:15px;border:1px solid #303334;border-radius:16px;background:linear-gradient(145deg,#1c1e1f,#161718)}
+.stock-product-title{display:flex;align-items:center;gap:11px;min-width:0;margin-bottom:14px}
+.stock-product-title .product-vial-icon{width:42px;height:42px}
+.stock-product-title>div{min-width:0}
+.stock-product-title h3{margin:0 0 3px;overflow-wrap:anywhere;font-size:15px;line-height:1.3}
+.stock-product-title small{color:var(--muted);font-size:11px}
+.stock-product-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.stock-product-counts>div{display:flex;min-width:0;flex-direction:column;gap:5px;padding:10px;border:1px solid #303233;border-radius:12px;background:#141617}
+.stock-product-counts span{color:#aaa9a3;font-size:10px;font-weight:700;letter-spacing:.35px}
+.stock-product-counts strong{color:#f0eee8;font-size:22px;line-height:1}
+.stock-product-counts .stock-product-combined{border-color:#69552c;background:#211d14}
+.stock-product-counts .stock-product-combined strong{color:#e4bd68}
+.stock-empty-state{display:flex;flex-direction:column;align-items:center;gap:9px;padding:25px;text-align:center}
+.stock-empty-state>strong{font-size:16px}
+.stock-empty-state p{max-width:280px;margin:0;color:var(--muted);font-size:13px;line-height:1.5}
+.fridge-overview-card{min-width:0}
+.fridge-overview-card.fridge-jay{border-color:#364b55;background:linear-gradient(145deg,#1b2930,#17191a)}
+.fridge-overview-card.fridge-tony{border-color:#514333;background:linear-gradient(145deg,#29231a,#17191a)}
+@media(max-width:520px){
+ .fridge-overview-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+ .fridge-overview-card{min-height:112px;gap:6px;padding:12px 9px;border-radius:14px}
+ .fridge-overview-card span{font-size:8px;letter-spacing:.8px;line-height:1.25}
+ .fridge-overview-card strong{font-size:26px}
+ .fridge-overview-card small{font-size:9px;line-height:1.25}
+ .product-catalog-heading{align-items:flex-start}
+ .product-catalog-heading>span{max-width:125px;font-size:10px}
+ .product-catalog-grid{gap:7px}
+ .product-tile>summary{min-height:144px;padding:9px 7px}
+ .product-vial-icon{width:32px;height:32px;border-radius:10px}
+ .product-vial-icon svg{width:21px;height:21px}
+ .product-tile-name{font-size:12px}
+ .product-tile-open{right:6px;bottom:8px;font-size:9px}
+ .product-edit-panel{padding:11px}
+ .product-stock-count-form{padding:9px}
+ .product-stock-count-form>strong{font-size:11px}
+ .product-stock-count-form label{font-size:11px}
+ .product-stock-count-form .check{gap:5px}
+ .stock-product-counts>div{padding:9px 7px}
+ .stock-product-counts strong{font-size:20px}
+}
+@media(max-width:360px){
+ .product-stock-locations{grid-template-columns:1fr}
+ .product-settings-form .product-admin-grid{grid-template-columns:1fr}
+ .stock-product-counts span{font-size:9px}
+}
