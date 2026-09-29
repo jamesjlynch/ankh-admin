@@ -3323,3 +3323,28 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .fridge-value-summary{gap:6px}
  .stock-value-lines small{font-size:9px}
 }
+
+
+/* Dashboard partial payments */
+.todo-balance-summary{display:grid;text-align:right;line-height:1.15}
+.todo-balance-summary small{color:#8f918f;font-size:9px;font-weight:700}
+.todo-balance-summary strong{color:var(--gold);font-size:14px;white-space:nowrap}
+.todo-detail-strip .todo-paid-chip{border-color:#315f4a;background:#15251c;color:#9ed8b2}
+.todo-detail-strip .todo-due-chip{border-color:#6d572e;background:#211c12;color:var(--gold)}
+.dashboard-payment-form{padding:12px;border:1px solid #343638;border-radius:12px;background:#121314}
+.dashboard-payment-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:11px}
+.dashboard-payment-choice label{position:relative;margin:0;cursor:pointer}
+.dashboard-payment-choice input{position:absolute;opacity:0;pointer-events:none}
+.dashboard-payment-choice span{display:grid;gap:2px;min-height:58px;padding:10px 11px;border:1px solid #3a3c3e;border-radius:10px;background:#191a1b;color:#d8d5ce;font-size:12px;font-weight:800}
+.dashboard-payment-choice span small{color:#8f918f;font-size:9px;font-weight:600}
+.dashboard-payment-choice input:checked+span{border-color:var(--gold);background:#272217;color:var(--gold);box-shadow:inset 0 0 0 1px #dfb66644}
+.dashboard-payment-choice input:checked+span small{color:#c9b47f}
+.dashboard-payment-form .dashboard-partial-amount{padding:9px 10px;border:1px solid #2f3132;border-radius:10px;background:#171819}
+.dashboard-payment-form .dashboard-partial-amount input{margin-top:7px}
+@media(max-width:760px){
+ .todo-accordion-side{gap:6px}
+ .todo-balance-summary strong{font-size:12px}
+ .todo-balance-summary small{font-size:8px}
+ .dashboard-payment-form{padding:10px}
+ .dashboard-payment-choice span{min-height:56px;padding:9px}
+}
