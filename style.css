@@ -2978,3 +2978,11 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .product-settings-form .product-admin-grid{grid-template-columns:1fr}
  .stock-product-counts span{font-size:9px}
 }
+
+@media(max-width:560px){
+ .product-admin-grid,.product-settings-form .product-admin-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px}
+ .product-admin-grid label:first-child{grid-column:auto}
+ .product-admin-grid label{min-width:0;width:100%;line-height:1.35}
+ .product-admin-grid input{width:100%;min-width:0;margin-top:7px}
+ .product-settings-form .product-admin-grid label{font-size:14px}
+}
