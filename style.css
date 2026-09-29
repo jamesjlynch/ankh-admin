@@ -3326,25 +3326,73 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 
 /* Dashboard partial payments */
-.todo-balance-summary{display:grid;text-align:right;line-height:1.15}
-.todo-balance-summary small{color:#8f918f;font-size:9px;font-weight:700}
+.todo-balance-summary{display:grid;gap:2px;text-align:right;line-height:1.1}
+.todo-balance-summary small{color:#92948f;font-size:9px;font-weight:700}
 .todo-balance-summary strong{color:var(--gold);font-size:14px;white-space:nowrap}
 .todo-detail-strip .todo-paid-chip{border-color:#315f4a;background:#15251c;color:#9ed8b2}
 .todo-detail-strip .todo-due-chip{border-color:#6d572e;background:#211c12;color:var(--gold)}
-.dashboard-payment-form{padding:12px;border:1px solid #343638;border-radius:12px;background:#121314}
-.dashboard-payment-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:11px}
-.dashboard-payment-choice label{position:relative;margin:0;cursor:pointer}
-.dashboard-payment-choice input{position:absolute;opacity:0;pointer-events:none}
-.dashboard-payment-choice span{display:grid;gap:2px;min-height:58px;padding:10px 11px;border:1px solid #3a3c3e;border-radius:10px;background:#191a1b;color:#d8d5ce;font-size:12px;font-weight:800}
-.dashboard-payment-choice span small{color:#8f918f;font-size:9px;font-weight:600}
-.dashboard-payment-choice input:checked+span{border-color:var(--gold);background:#272217;color:var(--gold);box-shadow:inset 0 0 0 1px #dfb66644}
+
+.dashboard-payment-form{
+ display:grid;gap:14px;margin-top:14px!important;padding:16px;
+ border:1px solid #343638;border-radius:14px;background:#121314;
+}
+.dashboard-payment-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.dashboard-payment-heading strong{font-size:15px;color:#f0ede6}
+.dashboard-payment-heading small{font-size:11px;font-weight:700;color:var(--gold);white-space:nowrap}
+
+.dashboard-payment-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.dashboard-payment-choice label{position:relative;display:block;margin:0;min-width:0;cursor:pointer}
+.dashboard-payment-choice input[type="radio"]{
+ position:absolute!important;width:1px!important;height:1px!important;margin:-1px!important;padding:0!important;
+ overflow:hidden!important;clip:rect(0 0 0 0)!important;clip-path:inset(50%)!important;
+ white-space:nowrap!important;border:0!important;opacity:0!important;appearance:none!important;
+}
+.dashboard-payment-choice span{
+ display:flex;flex-direction:column;justify-content:center;gap:4px;
+ min-height:68px;padding:12px 13px;border:1px solid #3a3c3e;border-radius:12px;
+ background:#191a1b;color:#d8d5ce;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease;
+}
+.dashboard-payment-choice b{font-size:13px;line-height:1.2}
+.dashboard-payment-choice small{color:#8f918f;font-size:10px;font-weight:600;line-height:1.25}
+.dashboard-payment-choice input:checked+span{
+ border-color:var(--gold);background:#272217;color:var(--gold);
+ box-shadow:inset 0 0 0 1px #dfb66644;
+}
 .dashboard-payment-choice input:checked+span small{color:#c9b47f}
-.dashboard-payment-form .dashboard-partial-amount{padding:9px 10px;border:1px solid #2f3132;border-radius:10px;background:#171819}
-.dashboard-payment-form .dashboard-partial-amount input{margin-top:7px}
+
+.dashboard-payment-field{display:grid;gap:7px;margin:0;min-width:0;color:#aaa79f}
+.dashboard-payment-field>span{font-size:11px;font-weight:700}
+.dashboard-payment-field>small{font-size:9px;color:#7f817d}
+.dashboard-payment-field input,.dashboard-payment-field select{
+ width:100%;min-width:0;min-height:48px;margin:0;padding:10px 12px;
+ border-radius:10px;box-sizing:border-box;
+}
+.dashboard-payment-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-width:0}
+.dashboard-partial-amount{
+ padding:12px;border:1px solid #303233;border-radius:11px;background:#171819;
+}
+.money-input{display:grid;grid-template-columns:auto 1fr;align-items:center;border:1px solid #3a3c3e;border-radius:10px;background:#101112;overflow:hidden}
+.money-input i{padding-left:13px;color:var(--gold);font-size:17px;font-style:normal;font-weight:800}
+.money-input input{border:0!important;background:transparent!important;box-shadow:none!important;font-size:17px}
+.dashboard-payment-form:has(.dashboard-payment-choice input[value="full"]:checked) .dashboard-partial-amount{display:none}
+.dashboard-payment-save{width:100%;min-height:50px;margin:0;font-size:14px}
+
 @media(max-width:760px){
  .todo-accordion-side{gap:6px}
  .todo-balance-summary strong{font-size:12px}
  .todo-balance-summary small{font-size:8px}
- .dashboard-payment-form{padding:10px}
- .dashboard-payment-choice span{min-height:56px;padding:9px}
+ .dashboard-payment-form{gap:12px;padding:12px;margin-top:12px!important}
+ .dashboard-payment-heading strong{font-size:14px}
+ .dashboard-payment-heading small{font-size:10px}
+ .dashboard-payment-choice{gap:7px}
+ .dashboard-payment-choice span{min-height:62px;padding:10px}
+ .dashboard-payment-choice b{font-size:12px}
+ .dashboard-payment-choice small{font-size:9px}
+ .dashboard-payment-meta{grid-template-columns:1fr}
+ .dashboard-payment-field input,.dashboard-payment-field select{min-height:50px}
+ .dashboard-payment-save{min-height:52px}
+}
+@media(max-width:380px){
+ .dashboard-payment-heading{align-items:flex-start;flex-direction:column;gap:3px}
+ .dashboard-payment-choice span{padding:9px 8px}
 }
