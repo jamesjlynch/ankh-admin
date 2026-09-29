@@ -1418,11 +1418,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->rowCount())throw new Exception('Customer could not be found.');
   }
   if($action==='payment_add'){
-   $orderId=(int)($_POST['id']??0);$amount=postedMoneyPence($_POST['amount']??'','payment');$method=trim((string)($_POST['method']??''));$note=trim((string)($_POST['note']??''));$date=orderActionDate((string)($_POST['payment_date']??''),'payment');
-   if($amount<=0)throw new Exception('Enter a payment amount greater than zero.');if(!in_array($method,$paymentMethods,true))throw new Exception('Choose how the payment was received.');if(strlen($note)>500)throw new Exception('Payment note is too long.');
-   $balance=orderBalancePence($db,$orderId);if($balance<=0)throw new Exception('This order has no outstanding balance.');if($amount>$balance)throw new Exception('Payment is more than the outstanding balance of '.money($balance).'.');
+   $orderId=(int)($_POST['id']??0);$method=trim((string)($_POST['method']??''));$note=trim((string)($_POST['note']??''));$date=orderActionDate((string)($_POST['payment_date']??''),'payment');$paymentType=(string)($_POST['payment_type']??'partial');
+   $balance=orderBalancePence($db,$orderId);if($balance<=0)throw new Exception('This order has no outstanding balance.');
+   if(!in_array($paymentType,['full','partial'],true))throw new Exception('Choose paid in full or part payment.');
+   $amount=$paymentType==='full'?$balance:postedMoneyPence($_POST['amount']??'','payment');
+   if($amount<=0)throw new Exception('Enter a payment amount greater than zero.');if(!in_array($method,$paymentMethods,true))throw new Exception('Choose how the payment was received.');if(strlen($note)>500)throw new Exception('Payment note is too long.');if($amount>$balance)throw new Exception('Payment is more than the outstanding balance of '.money($balance).'.');
    $created=(new DateTimeImmutable($date.' 12:00:00',new DateTimeZone('Europe/London')))->setTimezone(new DateTimeZone('UTC'))->format('c');
-   $db->prepare('INSERT INTO payments(order_id,amount,method,note,created) VALUES (?,?,?,?,?)')->execute([$orderId,$amount,$method,$note,$created]);refreshOrderPaymentState($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
+   $savedNote=$note!==''?$note:($paymentType==='full'?'Paid in full':'Part payment');
+   $db->prepare('INSERT INTO payments(order_id,amount,method,note,created) VALUES (?,?,?,?,?)')->execute([$orderId,$amount,$method,$savedNote,$created]);refreshOrderPaymentState($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='payment_delete'){
    $paymentId=(int)($_POST['payment_id']??0);$q=$db->prepare('SELECT order_id FROM payments WHERE id=?');$q->execute([$paymentId]);$orderId=(int)$q->fetchColumn();if($orderId<1)throw new Exception('Payment could not be found.');
@@ -2034,11 +2037,15 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
 <div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
-<div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><strong><?=money($todo['total'])?></strong><span class="todo-chevron" aria-hidden="true">⌄</span></div>
+<?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
+<div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><small><?=money($todoPaid)?> paid</small><?php endif;?><strong><?=money($todoBalance)?> due</strong></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
-<div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span></div>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Paid"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Payment method<select name="payment_method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['payment_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Payment received</button></form>
+<div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><span>Total <?=money($todo['total'])?></span><?php if($todoPaid>0):?><span class="todo-paid-chip">Paid <?=money($todoPaid)?></span><?php endif;?><span class="todo-due-chip">Due <?=money($todoBalance)?></span></div>
+<form method="post" class="todo-action dashboard-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
+<div class="dashboard-payment-choice" role="group" aria-label="Payment amount type"><label><input type="radio" name="payment_type" value="full" checked><span>Paid in full<small><?=money($todoBalance)?></small></span></label><label><input type="radio" name="payment_type" value="partial"><span>Part payment<small>Enter amount</small></span></label></div>
+<label class="todo-date dashboard-partial-amount">Amount paid (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($todoBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($todoBalance/100,2,'.',''))?>"></label>
+<label class="todo-date">Payment method<select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="todo-date">Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><button>✓ Save payment</button></form>
 <?php if(empty($todo['delivery_date'])):?><form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><button class="quiet">✓ Mark delivered</button></form><?php endif;?>
 </div>
 </details>
