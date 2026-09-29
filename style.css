@@ -3058,3 +3058,176 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 .stock-product-grid[data-fridge-view="jay"] .stock-product-counts,
 .stock-product-grid[data-fridge-view="tony"] .stock-product-counts{grid-template-columns:minmax(0,1fr)}
+
+
+/* Reports — mobile-first iPhone cleanup */
+@media(max-width:760px){
+  .report-tabs{
+    position:sticky;
+    top:max(8px,env(safe-area-inset-top));
+    z-index:24;
+    display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:7px;
+    overflow:visible;
+    margin:8px 0 12px;
+    padding:8px 0 10px;
+    background:linear-gradient(180deg,#101112 82%,rgba(16,17,18,0));
+    scrollbar-width:none;
+    -webkit-backdrop-filter:blur(14px);
+    backdrop-filter:blur(14px);
+  }
+  .report-tabs a{
+    min-width:0;
+    min-height:40px;
+    padding:0 7px;
+    border-radius:11px;
+    font-size:10px;
+    line-height:1.15;
+    text-align:center;
+    white-space:normal;
+  }
+  .report-tabs a.selected{
+    box-shadow:inset 0 0 0 1px rgba(223,182,102,.28),0 6px 18px rgba(0,0,0,.18);
+  }
+
+  .report-filter-bar{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:10px;
+    padding:12px;
+    border-radius:15px;
+  }
+  .report-filter-bar label,
+  .report-filter-bar label:first-of-type{
+    grid-column:1/-1;
+    width:100%;
+    min-width:0;
+  }
+  .report-filter-bar input,
+  .report-filter-bar select{
+    display:block;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+    overflow:hidden;
+  }
+  .report-filter-bar>button,
+  .report-filter-bar>.report-export{
+    grid-column:1/-1;
+    width:100%;
+  }
+  .report-filter-bar>.report-export{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .report-range-note{
+    margin:4px 2px 12px;
+    font-size:11px;
+    line-height:1.45;
+  }
+
+  /* The day-by-day chart is useful on desktop but wastes a lot of vertical space on a phone. */
+  .report-overview-grid>section.panel:first-child{
+    display:none;
+  }
+
+  .report-metrics{
+    gap:8px;
+    margin:12px 0;
+  }
+  .report-metrics article{
+    padding:12px;
+    border-radius:14px;
+  }
+  .report-metrics article>span,
+  .report-metrics article>small{
+    font-size:10px;
+    line-height:1.35;
+  }
+  .report-metrics article>strong{
+    margin:6px 0 3px;
+    font-size:20px;
+  }
+
+  /* Replace the long horizontal table scrollbar with readable mobile cards. */
+  .profit-table-wrap{
+    overflow:visible;
+    margin:0;
+    padding:0;
+  }
+  .report-table,
+  .expanded-profit-table{
+    display:block;
+    width:100%;
+    min-width:0!important;
+    border-collapse:separate;
+  }
+  .report-table thead,
+  .expanded-profit-table thead{
+    display:none;
+  }
+  .report-table tbody,
+  .expanded-profit-table tbody{
+    display:grid;
+    gap:10px;
+  }
+  .report-table tr,
+  .expanded-profit-table tr{
+    display:block;
+    margin:0;
+    padding:11px 12px;
+    border:1px solid #303234;
+    border-radius:14px;
+    background:linear-gradient(145deg,#17191a,#121314);
+  }
+  .report-table td,
+  .expanded-profit-table td{
+    display:grid;
+    grid-template-columns:minmax(92px,.85fr) minmax(0,1.15fr);
+    gap:12px;
+    align-items:start;
+    width:100%;
+    padding:7px 0!important;
+    border:0!important;
+    text-align:right!important;
+    font-size:12px!important;
+    white-space:normal;
+  }
+  .report-table td+td,
+  .expanded-profit-table td+td{
+    border-top:1px solid rgba(255,255,255,.055)!important;
+  }
+  .report-table td::before,
+  .expanded-profit-table td::before{
+    content:attr(data-label);
+    color:#85827a;
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:.55px;
+    line-height:1.35;
+    text-align:left;
+    text-transform:uppercase;
+  }
+  .report-table td:first-child,
+  .expanded-profit-table td:first-child{
+    color:#f0e9dc;
+    font-weight:800;
+  }
+  .report-table td[colspan],
+  .expanded-profit-table td[colspan]{
+    display:block;
+    text-align:left!important;
+  }
+  .report-table td[colspan]::before,
+  .expanded-profit-table td[colspan]::before{
+    display:none;
+  }
+  .report-table td small,
+  .expanded-profit-table td small{
+    margin-top:3px;
+    font-size:9px;
+  }
+}
