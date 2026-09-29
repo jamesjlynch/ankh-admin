@@ -3231,3 +3231,68 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
     font-size:9px;
   }
 }
+
+
+/* Product history + destructive controls */
+.product-history-note{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  margin:0 0 14px;
+  padding:12px 14px;
+  border:1px solid #4d432f;
+  border-radius:14px;
+  background:linear-gradient(145deg,#1b1812,#141516);
+}
+.product-history-note strong{
+  flex:0 0 auto;
+  color:var(--gold);
+  font-size:11px;
+  line-height:1.4;
+}
+.product-history-note span{
+  color:#9e998f;
+  font-size:10px;
+  line-height:1.45;
+}
+.product-admin-actions{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+  margin-top:14px;
+  padding-top:14px;
+  border-top:1px solid #2f3132;
+}
+.product-admin-actions form{margin:0}
+.product-admin-actions button{
+  width:100%;
+  min-height:44px;
+}
+.stock-untrack-button{
+  border-color:#645433!important;
+  color:#d9bd7f!important;
+  background:#1c1812!important;
+}
+.product-delete-button{
+  border-color:#643d3d!important;
+  background:#241515!important;
+  color:#e5aaaa!important;
+}
+.product-delete-button:hover,
+.product-delete-button:focus-visible{
+  border-color:#965858!important;
+}
+@media(max-width:760px){
+  .product-history-note{
+    display:block;
+    padding:11px 12px;
+    margin-bottom:12px;
+  }
+  .product-history-note strong,
+  .product-history-note span{display:block}
+  .product-history-note span{margin-top:4px}
+  .product-admin-actions{
+    grid-template-columns:1fr;
+    gap:7px;
+  }
+}
