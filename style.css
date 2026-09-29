@@ -2986,3 +2986,32 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .product-admin-grid input{width:100%;min-width:0;margin-top:7px}
  .product-settings-form .product-admin-grid label{font-size:14px}
 }
+
+
+/* Product catalogue controls */
+.product-search{position:relative;display:block;margin:18px 0 12px}
+.product-search>span:first-child{display:block;margin:0 0 7px;color:#c7c4bd;font-size:12px;font-weight:700;letter-spacing:.45px}
+.product-search input{width:100%;min-height:50px;padding:12px 45px 12px 15px;border:1px solid #383a3c;border-radius:14px;background:#17191a;color:#f1efe9;font-size:15px}
+.product-search input::placeholder{color:#929497}
+.product-search input:focus{outline:2px solid #bd9950;outline-offset:2px}
+.product-search-icon{position:absolute;right:16px;bottom:10px;color:#dcb765;font-size:27px;line-height:1;pointer-events:none}
+.add-product-disclosure{margin:12px 0 23px;overflow:hidden;border:1px solid #544729;border-radius:16px;background:linear-gradient(145deg,#211e17,#171819)}
+.add-product-disclosure>summary{display:flex;align-items:center;gap:12px;min-height:70px;padding:13px 15px;cursor:pointer;list-style:none}
+.add-product-disclosure>summary::-webkit-details-marker{display:none}
+.add-product-plus{display:grid;width:38px;height:38px;flex:none;place-items:center;border-radius:12px;background:#e2b85f;color:#19150d;font-size:26px;font-weight:500}
+.add-product-disclosure>summary>span:nth-child(2){display:grid;gap:3px}
+.add-product-disclosure>summary strong{font-size:15px}
+.add-product-disclosure>summary small{color:#aaa7a0;font-size:12px}
+.add-product-chevron{margin-left:auto;color:#dfb666;font-size:21px;transition:transform .16s}
+.add-product-disclosure[open] .add-product-chevron{transform:rotate(45deg)}
+.add-product-form.panel{margin:0;padding:0 15px 16px;border:0;border-radius:0;background:transparent;box-shadow:none}
+.add-product-form h2{margin:0 0 12px;font-size:18px}
+.product-no-results{margin:12px 4px 20px;color:var(--muted);font-size:14px}
+.product-tile[hidden],.hidden-product-grid .product-admin-card[hidden]{display:none!important}
+@media(max-width:560px){
+ .product-search{margin:14px 0 10px}
+ .product-search input{min-height:48px}
+ .add-product-disclosure{margin-bottom:20px}
+ .add-product-disclosure>summary{min-height:66px}
+ .add-product-form.panel{padding:0 12px 14px}
+}
