@@ -2775,3 +2775,85 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
  .fridge-management-grid .fridge-receive-card{grid-column:auto;grid-template-columns:1fr}
  .fridge-management-grid .fridge-receive-card h3,.fridge-management-grid .fridge-receive-card button{grid-column:auto}
 }
+
+
+/* Mobile-first fridge inventory refresh */
+.stock-heading{margin-bottom:18px}
+.fridge-overview-grid{align-items:stretch;gap:12px;margin:0 0 20px}
+.fridge-overview-card{position:relative;min-height:154px;justify-content:center;padding:20px 22px;text-decoration:none;color:inherit;transition:transform .16s ease,border-color .16s ease,background .16s ease}
+a.fridge-overview-card{cursor:pointer}
+a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
+.fridge-overview-card span{font-size:11px;letter-spacing:1.25px}
+.fridge-overview-card strong{font-size:38px;line-height:1.05}
+.fridge-overview-card small{font-size:13px}
+.fridge-overview-card.fridge-jay{border-color:#364b55;background:linear-gradient(145deg,#1b2930,#17191a)}
+.fridge-overview-card.fridge-tony{border-color:#514333;background:linear-gradient(145deg,#29231a,#17191a)}
+.fridge-overview-card.fridge-combined{border-color:#846c3a;background:linear-gradient(145deg,#302819,#1a1916)}
+.stock-overview-panel,.stock-history{margin-top:16px;padding:18px}
+.stock-overview-list{display:grid;gap:0}
+.stock-overview-row{display:grid;grid-template-columns:minmax(0,1fr) 88px 88px 66px;align-items:center;gap:10px;padding:13px 0;border-top:1px solid var(--border)}
+.stock-overview-product{display:grid;gap:4px;min-width:0}
+.stock-overview-product strong{font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.stock-overview-product small{font-size:12px;color:var(--muted)}
+.stock-qty-chip{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px;border:1px solid var(--border);border-radius:11px;background:#191a1b;color:inherit;text-decoration:none}
+.stock-qty-chip span{font-size:12px;color:var(--muted)}
+.stock-qty-chip b{font-size:15px;color:#f2eee7}
+.stock-total-chip{justify-self:center;color:var(--gold);font-size:16px}
+.stock-setup-link{grid-column:2/-1;justify-self:end;color:var(--gold);font-size:13px}
+.fridge-back-link{display:inline-flex;margin-bottom:12px;color:#d8bd78;text-decoration:none;font-size:14px}
+.fridge-page-heading{align-items:flex-end}
+.fridge-page-heading .eyebrow{margin-bottom:7px}
+.fridge-person-hero{display:flex;align-items:center;justify-content:space-between;gap:18px;margin:0 0 18px;padding:20px 22px;border:1px solid #3b4650;border-radius:18px;background:radial-gradient(ellipse at 12% 20%,#26343a 0,transparent 55%),linear-gradient(140deg,#1c2428,#17191a)}
+.fridge-person-hero.fridge-person-tony{border-color:#554633;background:radial-gradient(ellipse at 12% 20%,#382d1c 0,transparent 55%),linear-gradient(140deg,#252119,#17191a)}
+.fridge-person-hero>div{display:grid;grid-template-columns:auto auto;align-items:baseline;column-gap:9px;row-gap:5px}
+.fridge-person-hero>div span{grid-column:1/-1;color:#c7c0b3;font-size:11px;font-weight:800;letter-spacing:1.2px}
+.fridge-person-hero>div strong{color:#f1d18a;font-size:38px;line-height:1}
+.fridge-person-hero>div small{color:var(--muted);font-size:13px}
+.fridge-person-hero>p{max-width:340px;margin:0;color:#c9c4ba;font-size:14px;line-height:1.5}
+.fridge-screen-list{display:grid;gap:11px}
+.fridge-item-card{overflow:hidden;border:1px solid var(--border);border-radius:16px;background:linear-gradient(155deg,#1d1f20,#171819)}
+.fridge-item-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px}
+.fridge-item-head>div:first-child{min-width:0}
+.fridge-item-head h2{margin:0 0 5px;font-size:16px;line-height:1.35;overflow-wrap:anywhere}
+.fridge-item-head small{color:var(--muted);font-size:12px}
+.fridge-item-quantity{display:flex;align-items:baseline;gap:5px;flex:none}
+.fridge-item-quantity strong{font-size:30px;line-height:1;color:#f2d58f}
+.fridge-item-quantity span{color:var(--muted);font-size:12px}
+.fridge-item-actions{border-top:1px solid var(--border)}
+.fridge-item-actions>summary{padding:13px 16px;color:#dfc880;font-size:14px;font-weight:700;cursor:pointer;list-style:none}
+.fridge-item-actions>summary::-webkit-details-marker{display:none}
+.fridge-item-actions>summary:after{content:"＋";float:right;color:var(--gold);font-size:17px}
+.fridge-item-actions[open]>summary:after{content:"−"}
+.fridge-item-action-grid{display:grid;gap:11px;padding:0 12px 12px}
+.fridge-item-form{display:grid;gap:10px;margin:0;padding:14px;border:1px solid #333638;border-radius:13px;background:#171819}
+.fridge-item-form h3{margin:0;color:#e4c879;font-size:14px}
+.fridge-item-form>p{margin:0;color:var(--muted);font-size:13px}
+.fridge-item-form label{display:grid;gap:6px;margin:0;color:#e5e0d7;font-size:13px}
+.fridge-item-form label span{color:var(--muted)}
+.fridge-item-form input:not([type=checkbox]),.fridge-item-form select{width:100%;min-height:46px;padding:10px 12px;border:1px solid #3c3e3f;border-radius:10px;background:#101112;color:#f4f0e8;font-size:16px}
+.fridge-item-form .stock-confirm{display:flex;align-items:center;gap:9px;font-size:13px;color:#cec9c0}
+.fridge-item-form .stock-confirm input{width:18px;height:18px;accent-color:#d6b45e}
+.fridge-item-form button{min-height:46px;width:100%;font-size:14px}
+.fridge-item-form button:disabled,.fridge-item-form input:disabled{opacity:.45}
+.fridge-opening-form{padding:0 14px 14px;border:0;background:transparent}
+.fridge-empty-state{padding:22px}
+.fridge-empty-state h2{margin-top:0}
+@media(max-width:760px){
+ .fridge-overview-grid{grid-template-columns:1fr;gap:9px}
+ .fridge-overview-card{min-height:122px;padding:17px 19px}
+ .fridge-overview-card.fridge-combined{grid-column:auto}
+ .fridge-overview-card strong{font-size:34px}
+ .stock-overview-panel,.stock-history{padding:14px}
+ .stock-overview-row{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px 0}
+ .stock-overview-product{grid-column:1/-1;padding-bottom:3px}
+ .stock-qty-chip{min-width:0;padding:9px 10px}
+ .stock-total-chip{align-self:center}
+ .stock-setup-link{grid-column:1/-1;justify-self:start;padding:6px 0}
+ .fridge-page-heading{align-items:flex-start;gap:12px}
+ .fridge-page-heading .quick-action{align-self:center;max-width:132px;text-align:center;white-space:normal}
+ .fridge-person-hero{align-items:flex-start;flex-direction:column;gap:14px;padding:18px}
+ .fridge-person-hero>p{font-size:13px}
+ .fridge-item-head{padding:14px}
+ .fridge-item-action-grid{padding:0 10px 10px}
+}
+@media(min-width:761px){.fridge-item-action-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fridge-transfer-form{grid-column:1/-1}}
