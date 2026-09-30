@@ -1826,8 +1826,8 @@ foreach($retaCyclesActive as $cycleCheck){$cycleKey=strtolower(trim((string)$cyc
 $retaForecastCycles=array_values(array_filter($retaCyclesActive,fn($cycle)=>!isset($cyclePendingOrderById[(int)$cycle['id']])));
 $recurringForecast30=retaProjection($retaForecastCycles,$retaToday,30);$recurringForecast60=retaProjection($retaForecastCycles,$retaToday,60);$recurringForecast90=retaProjection($retaForecastCycles,$retaToday,90);
 $recurringNext30=array_values(array_filter($retaForecastCycles,function($cycle)use($retaToday){$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$retaToday->getTimezone());return $due && $due<=$retaToday->modify('+30 days');}));
-$recurringPotentialValue30=array_sum(array_map(fn($cycle)=>(int)$cycle['expected_value'],$recurringNext30));
-$recurringUnits30=array_sum(array_map(fn($cycle)=>max(1,(int)($cycle['quantity']??1)),$recurringNext30));
+$recurringPotentialValue30=(int)($recurringForecast30['revenue']??0);
+$recurringPotentialOrders30=(int)($recurringForecast30['orders']??0);$recurringUnits30=0;foreach(($recurringForecast30['stock']??[]) as $forecastUnitName=>$forecastUnitQty)if(strtolower(trim((string)$forecastUnitName))!=='pen')$recurringUnits30+=(int)$forecastUnitQty;
 $recurringGroups=['overdue'=>[],'week'=>[],'month'=>[],'later'=>[],'created'=>[]];
 foreach($retaCyclesActive as $cycleGroup){$pending=$cyclePendingOrderById[(int)$cycleGroup['id']]??null;if($pending){$cycleGroup['_pending']=$pending;$recurringGroups['created'][]=$cycleGroup;continue;}$due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycleGroup['next_due_date'],$retaToday->getTimezone());if(!$due)continue;$days=(int)$retaToday->diff($due)->format('%r%a');if($days<0)$recurringGroups['overdue'][]=$cycleGroup;elseif($days<=7)$recurringGroups['week'][]=$cycleGroup;elseif($days<=30)$recurringGroups['month'][]=$cycleGroup;else$recurringGroups['later'][]=$cycleGroup;}
 
@@ -2147,7 +2147,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($ordersSection==='recurring'):?>
 <section class="recurring-workspace">
  <div class="recurring-summary-grid">
-  <article><span>Potential next 30 days</span><strong><?=count($recurringNext30)?></strong><small><?=money($recurringPotentialValue30)?> potential value</small></article>
+  <article><span>Potential next 30 days</span><strong><?=$recurringPotentialOrders30?></strong><small><?=money($recurringPotentialValue30)?> potential value</small></article>
   <article><span>Expected units</span><strong><?=$recurringUnits30?></strong><small>Not reserved yet</small></article>
   <article class="<?=$recurringStockRiskCount?'attention':''?>"><span>Stock risks</span><strong><?=$recurringStockRiskCount?></strong><small><?=$recurringStockRiskCount?'Potential shortages':'Forecast covered'?></small></article>
   <article><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($recurringGroups['created'])?> already turned into orders</small></article>
