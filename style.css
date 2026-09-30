@@ -3948,3 +3948,47 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .forecast-flow small{font-size:6px}
  .forecast-flow strong{font-size:14px}
 }
+
+
+/* Stock navigation dock v2 */
+.stock-manage-link{display:flex!important;align-items:center;gap:7px}
+.stock-manage-link svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.stock-manage-link b{font-size:18px;font-weight:500;line-height:1}
+.stock-workspace-dock{position:relative;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:6px;border-color:#2d3132;background:linear-gradient(180deg,#121515,#0f1212);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.stock-workspace-dock>a{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;min-height:54px;padding:7px 8px;border-radius:10px;text-align:left;transition:background .18s ease,border-color .18s ease,transform .18s ease}
+.stock-workspace-dock>a:active{transform:scale(.97)}
+.stock-workspace-dock .stock-nav-icon{position:relative;display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;border-radius:9px;background:#191c1c;color:#747874;transition:background .18s ease,color .18s ease,box-shadow .18s ease}
+.stock-workspace-dock svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.stock-workspace-dock .stock-nav-icon i{position:absolute;top:-5px;right:-6px;display:grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border:2px solid #111414;border-radius:999px;background:#d5b45b;color:#171510;font-size:6px;font-style:normal;font-weight:900}
+.stock-workspace-dock .stock-nav-copy{display:grid;gap:2px;min-width:0}
+.stock-workspace-dock .stock-nav-copy strong{color:#8d908b;font-size:8.5px;line-height:1.1}
+.stock-workspace-dock .stock-nav-copy small{overflow:hidden;color:#565a57;font-size:6.5px;line-height:1.1;white-space:nowrap;text-overflow:ellipsis}
+.stock-workspace-dock>a.selected{border-color:#574925;background:linear-gradient(145deg,#2d281a,#242116);box-shadow:inset 0 0 0 1px rgba(211,178,87,.08),0 6px 16px rgba(0,0,0,.16)}
+.stock-workspace-dock>a.selected .stock-nav-icon{background:#3b321c;color:#e2bd5c;box-shadow:0 0 0 1px rgba(218,181,88,.12)}
+.stock-workspace-dock>a.selected .stock-nav-copy strong{color:#e1bd60}
+.stock-workspace-dock>a.selected .stock-nav-copy small{color:#907b48}
+@media(max-width:760px){
+ .stock-heading{display:flex;align-items:flex-end;gap:10px;margin-bottom:10px}
+ .stock-heading>div{min-width:0}
+ .stock-heading .eyebrow{font-size:8px;letter-spacing:2px}
+ .stock-heading h1{margin-top:3px;font-size:28px;line-height:1}
+ .stock-heading .page-description{display:none}
+ .stock-manage-link{align-self:center;min-height:36px!important;padding:7px 9px!important;border-radius:10px!important}
+ .stock-manage-link svg{width:14px;height:14px}
+ .stock-manage-link span{font-size:7.5px}
+ .stock-manage-link b{font-size:14px}
+ .stock-workspace-dock{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:10px;padding:4px;border-radius:12px}
+ .stock-workspace-dock>a{display:grid;grid-template-rows:29px auto;justify-items:center;gap:4px;min-height:66px;padding:7px 3px;text-align:center}
+ .stock-workspace-dock .stock-nav-icon{width:29px;height:29px}
+ .stock-workspace-dock .stock-nav-copy{display:block;width:100%}
+ .stock-workspace-dock .stock-nav-copy strong{display:block;font-size:7.5px}
+ .stock-workspace-dock .stock-nav-copy small{display:block;margin-top:2px;font-size:5.8px}
+}
+@media(max-width:390px){
+ .stock-heading h1{font-size:25px}
+ .stock-manage-link span{display:none}
+ .stock-manage-link{width:36px;justify-content:center}
+ .stock-manage-link b{display:none}
+ .stock-workspace-dock>a{min-height:61px}
+ .stock-workspace-dock .stock-nav-copy small{display:none}
+}
