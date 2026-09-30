@@ -1685,7 +1685,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','customers','customer','balances','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile71-recurring-workspace"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile72-flexible-recurring"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2173,40 +2173,67 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="heading"><div><h1>Orders</h1><p class="muted page-description">Search, update or repeat any order.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="orders-section-tabs"><a href="?view=orders" class="<?=$ordersSection==='all'?'selected':''?>">All orders <b><?=count($orders)?></b></a><a href="?view=orders&amp;section=recurring" class="<?=$ordersSection==='recurring'?'selected':''?>">Recurring <b><?=count($retaCyclesActive)?></b></a></div>
 <?php if($ordersSection==='recurring'):?>
+<?php
+$recurringRange=forecastDateRange($retaToday,(string)($_GET['range']??'30'),(string)($_GET['from']??''),(string)($_GET['to']??''),[7,14,30]);
+$recurringSelected=retaProjectionRange($retaForecastCycles,$recurringRange['start'],$recurringRange['end'],(bool)$recurringRange['include_overdue']);
+$recurringOccurrences=$recurringSelected['occurrences'];$recurringSelectedUnits=0;foreach(($recurringSelected['stock']??[]) as $unitName=>$unitQty)if(strtolower(trim((string)$unitName)!=='pen'))$recurringSelectedUnits+=(int)$unitQty;
+$recurringSelectedCustomers=[];foreach($recurringOccurrences as $occurrence)$recurringSelectedCustomers[strtolower(trim((string)$occurrence['customer_name'])).'|'.trim((string)$occurrence['phone'])]=true;
+$recurringSelectedRiskCount=0;foreach(($recurringSelected['stock']??[]) as $riskName=>$riskQty){if(strtolower(trim((string)$riskName))==='pen')continue;$riskProduct=$productStockMap[strtolower(trim((string)$riskName))]??null;$riskAvailable=$riskProduct&&(int)($riskProduct['stock_tracking']??0)===1?(int)($riskProduct['stock_qty']??0):null;if($riskAvailable!==null&&$riskAvailable<(int)$riskQty)$recurringSelectedRiskCount++;}
+$recurringDisplayGroups=[];
+foreach($recurringOccurrences as $occurrence){
+ if(!empty($occurrence['was_overdue'])){$groupKey='overdue';$groupTitle='DUE / OVERDUE';$groupSub='Needs checking now';}
+ elseif($recurringRange['mode']==='custom'){$groupKey='month-'.substr((string)$occurrence['occurrence_date'],0,7);$groupTitle=strtoupper(date('F Y',strtotime((string)$occurrence['occurrence_date'])));$groupSub='Expected during this month';}
+ else{$offset=(int)$retaToday->diff(DateTimeImmutable::createFromFormat('!Y-m-d',(string)$occurrence['occurrence_date'],$tz))->format('%r%a');if($offset<=6){$groupKey='next7';$groupTitle='NEXT 7 DAYS';$groupSub='Likely to need attention soon';}elseif($offset<=13){$groupKey='days8-14';$groupTitle='8–14 DAYS';$groupSub='Coming up after the next week';}else{$groupKey='days15-30';$groupTitle='15–30 DAYS';$groupSub='Later in the selected forecast';}}
+ if(!isset($recurringDisplayGroups[$groupKey]))$recurringDisplayGroups[$groupKey]=['title'=>$groupTitle,'sub'=>$groupSub,'rows'=>[]];$recurringDisplayGroups[$groupKey]['rows'][]=$occurrence;
+}
+$recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($cyclePendingOrderById[(int)$createdCycle['id']])){$createdCycle['_pending']=$cyclePendingOrderById[(int)$createdCycle['id']];$recurringCreatedCycles[]=$createdCycle;}
+?>
 <section class="recurring-workspace">
- <div class="recurring-summary-grid">
-  <article><span>Potential next 30 days</span><strong><?=$recurringPotentialOrders30?></strong><small><?=money($recurringPotentialValue30)?> potential value</small></article>
-  <article><span>Expected units</span><strong><?=$recurringUnits30?></strong><small>Not reserved yet</small></article>
-  <article class="<?=$recurringStockRiskCount?'attention':''?>"><span>Stock risks</span><strong><?=$recurringStockRiskCount?></strong><small><?=$recurringStockRiskCount?'Potential shortages':'Forecast covered'?></small></article>
-  <article><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($recurringGroups['created'])?> already turned into orders</small></article>
+ <div class="recurring-range-panel">
+  <div class="recurring-range-head"><div><p class="eyebrow">FORECAST RANGE</p><h2><?=e($recurringRange['label'])?></h2></div><span><?=e($recurringRange['start']->format('d M'))?> → <?=e($recurringRange['end']->format('d M Y'))?></span></div>
+  <div class="recurring-range-tabs">
+   <?php foreach([7,14,30] as $rangeDays):?><a href="?view=orders&amp;section=recurring&amp;range=<?=$rangeDays?>" class="<?=$recurringRange['mode']===(string)$rangeDays?'selected':''?>"><?=$rangeDays?> days</a><?php endforeach;?>
+   <button type="button" class="<?=$recurringRange['mode']==='custom'?'selected':''?>" data-recurring-custom-toggle>Custom</button>
+  </div>
+  <form method="get" class="recurring-custom-range <?=$recurringRange['mode']==='custom'?'open':''?>" data-recurring-custom-form>
+   <input type="hidden" name="view" value="orders"><input type="hidden" name="section" value="recurring"><input type="hidden" name="range" value="custom">
+   <label>From<input type="date" name="from" value="<?=e($recurringRange['mode']==='custom'?$recurringRange['start']->format('Y-m-d'):$retaToday->format('Y-m-d'))?>" required></label>
+   <label>To<input type="date" name="to" value="<?=e($recurringRange['mode']==='custom'?$recurringRange['end']->format('Y-m-d'):$retaToday->modify('+29 days')->format('Y-m-d'))?>" required></label>
+   <button>Apply dates</button>
+  </form>
  </div>
- <div class="recurring-explainer"><span>↻</span><div><strong>Expected does not reserve stock</strong><p>These are possible repeat orders. Stock only moves from Expected to Reserved when you create the real order.</p></div></div>
- <?php
- $recurringGroupLabels=['overdue'=>['DUE / OVERDUE','Needs checking now'],'week'=>['NEXT 7 DAYS','Likely to need attention soon'],'month'=>['LATER THIS MONTH','Expected in the next 30 days'],'created'=>['ORDER CREATED','Already moved from expected demand into real orders'],'later'=>['LATER','Active cycles beyond 30 days']];
- foreach($recurringGroupLabels as $groupKey=>$groupMeta):$groupCycles=$recurringGroups[$groupKey];if(!$groupCycles)continue;?>
+ <div class="recurring-summary-grid">
+  <article><span>Potential orders</span><strong><?=(int)$recurringSelected['orders']?></strong><small><?=money((int)$recurringSelected['revenue'])?> potential value</small></article>
+  <article><span>Expected units</span><strong><?=$recurringSelectedUnits?></strong><small>Not reserved yet</small></article>
+  <article class="<?=$recurringSelectedRiskCount?'attention':''?>"><span>Stock risks</span><strong><?=$recurringSelectedRiskCount?></strong><small><?=$recurringSelectedRiskCount?'Potential shortages':'Forecast covered'?></small></article>
+  <article><span>Customers due</span><strong><?=count($recurringSelectedCustomers)?></strong><small><?=count($recurringOccurrences)?> expected occurrence<?=count($recurringOccurrences)===1?'':'s'?></small></article>
+ </div>
+ <div class="recurring-explainer"><span>↻</span><div><strong>Expected ≠ Reserved</strong><p>These are possible repeat orders for the selected dates. Stock is only reserved when you create the real order.</p></div></div>
+ <?php foreach($recurringDisplayGroups as $groupKey=>$group):?>
  <section class="recurring-group">
-  <header><div><p class="eyebrow"><?=e($groupMeta[0])?></p><h2><?=e($groupMeta[1])?></h2></div><b><?=count($groupCycles)?></b></header>
+  <header><div><p class="eyebrow"><?=e($group['title'])?></p><h2><?=e($group['sub'])?></h2></div><b><?=count($group['rows'])?></b></header>
   <div class="recurring-card-list">
-  <?php foreach($groupCycles as $cycle):$cycleDueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$cycleDays=$cycleDueObj?(int)$retaToday->diff($cycleDueObj)->format('%r%a'):0;$cycleProduct=(string)($cycle['product_name']?:$cycle['product_summary']);$cycleQty=max(1,(int)($cycle['quantity']??1));$cycleProductStock=$productStockMap[strtolower(trim($cycleProduct))]??null;$cycleAvailable=$cycleProductStock&&(int)($cycleProductStock['stock_tracking']??0)===1?(int)($cycleProductStock['stock_qty']??0):null;$pending=$cycle['_pending']??null;?>
-   <article class="recurring-order-card <?=$groupKey==='overdue'?'overdue':''?> <?=$pending?'converted':''?>">
-    <div class="recurring-order-main"><div class="recurring-cycle-icon"><?=$pending?'✓':'↻'?></div><div><h3><?=e($cycle['customer_name'])?></h3><p><?=$cycleQty?> × <?=e($cycleProduct)?><?=trim((string)($cycle['presentation']??''))!==''?' · '.e($cycle['presentation']):''?></p><small>Every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks · <?=money($cycle['expected_value'])?> potential</small></div></div>
-    <div class="recurring-order-status">
-     <?php if($pending):?><span class="recurring-created-pill">ORDER ANK-<?=str_pad((string)$pending['id'],4,'0',STR_PAD_LEFT)?></span><strong><?=e($pending['status'])?></strong>
-     <?php else:?><span>Next expected</span><strong><?=$cycleDays<0?abs($cycleDays).'d overdue':($cycleDays===0?'Today':e(date('D d M',strtotime($cycle['next_due_date']))))?></strong><small class="<?=$cycleAvailable!==null&&$cycleAvailable<$cycleQty?'stock-risk':''?>"><?=$cycleAvailable===null?'Stock not tracked':($cycleAvailable>=$cycleQty?'Stock available ✓':'Only '.$cycleAvailable.' available ⚠')?></small><?php endif;?>
-    </div>
+  <?php foreach($group['rows'] as $cycle):$cycleDate=(string)$cycle['occurrence_date'];$cycleDueObj=DateTimeImmutable::createFromFormat('!Y-m-d',$cycleDate,$tz);$cycleDays=$cycleDueObj?(int)$retaToday->diff($cycleDueObj)->format('%r%a'):0;$cycleProduct=(string)($cycle['product_name']?:$cycle['product_summary']);$cycleQty=max(1,(int)($cycle['quantity']??1));$cycleProductStock=$productStockMap[strtolower(trim($cycleProduct))]??null;$cycleAvailable=$cycleProductStock&&(int)($cycleProductStock['stock_tracking']??0)===1?(int)($cycleProductStock['stock_qty']??0):null;$isActionable=!empty($cycle['is_next_occurrence']);?>
+   <article class="recurring-order-card <?=!empty($cycle['was_overdue'])?'overdue':''?>">
+    <div class="recurring-order-main"><div class="recurring-cycle-icon">↻</div><div><h3><?=e($cycle['customer_name'])?></h3><p><?=$cycleQty?> × <?=e($cycleProduct)?><?=trim((string)($cycle['presentation']??''))!==''?' · '.e($cycle['presentation']):''?></p><small>Every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks · <?=money($cycle['expected_value'])?> potential</small></div></div>
+    <div class="recurring-order-status"><span><?=!empty($cycle['was_overdue'])?'Overdue':'Expected'?></span><strong><?=!empty($cycle['was_overdue'])?'Due now':e(date('D d M',strtotime($cycleDate)))?></strong><small class="<?=$cycleAvailable!==null&&$cycleAvailable<$cycleQty?'stock-risk':''?>"><?=$cycleAvailable===null?'Stock not tracked':($cycleAvailable>=$cycleQty?'Stock available ✓':'Only '.$cycleAvailable.' available ⚠')?></small></div>
     <div class="recurring-order-actions">
-     <?php if($pending):?><a class="quick-action" href="?view=edit&amp;id=<?=$pending['id']?>">Open order</a>
-     <?php else:?><a class="button recurring-create-order" href="?view=new&amp;repeat_order=<?=$cycle['last_order_id']?>">Create order</a>
+     <?php if($isActionable):?><a class="button recurring-create-order" href="?view=new&amp;repeat_order=<?=$cycle['last_order_id']?>">Create order</a>
      <form method="post" onsubmit="return confirm('Skip this expected order and move to the next cycle?');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_skip"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="recurring"><button class="quick-action quiet">Skip cycle</button></form>
-     <details class="recurring-reschedule"><summary>Reschedule</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="cycle_amend"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="recurring"><label>Next expected<input type="date" name="next_due_date" value="<?=e($cycle['next_due_date'])?>" required></label><label>Every <span class="cycle-weeks-field"><input type="number" name="cycle_weeks" min="1" max="52" value="<?=max(1,(int)($cycle['cycle_weeks']??4))?>" required><i>weeks</i></span></label><button>Save</button></form></details><?php endif;?>
+     <details class="recurring-reschedule"><summary>Reschedule</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="cycle_amend"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="recurring"><label>Next expected<input type="date" name="next_due_date" value="<?=e($cycle['next_due_date'])?>" required></label><label>Every <span class="cycle-weeks-field"><input type="number" name="cycle_weeks" min="1" max="52" value="<?=max(1,(int)($cycle['cycle_weeks']??4))?>" required><i>weeks</i></span></label><button>Save</button></form></details>
+     <?php else:?><span class="recurring-forecast-only">Forecast occurrence</span><?php endif;?>
     </div>
    </article>
   <?php endforeach;?>
   </div>
  </section>
  <?php endforeach;?>
- <?php if(!$retaCyclesActive):?><div class="panel stock-empty-state"><strong>No recurring cycles yet</strong><p>Enable Recurring cycle on a product in an order. Once that order has a delivery date, its expected repeat appears here.</p></div><?php endif;?>
+ <?php if($recurringCreatedCycles):?><section class="recurring-group recurring-created-group"><header><div><p class="eyebrow">ORDER CREATED</p><h2>Already moved from expected into real orders</h2></div><b><?=count($recurringCreatedCycles)?></b></header><div class="recurring-card-list">
+ <?php foreach($recurringCreatedCycles as $cycle):$pending=$cycle['_pending'];$cycleProduct=(string)($cycle['product_name']?:$cycle['product_summary']);?><article class="recurring-order-card converted"><div class="recurring-order-main"><div class="recurring-cycle-icon">✓</div><div><h3><?=e($cycle['customer_name'])?></h3><p><?=max(1,(int)($cycle['quantity']??1))?> × <?=e($cycleProduct)?></p><small>Recurring cycle converted to an order</small></div></div><div class="recurring-order-status"><span class="recurring-created-pill">ORDER ANK-<?=str_pad((string)$pending['id'],4,'0',STR_PAD_LEFT)?></span><strong><?=e($pending['status'])?></strong></div><div class="recurring-order-actions"><a class="quick-action" href="?view=edit&amp;id=<?=$pending['id']?>">Open order</a></div></article><?php endforeach;?>
+ </div></section><?php endif;?>
+ <?php if(!$recurringOccurrences && !$recurringCreatedCycles):?><div class="panel stock-empty-state"><strong>No recurring orders in this range</strong><p>Try 14 or 30 days, or choose your own dates with Custom.</p></div><?php endif;?>
 </section>
+<script>(()=>{const button=document.querySelector('[data-recurring-custom-toggle]'),form=document.querySelector('[data-recurring-custom-form]');if(button&&form)button.addEventListener('click',()=>form.classList.toggle('open'))})();</script>
 <?php else:?>
 <div class="stats compact-stats"><article><span>Open</span><strong><?=$open?></strong></article><article><span>Paid value</span><strong><?=money($paid)?></strong></article><article><span>Total</span><strong><?=count($orders)?></strong></article></div>
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
