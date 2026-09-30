@@ -2080,7 +2080,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </section></div><?php endif;?>
 
 <section class="panel dashboard-reta-panel cycle-preview-card">
-<div class="cycle-preview-head"><div><p class="eyebrow">UPCOMING CYCLES</p><h2>Next 7 days</h2></div><a class="cycle-preview-link" href="?view=reta">Calendar <span>→</span></a></div>
+<div class="cycle-preview-head"><div><p class="eyebrow">UPCOMING CYCLES</p><h2>Next 7 days</h2></div><a class="cycle-preview-link" href="?view=orders&amp;section=recurring">Recurring <span>→</span></a></div>
 <?php if($retaDue7):?><div class="cycle-preview-list">
 <?php foreach(array_slice($retaDue7,0,4) as $cycle):
  $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;$dueTone=$daysAway<0?'overdue':($daysAway<=2?'soon':'future');?>
@@ -2088,7 +2088,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
  <div class="cycle-preview-copy"><strong><?=e($cycle['customer_name'])?></strong><span><?=e($cycle['product_name']?:$cycle['product_summary'])?><?php if((int)($cycle['quantity']??1)>1):?> × <?=(int)$cycle['quantity']?><?php endif;?></span></div>
  <div class="cycle-preview-date"><strong><?=$daysAway<0?'Overdue':($daysAway===0?'Today':($daysAway===1?'Tomorrow':e(date('D d',strtotime($cycle['next_due_date'])))))?></strong><small><?=max(1,(int)($cycle['cycle_weeks']??4))?> week cycle</small></div>
 </a>
-<?php endforeach;?></div><?php if(count($retaDue7)>4):?><a class="cycle-preview-more" href="?view=reta">+ <?=count($retaDue7)-4?> more due soon</a><?php endif;?>
+<?php endforeach;?></div><?php if(count($retaDue7)>4):?><a class="cycle-preview-more" href="?view=orders&amp;section=recurring">+ <?=count($retaDue7)-4?> more due soon</a><?php endif;?>
 <?php else:?><div class="cycle-preview-clear"><span>✓</span><div><strong>Nothing due in the next 7 days</strong><small><?=count($retaCyclesActive)?> active recurring cycle<?=count($retaCyclesActive)===1?'':'s'?></small></div></div><?php endif;?>
 </section>
 
@@ -2503,7 +2503,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">FAVOURITES</p><h2>Most ordered products</h2></div></div><?php if($accountFavourites):foreach($accountFavourites as $fav):?><div class="dashboard-row"><span><?=e($fav['name'])?></span><strong>×<?=$fav['qty']?></strong></div><?php endforeach;else:?><p class="muted">No product history yet.</p><?php endif;?></section>
 </div>
 <?php if($accountCycles):?><section class="panel customer-cycle-panel">
-<div class="cycle-customer-head"><div><p class="eyebrow">RECURRING</p><h2>Recurring peptides</h2><p>Manage this customer’s expected repeat orders.</p></div><a class="cycle-preview-link" href="?view=reta">Calendar →</a></div>
+<div class="cycle-customer-head"><div><p class="eyebrow">RECURRING</p><h2>Recurring peptides</h2><p>Manage this customer’s expected repeat orders.</p></div><a class="cycle-preview-link" href="?view=orders&amp;section=recurring">Recurring →</a></div>
 <div class="customer-cycle-list">
 <?php foreach($accountCycles as $cycle):$cycleDue=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$cycleDays=$cycleDue?(int)$retaToday->diff($cycleDue)->format('%r%a'):0;?>
 <article class="customer-cycle-card">
