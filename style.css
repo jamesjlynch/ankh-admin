@@ -3677,3 +3677,116 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .stock-demand-selected-range{flex-wrap:wrap}
  .stock-demand-selected-range small{width:100%;margin-left:0}
 }
+
+
+/* Stock transaction centre, supplier incoming stock and fridge audit */
+.stock-transaction-centre,.incoming-stock-section{display:grid;gap:10px;margin:0 0 14px;padding:13px;border:1px solid #343638;border-radius:15px;background:#151718}
+.stock-transaction-head h2,.incoming-stock-head h2{margin:2px 0 3px;font-size:15px}
+.stock-transaction-head p,.incoming-stock-head p{margin:0;color:#858782;font-size:9px}
+.stock-transaction-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.stock-action-card{border:1px solid #333638;border-radius:12px;background:#121415;overflow:hidden}
+.stock-action-card>summary{display:flex;align-items:center;gap:9px;padding:11px;cursor:pointer;list-style:none}
+.stock-action-card>summary::-webkit-details-marker{display:none}
+.stock-action-card>summary div{display:grid;gap:2px}
+.stock-action-card>summary strong{font-size:11px;color:#dedad2}
+.stock-action-card>summary small{font-size:8px;color:#777a76}
+.stock-action-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#292316;color:var(--gold);font-size:17px}
+.stock-central-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:11px;border-top:1px solid #292b2c}
+.stock-central-form label,.supplier-order-form label,.supplier-receive label,.fridge-mini-form label{display:grid;gap:4px;color:#858782;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.stock-central-form label span,.supplier-order-form label span{font-weight:500;text-transform:none}
+.stock-central-form input,.stock-central-form select,.supplier-order-form input,.supplier-order-form select,.supplier-receive input,.fridge-mini-form input,.fridge-mini-form select{min-width:0;margin:0}
+.stock-form-wide{grid-column:1/-1}
+.stock-primary-action{grid-column:1/-1;min-height:38px}
+.stock-pack-picker{display:grid;gap:5px;align-content:end}
+.stock-pack-picker>span{color:#777a76;font-size:8px;font-weight:800;text-transform:uppercase}
+.stock-pack-picker>div{display:flex;gap:4px}
+.stock-pack-picker button{min-width:42px;min-height:35px;padding:5px 8px;border:1px solid #3a3c3e;border-radius:8px;background:#1c1e1f;color:#c8c5bd;font-size:9px;font-weight:800}
+.stock-pack-picker button:hover{border-color:#67562f;color:var(--gold)}
+.fridge-direct-links{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:-5px 0 13px}
+.fridge-direct-links>a,.fridge-direct-links>div{display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:8px 10px;border:1px solid #303234;border-radius:10px;background:#151718;color:#aaa;font-size:9px;text-decoration:none}
+.fridge-direct-links>a span{color:var(--gold)}
+.fridge-direct-links>div strong{color:#d9b85f;font-size:14px}
+.fridge-direct-links>div span{color:#777a76}
+.incoming-stock-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.incoming-stock-total{display:grid;text-align:right}
+.incoming-stock-total strong{font-size:22px;color:#e0bd64}
+.incoming-stock-total span{font-size:8px;color:#777a76;text-transform:uppercase}
+.supplier-order-create{border:1px solid #3a3528;border-radius:11px;background:#18160f}
+.supplier-order-create>summary{padding:10px 11px;color:var(--gold);font-size:10px;font-weight:800;cursor:pointer;list-style:none}
+.supplier-order-create>summary::-webkit-details-marker{display:none}
+.supplier-order-form{display:grid;gap:9px;padding:11px;border-top:1px solid #332d20}
+.supplier-order-meta{display:grid;grid-template-columns:1fr 150px;gap:7px}
+.supplier-lines{display:grid;gap:6px}
+.supplier-line{display:grid;grid-template-columns:minmax(0,1.6fr) 100px 120px 30px;align-items:end;gap:6px;padding:8px;border-radius:9px;background:#121415}
+.supplier-line-remove{width:30px;height:35px;padding:0;border:1px solid #3a3c3e;border-radius:8px;background:#1c1e1f;color:#8d8e89}
+.supplier-add-line{justify-self:start}
+.supplier-order-list{display:grid;gap:8px}
+.supplier-order-card{padding:11px;border:1px solid #343638;border-radius:12px;background:#121415}
+.supplier-order-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.supplier-order-card>header>div:first-child{display:grid;gap:2px}
+.supplier-order-card>header span{color:#81765b;font-size:7px;font-weight:800;letter-spacing:.3px}
+.supplier-order-card>header h3{margin:0;font-size:13px}
+.supplier-order-card>header small{font-size:8px;color:#777a76}
+.supplier-order-card>header>div:last-child{display:grid;text-align:right}
+.supplier-order-card>header>div:last-child strong{font-size:18px;color:#e0bd64}
+.supplier-order-products{display:grid;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid #292b2c}
+.supplier-product-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.supplier-product-row>div{display:grid;gap:2px}
+.supplier-product-row strong{font-size:10px}
+.supplier-product-row small{font-size:8px;color:#777a76}
+.supplier-product-row>b{font-size:10px;color:#b9b6af}
+.supplier-receive{border-radius:9px;background:#17191a}
+.supplier-receive>summary{padding:8px;color:#c5a956;font-size:9px;font-weight:800;cursor:pointer}
+.supplier-receive form{display:grid;gap:8px;padding:9px;border-top:1px solid #2d2f30}
+.supplier-receive p{margin:0;font-size:8px;color:#7e807b}
+.supplier-allocation-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.supplier-cancel-form{margin-top:8px}
+.supplier-cancel-form button{min-height:30px;padding:5px 8px;font-size:8px}
+.incoming-empty{display:flex;align-items:center;gap:8px;padding:10px;border-radius:9px;background:#131815}
+.incoming-empty>span{color:#8fc49c}
+.incoming-empty div{display:grid;gap:2px}
+.incoming-empty strong{font-size:10px}
+.incoming-empty small{font-size:8px;color:#777a76}
+.incoming-stock-pill{display:inline-flex;width:max-content;margin-top:4px;padding:3px 6px;border-radius:999px;background:#292316;color:#d8b75f;font-size:7px;font-style:normal;font-weight:800;text-transform:uppercase}
+.stock-demand-numbers-four{grid-template-columns:repeat(4,minmax(48px,1fr))}
+.stock-demand-numbers .incoming b{color:#d8b75f}
+.fridge-hero-main{display:grid}
+.fridge-hero-breakdown{display:flex;gap:16px}
+.fridge-hero-breakdown span{display:grid;gap:2px;color:#7e807b;font-size:8px;text-transform:uppercase}
+.fridge-hero-breakdown b{font-size:15px;color:#d7d3cb}
+.fridge-page-actions{display:flex;gap:7px;margin:-5px 0 10px}
+.fridge-balance-list{display:grid;gap:8px}
+.fridge-balance-card .fridge-item-head{margin-bottom:9px}
+.fridge-balance-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.fridge-balance-three span{display:grid;gap:2px;padding:7px;border-radius:8px;background:#121415}
+.fridge-balance-three small{font-size:7px;color:#777a76;text-transform:uppercase}
+.fridge-balance-three b{font-size:14px}
+.fridge-balance-three .available b{color:var(--gold)}
+.fridge-compact-actions{margin-top:8px;border-top:1px solid #292b2c}
+.fridge-compact-actions>summary{padding:8px 0 0;color:#9b9c97;font-size:9px;font-weight:800;cursor:pointer;list-style:none}
+.fridge-compact-actions>summary::-webkit-details-marker{display:none}
+.fridge-compact-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}
+.fridge-mini-form{display:grid;gap:7px;padding:9px;border-radius:9px;background:#121415}
+.fridge-mini-form h3{margin:0;font-size:10px}
+.fridge-mini-form p{margin:0;color:#777a76;font-size:8px}
+.stock-pack-picker.compact{align-content:initial}
+.stock-pack-picker.compact button{min-height:31px}
+.fridge-audit{margin-top:13px}
+@media(max-width:760px){
+ .stock-transaction-grid{grid-template-columns:1fr}
+ .stock-central-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fridge-direct-links{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .fridge-direct-links>div{grid-column:1/-1}
+ .supplier-order-meta{grid-template-columns:1fr}
+ .supplier-line{grid-template-columns:minmax(0,1fr) 78px 30px}
+ .supplier-line label:nth-child(3){grid-column:1/3}
+ .supplier-line-remove{grid-column:3;grid-row:1}
+ .stock-demand-numbers-four{grid-template-columns:repeat(4,minmax(42px,1fr))}
+ .fridge-compact-action-grid{grid-template-columns:1fr}
+}
+@media(max-width:390px){
+ .stock-central-form{grid-template-columns:1fr}
+ .stock-form-wide,.stock-primary-action{grid-column:1}
+ .supplier-allocation-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .stock-demand-numbers-four{width:100%;grid-template-columns:repeat(4,minmax(0,1fr))}
+}
