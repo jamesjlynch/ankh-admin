@@ -3537,3 +3537,111 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .stock-availability-three b{font-size:14px!important}
  .stock-availability-panel .stock-value-lines{gap:5px}
 }
+
+
+/* Recurring orders workspace + expected stock demand */
+.orders-section-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0 0 14px;padding:4px;border:1px solid #303234;border-radius:13px;background:#141516}
+.orders-section-tabs a{display:flex;align-items:center;justify-content:center;gap:7px;min-height:39px;border-radius:9px;color:#969792;font-size:11px;font-weight:800;text-decoration:none}
+.orders-section-tabs a b{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#242627;color:#aaa}
+.orders-section-tabs a.selected{background:#292316;color:var(--gold);box-shadow:inset 0 0 0 1px #5d4d2c}
+.orders-section-tabs a.selected b{background:#3c321e;color:#e8c46e}
+.recurring-workspace{display:grid;gap:13px}
+.recurring-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.recurring-summary-grid article{display:grid;gap:4px;padding:14px;border:1px solid #343638;border-radius:14px;background:#17191a}
+.recurring-summary-grid article.attention{border-color:#644b2d;background:#201a13}
+.recurring-summary-grid span{color:#8e908b;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.recurring-summary-grid strong{font-size:23px;color:#f0ede6}
+.recurring-summary-grid article.attention strong{color:#e0a66f}
+.recurring-summary-grid small{font-size:8px;color:#777a76}
+.recurring-explainer{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border:1px solid #4d432b;border-radius:12px;background:#1b1812}
+.recurring-explainer>span{display:grid;place-items:center;flex:none;width:27px;height:27px;border-radius:9px;background:#302816;color:var(--gold);font-size:16px}
+.recurring-explainer strong{display:block;margin-bottom:2px;font-size:11px;color:#ddd8cd}
+.recurring-explainer p{margin:0;color:#8d8e89;font-size:9px;line-height:1.4}
+.recurring-group{display:grid;gap:8px}
+.recurring-group>header{display:flex;align-items:flex-end;justify-content:space-between;padding:3px 2px}
+.recurring-group>header h2{margin:2px 0 0;font-size:14px}
+.recurring-group>header>b{display:grid;place-items:center;min-width:25px;height:25px;border-radius:999px;background:#242627;color:#aaa;font-size:10px}
+.recurring-card-list{display:grid;gap:8px}
+.recurring-order-card{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(150px,.55fr) auto;align-items:center;gap:14px;padding:13px 14px;border:1px solid #343638;border-radius:14px;background:#17191a}
+.recurring-order-card.overdue{border-color:#66452f;background:#1d1714}
+.recurring-order-card.converted{border-color:#34513e;background:#151b17}
+.recurring-order-main{display:flex;align-items:center;gap:10px;min-width:0}
+.recurring-cycle-icon{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#282315;color:var(--gold);font-size:18px}
+.converted .recurring-cycle-icon{background:#1d3023;color:#8fc59d}
+.recurring-order-main h3{margin:0 0 3px;font-size:14px;color:#efebe3}
+.recurring-order-main p{margin:0;color:#b0afa9;font-size:10px}
+.recurring-order-main small{display:block;margin-top:3px;color:#747672;font-size:8px}
+.recurring-order-status{display:grid;gap:3px;text-align:right}
+.recurring-order-status>span{color:#777a76;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.recurring-order-status>strong{color:#e8e4db;font-size:12px}
+.recurring-order-status>small{font-size:8px;color:#8ab395}
+.recurring-order-status>small.stock-risk{color:#dda06e}
+.recurring-created-pill{justify-self:end;padding:4px 7px;border-radius:999px;background:#203226;color:#93c5a0!important;font-size:7px!important}
+.recurring-order-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.recurring-order-actions form{margin:0}
+.recurring-create-order{padding:8px 10px;font-size:9px}
+.recurring-reschedule{position:relative}
+.recurring-reschedule>summary{padding:7px 9px;border:1px solid #383a3c;border-radius:8px;color:#aaa;font-size:9px;cursor:pointer;list-style:none}
+.recurring-reschedule>summary::-webkit-details-marker{display:none}
+.recurring-reschedule form{position:absolute;z-index:20;right:0;top:calc(100% + 6px);display:grid;gap:8px;width:230px;padding:11px;border:1px solid #414344;border-radius:11px;background:#181a1b;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+.recurring-reschedule label{font-size:8px;color:#92938e}
+.recurring-reschedule input{margin-top:4px}
+.recurring-reschedule button{min-height:34px}
+.recurring-reschedule .cycle-weeks-field{display:flex;align-items:center;gap:6px}
+.recurring-reschedule .cycle-weeks-field input{width:70px}
+.recurring-reschedule .cycle-weeks-field i{font-style:normal;color:#777a76}
+
+.stock-demand-forecast{margin-top:14px}
+.stock-demand-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.stock-demand-head h2{margin:2px 0 3px}
+.stock-demand-head p{margin:0;font-size:9px}
+.stock-demand-risk{flex:none;padding:6px 8px;border-radius:999px;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.stock-demand-risk.clear{background:#1d3023;color:#8fc49c}
+.stock-demand-risk.warning{background:#352317;color:#e0a36f}
+.stock-demand-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:12px 0 9px;padding:4px;border-radius:11px;background:#121314}
+.stock-demand-tabs a{padding:8px;border-radius:8px;color:#858782;font-size:9px;font-weight:800;text-align:center;text-decoration:none}
+.stock-demand-tabs a.selected{background:#292316;color:var(--gold)}
+.stock-demand-list{display:grid;gap:6px}
+.stock-demand-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid #303234;border-radius:11px;background:#151718}
+.stock-demand-list>article.risk{border-color:#65482f;background:#1d1814}
+.stock-demand-list>article>div:first-child{display:grid;gap:2px}
+.stock-demand-list>article>div:first-child strong{font-size:11px;color:#ddd9d1}
+.stock-demand-list>article>div:first-child small{font-size:8px;color:#777a76}
+.stock-demand-numbers{display:grid;grid-template-columns:repeat(3,minmax(55px,1fr));gap:5px}
+.stock-demand-numbers span{display:grid;gap:2px;text-align:right}
+.stock-demand-numbers small{font-size:7px;color:#747672;text-transform:uppercase;font-weight:800}
+.stock-demand-numbers b{font-size:13px;color:#d8d4cc}
+.stock-demand-numbers .spare b{color:#8fc49c}
+.stock-demand-numbers .shortage b{color:#e0a36f}
+.stock-demand-empty{display:flex;align-items:center;gap:9px;padding:12px;border-radius:10px;background:#151a17}
+.stock-demand-empty>span{color:#8fc49c}
+.stock-demand-empty div{display:grid;gap:2px}
+.stock-demand-empty strong{font-size:10px}
+.stock-demand-empty small{font-size:8px;color:#777a76}
+.stock-demand-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;padding-top:9px;border-top:1px solid #292b2c}
+.stock-demand-footer span{font-size:8px;color:#70726e}
+.stock-demand-footer a{font-size:9px;color:var(--gold);text-decoration:none}
+
+@media(max-width:760px){
+ .recurring-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .recurring-summary-grid article{padding:11px}
+ .recurring-summary-grid strong{font-size:19px}
+ .recurring-order-card{grid-template-columns:minmax(0,1fr) auto;gap:9px;padding:11px}
+ .recurring-order-main{grid-column:1}
+ .recurring-order-status{grid-column:2;grid-row:1}
+ .recurring-order-actions{grid-column:1/-1;justify-content:flex-start;padding-top:8px;border-top:1px solid #292b2c}
+ .recurring-order-actions .button,.recurring-order-actions .quick-action,.recurring-reschedule>summary{min-height:34px}
+ .recurring-reschedule form{left:0;right:auto;width:min(245px,75vw)}
+ .stock-demand-list>article{align-items:flex-start}
+ .stock-demand-numbers{grid-template-columns:repeat(3,minmax(44px,1fr));flex:none}
+ .stock-demand-numbers b{font-size:12px}
+}
+@media(max-width:390px){
+ .recurring-order-card{grid-template-columns:minmax(0,1fr)}
+ .recurring-order-status{grid-column:1;grid-row:auto;text-align:left;padding-left:44px}
+ .recurring-created-pill{justify-self:start}
+ .stock-demand-list>article{display:grid}
+ .stock-demand-numbers{width:100%}
+ .stock-demand-numbers span{text-align:left}
+ .stock-demand-footer{align-items:flex-start;flex-direction:column}
+}
