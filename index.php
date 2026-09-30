@@ -583,6 +583,10 @@ function stockLocationForAssignee(string $assignee):string{
 function stockLocationColumn(string $location):string{
  return match(stockLocationName($location)){'Jay'=>'stock_jay_qty','Tony'=>'stock_tony_qty',default=>'stock_unallocated_qty'};
 }
+function activeReservedStock(PDO $db,int $productId,string $location):int{
+ $q=$db->prepare("SELECT COALESCE(SUM(sf.quantity),0) FROM stock_fulfilments sf JOIN orders o ON o.id=sf.order_id WHERE sf.product_id=? AND sf.location=? AND o.status NOT IN ('Cancelled','Dispatched','Delivered') AND trim(COALESCE(o.delivery_date,''))=''");
+ $q->execute([$productId,stockLocationName($location)]);return max(0,(int)$q->fetchColumn());
+}
 function setProductStockAtLocation(PDO $db,int $productId,string $location,int $quantity):void{
  $column=stockLocationColumn($location);
  // SQLite evaluates all SET expressions from the row's pre-update values. Updating the
@@ -1331,11 +1335,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $productId=(int)($_POST['product_id']??0);$opening=filter_var($_POST['opening_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));
    if($productId<1||$opening===false||$opening<0||$opening>999999||!in_array($location,['Jay','Tony'],true)||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical count for Jay or Tony’s fridge.');
    $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');
-   $wasTracked=(int)$product['stock_tracking']===1;$column=stockLocationColumn($location);$before=(int)$product[$column];$delta=(int)$opening-$before;
+   $wasTracked=(int)$product['stock_tracking']===1;$column=stockLocationColumn($location);$before=(int)$product[$column];$reserved=$wasTracked?activeReservedStock($db,$productId,$location):0;
+   if($wasTracked && (int)$opening<$reserved)throw new Exception('That physical count is lower than the '.$reserved.' units currently reserved for orders. Check those orders or the fridge count first.');
+   $available=max(0,(int)$opening-$reserved);$delta=$available-$before;
    $db->beginTransaction();
    if(!$wasTracked)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);
-   setProductStockAtLocation($db,$productId,$location,(int)$opening);
-   addStockMovement($db,$productId,$wasTracked?'count_adjustment':'opening',$delta,$wasTracked?'Confirmed fridge count':'Confirmed opening fridge count',null,'','','',null,$location);
+   setProductStockAtLocation($db,$productId,$location,$available);
+   addStockMovement($db,$productId,$wasTracked?'count_adjustment':'opening',$delta,$wasTracked?'Physical count reconciled; reservations preserved':'Confirmed opening fridge count',null,'','','',null,$location);
    $db->commit();
   }
   if($action==='stock_receive'){
@@ -1349,8 +1355,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$note=trim((string)($_POST['note']??''));
    if($productId<1||$counted===false||$counted<0||$counted>999999||!in_array($location,['Jay','Tony'],true)||strlen($note)>500)throw new Exception('Enter a valid fridge stock count.');
    $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');
-   $column=stockLocationColumn($location);$before=(int)$product[$column];$delta=(int)$counted-$before;
-   if($delta!==0){$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,(int)$counted);addStockMovement($db,$productId,'count_adjustment',$delta,$note!==''?$note:'Physical fridge count correction',null,'','','',null,$location);$db->commit();}
+   $column=stockLocationColumn($location);$before=(int)$product[$column];$reserved=activeReservedStock($db,$productId,$location);
+   if((int)$counted<$reserved)throw new Exception('That physical count is lower than the '.$reserved.' units currently reserved for orders. Check those orders or the fridge count first.');
+   $available=max(0,(int)$counted-$reserved);$delta=$available-$before;
+   if($delta!==0){$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,$available);addStockMovement($db,$productId,'count_adjustment',$delta,$note!==''?$note:'Physical fridge count correction; reservations preserved',null,'','','',null,$location);$db->commit();}
   }
   if($action==='stock_transfer'){
    $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$from=stockLocationName((string)($_POST['from_location']??''));$to=stockLocationName((string)($_POST['to_location']??''));$note=trim((string)($_POST['note']??''));
@@ -1640,7 +1648,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','customers','customer','balances','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile69-balances"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile70-stock-availability"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1666,6 +1674,10 @@ document.querySelector('#passkey-login')?.addEventListener('click',async event=>
 $products=$db->query('SELECT * FROM products ORDER BY active DESC,name')->fetchAll(PDO::FETCH_ASSOC);
 $stockProducts=$db->query('SELECT * FROM products ORDER BY active DESC,name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
 $fridgeTotals=$db->query('SELECT COALESCE(SUM(stock_jay_qty),0) AS jay,COALESCE(SUM(stock_tony_qty),0) AS tony,COALESCE(SUM(stock_unallocated_qty),0) AS unallocated FROM products WHERE stock_tracking=1')->fetch(PDO::FETCH_ASSOC);
+$reservedStockByProduct=[];$fridgeReservedTotals=['jay'=>0,'tony'=>0,'unallocated'=>0];
+$reservedRows=$db->query("SELECT sf.product_id,sf.location,COALESCE(SUM(sf.quantity),0) quantity FROM stock_fulfilments sf JOIN orders o ON o.id=sf.order_id WHERE o.status NOT IN ('Cancelled','Dispatched','Delivered') AND trim(COALESCE(o.delivery_date,''))='' GROUP BY sf.product_id,sf.location")->fetchAll(PDO::FETCH_ASSOC);
+foreach($reservedRows as $reservedRow){$loc=strtolower(stockLocationName((string)$reservedRow['location']));$qty=max(0,(int)$reservedRow['quantity']);$reservedStockByProduct[(int)$reservedRow['product_id']][$loc]=$qty;if(isset($fridgeReservedTotals[$loc]))$fridgeReservedTotals[$loc]+=$qty;}
+$fridgePhysicalTotals=['jay'=>(int)($fridgeTotals['jay']??0)+(int)$fridgeReservedTotals['jay'],'tony'=>(int)($fridgeTotals['tony']??0)+(int)$fridgeReservedTotals['tony'],'unallocated'=>(int)($fridgeTotals['unallocated']??0)+(int)$fridgeReservedTotals['unallocated']];
 $fridgeValueTotals=['jay'=>['retail'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>0],'tony'=>['retail'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>0],'combined'=>['retail'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>0]];
 foreach($stockProducts as $fridgeProduct){
  if((int)($fridgeProduct['stock_tracking']??0)!==1)continue;
