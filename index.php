@@ -2176,7 +2176,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php
 $recurringRange=forecastDateRange($retaToday,(string)($_GET['range']??'30'),(string)($_GET['from']??''),(string)($_GET['to']??''),[7,14,30]);
 $recurringSelected=retaProjectionRange($retaForecastCycles,$recurringRange['start'],$recurringRange['end'],(bool)$recurringRange['include_overdue']);
-$recurringOccurrences=$recurringSelected['occurrences'];$recurringSelectedUnits=0;foreach(($recurringSelected['stock']??[]) as $unitName=>$unitQty)if(strtolower(trim((string)$unitName)!=='pen'))$recurringSelectedUnits+=(int)$unitQty;
+$recurringOccurrences=$recurringSelected['occurrences'];$recurringSelectedUnits=0;foreach(($recurringSelected['stock']??[]) as $unitName=>$unitQty)if(strtolower(trim((string)$unitName))!=='pen')$recurringSelectedUnits+=(int)$unitQty;
 $recurringSelectedCustomers=[];foreach($recurringOccurrences as $occurrence)$recurringSelectedCustomers[strtolower(trim((string)$occurrence['customer_name'])).'|'.trim((string)$occurrence['phone'])]=true;
 $recurringSelectedRiskCount=0;foreach(($recurringSelected['stock']??[]) as $riskName=>$riskQty){if(strtolower(trim((string)$riskName))==='pen')continue;$riskProduct=$productStockMap[strtolower(trim((string)$riskName))]??null;$riskAvailable=$riskProduct&&(int)($riskProduct['stock_tracking']??0)===1?(int)($riskProduct['stock_qty']??0):null;if($riskAvailable!==null&&$riskAvailable<(int)$riskQty)$recurringSelectedRiskCount++;}
 $recurringDisplayGroups=[];
