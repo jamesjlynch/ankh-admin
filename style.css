@@ -4034,3 +4034,191 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .fridge-item-card.fridge-balance-card .fridge-mini-form>button{min-height:40px;font-size:9px}
  .fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{min-height:37px;padding:8px 11px}
 }
+
+
+/* iPhone inventory cards v3 — balanced app-style information layout */
+@media(max-width:760px){
+ /* Overview cards: stop using the desktop left/right composition */
+ .fridge-overview-grid{gap:8px}
+ .fridge-overview-card{position:relative;text-align:center}
+ .fridge-overview-card.fridge-combined{
+   display:grid!important;
+   grid-template-columns:1fr!important;
+   grid-template-rows:auto auto auto auto!important;
+   justify-items:stretch;
+   gap:9px!important;
+   min-height:0!important;
+   padding:15px!important;
+   text-align:center;
+ }
+ .fridge-overview-card.fridge-combined>span{
+   grid-column:1!important;grid-row:auto!important;
+   justify-self:center;
+   padding:5px 9px;border-radius:999px;
+   background:rgba(218,181,88,.08);
+   color:#c9ad69;
+ }
+ .fridge-overview-card.fridge-combined>strong{
+   grid-column:1!important;grid-row:auto!important;
+   display:flex;align-items:baseline;justify-content:center;gap:6px;
+   font-size:35px!important;line-height:1!important;
+ }
+ .fridge-overview-card.fridge-combined>strong em{font-size:8px!important}
+ .fridge-overview-card.fridge-combined>.stock-overview-breakdown{
+   grid-column:1!important;grid-row:auto!important;
+   width:100%;margin:0;padding:0;border:0;
+ }
+ .fridge-overview-card.fridge-combined>.fridge-value-summary{
+   grid-column:1!important;grid-row:auto!important;
+   width:100%;margin:0;padding:0;
+ }
+ .fridge-overview-card.fridge-jay,.fridge-overview-card.fridge-tony{
+   display:grid!important;
+   grid-template-columns:1fr!important;
+   align-content:start;
+   justify-items:stretch;
+   gap:8px!important;
+   min-height:0!important;
+   padding:13px 10px!important;
+   text-align:center;
+ }
+ .fridge-overview-card.fridge-jay>span,.fridge-overview-card.fridge-tony>span{
+   justify-self:center;font-size:7px!important
+ }
+ .fridge-overview-card.fridge-jay>strong,.fridge-overview-card.fridge-tony>strong{
+   display:flex;align-items:baseline;justify-content:center;gap:4px;
+   font-size:27px!important;
+ }
+ .fridge-overview-card.fridge-jay>.stock-overview-breakdown,
+ .fridge-overview-card.fridge-tony>.stock-overview-breakdown{
+   width:100%;margin:0;padding:6px 0;border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)
+ }
+ .stock-overview-breakdown small{justify-items:center!important;text-align:center!important}
+ .stock-overview-breakdown small b{font-size:14px!important}
+ .fridge-overview-card>.fridge-value-summary{
+   display:grid!important;
+   grid-template-columns:repeat(2,minmax(0,1fr))!important;
+   gap:6px!important;
+   width:100%;
+ }
+ .fridge-overview-card>.fridge-value-summary small{
+   display:grid!important;
+   justify-items:center;
+   gap:3px;
+   min-width:0;
+   padding:7px 5px;
+   border-radius:9px;
+   background:rgba(8,10,10,.18);
+   text-align:center;
+   font-size:9px!important;
+   line-height:1.2;
+ }
+ .fridge-overview-card>.fridge-value-summary small b{
+   overflow:hidden;width:100%;
+   color:#777b77;font-size:6px!important;
+   text-transform:uppercase;letter-spacing:.25px;
+   white-space:nowrap;text-overflow:ellipsis;
+ }
+
+ /* Holding stock: make the zero/label feel intentional rather than two ends of an empty row */
+ .fridge-direct-links>div{
+   display:flex!important;align-items:center;justify-content:center!important;gap:8px;
+   min-height:48px!important;text-align:center;
+ }
+ .fridge-direct-links>div strong{font-size:19px!important;color:var(--gold)}
+ .fridge-direct-links>div span{font-size:8px!important}
+
+ /* Product cards: use the entire card width instead of leaving a desktop-shaped void */
+ .stock-product-card{
+   padding:12px!important;
+   border-radius:15px!important;
+ }
+ .stock-product-title{
+   display:grid!important;
+   grid-template-columns:39px minmax(0,1fr) auto;
+   align-items:center;
+   gap:10px!important;
+   margin-bottom:10px!important;
+ }
+ .stock-product-title .product-vial-icon{width:39px!important;height:39px!important}
+ .stock-product-title h3{font-size:13px!important;line-height:1.2!important}
+ .stock-product-title small{font-size:8px!important}
+ .stock-product-counts{width:100%!important}
+ .stock-product-grid[data-fridge-view] .stock-product-counts>div:not([hidden]){
+   display:grid!important;
+   width:100%!important;
+   grid-template-columns:1fr!important;
+   gap:7px!important;
+   padding:8px!important;
+   border-radius:12px!important;
+ }
+ .stock-availability-three{
+   width:100%;
+   grid-template-columns:repeat(3,minmax(0,1fr))!important;
+   gap:6px!important;
+ }
+ .stock-availability-three>span{
+   display:grid!important;
+   place-items:center;
+   min-height:55px;
+   padding:7px 4px!important;
+   border-radius:10px!important;
+   text-align:center;
+ }
+ .stock-availability-three small{font-size:6px!important}
+ .stock-availability-three b{font-size:18px!important}
+ .stock-availability-panel .stock-value-lines{
+   display:grid!important;
+   grid-template-columns:repeat(2,minmax(0,1fr))!important;
+   gap:6px!important;
+   width:100%!important;
+   padding-top:7px!important;
+ }
+ .stock-availability-panel .stock-value-lines small{
+   display:grid!important;
+   justify-items:center;
+   align-content:center;
+   gap:3px!important;
+   min-width:0;
+   min-height:48px;
+   padding:7px 5px;
+   border:1px solid rgba(255,255,255,.055);
+   border-radius:9px;
+   background:rgba(8,10,10,.17);
+   text-align:center;
+   font-size:10px!important;
+   line-height:1.15;
+ }
+ .stock-availability-panel .stock-value-lines small b{
+   width:100%;overflow:hidden;
+   color:#7d807c!important;
+   font-size:6px!important;
+   text-transform:uppercase;letter-spacing:.25px;
+   white-space:nowrap;text-overflow:ellipsis;
+ }
+ .stock-product-combined .stock-value-lines small{color:#e9c978!important}
+
+ /* Make the stock shortcuts read like iOS list rows */
+ .stock-overview-tools{gap:7px!important}
+ .stock-tool-link{
+   min-height:55px!important;
+   padding:9px 11px!important;
+   border-radius:13px!important;
+ }
+ .stock-tool-link .stock-tool-icon{
+   display:grid;place-items:center;
+   width:34px!important;height:34px!important;
+   border-radius:10px!important;
+ }
+ .stock-tool-link strong{font-size:9px!important}
+ .stock-tool-link small{font-size:7px!important}
+ .stock-tool-link>b{font-size:16px!important}
+}
+@media(max-width:390px){
+ .fridge-overview-card.fridge-combined{padding:13px!important}
+ .fridge-overview-card.fridge-jay,.fridge-overview-card.fridge-tony{padding:11px 8px!important}
+ .fridge-overview-card>.fridge-value-summary small{padding:6px 3px;font-size:8px!important}
+ .stock-product-card{padding:10px!important}
+ .stock-availability-three>span{min-height:50px}
+ .stock-availability-panel .stock-value-lines small{min-height:44px;font-size:9px!important}
+}
