@@ -3992,3 +3992,45 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .stock-workspace-dock>a{min-height:61px}
  .stock-workspace-dock .stock-nav-copy small{display:none}
 }
+
+
+/* Fridge product cards v2 — prevent legacy balance-card flex styles crushing actions */
+.fridge-item-card.fridge-balance-card{display:block;width:100%;min-width:0;padding:0;overflow:hidden}
+.fridge-item-card.fridge-balance-card>.fridge-item-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;margin:0;padding:11px 12px 8px}
+.fridge-item-card.fridge-balance-card>.fridge-item-head>div:first-child{display:grid;gap:2px;min-width:0}
+.fridge-item-card.fridge-balance-card>.fridge-item-head h2{margin:0;font-size:11px;line-height:1.25}
+.fridge-item-card.fridge-balance-card>.fridge-item-head small{font-size:7px;line-height:1.3}
+.fridge-item-card.fridge-balance-card .fridge-item-quantity{display:grid;grid-template-columns:auto auto;align-items:baseline;gap:4px;text-align:right}
+.fridge-item-card.fridge-balance-card .fridge-item-quantity strong{font-size:21px}
+.fridge-item-card.fridge-balance-card .fridge-item-quantity span{font-size:7px}
+.fridge-item-card.fridge-balance-card>.fridge-balance-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0;padding:0 12px 9px}
+.fridge-item-card.fridge-balance-card>.fridge-balance-three span{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0;padding:6px 7px}
+.fridge-item-card.fridge-balance-card>.fridge-balance-three small{font-size:6px}
+.fridge-item-card.fridge-balance-card>.fridge-balance-three b{font-size:11px}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions{display:block;width:100%;margin:0;border-top:1px solid #292d2e}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{position:relative;display:flex;align-items:center;justify-content:space-between;width:100%;min-height:35px;padding:8px 12px;color:#858984;font-size:7.5px;list-style:none}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary:after{content:'›';color:#8d7741;font-size:14px;line-height:1;transform:rotate(90deg);transition:transform .16s ease}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions[open]>summary{color:#d2b159;background:#151817}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions[open]>summary:after{transform:rotate(-90deg)}
+.fridge-item-card.fridge-balance-card .fridge-compact-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px;margin:0;padding:9px 10px 10px;border-top:1px solid #262a2a;background:#101313}
+.fridge-item-card.fridge-balance-card .fridge-mini-form{display:grid;width:100%;min-width:0;gap:7px;padding:9px;border:1px solid #292d2e;border-radius:10px;background:#151818}
+.fridge-item-card.fridge-balance-card .fridge-mini-form h3{font-size:9px}
+.fridge-item-card.fridge-balance-card .fridge-mini-form p{font-size:7px;line-height:1.35}
+.fridge-item-card.fridge-balance-card .fridge-mini-form label{font-size:6.5px}
+.fridge-item-card.fridge-balance-card .fridge-mini-form input,.fridge-item-card.fridge-balance-card .fridge-mini-form select{width:100%;min-width:0;min-height:36px;padding:7px 8px;font-size:9px}
+.fridge-item-card.fridge-balance-card .fridge-mini-form>button{width:100%;min-height:35px;font-size:8px}
+.fridge-item-card.fridge-balance-card .stock-pack-picker.compact>span{font-size:6.5px}
+.fridge-item-card.fridge-balance-card .stock-pack-picker.compact button{min-width:36px;min-height:29px;font-size:7px}
+@media(max-width:760px){
+ .fridge-balance-list{gap:7px}
+ .fridge-item-card.fridge-balance-card{border-radius:12px}
+ .fridge-item-card.fridge-balance-card>.fridge-item-head{grid-template-columns:minmax(0,1fr) auto;padding:10px 11px 7px}
+ .fridge-item-card.fridge-balance-card>.fridge-item-head h2{max-width:none;font-size:10px}
+ .fridge-item-card.fridge-balance-card>.fridge-balance-three{padding:0 11px 8px}
+ .fridge-item-card.fridge-balance-card>.fridge-balance-three span{padding:5px 6px}
+ .fridge-item-card.fridge-balance-card .fridge-compact-action-grid{grid-template-columns:1fr;padding:8px}
+ .fridge-item-card.fridge-balance-card .fridge-mini-form{padding:10px}
+ .fridge-item-card.fridge-balance-card .fridge-mini-form input,.fridge-item-card.fridge-balance-card .fridge-mini-form select{min-height:40px;font-size:16px}
+ .fridge-item-card.fridge-balance-card .fridge-mini-form>button{min-height:40px;font-size:9px}
+ .fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{min-height:37px;padding:8px 11px}
+}
