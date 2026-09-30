@@ -724,6 +724,34 @@ function retaProjection(array $cycles,DateTimeImmutable $today,int $days):array{
  }
  return ['orders'=>$orders,'revenue'=>$revenue,'profit'=>$profit,'cost_missing'=>$costMissing,'stock'=>$stock];
 }
+function retaProjectionRange(array $cycles,DateTimeImmutable $start,DateTimeImmutable $end,bool $includeOverdue=false):array{
+ $start=$start->setTime(0,0);$end=$end->setTime(0,0);$orders=0;$revenue=0;$profit=0;$costMissing=0;$stock=[];$occurrences=[];
+ if($end<$start)return ['orders'=>0,'revenue'=>0,'profit'=>0,'cost_missing'=>0,'stock'=>[],'occurrences'=>[]];
+ foreach($cycles as $cycle){
+  $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$start->getTimezone());if(!$due)continue;
+  $interval=max(7,(int)($cycle['cycle_days']??((int)($cycle['cycle_weeks']??4)*7)));$wasOverdue=$due<$start;
+  if($wasOverdue && $includeOverdue){$due=$start;}else{while($due<$start)$due=$due->modify('+'.$interval.' days');}
+  $occurrenceIndex=0;
+  while($due<=$end && $occurrenceIndex<60){
+   $orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;
+   $name=(string)($cycle['product_name']?:$cycle['product_summary']);$qty=max(1,(int)($cycle['quantity']??1));$stock[$name]=($stock[$name]??0)+$qty;
+   if((string)($cycle['presentation']??'')==='Pen')$stock['Pen']=($stock['Pen']??0)+$qty;
+   $copy=$cycle;$copy['occurrence_date']=$due->format('Y-m-d');$copy['occurrence_index']=$occurrenceIndex;$copy['was_overdue']=$wasOverdue&&$occurrenceIndex===0;$occurrences[]=$copy;
+   $due=$due->modify('+'.$interval.' days');$occurrenceIndex++;
+  }
+ }
+ usort($occurrences,fn($a,$b)=>strcmp((string)$a['occurrence_date'],(string)$b['occurrence_date'])?:strcmp((string)$a['customer_name'],(string)$b['customer_name']));
+ return ['orders'=>$orders,'revenue'=>$revenue,'profit'=>$profit,'cost_missing'=>$costMissing,'stock'=>$stock,'occurrences'=>$occurrences];
+}
+function forecastDateRange(DateTimeImmutable $today,string $range,string $from='',string $to='',array $quick=[7,14,30]):array{
+ $range=strtolower(trim($range));$days=(int)$range;
+ if(in_array($days,$quick,true))return ['mode'=>(string)$days,'start'=>$today->setTime(0,0),'end'=>$today->setTime(0,0)->modify('+'.max(0,$days-1).' days'),'label'=>'Next '.$days.' days','include_overdue'=>true];
+ if($range==='custom'){
+  $tz=$today->getTimezone();$start=DateTimeImmutable::createFromFormat('!Y-m-d',$from,$tz);$end=DateTimeImmutable::createFromFormat('!Y-m-d',$to,$tz);
+  if($start&&$end&&$start->format('Y-m-d')===$from&&$end->format('Y-m-d')===$to&&$end>=$start&&$end<=$start->modify('+365 days'))return ['mode'=>'custom','start'=>$start,'end'=>$end,'label'=>$start->format('j M').' – '.$end->format('j M Y'),'include_overdue'=>$start->format('Y-m-d')===$today->format('Y-m-d')];
+ }
+ $default=in_array(30,$quick,true)?30:$quick[0];return ['mode'=>(string)$default,'start'=>$today->setTime(0,0),'end'=>$today->setTime(0,0)->modify('+'.($default-1).' days'),'label'=>'Next '.$default.' days','include_overdue'=>true];
+}
 function cycleOccurrences(array $cycles,DateTimeImmutable $today,int $weeks):array{
  $end=$today->modify('+'.max(1,$weeks).' weeks');$rows=[];
  foreach($cycles as $cycle){
