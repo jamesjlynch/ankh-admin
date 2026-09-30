@@ -4289,3 +4289,67 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
    min-width:0!important;
  }
 }
+
+
+/* Combined stock summary v2 — compact iPhone inventory card */
+.combined-stock-v2{overflow:hidden}
+.combined-stock-v2 svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.combined-stock-head{display:flex;align-items:center;gap:9px;width:100%}
+.combined-stock-head>.combined-stock-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:10px;background:rgba(218,181,88,.12);color:#e1bd62}
+.combined-stock-head>span:nth-child(2){display:grid;gap:1px;min-width:0;text-align:left}
+.combined-stock-head>span:nth-child(2)>b{color:#d9d6cd;font-size:9px}
+.combined-stock-head>span:nth-child(2)>small{color:#77756c;font-size:6.5px}
+.combined-stock-head>i{margin-left:auto;padding:4px 7px;border:1px solid rgba(218,181,88,.15);border-radius:999px;background:rgba(218,181,88,.06);color:#9f884d;font-size:6px;font-style:normal;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.combined-stock-hero{display:flex;align-items:baseline;justify-content:center;gap:7px;width:100%;padding:8px 0 4px}
+.combined-stock-hero>strong{color:#efcb74;font-size:38px;line-height:1;letter-spacing:-1.5px}
+.combined-stock-hero>span{color:#96958e;font-size:8px;font-weight:750}
+.combined-stock-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%}
+.combined-stock-stats>span{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;gap:1px 6px;min-width:0;padding:8px;border:1px solid rgba(255,255,255,.065);border-radius:10px;background:rgba(8,10,10,.2);text-align:left}
+.combined-stock-stats .stat-icon{grid-row:1/3;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#20211d;color:#8d8d84}
+.combined-stock-stats .stat-icon svg{width:13px;height:13px}
+.combined-stock-stats small{align-self:end;color:#74756e;font-size:5.8px;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.combined-stock-stats b{align-self:start;color:#e4e1d8;font-size:13px;line-height:1.1}
+.combined-stock-stats>span.available{border-color:rgba(218,181,88,.22);background:rgba(218,181,88,.07)}
+.combined-stock-stats>span.available .stat-icon{background:#352e1c;color:#e0bb5e}
+.combined-stock-stats>span.available b{color:#e8c66d}
+.combined-stock-money{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;width:100%}
+.combined-stock-money>span{display:flex;align-items:center;gap:8px;min-width:0;padding:9px;border:1px solid rgba(255,255,255,.06);border-radius:10px;background:rgba(8,10,10,.24);text-align:left}
+.combined-stock-money .money-icon{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:9px;background:rgba(218,181,88,.09);color:#c7a856}
+.combined-stock-money .money-icon svg{width:14px;height:14px}
+.combined-stock-money>span>span{display:grid;gap:2px;min-width:0}
+.combined-stock-money small{color:#74756e;font-size:5.8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.combined-stock-money b{overflow:hidden;color:#e7e3d9;font-size:10px;white-space:nowrap;text-overflow:ellipsis}
+@media(max-width:760px){
+ .fridge-overview-card.fridge-combined.combined-stock-v2{
+   display:flex!important;
+   flex-direction:column!important;
+   align-items:stretch!important;
+   justify-content:flex-start!important;
+   gap:8px!important;
+   min-height:0!important;
+   height:auto!important;
+   padding:12px!important;
+   text-align:initial!important;
+ }
+ .fridge-overview-card.fridge-combined.combined-stock-v2>.combined-stock-head,
+ .fridge-overview-card.fridge-combined.combined-stock-v2>.combined-stock-hero,
+ .fridge-overview-card.fridge-combined.combined-stock-v2>.combined-stock-stats,
+ .fridge-overview-card.fridge-combined.combined-stock-v2>.combined-stock-money{
+   width:100%!important;margin:0!important;padding-left:0;padding-right:0;grid-column:auto!important;grid-row:auto!important;
+ }
+ .fridge-overview-card.fridge-combined.combined-stock-v2>.combined-stock-head{padding:0!important}
+ .combined-stock-hero{padding:5px 0 2px!important}
+ .combined-stock-hero>strong{font-size:34px}
+ .combined-stock-stats>span{padding:7px 6px}
+ .combined-stock-money>span{padding:8px}
+}
+@media(max-width:390px){
+ .fridge-overview-card.fridge-combined.combined-stock-v2{padding:10px!important;gap:7px!important}
+ .combined-stock-head>i{display:none}
+ .combined-stock-hero>strong{font-size:31px}
+ .combined-stock-stats .stat-icon{width:22px;height:22px}
+ .combined-stock-stats>span{gap:1px 4px;padding:6px 5px}
+ .combined-stock-stats b{font-size:12px}
+ .combined-stock-money .money-icon{width:25px;height:25px;flex-basis:25px}
+ .combined-stock-money b{font-size:9px}
+}
