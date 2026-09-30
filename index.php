@@ -1638,9 +1638,9 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','customers','customer','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','customers','customer','balances','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile68-payment-balance"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile69-balances"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1696,6 +1696,34 @@ foreach($orders as $customerOrder){
  $customerKey=strtolower(trim((string)$customerOrder['customer'])).'|'.trim((string)$customerOrder['phone']);
  $customerOrderHistory[$customerKey][]=$customerOrder;
 }
+$customerIdByKey=[];foreach($storedCustomers as $storedCustomer){$customerIdByKey[strtolower(trim((string)$storedCustomer['name'])).'|'.trim((string)$storedCustomer['phone'])]=(int)$storedCustomer['id'];}
+$paymentsByOrder=[];$allPayments=$db->query('SELECT * FROM payments ORDER BY datetime(created) DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC);
+foreach($allPayments as $ledgerPayment)$paymentsByOrder[(int)$ledgerPayment['order_id']][]=$ledgerPayment;
+$balanceAccounts=[];
+foreach($customerOrderHistory as $balanceKey=>$balanceHistory){
+ $openBalanceOrders=[];$openPaid=0;$openOutstanding=0;$oldestUnpaid=null;$hasPartPaid=false;$hasUnpaid=false;$hasOverdue=false;
+ foreach($balanceHistory as $balanceOrder){
+  if((string)$balanceOrder['status']==='Cancelled')continue;
+  $orderPaid=(int)($balanceOrder['paid_amount']??0);$orderTotal=(int)$balanceOrder['total'];$orderDue=max(0,$orderTotal-$orderPaid);
+  if($orderDue<=0)continue;
+  $orderCopy=$balanceOrder;$orderCopy['balance_due']=$orderDue;$orderCopy['payments']=$paymentsByOrder[(int)$balanceOrder['id']]??[];
+  $openBalanceOrders[]=$orderCopy;$openPaid+=$orderPaid;$openOutstanding+=$orderDue;
+  if($orderPaid>0)$hasPartPaid=true;else$hasUnpaid=true;
+  if(!empty($balanceOrder['delivery_date']))$hasOverdue=true;
+  if($oldestUnpaid===null || strtotime((string)$balanceOrder['created'])<strtotime((string)$oldestUnpaid['created']))$oldestUnpaid=$orderCopy;
+ }
+ if(!$openBalanceOrders)continue;
+ $first=$openBalanceOrders[0];$balanceAccounts[]=[
+  'key'=>$balanceKey,'customer'=>(string)$first['customer'],'phone'=>(string)$first['phone'],'customer_id'=>$customerIdByKey[$balanceKey]??0,
+  'total_orders'=>count(array_filter($balanceHistory,fn($o)=>(string)$o['status']!=='Cancelled')),
+  'open_orders'=>count($openBalanceOrders),'paid'=>$openPaid,'outstanding'=>$openOutstanding,'oldest'=>$oldestUnpaid,
+  'part_paid'=>$hasPartPaid,'unpaid'=>$hasUnpaid,'overdue'=>$hasOverdue,'orders'=>$openBalanceOrders
+ ];
+}
+usort($balanceAccounts,fn($a,$b)=>$b['outstanding']<=>$a['outstanding']);
+$balancesTotalOutstanding=array_sum(array_column($balanceAccounts,'outstanding'));
+$balancesTotalPaid=array_sum(array_column($balanceAccounts,'paid'));
+$balancesOverdueCount=count(array_filter($balanceAccounts,fn($a)=>$a['overdue']));
 $customerProductCounts=[];
 $customerProducts=$db->query("SELECT o.customer,o.phone,i.name,SUM(i.quantity) qty FROM orders o JOIN items i ON i.order_id=o.id WHERE o.status<>'Cancelled' AND lower(trim(i.name))<>'pen' GROUP BY lower(trim(o.customer)),trim(o.phone),i.name ORDER BY qty DESC")->fetchAll(PDO::FETCH_ASSOC);
 foreach($customerProducts as $customerProduct){
@@ -1984,7 +2012,8 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="<?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
-<a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=$view==='balances'?'selected':''?>" href="?view=balances"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14v11H5z"/><path d="M8 11h8M8 15h5"/><circle cx="17" cy="15" r="1"/></svg></span><span class="nav-label">Balances</span></a>
 <a class="<?=$view==='products'?'selected':''?>" href="?view=products"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="nav-label">Products</span></a>
 <a class="<?=$view==='reports'?'selected':''?>" href="?view=reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></svg></span><span class="nav-label">Reports</span></a>
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
@@ -1993,7 +2022,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
-<a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['more','products','reports','sheets'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
@@ -2268,7 +2297,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <p>4. Choose <strong>Deploy → New deployment → Web app</strong>, execute as yourself, allow access to anyone, then copy the URL ending in <strong>/exec</strong> into the box above.</p>
 </section>
 <?php elseif($view==='customers'):?>
-<div class="heading customer-heading"><div><h1>Customers</h1><p class="muted page-description">Search, contact or start another order.</p></div><button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button></div>
+<div class="heading customer-heading"><div><h1>Customers</h1><p class="muted page-description">Search, contact or start another order.</p></div><div class="customer-heading-actions"><a class="quick-action customer-balances-link" href="?view=balances">Balances<?php if($balancesTotalOutstanding>0):?> · <?=money($balancesTotalOutstanding)?><?php endif;?></a><button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button></div></div>
 <div class="customer-page-filters"><label>Search customers<input id="customer-page-search" type="search" placeholder="Name, phone, address or product"></label><label>Show<select id="customer-status-filter"><option value="active">Active</option><option value="archived">Archived</option><option value="all">All</option></select></label></div>
 <form method="post" class="panel customer-form" id="add-customer-panel" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><div class="customer-form-title"><h2>Add customer</h2><button type="button" class="quiet customer-form-close" data-close-customer-form>Cancel</button></div><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><button>Save customer</button></form>
 <div id="customer-list">
@@ -2294,6 +2323,47 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </div>
 <p id="customer-page-empty" class="empty" hidden>No customers match that search.</p>
 <?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;?>
+
+<?php elseif($view==='balances'):?>
+<div class="heading balances-heading"><div><p class="eyebrow">MONEY OWED</p><h1>Customer balances</h1><p class="muted page-description">Outstanding customer balances and payment history.</p></div><a class="quick-action" href="?view=customers">Customers →</a></div>
+<section class="balances-hero">
+ <div><span>Total outstanding</span><strong><?=money($balancesTotalOutstanding)?></strong><small><?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?> currently owe money</small></div>
+ <div><span>Paid towards open orders</span><strong><?=money($balancesTotalPaid)?></strong><small>Partial payments already received</small></div>
+ <div><span>Delivered &amp; still due</span><strong><?=$balancesOverdueCount?></strong><small>Shown as overdue below</small></div>
+</section>
+<div class="balance-filter-bar" role="group" aria-label="Filter customer balances">
+ <button type="button" class="selected" data-balance-filter="all">All <b><?=count($balanceAccounts)?></b></button>
+ <button type="button" data-balance-filter="unpaid">Unpaid <b><?=count(array_filter($balanceAccounts,fn($a)=>$a['unpaid']))?></b></button>
+ <button type="button" data-balance-filter="partial">Part-paid <b><?=count(array_filter($balanceAccounts,fn($a)=>$a['part_paid']))?></b></button>
+ <button type="button" data-balance-filter="overdue">Overdue <b><?=$balancesOverdueCount?></b></button>
+</div>
+<p class="balance-filter-note">Overdue means the order has been marked delivered but still has a balance outstanding.</p>
+<div class="balance-account-list" id="balance-account-list">
+<?php foreach($balanceAccounts as $account):$oldest=$account['oldest'];?>
+<details class="balance-account-card" data-balance-unpaid="<?=$account['unpaid']?'1':'0'?>" data-balance-partial="<?=$account['part_paid']?'1':'0'?>" data-balance-overdue="<?=$account['overdue']?'1':'0'?>">
+ <summary>
+  <div class="balance-customer-main"><h2><?=e($account['customer'])?></h2><span><?=$account['open_orders']?> open balance<?=$account['open_orders']===1?'':'s'?> · <?=$account['total_orders']?> total order<?=$account['total_orders']===1?'':'s'?></span><?php if($oldest):?><small>Oldest unpaid: ANK-<?=str_pad((string)$oldest['id'],4,'0',STR_PAD_LEFT)?> · <?=e(date('d M Y',strtotime($oldest['created'])))?></small><?php endif;?></div>
+  <div class="balance-customer-money"><?php if($account['paid']>0):?><span><b><?=money($account['paid'])?></b><small>paid</small></span><?php endif;?><strong><?=money($account['outstanding'])?><small>due</small></strong><i>⌄</i></div>
+ </summary>
+ <div class="balance-account-body">
+  <div class="balance-account-actions"><?php if($account['customer_id']):?><a class="quick-action" href="?view=customer&amp;id=<?=$account['customer_id']?>">Open customer</a><?php endif;?><?php if(trim($account['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',$account['phone']))?>">Call</a><?php endif;?></div>
+  <div class="balance-ledger">
+  <?php foreach($account['orders'] as $bo):$boPaid=(int)($bo['paid_amount']??0);$boDue=(int)$bo['balance_due'];$boOverdue=!empty($bo['delivery_date']);?>
+   <article class="balance-order<?=$boOverdue?' overdue':''?>">
+    <header><div><span>ANK-<?=str_pad((string)$bo['id'],4,'0',STR_PAD_LEFT)?></span><small><?=e(date('d M Y',strtotime($bo['created'])))?><?=$boOverdue?' · Delivered':''?></small></div><?php if($boOverdue):?><b class="balance-overdue-pill">OVERDUE</b><?php endif;?></header>
+    <div class="balance-order-flow"><span><small>Order</small><b><?=money($bo['total'])?></b></span><i>→</i><span><small>Paid</small><b><?=money($boPaid)?></b></span><i>→</i><span class="balance-order-due"><small>Remaining</small><b><?=money($boDue)?></b></span></div>
+    <?php if($bo['payments']):?><div class="balance-payment-history"><?php foreach($bo['payments'] as $bp):?><div><span><b><?=money($bp['amount'])?></b><small><?=e(date('d M Y',strtotime($bp['created'])))?> · <?=e($bp['method']?:'Method not recorded')?></small></span><?php if($bp['note']):?><em><?=e($bp['note'])?></em><?php endif;?></div><?php endforeach;?></div><?php else:?><p class="balance-no-payments">No payments recorded yet.</p><?php endif;?>
+   </article>
+  <?php endforeach;?>
+  </div>
+ </div>
+</details>
+<?php endforeach;?>
+</div>
+<p class="empty" id="balance-filter-empty" <?=count($balanceAccounts)?'hidden':''?>>No outstanding customer balances.</p>
+<script>
+(()=>{const buttons=[...document.querySelectorAll('[data-balance-filter]')],cards=[...document.querySelectorAll('.balance-account-card')],empty=document.getElementById('balance-filter-empty');if(!buttons.length)return;const apply=type=>{let visible=0;cards.forEach(card=>{const show=type==='all'||card.dataset['balance'+type.charAt(0).toUpperCase()+type.slice(1)]==='1';card.hidden=!show;if(show)visible++;});buttons.forEach(button=>{const on=button.dataset.balanceFilter===type;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',on?'true':'false');});if(empty){empty.hidden=visible>0;empty.textContent=visible?'':'No customers match this balance filter.';}};buttons.forEach(button=>button.addEventListener('click',()=>apply(button.dataset.balanceFilter)));})();
+</script>
 
 <?php elseif($view==='customer'):?>
 <?php if(!$customerAccount):?>
@@ -2552,6 +2622,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
+<a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
 <a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2><p>Opening counts, receipts, adjustments and movement history.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
