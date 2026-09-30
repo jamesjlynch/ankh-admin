@@ -4222,3 +4222,40 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .stock-availability-three>span{min-height:50px}
  .stock-availability-panel .stock-value-lines small{min-height:44px;font-size:9px!important}
 }
+
+
+/* Per-product fridge quick stock controls */
+.fridge-quick-adjust{
+ display:flex;align-items:center;justify-content:space-between;gap:10px;
+ width:100%;margin:0;padding:8px 11px;border-top:1px solid #292d2e;
+ background:linear-gradient(180deg,#121515,#101313);
+}
+.fridge-quick-adjust>span{color:#777b77;font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.65px}
+.fridge-quick-adjust>div{display:flex;align-items:center;gap:5px}
+.fridge-quick-adjust button{
+ display:grid;place-items:center;min-width:38px;min-height:31px;margin:0;padding:5px 9px;
+ border:1px solid #373b3b;border-radius:9px;background:#181b1b;color:#c9cbc6;
+ font-size:9px;font-weight:850;line-height:1;box-shadow:none;
+}
+.fridge-quick-adjust button.add{border-color:#65552f;background:#292316;color:#e4bf69}
+.fridge-quick-adjust button.pack{border-color:#6e592e;background:#352b18;color:#efc86e}
+.fridge-quick-adjust button:active:not(:disabled){transform:scale(.95)}
+.fridge-quick-adjust button:disabled{opacity:.28}
+.fridge-stock-shortfall{
+ display:flex;align-items:flex-start;gap:8px;margin:0 10px 8px;padding:8px 9px;
+ border:1px solid #6b4935;border-radius:10px;background:#211713;color:#dba98c;
+}
+.fridge-stock-shortfall>span{
+ display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:7px;
+ background:#3b251b;color:#e8ae8a;font-size:10px;font-weight:900;
+}
+.fridge-stock-shortfall>div{display:grid;gap:2px;min-width:0}
+.fridge-stock-shortfall strong{font-size:8px}
+.fridge-stock-shortfall small{color:#a3887a;font-size:6.5px;line-height:1.35}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{color:#777b77}
+@media(max-width:760px){
+ .fridge-quick-adjust{min-height:45px;padding:7px 10px}
+ .fridge-quick-adjust>span{font-size:7px}
+ .fridge-quick-adjust button{min-width:45px;min-height:34px;border-radius:10px;font-size:10px}
+ .fridge-stock-shortfall{margin:0 9px 7px}
+}
