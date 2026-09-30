@@ -4259,3 +4259,33 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .fridge-quick-adjust button{min-width:45px;min-height:34px;border-radius:10px;font-size:10px}
  .fridge-stock-shortfall{margin:0 9px 7px}
 }
+
+
+/* Stock dock full-width distribution */
+.stock-workspace-nav.stock-workspace-dock{
+ display:grid!important;
+ grid-template-columns:repeat(4,minmax(0,1fr))!important;
+ grid-auto-columns:minmax(0,1fr);
+ width:100%!important;
+ max-width:none!important;
+ justify-content:stretch!important;
+ align-items:stretch;
+ box-sizing:border-box;
+}
+.stock-workspace-nav.stock-workspace-dock>a{
+ width:100%!important;
+ max-width:none!important;
+ min-width:0!important;
+ box-sizing:border-box;
+ justify-self:stretch!important;
+}
+@media(max-width:760px){
+ .stock-workspace-nav.stock-workspace-dock{
+   grid-template-columns:repeat(4,minmax(0,1fr))!important;
+   gap:4px!important;
+ }
+ .stock-workspace-nav.stock-workspace-dock>a{
+   width:100%!important;
+   min-width:0!important;
+ }
+}
