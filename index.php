@@ -1395,10 +1395,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='stock_receive'){
    $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$supplier=trim((string)($_POST['supplier']??''));$batch=trim((string)($_POST['batch_reference']??''));$expiry=trim((string)($_POST['expiry_date']??''));$note=trim((string)($_POST['note']??''));$unitCostRaw=trim((string)($_POST['unit_cost']??''));$unitCost=$unitCostRaw===''?null:postedMoneyPence($unitCostRaw,'unit cost');
-   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($location,['Jay','Tony'],true)||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details and choose a fridge.');
-   if($expiry!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry)||!checkdate((int)substr($expiry,5,2),(int)substr($expiry,8,2),(int)substr($expiry,0,4))))throw new Exception('Enter a valid expiry date.');
-   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');if((int)$tracked!==1)throw new Exception('Confirm a fridge opening count before receiving stock.');
-   $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$location,(int)$quantity);addStockMovement($db,$productId,'received',(int)$quantity,$note,null,$supplier,$batch,$expiry,$unitCost,$location);$db->commit();
+   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($location,['Jay','Tony','Unallocated'],true)||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details and choose where the stock is going.');
+   if($expiry!==''&&(!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$expiry)||!checkdate((int)substr($expiry,5,2),(int)substr($expiry,8,2),(int)substr($expiry,0,4))))throw new Exception('Enter a valid expiry date.');
+   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');
+   $db->beginTransaction();if((int)$tracked!==1)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);adjustProductStockAtLocation($db,$productId,$location,(int)$quantity);addStockMovement($db,$productId,'received',(int)$quantity,$note!==''?$note:'Stock added',null,$supplier,$batch,$expiry,$unitCost,$location);$db->commit();
   }
   if($action==='stock_count'){
    $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$note=trim((string)($_POST['note']??''));
@@ -1411,9 +1411,30 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='stock_transfer'){
    $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$from=stockLocationName((string)($_POST['from_location']??''));$to=stockLocationName((string)($_POST['to_location']??''));$note=trim((string)($_POST['note']??''));
-   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($from,['Jay','Tony','Unallocated'],true)||!in_array($to,['Jay','Tony'],true)||$from===$to||strlen($note)>500)throw new Exception('Choose a valid source and destination fridge, and enter a quantity.');
+   if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($from,['Jay','Tony','Unallocated'],true)||!in_array($to,['Jay','Tony','Unallocated'],true)||$from===$to||strlen($note)>500)throw new Exception('Choose a valid source and destination fridge, and enter a quantity.');
    $column=stockLocationColumn($from);$q=$db->prepare("SELECT stock_tracking,{$column} AS available FROM products WHERE id=?");$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');if((int)$product['available']<(int)$quantity)throw new Exception('There is not enough stock in that location to transfer.');
    $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$from,-(int)$quantity);adjustProductStockAtLocation($db,$productId,$to,(int)$quantity);$transferNote=$note!==''?$note:'Stock transferred between locations';addStockMovement($db,$productId,'transfer_out',-(int)$quantity,$transferNote,null,'','','',null,$from);addStockMovement($db,$productId,'transfer_in',(int)$quantity,$transferNote,null,'','','',null,$to);$db->commit();
+  }
+  if($action==='supplier_order_create'){
+   $supplier=trim((string)($_POST['supplier']??''));$expected=trim((string)($_POST['expected_date']??''));$note=trim((string)($_POST['note']??''));$productIds=$_POST['product_id']??[];$packs=$_POST['packs']??[];$costs=$_POST['unit_cost']??[];
+   if($supplier===''||strlen($supplier)>160||strlen($note)>500)throw new Exception('Enter a supplier name.');
+   if($expected!==''&&(!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$expected)||!checkdate((int)substr($expected,5,2),(int)substr($expected,8,2),(int)substr($expected,0,4))))throw new Exception('Enter a valid expected delivery date.');
+   if(!is_array($productIds)||!is_array($packs)||!count($productIds))throw new Exception('Add at least one product to the supplier order.');
+   $lines=[];foreach($productIds as $idx=>$rawProductId){$pid=(int)$rawProductId;$packCount=filter_var($packs[$idx]??'',FILTER_VALIDATE_INT);if($pid<1||$packCount===false||$packCount<1||$packCount>999)continue;$q=$db->prepare('SELECT id,supplier_pack_size,cost FROM products WHERE id=?');$q->execute([$pid]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)continue;$packSize=max(1,(int)($p['supplier_pack_size']??10));$costRaw=trim((string)($costs[$idx]??''));$unitCost=$costRaw===''?($p['cost']===null?null:(int)$p['cost']):postedMoneyPence($costRaw,'unit cost');$lines[]=['product_id'=>$pid,'packs'=>(int)$packCount,'pack_size'=>$packSize,'quantity'=>(int)$packCount*$packSize,'unit_cost'=>$unitCost];}
+   if(!$lines)throw new Exception('Add at least one valid product and pack quantity.');
+   $db->beginTransaction();$db->prepare('INSERT INTO supplier_orders(supplier,expected_date,status,note,created) VALUES (?,?,?,?,?)')->execute([$supplier,$expected,'Ordered',$note,gmdate('c')]);$supplierOrderId=(int)$db->lastInsertId();$ins=$db->prepare('INSERT INTO supplier_order_items(supplier_order_id,product_id,packs,pack_size,quantity,unit_cost,received_qty) VALUES (?,?,?,?,?,?,0)');foreach($lines as $line)$ins->execute([$supplierOrderId,$line['product_id'],$line['packs'],$line['pack_size'],$line['quantity'],$line['unit_cost']]);$db->commit();
+  }
+  if($action==='supplier_stock_receive'){
+   $itemId=(int)($_POST['supplier_item_id']??0);$jay=filter_var($_POST['jay_qty']??0,FILTER_VALIDATE_INT);$tony=filter_var($_POST['tony_qty']??0,FILTER_VALIDATE_INT);$holding=filter_var($_POST['unallocated_qty']??0,FILTER_VALIDATE_INT);
+   if($itemId<1||$jay===false||$tony===false||$holding===false||$jay<0||$tony<0||$holding<0)throw new Exception('Enter valid received quantities.');
+   $receiveTotal=(int)$jay+(int)$tony+(int)$holding;if($receiveTotal<1)throw new Exception('Enter how many units arrived and where they are going.');
+   $q=$db->prepare('SELECT soi.*,so.supplier,so.id supplier_order_id FROM supplier_order_items soi JOIN supplier_orders so ON so.id=soi.supplier_order_id WHERE soi.id=? AND so.status<>"Cancelled"');$q->execute([$itemId]);$line=$q->fetch(PDO::FETCH_ASSOC);if(!$line)throw new Exception('Incoming stock line could not be found.');$remaining=(int)$line['quantity']-(int)$line['received_qty'];if($receiveTotal>$remaining)throw new Exception('Only '.$remaining.' units remain outstanding on this supplier order.');
+   $db->beginTransaction();$q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([(int)$line['product_id']]);$tracked=(int)$q->fetchColumn();if($tracked!==1)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),(int)$line['product_id']]);
+   foreach(['Jay'=>(int)$jay,'Tony'=>(int)$tony,'Unallocated'=>(int)$holding] as $receiveLocation=>$receiveQty){if($receiveQty<1)continue;adjustProductStockAtLocation($db,(int)$line['product_id'],$receiveLocation,$receiveQty);addStockMovement($db,(int)$line['product_id'],'supplier_received',$receiveQty,'Received from supplier order #'.(int)$line['supplier_order_id'],null,(string)$line['supplier'],'','','',$receiveLocation);}
+   $db->prepare('UPDATE supplier_order_items SET received_qty=received_qty+? WHERE id=?')->execute([$receiveTotal,$itemId]);$orderId=(int)$line['supplier_order_id'];$q=$db->prepare('SELECT SUM(quantity) total_qty,SUM(received_qty) received_qty FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$orderId]);$totals=$q->fetch(PDO::FETCH_ASSOC);$status=(int)$totals['received_qty']>=(int)$totals['total_qty']?'Received':'Part received';$db->prepare('UPDATE supplier_orders SET status=? WHERE id=?')->execute([$status,$orderId]);$db->commit();
+  }
+  if($action==='supplier_order_cancel'){
+   $supplierOrderId=(int)($_POST['supplier_order_id']??0);$q=$db->prepare('SELECT COALESCE(SUM(received_qty),0) FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$supplierOrderId]);if((int)$q->fetchColumn()>0)throw new Exception('This supplier order has already been partly received and cannot be cancelled.');$db->prepare("UPDATE supplier_orders SET status='Cancelled' WHERE id=?")->execute([$supplierOrderId]);
   }
   if($action==='product'){
    $name=trim($_POST['name']??'');$price=filter_var($_POST['price']??'',FILTER_VALIDATE_FLOAT);
@@ -1675,7 +1696,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'order_delete'=>'Order deleted.',
   'order_dates'=>'Order dates updated.',
   'stock_open'=>'Opening stock count saved; stock tracking is now active.',
-  'stock_receive'=>'Stock receipt saved.',
+  'stock_receive'=>'Stock added and recorded in the audit trail.',
+  'stock_transfer'=>'Stock moved and recorded in both locations.',
+  'supplier_order_create'=>'Supplier order added to Incoming Stock.',
+  'supplier_stock_receive'=>'Incoming stock received and allocated.',
+  'supplier_order_cancel'=>'Supplier order cancelled.',
   'stock_count'=>'Physical stock count reconciled.',
   'stock_untrack'=>'Product removed from Stock Control. Historical movements were kept.',
   'product_delete'=>'Product deleted.',
