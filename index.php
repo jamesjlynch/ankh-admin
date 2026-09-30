@@ -104,6 +104,27 @@ CREATE TABLE IF NOT EXISTS stock_fulfilments (
 );
 CREATE INDEX IF NOT EXISTS idx_stock_moves_product ON stock_movements(product_id,created);
 CREATE INDEX IF NOT EXISTS idx_stock_moves_created ON stock_movements(created);');
+$db->exec('CREATE TABLE IF NOT EXISTS supplier_orders (
+ id INTEGER PRIMARY KEY,
+ supplier TEXT NOT NULL DEFAULT "",
+ expected_date TEXT NOT NULL DEFAULT "",
+ status TEXT NOT NULL DEFAULT "Ordered",
+ note TEXT NOT NULL DEFAULT "",
+ created TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS supplier_order_items (
+ id INTEGER PRIMARY KEY,
+ supplier_order_id INTEGER NOT NULL REFERENCES supplier_orders(id) ON DELETE CASCADE,
+ product_id INTEGER NOT NULL REFERENCES products(id),
+ packs INTEGER NOT NULL DEFAULT 1,
+ pack_size INTEGER NOT NULL DEFAULT 10,
+ quantity INTEGER NOT NULL,
+ unit_cost INTEGER DEFAULT NULL,
+ received_qty INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_supplier_orders_status ON supplier_orders(status,expected_date);
+CREATE INDEX IF NOT EXISTS idx_supplier_order_items_order ON supplier_order_items(supplier_order_id);');
+if(!in_array('supplier_pack_size',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN supplier_pack_size INTEGER NOT NULL DEFAULT 10");
 $stockMovementColumns=$db->query('PRAGMA table_info(stock_movements)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('location',array_column($stockMovementColumns,'name'),true))$db->exec("ALTER TABLE stock_movements ADD COLUMN location TEXT NOT NULL DEFAULT 'Unallocated'");
 $stockFulfilmentColumns=$db->query('PRAGMA table_info(stock_fulfilments)')->fetchAll(PDO::FETCH_ASSOC);
