@@ -4353,3 +4353,143 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .combined-stock-money .money-icon{width:25px;height:25px;flex-basis:25px}
  .combined-stock-money b{font-size:9px}
 }
+
+
+/* Combined inventory card — definitive iPhone layout */
+@media(max-width:760px){
+ button.fridge-overview-card.fridge-combined.combined-stock-v2{
+   display:grid!important;
+   grid-template-columns:minmax(0,1fr)!important;
+   grid-template-rows:auto auto auto auto!important;
+   align-items:stretch!important;
+   justify-items:stretch!important;
+   align-content:start!important;
+   gap:10px!important;
+   width:100%!important;
+   min-width:0!important;
+   max-width:100%!important;
+   min-height:0!important;
+   height:auto!important;
+   padding:12px!important;
+   border-radius:17px!important;
+   box-sizing:border-box!important;
+   text-align:left!important;
+ }
+ button.combined-stock-v2>.combined-stock-head{
+   display:grid!important;
+   grid-template-columns:36px minmax(0,1fr) auto!important;
+   align-items:center!important;
+   gap:9px!important;
+   width:100%!important;
+   min-width:0!important;
+   padding:0!important;
+ }
+ button.combined-stock-v2 .combined-stock-icon{
+   width:36px!important;height:36px!important;flex:none!important;border-radius:11px!important;
+ }
+ button.combined-stock-v2 .combined-stock-head>span:nth-child(2){
+   display:grid!important;gap:1px!important;min-width:0!important;text-align:left!important;
+ }
+ button.combined-stock-v2 .combined-stock-head>span:nth-child(2)>b{font-size:10px!important}
+ button.combined-stock-v2 .combined-stock-head>span:nth-child(2)>small{font-size:6.5px!important}
+ button.combined-stock-v2 .combined-stock-head>i{
+   display:block!important;margin:0!important;padding:4px 7px!important;font-size:5.5px!important;white-space:nowrap!important;
+ }
+ button.combined-stock-v2>.combined-stock-hero{
+   display:flex!important;
+   align-items:baseline!important;
+   justify-content:center!important;
+   gap:6px!important;
+   width:100%!important;
+   padding:3px 0 1px!important;
+ }
+ button.combined-stock-v2 .combined-stock-hero>strong{
+   display:block!important;font-size:35px!important;line-height:1!important;letter-spacing:-1px!important;
+ }
+ button.combined-stock-v2 .combined-stock-hero>span{
+   display:block!important;font-size:7.5px!important;letter-spacing:.4px!important;
+ }
+ button.combined-stock-v2>.combined-stock-stats{
+   display:grid!important;
+   grid-template-columns:repeat(3,minmax(0,1fr))!important;
+   gap:6px!important;
+   width:100%!important;
+   min-width:0!important;
+   max-width:none!important;
+   margin:0!important;
+   padding:0!important;
+ }
+ button.combined-stock-v2 .combined-stock-stats>span{
+   display:grid!important;
+   grid-template-columns:1fr!important;
+   grid-template-rows:23px auto auto!important;
+   place-items:center!important;
+   gap:2px!important;
+   width:auto!important;
+   min-width:0!important;
+   min-height:72px!important;
+   margin:0!important;
+   padding:7px 4px!important;
+   border-radius:11px!important;
+   text-align:center!important;
+ }
+ button.combined-stock-v2 .combined-stock-stats .stat-icon{
+   grid-column:1!important;grid-row:1!important;
+   width:23px!important;height:23px!important;margin:0!important;
+ }
+ button.combined-stock-v2 .combined-stock-stats small{
+   grid-column:1!important;grid-row:2!important;
+   align-self:auto!important;font-size:5.5px!important;
+ }
+ button.combined-stock-v2 .combined-stock-stats b{
+   grid-column:1!important;grid-row:3!important;
+   align-self:auto!important;font-size:15px!important;line-height:1!important;
+ }
+ button.combined-stock-v2>.combined-stock-money{
+   display:grid!important;
+   grid-template-columns:repeat(2,minmax(0,1fr))!important;
+   gap:6px!important;
+   width:100%!important;
+   min-width:0!important;
+   max-width:none!important;
+   margin:0!important;
+   padding:0!important;
+ }
+ button.combined-stock-v2 .combined-stock-money>span{
+   display:grid!important;
+   grid-template-columns:28px minmax(0,1fr)!important;
+   align-items:center!important;
+   gap:7px!important;
+   width:auto!important;
+   min-width:0!important;
+   min-height:53px!important;
+   margin:0!important;
+   padding:7px 8px!important;
+   border-radius:11px!important;
+   text-align:left!important;
+ }
+ button.combined-stock-v2 .combined-stock-money .money-icon{
+   width:28px!important;height:28px!important;flex:none!important;
+ }
+ button.combined-stock-v2 .combined-stock-money>span>span{
+   display:grid!important;gap:2px!important;min-width:0!important;
+ }
+ button.combined-stock-v2 .combined-stock-money small{
+   font-size:5.5px!important;letter-spacing:.25px!important;
+ }
+ button.combined-stock-v2 .combined-stock-money b{
+   display:block!important;overflow:visible!important;
+   font-size:10px!important;line-height:1.1!important;white-space:nowrap!important;text-overflow:clip!important;
+ }
+}
+@media(max-width:390px){
+ button.fridge-overview-card.fridge-combined.combined-stock-v2{padding:10px!important;gap:8px!important}
+ button.combined-stock-v2 .combined-stock-head>i{display:none!important}
+ button.combined-stock-v2>.combined-stock-head{grid-template-columns:34px minmax(0,1fr)!important}
+ button.combined-stock-v2 .combined-stock-icon{width:34px!important;height:34px!important}
+ button.combined-stock-v2 .combined-stock-hero>strong{font-size:32px!important}
+ button.combined-stock-v2 .combined-stock-stats>span{min-height:66px!important;padding:6px 3px!important}
+ button.combined-stock-v2 .combined-stock-money>span{grid-template-columns:25px minmax(0,1fr)!important;padding:7px 6px!important}
+ button.combined-stock-v2 .combined-stock-money .money-icon{width:25px!important;height:25px!important}
+ button.combined-stock-v2 .combined-stock-money b{font-size:9px!important}
+}
