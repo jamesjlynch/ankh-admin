@@ -728,7 +728,7 @@ function retaProjectionRange(array $cycles,DateTimeImmutable $start,DateTimeImmu
  $start=$start->setTime(0,0);$end=$end->setTime(0,0);$orders=0;$revenue=0;$profit=0;$costMissing=0;$stock=[];$occurrences=[];
  if($end<$start)return ['orders'=>0,'revenue'=>0,'profit'=>0,'cost_missing'=>0,'stock'=>[],'occurrences'=>[]];
  foreach($cycles as $cycle){
-  $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$start->getTimezone());if(!$due)continue;
+  $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$start->getTimezone());if(!$due)continue;$originalDue=$due;
   $interval=max(7,(int)($cycle['cycle_days']??((int)($cycle['cycle_weeks']??4)*7)));$wasOverdue=$due<$start;
   if($wasOverdue && $includeOverdue){$due=$start;}else{while($due<$start)$due=$due->modify('+'.$interval.' days');}
   $occurrenceIndex=0;
@@ -736,7 +736,7 @@ function retaProjectionRange(array $cycles,DateTimeImmutable $start,DateTimeImmu
    $orders++;$revenue+=(int)$cycle['expected_value'];$profit+=(int)$cycle['expected_profit'];if((int)$cycle['cost_missing'])$costMissing++;
    $name=(string)($cycle['product_name']?:$cycle['product_summary']);$qty=max(1,(int)($cycle['quantity']??1));$stock[$name]=($stock[$name]??0)+$qty;
    if((string)($cycle['presentation']??'')==='Pen')$stock['Pen']=($stock['Pen']??0)+$qty;
-   $copy=$cycle;$copy['occurrence_date']=$due->format('Y-m-d');$copy['occurrence_index']=$occurrenceIndex;$copy['was_overdue']=$wasOverdue&&$occurrenceIndex===0;$occurrences[]=$copy;
+   $copy=$cycle;$copy['occurrence_date']=$due->format('Y-m-d');$copy['occurrence_index']=$occurrenceIndex;$copy['was_overdue']=$wasOverdue&&$includeOverdue&&$occurrenceIndex===0;$copy['is_next_occurrence']=($due->format('Y-m-d')===$originalDue->format('Y-m-d'))||($wasOverdue&&$includeOverdue&&$occurrenceIndex===0);$occurrences[]=$copy;
    $due=$due->modify('+'.$interval.' days');$occurrenceIndex++;
   }
  }
