@@ -3860,3 +3860,91 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .stock-central-form{grid-template-columns:1fr}
  .stock-action-card>summary>div small{display:none}
 }
+
+
+/* Forecast v2 — plain-English mobile stock planning */
+.forecast-v2{position:relative;overflow:hidden;padding:14px;border-color:#303436;background:linear-gradient(155deg,#171a1a 0%,#141616 62%,#17160f 100%)}
+.forecast-v2:before{content:'';position:absolute;top:-90px;right:-100px;width:240px;height:240px;border-radius:50%;background:radial-gradient(circle,rgba(218,181,88,.09),transparent 68%);pointer-events:none}
+.forecast-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:16px}
+.forecast-hero h2{margin:3px 0 5px;font-size:21px;letter-spacing:-.4px}
+.forecast-hero>div:first-child>p:last-child{max-width:540px;margin:0;color:#898b87;font-size:9px;line-height:1.55}
+.forecast-health{display:flex;align-items:center;gap:8px;max-width:230px;padding:9px 11px;border:1px solid #2d5138;border-radius:12px;background:#17261c}
+.forecast-health>span{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:#21442d;color:#9bd3a9;font-size:13px;font-weight:900}
+.forecast-health>div{display:grid;gap:2px}
+.forecast-health strong{font-size:9px;color:#9bd3a9}
+.forecast-health small{font-size:7px;color:#688d72}
+.forecast-health.warning{border-color:#624432;background:#291b15}
+.forecast-health.warning>span{background:#533022;color:#efad80}
+.forecast-health.warning strong{color:#efad80}
+.forecast-health.warning small{color:#9f7256}
+.forecast-range-shell{position:relative;margin-top:13px;padding:7px;border:1px solid #292d2e;border-radius:13px;background:#101313}
+.forecast-v2 .stock-demand-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;padding:0;background:transparent}
+.forecast-v2 .stock-demand-tabs a,.forecast-v2 .stock-demand-tabs button{min-height:34px;padding:7px 5px;border-radius:8px;font-size:8px}
+.forecast-v2 .stock-demand-tabs a.selected,.forecast-v2 .stock-demand-tabs button.selected{background:linear-gradient(135deg,#332b18,#282316);box-shadow:inset 0 0 0 1px #594a27,0 4px 12px rgba(0,0,0,.16)}
+.forecast-v2 .stock-custom-range{margin:7px 0 0}
+.forecast-period{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:7px;padding:9px 10px;border-radius:9px;background:#171919}
+.forecast-period>div{display:grid;gap:2px}
+.forecast-period>div:last-child{text-align:right}
+.forecast-period small{color:#656864;font-size:6.5px;font-weight:800;letter-spacing:.45px}
+.forecast-period strong{font-size:9px;color:#c3c0b8}
+.forecast-period i{padding:0 5px;color:#8b7743;font-style:normal}
+.forecast-product-list{display:grid;gap:9px;margin-top:11px}
+.forecast-product-card{position:relative;overflow:hidden;padding:11px;border:1px solid #303536;border-radius:13px;background:rgba(14,17,17,.82);animation:forecastCardIn .35s ease both}
+.forecast-product-card:nth-child(2){animation-delay:.05s}.forecast-product-card:nth-child(3){animation-delay:.1s}.forecast-product-card:nth-child(4){animation-delay:.15s}
+.forecast-product-card.risk{border-color:#5d3e2d;background:linear-gradient(135deg,#191817,#1d1512)}
+.forecast-product-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.forecast-product-card h3{margin:0 0 2px;font-size:12px}
+.forecast-product-card header p{margin:0;color:#727570;font-size:7.5px}
+.forecast-state{flex:0 0 auto;padding:5px 7px;border-radius:999px;background:#17261c;color:#8fc89e;font-size:6.5px;font-weight:850;text-transform:uppercase;letter-spacing:.2px}
+.forecast-product-card.risk .forecast-state{background:#392219;color:#e9a174}
+.forecast-flow{display:grid;grid-template-columns:minmax(0,1fr) 10px minmax(0,1fr) 10px minmax(0,1.2fr) 10px minmax(0,1.2fr);align-items:center;gap:4px;margin-top:11px}
+.forecast-flow>div{display:grid;gap:3px;min-width:0}
+.forecast-flow small{color:#6f726e;font-size:6.5px;font-weight:750;line-height:1.15}
+.forecast-flow strong{font-size:17px;line-height:1}
+.forecast-flow>i{color:#5f625e;font-size:10px;font-style:normal;text-align:center}
+.forecast-flow .incoming strong{color:#d2b159}
+.forecast-flow .result{padding:7px 8px;border-radius:9px;background:#18271d}
+.forecast-flow .result small{color:#73927b}
+.forecast-flow .result strong{color:#9bd3a9}
+.forecast-product-card.risk .forecast-flow .result{background:#352019}
+.forecast-product-card.risk .forecast-flow .result small{color:#9d6d53}
+.forecast-product-card.risk .forecast-flow .result strong{color:#efaa7e}
+.forecast-meter{height:4px;margin-top:10px;overflow:hidden;border-radius:999px;background:#242827}
+.forecast-meter span{display:block;width:var(--coverage);height:100%;border-radius:inherit;background:linear-gradient(90deg,#5f845f,#8dbb79);transform-origin:left;animation:forecastMeter .65s cubic-bezier(.2,.8,.2,1) both}
+.forecast-product-card.risk .forecast-meter span{background:linear-gradient(90deg,#9d603d,#db8b59)}
+.forecast-explanation{margin:7px 0 0;color:#7c7f7a;font-size:7.5px;line-height:1.45}
+.forecast-explanation strong{color:#bdb9b0}
+.forecast-product-card.risk .forecast-explanation strong{color:#e4a47d}
+.forecast-footnote{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px;padding:10px 2px 0;border-top:1px solid #292d2e}
+.forecast-footnote span{color:#6f726e;font-size:7.5px}
+.forecast-footnote span b{margin-right:4px;color:#a7a49d}
+.forecast-footnote a{flex:0 0 auto;color:#d2b159;font-size:8px;text-decoration:none}
+.forecast-empty{margin-top:11px}
+@keyframes forecastCardIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+@keyframes forecastMeter{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(prefers-reduced-motion:reduce){.forecast-product-card,.forecast-meter span{animation:none}}
+@media(max-width:760px){
+ .forecast-v2{padding:11px;border-radius:14px}
+ .forecast-hero{grid-template-columns:1fr;gap:9px}
+ .forecast-hero h2{font-size:18px}
+ .forecast-health{max-width:none;padding:8px 9px}
+ .forecast-health>span{width:25px;height:25px;flex-basis:25px}
+ .forecast-range-shell{margin-top:10px}
+ .forecast-v2 .stock-demand-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+ .forecast-v2 .stock-demand-tabs a,.forecast-v2 .stock-demand-tabs button{min-height:32px}
+ .forecast-product-card{padding:10px}
+ .forecast-flow{grid-template-columns:minmax(0,1fr) 8px minmax(0,1fr) 8px minmax(0,1.15fr) 8px minmax(0,1.15fr);gap:2px}
+ .forecast-flow strong{font-size:15px}
+ .forecast-flow .result{padding:7px 5px}
+ .forecast-footnote{align-items:flex-start;flex-direction:column;gap:6px}
+}
+@media(max-width:390px){
+ .forecast-product-card header{align-items:flex-start}
+ .forecast-state{font-size:6px}
+ .forecast-flow{grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+ .forecast-flow>i{display:none}
+ .forecast-flow>div{padding:6px;border-radius:8px;background:#151818}
+ .forecast-flow .result{background:#18271d}
+ .forecast-flow small{font-size:6px}
+ .forecast-flow strong{font-size:14px}
+}
