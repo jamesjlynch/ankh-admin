@@ -2933,6 +2933,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 </style>
 <script>
 document.addEventListener('DOMContentLoaded',()=>{const button=document.getElementById('report-infographic-download'),status=document.getElementById('report-infographic-status');if(!button)return;
+button.addEventListener('click',()=>{
 const clean=value=>(value||'').replace(/\s+/g,' ').trim();
 const textOf=element=>clean(element?.innerText||element?.textContent||'');
 function wrapText(ctx,text,maxWidth,font){ctx.font=font;const words=clean(text).split(' '),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(line&&ctx.measureText(candidate).width>maxWidth){lines.push(line);line=word}else line=candidate}if(line)lines.push(line);return lines.length?lines:['']}
@@ -3042,8 +3043,9 @@ try{
  const dataUrl=canvas.toDataURL('image/png');
  const download=document.createElement('a');download.href=dataUrl;download.download=filename;download.className='report-infographic-download-link';download.textContent='Download the infographic PNG';
  status.replaceChildren(document.createTextNode('Your infographic is ready. '),download);
- document.body.appendChild(download);download.click();button.disabled=false;
+ download.click();button.disabled=false;
 }catch(error){console.error(error);status.textContent='Could not create the image. Please try again.';button.disabled=false}
+});
 });</script>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
