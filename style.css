@@ -4669,3 +4669,86 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .reorder-context-icon{display:none}.reorder-context>div{padding:6px}.reorder-context strong{font-size:8px}
  .reorder-action span{font-size:6.5px}
 }
+
+
+/* Reorder planner v3 — isolated iPhone-native layout */
+.ios-reorder{margin-top:10px;padding:14px;border:1px solid #303435;border-radius:16px;background:#151818;box-sizing:border-box}
+.ios-reorder *{box-sizing:border-box}
+.ios-reorder-header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.ios-reorder-header>div{min-width:0}
+.ios-reorder-header .eyebrow{margin:0 0 4px}
+.ios-reorder-header h2{margin:0;font-size:22px;letter-spacing:-.4px}
+.ios-reorder-header p:last-child{max-width:560px;margin:6px 0 0;color:#818580;font-size:9px;line-height:1.45}
+.ios-reorder-stock-link{display:flex;align-items:center;gap:6px;flex:none;padding:8px 10px;border:1px solid #383c3c;border-radius:10px;background:#111414;color:#b6b9b4;text-decoration:none}
+.ios-reorder-stock-link span{color:#d2b159;font-size:11px}.ios-reorder-stock-link b{font-size:8px}
+.ios-reorder-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px}
+.ios-reorder-summary>div{display:grid;gap:3px;padding:9px 10px;border:1px solid #2b2f2f;border-radius:11px;background:#111414}
+.ios-reorder-summary small{color:#6e726e;font-size:6.5px;font-weight:750}.ios-reorder-summary strong{font-size:18px}
+.ios-reorder-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:11px}
+.ios-reorder-card{overflow:hidden;border:1px solid #303434;border-radius:15px;background:linear-gradient(150deg,#181b1b,#121515)}
+.ios-reorder-card.priority-0{border-color:#695630;background:linear-gradient(150deg,#1c1a14,#121515 70%)}
+.ios-reorder-card-head{display:grid;grid-template-columns:36px minmax(0,1fr) auto;align-items:center;gap:9px;padding:10px;border-bottom:1px solid #262a2a}
+.ios-product-icon{display:grid;place-items:center;width:36px;height:36px;border:1px solid #363a3a;border-radius:11px;background:#111414;color:#858984;font-size:16px;line-height:1}
+.priority-0 .ios-product-icon{border-color:#594a2b;background:#292316;color:#dfba60}
+.ios-reorder-card-head>div{min-width:0}.ios-reorder-card-head>div small{display:block;color:#626662;font-size:6px;font-weight:850;letter-spacing:.7px}
+.ios-reorder-card h3{overflow:hidden;margin:2px 0 0;font-size:12px;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
+.ios-reorder-status{padding:5px 7px;border:1px solid #3a3e3d;border-radius:999px;background:#171a1a;color:#8c908b;font-size:6px;font-weight:850;text-transform:uppercase;white-space:nowrap}
+.priority-0 .ios-reorder-status{border-color:#68552f;background:#2c2517;color:#e0bb60}
+.ios-order-callout{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:9px 9px 7px;padding:10px 11px;border:1px solid #66532e;border-radius:11px;background:linear-gradient(135deg,#302817,#211d14)}
+.ios-order-callout>div{display:grid;gap:2px;min-width:0}.ios-order-callout small{color:#9c854d;font-size:6px;font-weight:850;letter-spacing:.45px}
+.ios-order-callout strong{color:#e7c36c;font-size:17px;line-height:1.1}.ios-order-callout>div>span{color:#8f8773;font-size:7px}
+.ios-box-icon{display:grid;place-items:center;flex:none;width:32px;height:32px;border-radius:10px;background:#3b311b;color:#e2bc61;font-size:17px}
+.ios-order-callout.covered{border-color:#31503a;background:#17231b}.ios-order-callout.covered small{color:#6e9677}.ios-order-callout.covered strong{color:#9ac7a3}.ios-order-callout.covered .ios-box-icon{background:#203628;color:#91c29b}
+.ios-fridge-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 9px 7px}
+.ios-fridge-row>div{display:grid;grid-template-columns:23px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;column-gap:6px;padding:7px;border:1px solid #292d2d;border-radius:10px;background:#111414}
+.ios-person-dot{grid-row:1/3;display:grid;place-items:center;width:23px;height:23px;border-radius:8px;background:#1d2020;color:#818580;font-size:7px;font-weight:900}
+.ios-person-dot.all{background:#332b18;color:#dfba5e}.ios-fridge-row small{color:#6d716d;font-size:6px}.ios-fridge-row strong{font-size:14px;line-height:1}.ios-fridge-row .total{border-color:#514526}
+.ios-plan-row{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr) 12px minmax(0,1.15fr);align-items:center;gap:3px;margin:0 9px 7px;padding:7px;border:1px solid #292d2d;border-radius:10px;background:#101313}
+.ios-plan-row>div{display:grid;gap:2px;min-width:0}.ios-plan-row small{color:#696d69;font-size:6px}.ios-plan-row strong{font-size:12px;line-height:1.15}.ios-plan-row>span{color:#555a56;font-size:9px;text-align:center}
+.ios-plan-row .gap{padding:5px;border-radius:7px;background:#302817}.ios-plan-row .gap small{color:#9d8448}.ios-plan-row .gap strong{color:#e3bd61}
+.ios-plan-row .ok{padding:5px;border-radius:7px;background:#17251b}.ios-plan-row .ok strong{color:#91c39c}
+.ios-reorder-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:0 9px 8px}
+.ios-reorder-details>span{display:grid;gap:2px;min-width:0;padding:7px;border-radius:9px;background:#151818;text-align:center}
+.ios-reorder-details small{overflow:hidden;color:#666a66;font-size:5.8px;white-space:nowrap;text-overflow:ellipsis}.ios-reorder-details b{font-size:9px}
+.ios-reorder-action{display:flex;align-items:center;gap:7px;margin:0 9px 9px;min-height:36px;padding:8px 10px;border:1px solid #68552f;border-radius:10px;background:#2d2617;color:#e3bd63;font-size:8px;font-weight:850;text-decoration:none}
+.ios-reorder-action>span{display:grid;place-items:center;width:21px;height:21px;border-radius:7px;background:#3a311d;font-size:11px}.ios-reorder-action>b{margin-left:auto;font-size:15px}
+.ios-holding-note{margin:0;padding:0 10px 9px;color:#6f736f;font-size:6.5px}
+.ios-reorder-help{margin-top:10px;border:1px solid #292d2d;border-radius:11px;background:#111414}
+.ios-reorder-help summary{padding:9px 10px;color:#9a9d98;font-size:7.5px;font-weight:800;cursor:pointer}.ios-reorder-help p{margin:0;padding:0 10px 10px;color:#717570;font-size:7px;line-height:1.5}
+.ios-reorder-empty{display:grid;justify-items:center;gap:5px;margin-top:12px;padding:20px;border:1px solid #2b2f2f;border-radius:12px;background:#111414;text-align:center}.ios-reorder-empty>span{font-size:22px;color:#8fb89a}.ios-reorder-empty h3{margin:0;font-size:13px}.ios-reorder-empty p{max-width:420px;margin:0;color:#777b77;font-size:8px}.ios-reorder-empty a{margin-top:4px;color:#d5b45b;font-size:8px;text-decoration:none}
+
+@media(max-width:760px){
+ .ios-reorder{margin-top:9px;padding:10px;border-radius:14px}
+ .ios-reorder-header{align-items:center;gap:9px}
+ .ios-reorder-header h2{font-size:18px}
+ .ios-reorder-header p:last-child{margin-top:4px;font-size:7.5px;line-height:1.35}
+ .ios-reorder-stock-link{width:36px;height:36px;justify-content:center;padding:0;border-radius:10px}
+ .ios-reorder-stock-link span{font-size:13px}.ios-reorder-stock-link b{display:none}
+ .ios-reorder-summary{gap:5px;margin-top:9px}
+ .ios-reorder-summary>div{padding:7px;text-align:center}
+ .ios-reorder-summary small{font-size:5.8px}.ios-reorder-summary strong{font-size:16px}
+ .ios-reorder-list{grid-template-columns:1fr;gap:8px;margin-top:9px}
+ .ios-reorder-card{width:100%;min-width:0;border-radius:13px}
+ .ios-reorder-card-head{grid-template-columns:34px minmax(0,1fr) auto;gap:8px;padding:9px}
+ .ios-product-icon{width:34px;height:34px;border-radius:10px;font-size:14px}
+ .ios-reorder-card h3{font-size:11px}
+ .ios-order-callout{margin:8px 8px 6px;padding:9px 10px}
+ .ios-order-callout strong{font-size:16px}
+ .ios-fridge-row{padding:0 8px 6px}
+ .ios-plan-row{margin:0 8px 6px}
+ .ios-reorder-details{padding:0 8px 7px}
+ .ios-reorder-action{margin:0 8px 8px}
+ .ios-reorder-help{margin-top:8px}
+}
+@media(max-width:390px){
+ .ios-reorder-header p:last-child{display:none}
+ .ios-reorder-summary small{font-size:5.3px}
+ .ios-reorder-card-head{grid-template-columns:32px minmax(0,1fr) auto}
+ .ios-product-icon{width:32px;height:32px}
+ .ios-reorder-status{padding:4px 6px;font-size:5.5px}
+ .ios-fridge-row>div{grid-template-columns:1fr;grid-template-rows:auto auto auto;justify-items:center;gap:2px;padding:6px 3px;text-align:center}
+ .ios-person-dot{grid-row:auto;width:20px;height:20px}
+ .ios-plan-row{grid-template-columns:1fr 7px 1fr 7px 1.15fr;padding:6px}
+ .ios-plan-row strong{font-size:11px}
+ .ios-reorder-details>span{padding:6px 3px}
+}
