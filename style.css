@@ -4568,3 +4568,35 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 /* Stock-change undo and confirmation */
 .flash-confirmation{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.flash-confirmation .success{margin:0}.stock-undo-button{padding:9px 12px;border:1px solid #5e5138;color:#e8c777}
+
+/* Reorder planner */
+.reorder-window-filter{margin-bottom:8px}
+.reorder-report-panel{padding:clamp(15px,2.4vw,24px)}
+.reorder-report-panel>.dashboard-panel-head{align-items:center}
+.reorder-product-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.reorder-product-card{min-width:0;padding:16px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(145deg,#1b1e1f,#151718)}
+.reorder-priority-0{border-color:#725d34}
+.reorder-product-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.reorder-product-card>header .eyebrow{margin:0 0 4px;font-size:9px}
+.reorder-product-card h3{margin:0;font-size:17px;line-height:1.25}
+.reorder-status{display:inline-flex;align-items:center;justify-content:center;max-width:118px;padding:6px 9px;border:1px solid #343739;border-radius:999px;color:#b9b8b3;font-size:10px;font-weight:700;text-align:center;white-space:nowrap}
+.reorder-status-0{border-color:#765e32;background:#2b2417;color:#e5bd69}
+.reorder-status-1{border-color:#3d5157;background:#172225;color:#acd2d9}
+.reorder-fridge-breakdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:9px}
+.reorder-fridge-breakdown>div,.reorder-demand-grid>div{min-width:0;padding:9px 10px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:#111314}
+.reorder-fridge-breakdown small,.reorder-demand-grid small,.reorder-order-suggestion small{display:block;color:var(--muted);font-size:10px;line-height:1.35}
+.reorder-fridge-breakdown strong,.reorder-demand-grid strong{display:block;margin-top:4px;font-size:16px}
+.reorder-fridge-breakdown .reorder-combined{border-color:#62502d;background:#201c14}
+.reorder-fridge-breakdown .reorder-combined strong{color:var(--gold)}
+.reorder-demand-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.reorder-order-suggestion{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px;padding-top:12px;border-top:1px solid var(--border)}
+.reorder-order-suggestion>div{min-width:0}
+.reorder-order-suggestion strong{display:block;margin-top:3px;font-size:14px;line-height:1.3}
+.reorder-order-suggestion .button{flex:0 0 auto;padding:9px 11px;font-size:11px}
+.reorder-unallocated{display:block;margin-top:9px;color:var(--muted);font-size:10px}
+.reorder-report-note{margin:14px 2px 0;color:var(--muted);font-size:11px;line-height:1.5}
+.reorder-empty{padding:16px 0}
+.reorder-empty h3{margin:12px 0 4px;font-size:17px}
+.reorder-empty .button{margin-top:9px}
+@media(max-width:760px){.reorder-product-list{grid-template-columns:1fr;gap:10px}.reorder-product-card{padding:14px}.reorder-order-suggestion{align-items:stretch;flex-direction:column}.reorder-order-suggestion .button{width:100%;min-height:42px}.reorder-status{max-width:110px}}
+@media(max-width:360px){.reorder-product-card>header{gap:8px}.reorder-status{font-size:9px;padding:5px 7px}.reorder-fridge-breakdown>div,.reorder-demand-grid>div{padding:8px}}
