@@ -1778,7 +1778,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csr
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile82-reorder-critical"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
@@ -2063,11 +2063,11 @@ $lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=
 $penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 
-if($view==='reports'){
+if(in_array($view,['reports','reorder'],true)){
 // Shared report filters and datasets. Sales, product and customer views use order date;
 // cash received uses payment date; recurring and stock views use their own event dates.
-$reportTypes=['overview','sales','profit','products','customers','recurring','stock','reorder'];
-$reportType=in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview';
+$reportTypes=['overview','sales','profit','products','customers','recurring','stock'];
+$reportType=$view==='reorder'?'reorder':(in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview');
 $reorderWindowDays=in_array((int)($_GET['demand_days']??30),[30,60,90],true)?(int)($_GET['demand_days']??30):30;
 $reportRanges=['today','week','month','quarter','all','custom','next4w','next8w','next12w'];
 $requestedReportRange=(string)($_GET['range']??'');$defaultReportRange=$reportType==='recurring'?'next8w':'month';
@@ -2175,7 +2175,7 @@ if($paymentWhere)$paymentDateSql.=' WHERE '.implode(' AND ',$paymentWhere);
 $paymentDateSql.=' GROUP BY COALESCE(NULLIF(method,\'\'),\'Not recorded\') ORDER BY total DESC';
 $paymentMethodStmt=$db->prepare($paymentDateSql);$paymentMethodStmt->execute($paymentParams);$reportPaymentsByMethod=$paymentMethodStmt->fetchAll(PDO::FETCH_ASSOC);$reportCashReceived=array_sum(array_map(fn($p)=>(int)$p['total'],$reportPaymentsByMethod));
 $reportExport=(string)($_GET['export']??'');
-if($view==='reports'&&$reportExport!==''&&!$reportRangeError){
+if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRangeError){
  $exportType=$reportType;$exportRows=[];$exportHeaders=[];
  if($reportExport==='stock-movements'){$exportType='stock-movements';$exportHeaders=['Date','Product','Location','Movement','Change','Supplier','Batch / lot','Expiry','Unit cost (£)','Note','Order ID'];foreach($reportStockMovements as $m)$exportRows[]=[(string)$m['created'],(string)$m['product_name'],(string)($m['location']??'Unallocated'),(string)$m['movement_type'],(int)$m['quantity_change'],(string)$m['supplier'],(string)$m['batch_reference'],(string)$m['expiry_date'],$m['unit_cost']===null?'':number_format((int)$m['unit_cost']/100,2,'.',''),(string)$m['note'],$m['order_id']===null?'':(int)$m['order_id']];}
  elseif($reportType==='profit'){$exportHeaders=['Order','Customer','Status','Payment date','Sales (£)','Product cost (£)','Pen cost (£)','Postage (£)','Gross profit (£)','Cost missing'];foreach($selectedReportOrders as $r)$exportRows[]=['ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),(string)$r['customer'],(string)$r['status'],(string)$r['date'],number_format((int)$r['revenue']/100,2,'.',''),number_format((int)$r['product_cost']/100,2,'.',''),number_format((int)$r['pen_cost']/100,2,'.',''),number_format((int)$r['postage']/100,2,'.',''),number_format((int)$r['profit']/100,2,'.',''),!empty($r['missing_cost'])?'Yes':'No'];}
@@ -2210,7 +2210,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
-<a class="<?=in_array($view,['more','products','reports','sheets'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['more','products','reports','reorder','sheets'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
@@ -2888,23 +2888,25 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <form method="post" class="reta-resume-form"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_resume"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="reta"><label>Restart next expected date<input type="date" name="next_due_date" value="<?=e($retaToday->modify('+'.max(1,(int)($cycle['cycle_weeks']??4)).' weeks')->format('Y-m-d'))?>" required></label><button class="quiet">Restart cycle</button></form></article>
 <?php endforeach;?></div></details><?php endif;?>
 
-<?php elseif($view==='reports'):?>
+<?php elseif(in_array($view,['reports','reorder'],true)):?>
 <?php
-$reportTitles=['overview'=>'Overview','sales'=>'Sales','profit'=>'Profit','products'=>'Products','customers'=>'Customers','recurring'=>'Recurring','stock'=>'Stock','reorder'=>'Reorder'];
+$reportTitles=['overview'=>'Overview','sales'=>'Sales','profit'=>'Profit','products'=>'Products','customers'=>'Customers','recurring'=>'Recurring','stock'=>'Stock'];
 $reportRangeLabels=['today'=>'Today','week'=>'This week','month'=>'This month','quarter'=>'This quarter','all'=>'All time','custom'=>'Custom dates','next4w'=>'Next 4 weeks','next8w'=>'Next 8 weeks','next12w'=>'Next 12 weeks'];
 $reportWindowLabel=$reportRangeLabels[$reportRange]??'Selected period';
 $reportTrendMax=1;foreach($reportTrend as $trendRow)$reportTrendMax=max($reportTrendMax,(int)$trendRow['order_value']);
 ksort($reportTrend);
 $reportUpcomingPreview=array_slice(cycleOccurrences($retaCyclesActive,$retaToday,8),0,5);
-$reportExportParams=['view'=>'reports','type'=>$reportType,'range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo,'period'=>$reportType==='profit'?$reportPeriodKey:'','export'=>'1'];if($reportType==='reorder')$reportExportParams['demand_days']=$reorderWindowDays;
+$reportExportParams=['view'=>$view==='reorder'?'reorder':'reports','type'=>$reportType,'range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo,'period'=>$reportType==='profit'?$reportPeriodKey:'','export'=>'1'];if($reportType==='reorder')$reportExportParams['demand_days']=$reorderWindowDays;
 $reportExportUrl='?'.http_build_query($reportExportParams);
 $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['export'=>'stock-movements']));
 ?>
-<div class="heading"><div><h1>Reports</h1><p class="muted page-description">Sales, products, customers, recurring orders and confirmed stock.</p></div><a class="quick-action" href="?view=more">← More</a></div>
+<div class="heading"><div><h1><?=$view==='reorder'?'Reorder planner':'Reports'?></h1><p class="muted page-description"><?=$view==='reorder'?'Suggested purchases based on available stock, recent sales and supplier pack sizes.':'Sales, products, customers, recurring orders and confirmed stock.'?></p></div><a class="quick-action" href="?view=more">← More</a></div>
+<?php if($view==='reports'):?>
 <nav class="report-tabs" aria-label="Report types">
-<?php foreach($reportTitles as $tabKey=>$tabTitle):$tabRange=$tabKey==='recurring'?($reportType==='recurring'?$reportRange:'next8w'):($tabKey==='reorder'?'month':(str_starts_with($reportRange,'next')?'month':$reportRange));$tabParams=['view'=>'reports','type'=>$tabKey,'range'=>$tabRange];if($tabKey==='reorder')$tabParams['demand_days']=$reorderWindowDays;if($tabKey==='recurring'&&!in_array($tabParams['range'],['next4w','next8w','next12w','custom'],true))$tabParams['range']='next8w';if($reportFrom!=='')$tabParams['from']=$reportFrom;if($reportTo!=='')$tabParams['to']=$reportTo;?>
+<?php foreach($reportTitles as $tabKey=>$tabTitle):$tabRange=$tabKey==='recurring'?($reportType==='recurring'?$reportRange:'next8w'):(str_starts_with($reportRange,'next')?'month':$reportRange);$tabParams=['view'=>'reports','type'=>$tabKey,'range'=>$tabRange];if($tabKey==='recurring'&&!in_array($tabParams['range'],['next4w','next8w','next12w','custom'],true))$tabParams['range']='next8w';if($reportFrom!=='')$tabParams['from']=$reportFrom;if($reportTo!=='')$tabParams['to']=$reportTo;?>
 <a class="<?=$reportType===$tabKey?'selected':''?>" href="?<?=e(http_build_query($tabParams))?>"><?=$tabTitle?></a><?php endforeach;?>
 </nav>
+<?php endif;?>
 <?php if(!in_array($reportType,['profit','reorder'],true)):?><form class="report-filter-bar" method="get">
 <input type="hidden" name="view" value="reports"><input type="hidden" name="type" value="<?=e($reportType)?>">
 <label>Period<select name="range" id="report-range">
@@ -2918,7 +2920,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php if(!$reportRangeError):?><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><?php endif;?><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button>
 </form>
 <?php if($reportRangeError):?><p class="error report-warning">Choose both dates to run a custom report.</p><?php else:?><p class="report-range-note">Showing <strong><?=e($reportWindowLabel)?></strong><?php if($reportFrom!==''||$reportTo!==''):?> · <?=e($reportFrom?:'Start')?> to <?=e($reportTo?:'Today')?><?php endif;?>. Order value is based on order date; cash received is based on payment date.</p><?php endif;?>
-<?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reports"><input type="hidden" name="type" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">Based on delivered stock movements over the selected period. The target is your alert level plus estimated use over the next 30 days; suggested quantities are rounded up to full supplier packs. Available stock already excludes reserved units.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
+<?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">Based on delivered stock movements over the selected period. The target is your alert level plus estimated use over the next 30 days; suggested quantities are rounded up to full supplier packs. Available stock already excludes reserved units.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
 <div class="report-periods">
@@ -3159,6 +3161,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <div class="more-grid">
 <a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
+<a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2><p>See what’s running low and suggested supplier pack quantities.</p></div><b>›</b></a>
 <a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2><p>Opening counts, receipts, adjustments and movement history.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle Planner</h2><p>Recurring order calendar, demand forecast, projected profit and stock needed.</p></div><b>›</b></a>
