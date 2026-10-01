@@ -2956,7 +2956,7 @@ document.addEventListener('DOMContentLoaded',()=>{
  const clean=value=>(value||'').replace(/\s+/g,' ').trim();
  const textOf=element=>clean(element?.innerText||element?.textContent||'');
  function fitText(ctx,text,x,y,maxWidth,font,color,minSize=13){
-  let size=parseInt(font.match(/\d+/)?.[0]||'18',10),weight=font.includes('700')?'700 ':'';
+  let size=Math.round(parseFloat(font.match(/(\d+(?:\.\d+)?)px/)?.[1]||'18')),weight=font.includes('700')?'700 ':'';
   while(size>minSize){ctx.font=weight+size+'px Arial';if(ctx.measureText(text).width<=maxWidth)break;size--}
   ctx.font=weight+size+'px Arial';ctx.fillStyle=color;let shown=text;
   while(shown.length>3&&ctx.measureText(shown+'…').width>maxWidth)shown=shown.slice(0,-1);
