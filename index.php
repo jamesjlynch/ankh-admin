@@ -2962,7 +2962,28 @@ document.querySelectorAll('.report-table').forEach((table,index)=>{
 });
 const reorderCards=[...document.querySelectorAll('.ios-reorder-card')];
 if(reorderCards.length)sections.push({title:'Product reorder recommendations',rows:reorderCards.map(card=>({title:textOf(card.querySelector('h3'))||'Product',detail:[...card.querySelectorAll('.ios-order-callout>div,.ios-fridge-row>div,.ios-plan-row>div,.ios-reorder-details>span')].map(textOf).filter(Boolean).join('  ·  ')}))});
-if(!document.querySelector('.report-table')){
+if(params.get('type')==='overview'){
+ const overviewPanels=[...document.querySelectorAll('.report-overview-grid > .panel')];
+ overviewPanels.forEach(panel=>{
+  const title=textOf(panel.querySelector('h2'))||'Report detail';
+  const rows=[...panel.querySelectorAll('.report-trend-row,.dashboard-row')].map(row=>{
+   if(row.classList.contains('report-trend-row')){
+    const heading=textOf(row.querySelector(':scope > div:first-child > span'))||'Sales trend';
+    const amount=textOf(row.querySelector(':scope > div:first-child > strong'));
+    const count=textOf(row.querySelector(':scope > small'));
+    return {title:heading,detail:[amount,count].filter(Boolean).join(' · ')};
+   }
+   const first=row.querySelector(':scope > span');
+   const titleText=textOf(first?.querySelector('strong'))||[...(first?.childNodes||[])].filter(node=>node.nodeType===Node.TEXT_NODE).map(node=>clean(node.textContent)).filter(Boolean).join(' ')||textOf(first)||'Figure';
+   const sub=[...(first?.querySelectorAll('small')||[])].map(textOf).filter(Boolean);
+   const value=textOf(row.querySelector(':scope > strong'));
+   return {title:titleText,detail:[...sub,value].filter(Boolean).join(' · ')};
+  }).filter(row=>row.title||row.detail);
+  const empty=textOf(panel.querySelector(':scope > p.muted'));
+  if(rows.length)sections.push({title,rows});
+  else if(empty)sections.push({title,rows:[{title:'Status',detail:empty}]});
+ });
+}else if(!document.querySelector('.report-table')){
  const overviewRows=[...document.querySelectorAll('.report-trend-row,.report-grid .dashboard-row,.report-list-row')].map(row=>textOf(row)).filter(Boolean);
  if(overviewRows.length)sections.push({title:'Report detail',rows:overviewRows.map((row,index)=>({title:'Figure '+(index+1),detail:row}))});
 }
@@ -3016,12 +3037,12 @@ try{
  }
  ctx.fillStyle='#777c77';ctx.font='14px Arial';ctx.fillText('ANKH ADMIN  ·  Generated from the selected report',pad,height-62);
  ctx.fillStyle='#d6b45c';ctx.fillRect(width-pad-110,height-71,110,2);
- canvas.toBlob(blob=>{
-  if(!blob){status.textContent='Could not create the image. Try again.';button.disabled=false;return}
-  const url=URL.createObjectURL(blob),a=document.createElement('a'),slug=reportTitle.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'report';
-  a.href=url;a.download='ankh-'+slug+'-'+new Date().toISOString().slice(0,10)+'.png';document.body.appendChild(a);a.click();a.remove();
-  status.textContent='Branded infographic downloaded as a PNG.';setTimeout(()=>URL.revokeObjectURL(url),60000);button.disabled=false;
- },'image/png');
+ const slug=reportTitle.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'report';
+ const filename='ankh-'+slug+'-'+new Date().toISOString().slice(0,10)+'.png';
+ const dataUrl=canvas.toDataURL('image/png');
+ const download=document.createElement('a');download.href=dataUrl;download.download=filename;download.className='report-infographic-download-link';download.textContent='Download the infographic PNG';
+ status.replaceChildren(document.createTextNode('Your infographic is ready. '),download);
+ document.body.appendChild(download);download.click();button.disabled=false;
 }catch(error){console.error(error);status.textContent='Could not create the image. Please try again.';button.disabled=false}
 })();</script>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
