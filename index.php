@@ -2142,7 +2142,9 @@ foreach($reportTrackedStock as $stockProduct){
 }
 $reportLowStock=array_values(array_filter($reportTrackedStock,fn($p)=>(int)$p['stock_qty']<=(int)$p['low_stock_at']));
 if($reportType==='reorder'){
-// Estimate a 30-day reorder target from delivered units in the selected lookback window.
+$supplierLeadTimeDays=7;
+// Estimate demand during the supplier's usual 7-day delivery lead time.
+// Divide by the full selected lookback window; never scale up short tracking histories.
 // Stock quantities already exclude reservations, so this is the true available balance.
 $reorderToday=$reportToday;
 $reorderStart=$reorderToday->modify('-'.($reorderWindowDays-1).' days')->format('Y-m-d');
@@ -2153,12 +2155,9 @@ foreach($reorderSalesStmt->fetchAll(PDO::FETCH_ASSOC) as $saleRow)$reorderSalesB
 $reorderRows=[];$reorderNeedNow=0;$reorderPackTotal=0;$reorderUnitTotal=0;
 foreach($reportTrackedStock as $stockProduct){
  $productId=(int)$stockProduct['id'];$available=max(0,(int)$stockProduct['stock_qty']);$threshold=max(0,(int)$stockProduct['low_stock_at']);$packSize=max(1,(int)($stockProduct['supplier_pack_size']??10));$recentUnits=max(0,(int)($reorderSalesByProduct[$productId]??0));
- $trackingSince=trim((string)($stockProduct['stock_tracking_since']??''));$effectiveStart=$reorderStart;
- if($trackingSince!==''&&preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$trackingSince)&&$trackingSince>$effectiveStart)$effectiveStart=$trackingSince;
- $effectiveStartDate=DateTimeImmutable::createFromFormat('!Y-m-d',$effectiveStart,$tz)?:$reorderToday;$activeDays=max(1,(int)$effectiveStartDate->diff($reorderToday)->format('%a')+1);
- $monthlyDemand=(int)ceil($recentUnits*30/$activeDays);$target=$threshold+$monthlyDemand;$gap=max(0,$target-$available);$packs=$gap>0?(int)ceil($gap/$packSize):0;$suggestedUnits=$packs*$packSize;
+ $leadTimeDemand=(int)ceil($recentUnits*$supplierLeadTimeDays/$reorderWindowDays);$target=$threshold+$leadTimeDemand;$gap=max(0,$target-$available);$packs=$gap>0?(int)ceil($gap/$packSize):0;$suggestedUnits=$packs*$packSize;
  $priority=$available<=$threshold?0:($suggestedUnits>0?1:2);if($priority===0)$reorderNeedNow++;$reorderPackTotal+=$packs;$reorderUnitTotal+=$suggestedUnits;
- $reorderRows[]=['id'=>$productId,'name'=>(string)$stockProduct['name'],'jay'=>max(0,(int)($stockProduct['stock_jay_qty']??0)),'tony'=>max(0,(int)($stockProduct['stock_tony_qty']??0)),'unallocated'=>max(0,(int)($stockProduct['stock_unallocated_qty']??0)),'available'=>$available,'threshold'=>$threshold,'recent_units'=>$recentUnits,'monthly_demand'=>$monthlyDemand,'target'=>$target,'pack_size'=>$packSize,'packs'=>$packs,'suggested_units'=>$suggestedUnits,'priority'=>$priority];
+ $reorderRows[]=['id'=>$productId,'name'=>(string)$stockProduct['name'],'jay'=>max(0,(int)($stockProduct['stock_jay_qty']??0)),'tony'=>max(0,(int)($stockProduct['stock_tony_qty']??0)),'unallocated'=>max(0,(int)($stockProduct['stock_unallocated_qty']??0)),'available'=>$available,'threshold'=>$threshold,'recent_units'=>$recentUnits,'lead_time_demand'=>$leadTimeDemand,'target'=>$target,'pack_size'=>$packSize,'packs'=>$packs,'suggested_units'=>$suggestedUnits,'priority'=>$priority];
 }
 usort($reorderRows,fn($a,$b)=>$a['priority']<=>$b['priority']?:$a['available']<=>$b['available']?:strcmp($a['name'],$b['name']));
 }
@@ -2184,7 +2183,7 @@ if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRange
  elseif($reportType==='customers'){$exportHeaders=['Customer','Phone','Orders','Order value (£)','Paid recorded (£)','Balance due (£)','Most purchased product','Units of top product','Last order'];foreach($reportCustomerStats as $r)$exportRows[]= [(string)$r['name'],(string)$r['phone'],(int)$r['orders'],number_format((int)$r['order_value']/100,2,'.',''),number_format((int)$r['paid_recorded']/100,2,'.',''),number_format((int)$r['balance_due']/100,2,'.',''),(string)$r['top_product'],(int)$r['top_product_units'],(string)$r['last_order']];}
  elseif($reportType==='recurring'){$exportHeaders=['Next due date','Customer','Phone','Products','Expected value (£)','Expected profit (£)','Cycle days'];foreach($reportCycles as $r)$exportRows[]=[(string)$r['next_due_date'],(string)$r['customer_name'],(string)$r['phone'],(string)$r['product_summary'],number_format((int)$r['expected_value']/100,2,'.',''),number_format((int)$r['expected_profit']/100,2,'.',''),(int)$r['cycle_days']];}
  elseif($reportType==='stock'){$exportHeaders=['Product','On hand','Low-stock threshold','Unit retail (£)','Retail stock value (£)','Unit cost (£)','Stock cost value (£)','Potential gross profit (£)','Status'];foreach($reportTrackedStock as $r){$qty=(int)$r['stock_qty'];$retail=(int)$r['price'];$cost=$r['cost']===null?null:(int)$r['cost'];$isLow=$qty<=(int)$r['low_stock_at'];$exportRows[]=[(string)$r['name'],$qty,(int)$r['low_stock_at'],number_format($retail/100,2,'.',''),number_format($qty*$retail/100,2,'.',''),$cost===null?'':number_format($cost/100,2,'.',''),$cost===null?'':number_format($qty*$cost/100,2,'.',''),$cost===null?'':number_format($qty*($retail-$cost)/100,2,'.',''),$isLow?'Low stock':'In stock'];}}
- elseif($reportType==='reorder'){$exportHeaders=['Product','Jay available','Tony available','Unallocated available','Combined available','Alert at','Units delivered in selected period','Estimated next 30-day demand','30-day target stock','Supplier pack size','Packs suggested','Units suggested','Status'];foreach($reorderRows as $r){$status=$r['available']<=$r['threshold']?'Reorder now':($r['suggested_units']>0?'Plan ahead':'Enough for target');$exportRows[]=[(string)$r['name'],$r['jay'],$r['tony'],$r['unallocated'],$r['available'],$r['threshold'],$r['recent_units'],$r['monthly_demand'],$r['target'],$r['pack_size'],$r['packs'],$r['suggested_units'],$status];}}
+ elseif($reportType==='reorder'){$exportHeaders=['Product','Jay available','Tony available','Unallocated available','Combined available','Alert at','Units delivered in selected period','Estimated demand in 7-day lead time','Target stock incl. lead-time demand','Supplier pack size','Packs suggested','Units suggested','Status'];foreach($reorderRows as $r){$status=$r['available']<=$r['threshold']?'Reorder now':($r['suggested_units']>0?'Plan ahead':'Enough for target');$exportRows[]=[(string)$r['name'],$r['jay'],$r['tony'],$r['unallocated'],$r['available'],$r['threshold'],$r['recent_units'],$r['lead_time_demand'],$r['target'],$r['pack_size'],$r['packs'],$r['suggested_units'],$status];}}
  if($exportRows||$exportHeaders){
   $fileType=preg_replace('/[^a-z-]/','',$exportType);header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="ankh-'.$fileType.'-report-'.date('Y-m-d').'.csv"');header('Cache-Control: no-store, no-cache, must-revalidate');$out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");fputcsv($out,$exportHeaders);
   foreach($exportRows as $csvRow){$safeRow=array_map(static function($value){if(is_string($value)&&preg_match('/^[=+@-]/',ltrim($value))&&!preg_match('/^-?\d+(?:\.\d+)?$/',$value))return "'".$value;return $value;},$csvRow);fputcsv($out,$safeRow);}
@@ -2920,7 +2919,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php if(!$reportRangeError):?><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><?php endif;?><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button>
 </form>
 <?php if($reportRangeError):?><p class="error report-warning">Choose both dates to run a custom report.</p><?php else:?><p class="report-range-note">Showing <strong><?=e($reportWindowLabel)?></strong><?php if($reportFrom!==''||$reportTo!==''):?> · <?=e($reportFrom?:'Start')?> to <?=e($reportTo?:'Today')?><?php endif;?>. Order value is based on order date; cash received is based on payment date.</p><?php endif;?>
-<?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">Based on delivered stock movements over the selected period. The target is your alert level plus estimated use over the next 30 days; suggested quantities are rounded up to full supplier packs. Available stock already excludes reserved units.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
+<?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">Based on delivered stock movements over the selected period. The target is your alert level plus estimated use during the usual 7-day supplier delivery time; suggested quantities are rounded up to full supplier packs. Available stock already excludes reserved units.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
 <div class="report-periods">
@@ -3081,7 +3080,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 </style>
 <section class="ios-reorder">
  <header class="ios-reorder-header">
-  <div><p class="eyebrow">STOCK PLANNING</p><h2>Reorder planner</h2><p>Simple recommendations based on your current available stock, alert level and recent delivered sales.</p></div>
+  <div><p class="eyebrow">STOCK PLANNING</p><h2>Reorder planner</h2><p>Suggestions cover your low-stock alert plus expected delivered sales during the usual 7-day supplier wait.</p></div>
   <a href="?view=stock" class="ios-reorder-stock-link"><span aria-hidden="true">⚙</span><b>Stock</b></a>
  </header>
  <div class="ios-reorder-summary">
@@ -3126,14 +3125,14 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
   <div class="ios-reorder-details">
    <span><small>Low-stock alert</small><b><?=$rr['threshold']?></b></span>
    <span><small>Sold · <?=$reorderWindowDays?>d</small><b><?=$rr['recent_units']?></b></span>
-   <span><small>Est. next 30d</small><b><?=$rr['monthly_demand']?></b></span>
+   <span><small>Est. next 7d</small><b><?=$rr['lead_time_demand']?></b></span>
   </div>
 
   <?php if($rr['packs']>0):?><a class="ios-reorder-action" href="?view=stock&amp;section=incoming"><span>＋</span>Add to incoming stock<b>›</b></a><?php endif;?>
   <?php if($rr['unallocated']>0):?><p class="ios-holding-note"><?=$rr['unallocated']?> holding-stock unit<?=$rr['unallocated']===1?' is':'s are'?> included in available.</p><?php endif;?>
  </article>
  <?php endforeach;?></div><?php endif;?>
- <details class="ios-reorder-help"><summary>How are these suggestions calculated?</summary><p>Available stock already excludes units reserved for open orders. The planner uses delivered sales only, adds the product’s low-stock alert as a buffer, then rounds the suggested quantity up to full supplier packs.</p></details>
+ <details class="ios-reorder-help"><summary>How are these suggestions calculated?</summary><p>Available stock already excludes units reserved for open orders. Delivered units across the full selected lookback period estimate demand during the supplier’s usual 7-day delivery time. The product’s low-stock alert is the target buffer, and any gap is rounded up to full supplier packs. Short tracking histories are not scaled up.</p></details>
 </section>
 <?php elseif($reportType==='stock'):?>
 <?php if(!$reportTrackedStock):?><section class="panel report-stock-empty"><p class="eyebrow">STOCK REPORTING IS READY</p><h2>No confirmed stock counts yet</h2><p class="muted">The app won’t treat the old manual product quantities as verified stock. Confirm an opening count for each product when you have physically checked it.</p><a class="button" href="?view=stock">Set up stock control</a></section><?php else:?>
