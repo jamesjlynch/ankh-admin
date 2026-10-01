@@ -4600,3 +4600,72 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .reorder-empty .button{margin-top:9px}
 @media(max-width:760px){.reorder-product-list{grid-template-columns:1fr;gap:10px}.reorder-product-card{padding:14px}.reorder-order-suggestion{align-items:stretch;flex-direction:column}.reorder-order-suggestion .button{width:100%;min-height:42px}.reorder-status{max-width:110px}}
 @media(max-width:360px){.reorder-product-card>header{gap:8px}.reorder-status{font-size:9px;padding:5px 7px}.reorder-fridge-breakdown>div,.reorder-demand-grid>div{padding:8px}}
+
+
+/* Reorder planner v2 — iPhone-first */
+.reorder-report-v2{overflow:hidden}
+.reorder-hero{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px}
+.reorder-hero-icon{display:grid;place-items:center;width:42px;height:42px;border:1px solid #5a4b29;border-radius:13px;background:#292316;color:#dbb95e}
+.reorder-hero-icon svg,.reorder-stock-link svg,.reorder-pack-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.reorder-hero-copy{min-width:0}
+.reorder-hero-copy .eyebrow{margin:0 0 3px}
+.reorder-hero-copy h2{margin:0;font-size:21px;letter-spacing:-.35px}
+.reorder-hero-copy>p:last-child{max-width:610px;margin:5px 0 0;color:#858984;font-size:9px;line-height:1.45}
+.reorder-stock-link{display:flex;align-items:center;gap:7px;padding:9px 10px;border:1px solid #363a3b;border-radius:11px;color:#b9bbb6;text-decoration:none}
+.reorder-stock-link svg{width:15px;height:15px}.reorder-stock-link span{font-size:8px;font-weight:800}.reorder-stock-link b{color:#d2b159;font-size:15px}
+.reorder-product-list-v2{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.reorder-card-v2{padding:0;overflow:hidden;border-radius:15px;background:linear-gradient(150deg,#181b1b,#131616)}
+.reorder-card-v2.reorder-priority-0{border-color:#69552f;background:linear-gradient(150deg,#1d1b15,#141616 62%)}
+.reorder-card-head{display:grid!important;grid-template-columns:38px minmax(0,1fr) auto;align-items:center!important;gap:9px!important;margin:0!important;padding:11px 11px 9px;border-bottom:1px solid rgba(255,255,255,.055)}
+.reorder-vial-icon{display:grid;place-items:center;width:38px;height:38px;border:1px solid #343838;border-radius:11px;background:#111414;color:#7f837e}
+.reorder-priority-0 .reorder-vial-icon{border-color:#5e4e2d;background:#282217;color:#d8b55c}
+.reorder-vial-icon svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.reorder-card-head>div{min-width:0}.reorder-card-head>div>small{display:block;color:#626662;font-size:6px;font-weight:850;letter-spacing:.7px}
+.reorder-card-v2 h3{overflow:hidden;margin:2px 0 0;font-size:12px;line-height:1.2;text-overflow:ellipsis}
+.reorder-card-v2 .reorder-status{max-width:none;padding:5px 7px;font-size:6.5px;text-transform:uppercase;letter-spacing:.25px}
+.reorder-stock-strip{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;margin:0!important;padding:9px 10px!important}
+.reorder-stock-strip>div{display:grid!important;grid-template-columns:auto 1fr!important;grid-template-rows:auto auto!important;align-items:center;column-gap:6px!important;min-width:0!important;padding:7px 8px!important;border-radius:10px!important}
+.reorder-stock-strip .reorder-mini-icon{grid-row:1/3;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#1b1e1e;color:#777b77;font-size:7px;font-weight:900}
+.reorder-stock-strip .reorder-mini-icon.total{background:#332b18;color:#dfba5e}
+.reorder-stock-strip small{margin:0!important;font-size:6px!important;line-height:1!important}.reorder-stock-strip strong{margin:2px 0 0!important;font-size:15px!important;line-height:1!important}
+.reorder-plan-flow{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr) 12px minmax(0,1.2fr);align-items:center;gap:3px;margin:0 10px 9px;padding:8px;border:1px solid #292d2d;border-radius:11px;background:#101313}
+.reorder-plan-flow>div{display:grid;gap:3px;min-width:0}.reorder-plan-flow small{color:#686c68;font-size:6px;font-weight:750}.reorder-plan-flow strong{font-size:13px;line-height:1.1}.reorder-plan-flow>i{color:#595d59;font-size:10px;font-style:normal;text-align:center}
+.reorder-plan-flow .needs-order{padding:6px;border-radius:8px;background:#302817}.reorder-plan-flow .needs-order small{color:#9d8448}.reorder-plan-flow .needs-order strong{color:#e3bd61}
+.reorder-plan-flow .covered{padding:6px;border-radius:8px;background:#17251b}.reorder-plan-flow .covered strong{color:#91c39c}
+.reorder-context{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 10px 9px}
+.reorder-context>div{display:flex;align-items:center;gap:6px;min-width:0;padding:7px;border:1px solid rgba(255,255,255,.05);border-radius:9px;background:#141717}
+.reorder-context-icon{display:grid;place-items:center;flex:0 0 22px;width:22px;height:22px;border-radius:7px;background:#1d2020;color:#797d78;font-size:8px;font-weight:900}
+.reorder-context p{display:grid;gap:2px;min-width:0;margin:0}.reorder-context small{overflow:hidden;color:#666a66;font-size:5.8px;white-space:nowrap;text-overflow:ellipsis}.reorder-context strong{font-size:9px}
+.reorder-suggestion-v2{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:center!important;gap:8px!important;margin:0!important;padding:9px 10px!important;border-top:1px solid #292d2d!important;background:#111414}
+.reorder-pack-copy{display:flex;align-items:center;gap:8px;min-width:0}.reorder-pack-icon{display:grid;place-items:center;flex:0 0 31px;width:31px;height:31px;border-radius:9px;background:#282216;color:#d3af57}.reorder-pack-icon svg{width:16px;height:16px}
+.reorder-pack-copy>div{min-width:0}.reorder-suggestion-v2 small{font-size:6px!important}.reorder-suggestion-v2 strong{margin:2px 0 0!important;font-size:10px!important}.reorder-suggestion-v2 strong em{color:#8c8f8a;font-size:7px;font-style:normal;font-weight:650}
+.reorder-action{display:flex;align-items:center;gap:7px;min-height:34px;padding:7px 9px;border:1px solid #68552f;border-radius:9px;background:#2d2617;color:#e2bd63;text-decoration:none}.reorder-action span{font-size:7px;font-weight:850}.reorder-action b{font-size:14px}
+.reorder-card-v2 .reorder-unallocated{margin:0;padding:6px 10px;border-top:1px solid #242828;font-size:6.5px}
+.reorder-report-v2 .reorder-report-note{padding:9px 10px;border:1px solid #292d2d;border-radius:10px;background:#111414;font-size:7px}.reorder-report-v2 .reorder-report-note b{color:#aaa9a3}
+@media(max-width:760px){
+ .reorder-report-v2{padding:11px!important;border-radius:14px}
+ .reorder-hero{grid-template-columns:35px minmax(0,1fr) auto;gap:8px}
+ .reorder-hero-icon{width:35px;height:35px;border-radius:10px}.reorder-hero-icon svg{width:17px;height:17px}
+ .reorder-hero-copy h2{font-size:17px}.reorder-hero-copy>p:last-child{font-size:7px;line-height:1.4}
+ .reorder-stock-link{width:35px;height:35px;justify-content:center;padding:0}.reorder-stock-link span,.reorder-stock-link b{display:none}
+ .reorder-product-list-v2{grid-template-columns:1fr!important;gap:8px!important;margin-top:10px!important}
+ .reorder-card-v2{padding:0!important}
+ .reorder-card-head{grid-template-columns:36px minmax(0,1fr) auto!important;padding:10px!important}
+ .reorder-vial-icon{width:36px;height:36px}
+ .reorder-card-v2 h3{font-size:11px!important}
+ .reorder-stock-strip{padding:8px!important}
+ .reorder-stock-strip>div{padding:7px!important}
+ .reorder-plan-flow{margin:0 8px 8px}
+ .reorder-context{margin:0 8px 8px}
+ .reorder-suggestion-v2{padding:8px!important}
+ .reorder-action{min-height:36px}
+}
+@media(max-width:390px){
+ .reorder-hero-copy>p:last-child{display:none}
+ .reorder-stock-strip .reorder-mini-icon{width:22px;height:22px}
+ .reorder-stock-strip>div{grid-template-columns:auto 1fr!important;column-gap:4px!important}
+ .reorder-plan-flow{grid-template-columns:1fr 8px 1fr 8px 1.15fr;padding:6px}
+ .reorder-plan-flow strong{font-size:11px}
+ .reorder-context-icon{display:none}.reorder-context>div{padding:6px}.reorder-context strong{font-size:8px}
+ .reorder-action span{font-size:6.5px}
+}
