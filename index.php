@@ -2924,6 +2924,106 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 </form>
 <?php if($reportRangeError):?><p class="error report-warning">Choose both dates to run a custom report.</p><?php else:?><p class="report-range-note">Showing <strong><?=e($reportWindowLabel)?></strong><?php if($reportFrom!==''||$reportTo!==''):?> · <?=e($reportFrom?:'Start')?> to <?=e($reportTo?:'Today')?><?php endif;?>. Order value is based on order date; cash received is based on payment date.</p><?php endif;?>
 <?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">The target includes your low-stock alert, estimated non-recurring demand during the 7-day supplier wait, and potential repeat orders due in the next 30 days. Current open orders are already reserved out of available stock. Suggested quantities are rounded up to full supplier packs.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
+<div class="report-infographic-actions"><button type="button" id="report-infographic-download">☥&nbsp; Create branded infographic</button><span id="report-infographic-status" aria-live="polite"></span></div>
+<style>
+.report-infographic-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0 18px}
+.report-infographic-actions button{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border:1px solid #8c7135;border-radius:12px;background:linear-gradient(135deg,#e4c273,#d4aa53);color:#17140e;font-size:14px;font-weight:800}
+.report-infographic-actions span{color:var(--muted);font-size:13px}
+@media(max-width:700px){.report-infographic-actions{display:grid;grid-template-columns:1fr;margin:12px 0}.report-infographic-actions button{justify-content:center;width:100%}.report-infographic-actions span{text-align:center}}
+</style>
+<script>
+(()=>{const button=document.getElementById('report-infographic-download'),status=document.getElementById('report-infographic-status');if(!button)return;
+const clean=value=>(value||'').replace(/\s+/g,' ').trim();
+const textOf=element=>clean(element?.innerText||element?.textContent||'');
+function wrapText(ctx,text,maxWidth,font){ctx.font=font;const words=clean(text).split(' '),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(line&&ctx.measureText(candidate).width>maxWidth){lines.push(line);line=word}else line=candidate}if(line)lines.push(line);return lines.length?lines:['']}
+const selectedTab=textOf(document.querySelector('.report-tabs a.selected'));
+const reportTitle=selectedTab||textOf(document.querySelector('main h1'))||'Report';
+const params=new URLSearchParams(location.search);
+let rangeLabel='';
+const rangeSelect=document.querySelector('.report-filter-bar select[name="range"]');
+if(rangeSelect)rangeLabel=textOf(rangeSelect.selectedOptions[0]);
+if(params.has('demand_days'))rangeLabel='Sales lookback · '+params.get('demand_days')+' days';
+if(params.has('period')){const activePeriod=document.querySelector('.report-period.selected span');rangeLabel=textOf(activePeriod)||('Period · '+params.get('period'))}
+const from=document.querySelector('.report-filter-bar input[name="from"]')?.value||params.get('from')||'';
+const to=document.querySelector('.report-filter-bar input[name="to"]')?.value||params.get('to')||'';
+if(from||to)rangeLabel=(rangeLabel?rangeLabel+' · ':'')+(from||'Start')+' to '+(to||'Today');
+const metrics=[...document.querySelectorAll('.report-metrics article,.ios-reorder-summary>div,.report-periods .report-period')].map(card=>{
+ const label=textOf(card.querySelector(':scope > span'))||textOf(card.querySelector('span'));
+ const valueNode=card.querySelector('strong');
+ let value=textOf(valueNode).replace(/^Profit\s*/,'').replace(/\s+/g,' ');
+ const note=[...card.children].filter(child=>child.tagName==='SMALL').map(textOf).filter(Boolean).join(' · ');
+ return {label:label||'Figure',value:value||'—',note};
+}).filter(metric=>metric.value!=='—'||metric.label!=='Figure');
+const sections=[];
+document.querySelectorAll('.report-table').forEach((table,index)=>{
+ const headers=[...table.querySelectorAll('thead th')].map(textOf);
+ const rows=[...table.querySelectorAll('tbody tr')].map(row=>[...row.querySelectorAll('td')].map(textOf)).filter(row=>row.length>1&&row.some(Boolean));
+ if(rows.length)sections.push({title:textOf(table.closest('.panel,section')?.querySelector('h2'))||'Report detail',rows:rows.map(row=>({title:row[0]||'Entry',detail:row.slice(1).map((cell,i)=>(headers[i+1]||('Figure '+(i+2)))+': '+cell).join('  ·  ')}))});
+});
+const reorderCards=[...document.querySelectorAll('.ios-reorder-card')];
+if(reorderCards.length)sections.push({title:'Product reorder recommendations',rows:reorderCards.map(card=>({title:textOf(card.querySelector('h3'))||'Product',detail:[...card.querySelectorAll('.ios-order-callout>div,.ios-fridge-row>div,.ios-plan-row>div,.ios-reorder-details>span')].map(textOf).filter(Boolean).join('  ·  ')}))});
+if(!document.querySelector('.report-table')){
+ const overviewRows=[...document.querySelectorAll('.report-trend-row,.report-grid .dashboard-row,.report-list-row')].map(row=>textOf(row)).filter(Boolean);
+ if(overviewRows.length)sections.push({title:'Report detail',rows:overviewRows.map((row,index)=>({title:'Figure '+(index+1),detail:row}))});
+}
+if(!metrics.length&&!sections.length){status.textContent='There are no report figures to export yet.';return}
+button.disabled=true;status.textContent='Preparing your image…';
+try{
+ const width=1080,pad=68,metricGap=18,metricW=(width-pad*2-metricGap)/2,metricH=132,rowGap=12;
+ const measure=document.createElement('canvas').getContext('2d');
+ const metricRows=Math.ceil(metrics.length/2);let height=310+metricRows*(metricH+metricGap);
+ const preparedSections=sections.map(section=>{
+  measure.font='700 24px Arial';const heading=wrapText(measure,section.title,width-pad*2,'700 24px Arial');height+=54+heading.length*30;
+  const rows=section.rows.map(row=>{
+   const titleLines=wrapText(measure,row.title, width-pad*2-40,'700 20px Arial');
+   const detailLines=wrapText(measure,row.detail,width-pad*2-40,'400 17px Arial');
+   const rowHeight=Math.max(78,22+titleLines.length*27+detailLines.length*24);
+   height+=rowHeight+rowGap;return {...row,titleLines,detailLines,height:rowHeight};
+  });
+  height+=26;return {...section,heading,rows};
+ });
+ height+=100;
+ const shrink=Math.min(1,15000/height),canvas=document.createElement('canvas');canvas.width=Math.round(width*shrink);canvas.height=Math.round(height*shrink);
+ const ctx=canvas.getContext('2d');ctx.scale(shrink,shrink);
+ function rounded(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1.5;ctx.stroke()}}
+ const bg=ctx.createLinearGradient(0,0,width,height);bg.addColorStop(0,'#101313');bg.addColorStop(1,'#171918');ctx.fillStyle=bg;ctx.fillRect(0,0,width,height);
+ ctx.strokeStyle='#dfb666';ctx.lineWidth=2;ctx.strokeRect(22,22,width-44,height-44);
+ ctx.fillStyle='#dfb666';ctx.font='56px Georgia,serif';ctx.fillText('☥',pad,104);
+ ctx.fillStyle='#f1e8d5';ctx.font='48px Georgia,serif';ctx.fillText('A N K H',pad+70,99);
+ ctx.fillStyle='#c4a354';ctx.font='700 15px Arial';ctx.fillText('PEPTIDES  /  ORDER DESK',pad+73,128);
+ ctx.textAlign='right';ctx.fillStyle='#858985';ctx.font='16px Arial';ctx.fillText(new Intl.DateTimeFormat('en-GB',{dateStyle:'long'}).format(new Date()),width-pad,91);ctx.textAlign='left';
+ let y=188;ctx.fillStyle='#d6b45c';ctx.font='700 15px Arial';ctx.fillText(reportTitle.toUpperCase(),pad,y);
+ y+=44;ctx.fillStyle='#f0eee8';ctx.font='700 38px Arial';ctx.fillText(reportTitle,pad,y);
+ y+=31;ctx.fillStyle='#9b9d9f';ctx.font='18px Arial';ctx.fillText(rangeLabel||'Selected report figures',pad,y);
+ y+=36;
+ for(let i=0;i<metrics.length;i++){
+  const col=i%2,row=Math.floor(i/2),x=pad+col*(metricW+metricGap),cardY=y+row*(metricH+metricGap),metric=metrics[i];
+  rounded(x,cardY,metricW,metricH,16,'#1b1e1e','#343737');
+  ctx.fillStyle='#9b9d9f';ctx.font='700 14px Arial';ctx.fillText(metric.label.toUpperCase(),x+20,cardY+29);
+  const valueLines=wrapText(ctx,metric.value,metricW-40,'700 31px Arial');ctx.fillStyle='#e3bd66';ctx.font='700 31px Arial';ctx.fillText(valueLines[0],x+20,cardY+70);
+  if(metric.note){const noteLines=wrapText(ctx,metric.note,metricW-40,'400 14px Arial');ctx.fillStyle='#a7aaa5';ctx.font='14px Arial';ctx.fillText(noteLines[0]||'',x+20,cardY+105)}
+ }
+ y+=metricRows*(metricH+metricGap)+20;
+ for(const section of preparedSections){
+  ctx.fillStyle='#d6b45c';ctx.font='700 24px Arial';for(const line of section.heading){ctx.fillText(line,pad,y);y+=30}y+=10;
+  for(const row of section.rows){
+   rounded(pad,y,width-pad*2,row.height,13,'#191c1c','#303434');
+   let ty=y+29;ctx.fillStyle='#f0eee8';ctx.font='700 20px Arial';for(const line of row.titleLines){ctx.fillText(line,pad+20,ty);ty+=25}
+   ctx.fillStyle='#a7aaa5';ctx.font='17px Arial';for(const line of row.detailLines){ctx.fillText(line,pad+20,ty);ty+=22}
+   y+=row.height+rowGap;
+  }
+  y+=16;
+ }
+ ctx.fillStyle='#777c77';ctx.font='14px Arial';ctx.fillText('ANKH ADMIN  ·  Generated from the selected report',pad,height-62);
+ ctx.fillStyle='#d6b45c';ctx.fillRect(width-pad-110,height-71,110,2);
+ canvas.toBlob(blob=>{
+  if(!blob){status.textContent='Could not create the image. Try again.';button.disabled=false;return}
+  const url=URL.createObjectURL(blob),a=document.createElement('a'),slug=reportTitle.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'report';
+  a.href=url;a.download='ankh-'+slug+'-'+new Date().toISOString().slice(0,10)+'.png';document.body.appendChild(a);a.click();a.remove();
+  status.textContent='Branded infographic downloaded as a PNG.';setTimeout(()=>URL.revokeObjectURL(url),60000);button.disabled=false;
+ },'image/png');
+}catch(error){console.error(error);status.textContent='Could not create the image. Please try again.';button.disabled=false}
+})();</script>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
 <div class="report-periods">
