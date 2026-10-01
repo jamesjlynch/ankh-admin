@@ -1780,7 +1780,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile81-ios-reorder"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile82-reorder-critical"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -3026,6 +3026,57 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <article><span>Suggested packs</span><strong><?=$reorderPackTotal?></strong><small><?=$reorderUnitTotal?> units in total</small></article>
 <article><span>Sales lookback</span><strong><?=$reorderWindowDays?> days</strong><small>Delivered orders only</small></article>
 </section>
+<style id="reorder-mobile-critical">
+@media (max-width:760px){
+ .ios-reorder{display:block!important;width:100%!important;margin:12px 0 0!important;padding:12px!important;border:1px solid #303535!important;border-radius:18px!important;background:#141717!important;overflow:hidden!important;box-sizing:border-box!important}
+ .ios-reorder *{box-sizing:border-box!important}
+ .ios-reorder-header{display:grid!important;grid-template-columns:minmax(0,1fr) 44px!important;align-items:center!important;gap:12px!important}
+ .ios-reorder-header .eyebrow{margin:0 0 5px!important;color:#d6b45c!important;font-size:10px!important;letter-spacing:1.6px!important}
+ .ios-reorder-header h2{margin:0!important;color:#f0f0eb!important;font-size:24px!important;line-height:1.08!important;letter-spacing:-.5px!important}
+ .ios-reorder-header p:last-child{margin:7px 0 0!important;color:#818580!important;font-size:12px!important;line-height:1.45!important}
+ .ios-reorder-stock-link{display:grid!important;place-items:center!important;width:44px!important;height:44px!important;padding:0!important;border:1px solid #3b4040!important;border-radius:13px!important;background:#101313!important;text-decoration:none!important}
+ .ios-reorder-stock-link span{color:#d8b65e!important;font-size:18px!important}.ios-reorder-stock-link b{display:none!important}
+ .ios-reorder-summary{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;margin:14px 0 0!important}
+ .ios-reorder-summary>div{display:grid!important;gap:4px!important;min-width:0!important;padding:10px 5px!important;border:1px solid #2c3030!important;border-radius:12px!important;background:#101313!important;text-align:center!important}
+ .ios-reorder-summary small{color:#747873!important;font-size:10px!important;line-height:1.15!important}.ios-reorder-summary strong{color:#f0f0eb!important;font-size:22px!important;line-height:1!important}
+ .ios-reorder-list{display:grid!important;grid-template-columns:1fr!important;gap:12px!important;width:100%!important;margin:12px 0 0!important;padding:0!important}
+ .ios-reorder-card{display:block!important;width:100%!important;min-width:0!important;margin:0!important;padding:0!important;overflow:hidden!important;border:1px solid #303535!important;border-radius:16px!important;background:linear-gradient(155deg,#191c1c,#111414)!important;box-shadow:0 8px 22px rgba(0,0,0,.13)!important}
+ .ios-reorder-card.priority-0{border-color:#69572f!important;background:linear-gradient(155deg,#201c13,#111414 68%)!important}
+ .ios-reorder-card-head{display:grid!important;grid-template-columns:44px minmax(0,1fr) auto!important;align-items:center!important;gap:10px!important;width:100%!important;padding:12px!important;border-bottom:1px solid #292d2d!important}
+ .ios-product-icon{display:grid!important;place-items:center!important;width:44px!important;height:44px!important;border:1px solid #3a3e3e!important;border-radius:13px!important;background:#111414!important;color:#929691!important}
+ .ios-product-icon svg,.ios-box-icon svg{width:22px!important;height:22px!important;fill:none!important;stroke:currentColor!important;stroke-width:1.8!important;stroke-linecap:round!important;stroke-linejoin:round!important}
+ .priority-0 .ios-product-icon{border-color:#5c4d2b!important;background:#2b2518!important;color:#dfbb62!important}
+ .ios-reorder-card-head>div{min-width:0!important}.ios-reorder-card-head>div small{display:block!important;color:#6e726e!important;font-size:9px!important;font-weight:800!important;letter-spacing:1px!important}
+ .ios-reorder-card h3{display:block!important;overflow:hidden!important;margin:3px 0 0!important;color:#f0f0eb!important;font-size:17px!important;line-height:1.2!important;white-space:nowrap!important;text-overflow:ellipsis!important}
+ .ios-reorder-status{display:block!important;padding:6px 8px!important;border:1px solid #3a3e3e!important;border-radius:999px!important;background:#171a1a!important;color:#969a95!important;font-size:9px!important;font-weight:800!important;line-height:1!important;text-transform:uppercase!important;white-space:nowrap!important}
+ .priority-0 .ios-reorder-status{border-color:#6a5730!important;background:#302819!important;color:#e4bf66!important}
+ .ios-order-callout{display:grid!important;grid-template-columns:minmax(0,1fr) 40px!important;align-items:center!important;gap:10px!important;margin:10px 10px 8px!important;padding:11px 12px!important;border:1px solid #67542e!important;border-radius:13px!important;background:linear-gradient(135deg,#302817,#201c14)!important}
+ .ios-order-callout>div{display:grid!important;gap:3px!important;min-width:0!important}.ios-order-callout small{color:#a38a4e!important;font-size:9px!important;font-weight:800!important;letter-spacing:.8px!important}.ios-order-callout strong{color:#e8c36a!important;font-size:20px!important;line-height:1.1!important}.ios-order-callout>div>span{color:#9a9484!important;font-size:11px!important;line-height:1.25!important}
+ .ios-box-icon{display:grid!important;place-items:center!important;width:40px!important;height:40px!important;border-radius:12px!important;background:#3a311d!important;color:#e1bc62!important}
+ .ios-order-callout.covered{border-color:#31513a!important;background:#17231b!important}.ios-order-callout.covered small{color:#72a07d!important}.ios-order-callout.covered strong{color:#a0cba9!important}.ios-order-callout.covered .ios-box-icon{background:#203729!important;color:#99c8a3!important}
+ .ios-fridge-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;width:auto!important;margin:0!important;padding:0 10px 8px!important}
+ .ios-fridge-row>div{display:grid!important;grid-template-columns:1fr!important;grid-template-rows:auto auto auto!important;justify-items:center!important;gap:4px!important;min-width:0!important;padding:9px 4px!important;border:1px solid #2c3030!important;border-radius:12px!important;background:#101313!important;text-align:center!important}
+ .ios-person-dot{display:grid!important;grid-row:auto!important;place-items:center!important;width:25px!important;height:25px!important;border-radius:8px!important;background:#1e2221!important;color:#8f938e!important;font-size:9px!important;font-weight:900!important}.ios-person-dot.all{background:#332b19!important;color:#e0bc62!important}
+ .ios-fridge-row small{color:#737773!important;font-size:10px!important;line-height:1!important}.ios-fridge-row strong{color:#f0f0eb!important;font-size:18px!important;line-height:1!important}.ios-fridge-row .total{border-color:#514526!important}
+ .ios-plan-row{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;width:auto!important;margin:0 10px 8px!important;padding:0!important;border:0!important;background:transparent!important}
+ .ios-plan-row>span{display:none!important}.ios-plan-row>div{display:grid!important;align-content:center!important;gap:4px!important;min-width:0!important;min-height:59px!important;padding:8px 5px!important;border:1px solid #2b2f2f!important;border-radius:11px!important;background:#101313!important;text-align:center!important}
+ .ios-plan-row small{color:#70746f!important;font-size:9px!important;line-height:1.1!important}.ios-plan-row strong{color:#efefea!important;font-size:16px!important;line-height:1.1!important;white-space:normal!important}
+ .ios-plan-row .gap{border-color:#64512e!important;background:#2c2518!important}.ios-plan-row .gap small,.ios-plan-row .gap strong{color:#dfbb62!important}.ios-plan-row .ok{border-color:#31503a!important;background:#17231b!important}.ios-plan-row .ok strong{color:#9cc8a5!important}
+ .ios-reorder-details{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;width:auto!important;margin:0!important;padding:0 10px 9px!important}
+ .ios-reorder-details>span{display:grid!important;gap:4px!important;min-width:0!important;padding:8px 4px!important;border-radius:10px!important;background:#181b1b!important;text-align:center!important}
+ .ios-reorder-details small{display:block!important;overflow:visible!important;color:#6f736f!important;font-size:9px!important;line-height:1.15!important;white-space:normal!important;text-overflow:clip!important}.ios-reorder-details b{color:#d6d8d3!important;font-size:13px!important;line-height:1!important}
+ .ios-reorder-action{display:flex!important;align-items:center!important;gap:9px!important;width:auto!important;min-height:44px!important;margin:0 10px 10px!important;padding:9px 11px!important;border:1px solid #6b5830!important;border-radius:12px!important;background:#302817!important;color:#e5c067!important;font-size:12px!important;font-weight:800!important;text-decoration:none!important}.ios-reorder-action>span{display:grid!important;place-items:center!important;width:26px!important;height:26px!important;border-radius:8px!important;background:#40351e!important;font-size:16px!important}.ios-reorder-action>b{margin-left:auto!important;font-size:19px!important}
+ .ios-holding-note{margin:0!important;padding:0 11px 10px!important;color:#777b77!important;font-size:10px!important;line-height:1.35!important}
+ .ios-reorder-help{display:block!important;margin:12px 0 0!important;border:1px solid #2d3131!important;border-radius:13px!important;background:#101313!important;overflow:hidden!important}.ios-reorder-help summary{padding:12px!important;color:#aaaDA8!important;font-size:12px!important;font-weight:750!important}.ios-reorder-help p{margin:0!important;padding:0 12px 12px!important;color:#777b77!important;font-size:11px!important;line-height:1.5!important}
+}
+@media (max-width:390px){
+ .ios-reorder{padding:10px!important}.ios-reorder-header p:last-child{display:none!important}.ios-reorder-header h2{font-size:22px!important}
+ .ios-reorder-card-head{grid-template-columns:40px minmax(0,1fr) auto!important;padding:10px!important}.ios-product-icon{width:40px!important;height:40px!important}
+ .ios-reorder-card h3{font-size:15px!important}.ios-reorder-status{padding:5px 6px!important;font-size:8px!important}
+ .ios-fridge-row,.ios-reorder-details{gap:5px!important;padding-left:8px!important;padding-right:8px!important}.ios-plan-row{gap:5px!important;margin-left:8px!important;margin-right:8px!important}
+ .ios-fridge-row small,.ios-reorder-details small,.ios-plan-row small{font-size:8px!important}
+}
+</style>
 <section class="ios-reorder">
  <header class="ios-reorder-header">
   <div><p class="eyebrow">STOCK PLANNING</p><h2>Reorder planner</h2><p>Simple recommendations based on your current available stock, alert level and recent delivered sales.</p></div>
@@ -3042,7 +3093,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
  <?php foreach($reorderRows as $rr):$status=$rr['available']<=$rr['threshold']?'Reorder now':($rr['suggested_units']>0?'Plan ahead':'Covered');$gap=max(0,$rr['target']-$rr['available']);?>
  <article class="ios-reorder-card priority-<?=$rr['priority']?>">
   <div class="ios-reorder-card-head">
-   <span class="ios-product-icon" aria-hidden="true">▥</span>
+   <span class="ios-product-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6M9 6h6M8 8h8l1 3v9H7v-9l1-3Z"/><path d="M9 13h6"/></svg></span>
    <div><small>PRODUCT</small><h3><?=e($rr['name'])?></h3></div>
    <span class="ios-reorder-status"><?=e($status)?></span>
   </div>
@@ -3050,10 +3101,10 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
   <?php if($rr['packs']>0):?>
   <div class="ios-order-callout">
    <div><small>RECOMMENDED ORDER</small><strong><?=$rr['packs']?> pack<?=$rr['packs']===1?'':'s'?></strong><span><?=$rr['suggested_units']?> units total · <?=$rr['pack_size']?> per pack</span></div>
-   <span class="ios-box-icon" aria-hidden="true">□</span>
+   <span class="ios-box-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m4 7 8-4 8 4-8 4-8-4Z"/><path d="m4 7v10l8 4 8-4V7M12 11v10"/></svg></span>
   </div>
   <?php else:?>
-  <div class="ios-order-callout covered"><div><small>STOCK POSITION</small><strong>No order needed</strong><span>Current stock covers the calculated target.</span></div><span class="ios-box-icon" aria-hidden="true">✓</span></div>
+  <div class="ios-order-callout covered"><div><small>STOCK POSITION</small><strong>No order needed</strong><span>Current stock covers the calculated target.</span></div><span class="ios-box-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></span></div>
   <?php endif;?>
 
   <div class="ios-fridge-row">
