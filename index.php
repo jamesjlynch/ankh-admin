@@ -1780,7 +1780,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile81-reorder-v2"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile81-ios-reorder"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -3026,43 +3026,61 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <article><span>Suggested packs</span><strong><?=$reorderPackTotal?></strong><small><?=$reorderUnitTotal?> units in total</small></article>
 <article><span>Sales lookback</span><strong><?=$reorderWindowDays?> days</strong><small>Delivered orders only</small></article>
 </section>
-<section class="panel reorder-report-panel reorder-report-v2">
- <div class="reorder-hero">
-  <div class="reorder-hero-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 18h16M6 15l4-4 3 2 5-6"/><path d="M15 7h3v3"/></svg></div>
-  <div class="reorder-hero-copy"><p class="eyebrow">STOCK PLANNING</p><h2>What needs reordering?</h2><p>We compare what you have now with your low-stock level and recent sales, then round suggestions to full supplier packs.</p></div>
-  <a class="reorder-stock-link" href="?view=stock" aria-label="Open stock control"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/></svg><span>Stock control</span><b>›</b></a>
+<section class="ios-reorder">
+ <header class="ios-reorder-header">
+  <div><p class="eyebrow">STOCK PLANNING</p><h2>Reorder planner</h2><p>Simple recommendations based on your current available stock, alert level and recent delivered sales.</p></div>
+  <a href="?view=stock" class="ios-reorder-stock-link"><span aria-hidden="true">⚙</span><b>Stock</b></a>
+ </header>
+ <div class="ios-reorder-summary">
+  <div><small>Reorder now</small><strong><?=$reorderNeedNow?></strong></div>
+  <div><small>Packs suggested</small><strong><?=$reorderPackTotal?></strong></div>
+  <div><small>Units to order</small><strong><?=$reorderUnitTotal?></strong></div>
  </div>
- <?php if(!$reorderRows):?><div class="reorder-empty"><span class="more-icon">▣</span><h3>No confirmed stock to plan from yet</h3><p class="muted">Confirm opening fridge counts in Stock control. Products without confirmed counts are left out so suggestions use real available stock.</p><a class="button" href="?view=stock">Set up stock control</a></div>
- <?php else:?><div class="reorder-product-list reorder-product-list-v2">
- <?php foreach($reorderRows as $rr):$status=$rr['available']<=$rr['threshold']?'Reorder now':($rr['suggested_units']>0?'Plan ahead':'Stock covered');$gap=max(0,$rr['target']-$rr['available']);?>
- <article class="reorder-product-card reorder-card-v2 reorder-priority-<?=$rr['priority']?>">
-  <header class="reorder-card-head">
-   <span class="reorder-vial-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M12 4h8v4l2 2v15a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V10l2-2V4Z"/><path d="M12 14h8M13 7h6"/></svg></span>
+ <?php if(!$reorderRows):?>
+ <div class="ios-reorder-empty"><span>✓</span><h3>No confirmed stock to plan from yet</h3><p>Confirm opening fridge counts first so the planner can use real stock balances.</p><a href="?view=stock">Set up stock control →</a></div>
+ <?php else:?><div class="ios-reorder-list">
+ <?php foreach($reorderRows as $rr):$status=$rr['available']<=$rr['threshold']?'Reorder now':($rr['suggested_units']>0?'Plan ahead':'Covered');$gap=max(0,$rr['target']-$rr['available']);?>
+ <article class="ios-reorder-card priority-<?=$rr['priority']?>">
+  <div class="ios-reorder-card-head">
+   <span class="ios-product-icon" aria-hidden="true">▥</span>
    <div><small>PRODUCT</small><h3><?=e($rr['name'])?></h3></div>
-   <span class="reorder-status reorder-status-<?=$rr['priority']?>"><?=e($status)?></span>
-  </header>
-  <div class="reorder-fridge-breakdown reorder-stock-strip">
-   <div><span class="reorder-mini-icon jay">J</span><small>Jay</small><strong><?=$rr['jay']?></strong></div>
-   <div><span class="reorder-mini-icon tony">T</span><small>Tony</small><strong><?=$rr['tony']?></strong></div>
-   <div class="reorder-combined"><span class="reorder-mini-icon total">Σ</span><small>Available</small><strong><?=$rr['available']?></strong></div>
+   <span class="ios-reorder-status"><?=e($status)?></span>
   </div>
-  <div class="reorder-plan-flow">
-   <div><small>Available now</small><strong><?=$rr['available']?></strong></div><i>→</i>
-   <div><small>Target stock</small><strong><?=$rr['target']?></strong></div><i>→</i>
-   <div class="<?=$rr['packs']>0?'needs-order':'covered'?>"><small><?=$rr['packs']>0?'Suggested order':'Status'?></small><strong><?=$rr['packs']>0?$rr['suggested_units'].' units':'Covered ✓'?></strong></div>
+
+  <?php if($rr['packs']>0):?>
+  <div class="ios-order-callout">
+   <div><small>RECOMMENDED ORDER</small><strong><?=$rr['packs']?> pack<?=$rr['packs']===1?'':'s'?></strong><span><?=$rr['suggested_units']?> units total · <?=$rr['pack_size']?> per pack</span></div>
+   <span class="ios-box-icon" aria-hidden="true">□</span>
   </div>
-  <div class="reorder-context">
-   <div><span class="reorder-context-icon">!</span><p><small>Low-stock alert</small><strong><?=$rr['threshold']?> units</strong></p></div>
-   <div><span class="reorder-context-icon">↗</span><p><small>Sold in <?=$reorderWindowDays?> days</small><strong><?=$rr['recent_units']?> units</strong></p></div>
-   <div><span class="reorder-context-icon">≈</span><p><small>Est. next 30 days</small><strong><?=$rr['monthly_demand']?> units</strong></p></div>
+  <?php else:?>
+  <div class="ios-order-callout covered"><div><small>STOCK POSITION</small><strong>No order needed</strong><span>Current stock covers the calculated target.</span></div><span class="ios-box-icon" aria-hidden="true">✓</span></div>
+  <?php endif;?>
+
+  <div class="ios-fridge-row">
+   <div><span class="ios-person-dot jay">J</span><small>Jay</small><strong><?=$rr['jay']?></strong></div>
+   <div><span class="ios-person-dot tony">T</span><small>Tony</small><strong><?=$rr['tony']?></strong></div>
+   <div class="total"><span class="ios-person-dot all">Σ</span><small>Available</small><strong><?=$rr['available']?></strong></div>
   </div>
-  <div class="reorder-order-suggestion reorder-suggestion-v2">
-   <div class="reorder-pack-copy"><span class="reorder-pack-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4-8 4-8-4Z"/><path d="M4 8v8l8 4 8-4V8M12 12v8"/></svg></span><div><small>Supplier packs · <?=$rr['pack_size']?> units each</small><strong><?php if($rr['packs']>0):?>Order <?=$rr['packs']?> pack<?=$rr['packs']===1?'':'s'?> <em>· <?=$rr['suggested_units']?> units</em><?php else:?>No order needed<?php endif;?></strong></div></div>
-   <?php if($rr['packs']>0):?><a class="reorder-action" href="?view=stock&amp;section=incoming"><span>Add incoming stock</span><b>›</b></a><?php endif;?>
+
+  <div class="ios-plan-row">
+   <div><small>Available now</small><strong><?=$rr['available']?></strong></div>
+   <span>→</span>
+   <div><small>Target</small><strong><?=$rr['target']?></strong></div>
+   <span>→</span>
+   <div class="<?=$gap>0?'gap':'ok'?>"><small><?=$gap>0?'Gap':'Position'?></small><strong><?=$gap>0?$gap.' units':'Covered'?></strong></div>
   </div>
-  <?php if($rr['unallocated']>0):?><small class="reorder-unallocated">+ <?=$rr['unallocated']?> holding-stock unit<?=$rr['unallocated']===1?'':'s'?> included in available.</small><?php endif;?>
- </article><?php endforeach;?></div><?php endif;?>
- <p class="reorder-report-note"><b>How this works:</b> available stock already excludes units reserved for open orders. Sales use recorded deliveries only. Products without confirmed stock counts are excluded.</p>
+
+  <div class="ios-reorder-details">
+   <span><small>Low-stock alert</small><b><?=$rr['threshold']?></b></span>
+   <span><small>Sold · <?=$reorderWindowDays?>d</small><b><?=$rr['recent_units']?></b></span>
+   <span><small>Est. next 30d</small><b><?=$rr['monthly_demand']?></b></span>
+  </div>
+
+  <?php if($rr['packs']>0):?><a class="ios-reorder-action" href="?view=stock&amp;section=incoming"><span>＋</span>Add to incoming stock<b>›</b></a><?php endif;?>
+  <?php if($rr['unallocated']>0):?><p class="ios-holding-note"><?=$rr['unallocated']?> holding-stock unit<?=$rr['unallocated']===1?' is':'s are'?> included in available.</p><?php endif;?>
+ </article>
+ <?php endforeach;?></div><?php endif;?>
+ <details class="ios-reorder-help"><summary>How are these suggestions calculated?</summary><p>Available stock already excludes units reserved for open orders. The planner uses delivered sales only, adds the product’s low-stock alert as a buffer, then rounds the suggested quantity up to full supplier packs.</p></details>
 </section>
 <?php elseif($reportType==='stock'):?>
 <?php if(!$reportTrackedStock):?><section class="panel report-stock-empty"><p class="eyebrow">STOCK REPORTING IS READY</p><h2>No confirmed stock counts yet</h2><p class="muted">The app won’t treat the old manual product quantities as verified stock. Confirm an opening count for each product when you have physically checked it.</p><a class="button" href="?view=stock">Set up stock control</a></section><?php else:?>
