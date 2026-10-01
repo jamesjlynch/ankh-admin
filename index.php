@@ -2932,7 +2932,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 @media(max-width:700px){.report-infographic-actions{display:grid;grid-template-columns:1fr;margin:12px 0}.report-infographic-actions button{justify-content:center;width:100%}.report-infographic-actions span{text-align:center}}
 </style>
 <script>
-(()=>{const button=document.getElementById('report-infographic-download'),status=document.getElementById('report-infographic-status');if(!button)return;
+document.addEventListener('DOMContentLoaded',()=>{const button=document.getElementById('report-infographic-download'),status=document.getElementById('report-infographic-status');if(!button)return;
 const clean=value=>(value||'').replace(/\s+/g,' ').trim();
 const textOf=element=>clean(element?.innerText||element?.textContent||'');
 function wrapText(ctx,text,maxWidth,font){ctx.font=font;const words=clean(text).split(' '),lines=[];let line='';for(const word of words){const candidate=line?line+' '+word:word;if(line&&ctx.measureText(candidate).width>maxWidth){lines.push(line);line=word}else line=candidate}if(line)lines.push(line);return lines.length?lines:['']}
@@ -3044,7 +3044,7 @@ try{
  status.replaceChildren(document.createTextNode('Your infographic is ready. '),download);
  document.body.appendChild(download);download.click();button.disabled=false;
 }catch(error){console.error(error);status.textContent='Could not create the image. Please try again.';button.disabled=false}
-})();</script>
+});</script>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
 <div class="report-periods">
