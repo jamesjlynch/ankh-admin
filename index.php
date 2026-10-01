@@ -70,7 +70,16 @@ if(!in_array('cycle_weeks',array_column($itemColumns,'name'),true))$db->exec("AL
 $productColumns=$db->query('PRAGMA table_info(products)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('stock_qty',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_qty INTEGER DEFAULT NULL");
-if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN low_stock_at INTEGER NOT NULL DEFAULT 2");
+if(!in_array('low_stock_at',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN low_stock_at INTEGER NOT NULL DEFAULT 5");
+// Set every existing product to the requested default once; later product-specific edits remain intact.
+$stockAlertMigrationKey='migration_low_stock_alert_default_5';
+$q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$stockAlertMigrationKey]);
+if($q->fetchColumn()===false){
+ $db->beginTransaction();
+ $db->exec('UPDATE products SET low_stock_at=5');
+ $db->prepare('INSERT INTO settings(key,value) VALUES(?,?)')->execute([$stockAlertMigrationKey,'done']);
+ $db->commit();
+}
 if(!in_array('stock_tracking',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking INTEGER NOT NULL DEFAULT 0");
 if(!in_array('stock_tracking_since',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking_since TEXT NOT NULL DEFAULT ''");
 if(!in_array('family_friends_price',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN family_friends_price INTEGER DEFAULT NULL");
@@ -1448,7 +1457,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='product'){
    $name=trim($_POST['name']??'');$price=filter_var($_POST['price']??'',FILTER_VALIDATE_FLOAT);
-   $costRaw=trim((string)($_POST['cost']??''));$ffRaw=trim((string)($_POST['family_friends_price']??''));$stockRaw=trim((string)($_POST['stock_qty']??''));$lowRaw=trim((string)($_POST['low_stock_at']??'2'));
+   $costRaw=trim((string)($_POST['cost']??''));$ffRaw=trim((string)($_POST['family_friends_price']??''));$stockRaw=trim((string)($_POST['stock_qty']??''));$lowRaw=trim((string)($_POST['low_stock_at']??'5'));
    $cost=$costRaw===''?null:filter_var($costRaw,FILTER_VALIDATE_FLOAT);$familyFriendsPrice=$ffRaw===''?null:filter_var($ffRaw,FILTER_VALIDATE_FLOAT);$stock=$stockRaw===''?null:filter_var($stockRaw,FILTER_VALIDATE_INT);$low=filter_var($lowRaw,FILTER_VALIDATE_INT);
    if(!$name || strlen($name)>160 || $price===false || $price<0 || $price>100000 || ($costRaw!==''&&($cost===false||$cost<0||$cost>100000)) || ($ffRaw!==''&&($familyFriendsPrice===false||$familyFriendsPrice<0||$familyFriendsPrice>100000)) || ($stockRaw!==''&&($stock===false||$stock<0||$stock>999999)) || $low===false || $low<0 || $low>999999)throw new Exception('Enter valid product, price and stock details.');
    $id=(int)($_POST['id']??0);$costPence=$cost===null?null:(int)round($cost*100);
@@ -2415,7 +2424,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <label class="product-search"><span>Find a product</span><input id="product-filter" type="search" placeholder="Search by name or strength" autocomplete="off" aria-label="Search products by name or strength"><span class="product-search-icon" aria-hidden="true">⌕</span></label>
 <details class="add-product-disclosure"><summary><span class="add-product-plus" aria-hidden="true">＋</span><span><strong>Add new product</strong><small>Set up a product and its prices</small></span><span class="add-product-chevron" aria-hidden="true">＋</span></summary>
 <form method="post" class="panel add-product-form"><?php csrf();?><input type="hidden" name="action" value="product"><input type="hidden" name="return" value="products"><h2>Product details</h2>
-<div class="product-admin-grid"><label>Name and strength<input name="name" required maxlength="160" placeholder="Product name · 5mg"></label><label>Retail price (£)<input name="price" type="number" min="0" max="100000" step=".01" required></label><label>Family &amp; Friends price (£) <span class="muted">(optional)</span><input name="family_friends_price" type="number" min="0" max="100000" step=".01" placeholder="Blank = retail price less £5"></label><label>Cost (£) <span class="muted">(optional)</span><input name="cost" type="number" min="0" max="100000" step=".01"></label><label>Low-stock alert<input name="low_stock_at" type="number" min="0" max="999999" step="1" value="2"></label></div>
+<div class="product-admin-grid"><label>Name and strength<input name="name" required maxlength="160" placeholder="Product name · 5mg"></label><label>Retail price (£)<input name="price" type="number" min="0" max="100000" step=".01" required></label><label>Family &amp; Friends price (£) <span class="muted">(optional)</span><input name="family_friends_price" type="number" min="0" max="100000" step=".01" placeholder="Blank = retail price less £5"></label><label>Cost (£) <span class="muted">(optional)</span><input name="cost" type="number" min="0" max="100000" step=".01"></label><label>Low-stock alert<input name="low_stock_at" type="number" min="0" max="999999" step="1" value="5"></label></div>
 <button>Add product</button></form></details>
 <section class="product-catalog-section"><div class="product-catalog-heading"><div><p class="eyebrow">AVAILABLE PRODUCTS</p><h2>Active products</h2></div><span>Tap a vial to manage price &amp; stock</span></div><div class="product-catalog-grid">
 <?php foreach($products as $p):if(!(int)$p['active'])continue;$costMapped=isset($currentSupplierCosts[$p['name']]);$productStrength='';if(preg_match('/\s+(\d+(?:\.\d+)?\s*(?:mg|ml|iu))$/i',(string)$p['name'],$strengthMatch))$productStrength=$strengthMatch[1];?>
