@@ -634,6 +634,9 @@ function addStockMovement(PDO $db,int $productId,string $type,int $delta,string 
  $q=$db->prepare('INSERT INTO stock_movements(product_id,movement_type,quantity_change,order_id,location,supplier,batch_reference,expiry_date,unit_cost,note,created) VALUES (?,?,?,?,?,?,?,?,?,?,?)');
  $q->execute([$productId,$type,$delta,$orderId,stockLocationName($location),$supplier,$batch,$expiry,$unitCost,$note,gmdate('c')]);
 }
+function rememberStockUndo(int $productId,array $changes,array $movementIds,bool $trackingBefore,string $movementType,string $label):void{
+ $_SESSION['stock_undo']=['product_id'=>$productId,'changes'=>$changes,'movement_ids'=>$movementIds,'tracking_before'=>$trackingBefore,'movement_type'=>$movementType,'label'=>$label,'expires'=>time()+120];
+}
 function reconcileDeliveredStock(PDO $db,int $orderId,bool $createEvent=false):void{
  $ownsTransaction=!$db->inTransaction();if($ownsTransaction)$db->beginTransaction();
  try{
@@ -1407,7 +1410,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($location,['Jay','Tony','Unallocated'],true)||strlen($supplier)>160||strlen($batch)>160||strlen($note)>500)throw new Exception('Enter valid stock receipt details and choose where the stock is going.');
    if($expiry!==''&&(!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$expiry)||!checkdate((int)substr($expiry,5,2),(int)substr($expiry,8,2),(int)substr($expiry,0,4))))throw new Exception('Enter a valid expiry date.');
    $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([$productId]);$tracked=$q->fetchColumn();if($tracked===false)throw new Exception('Product could not be found.');
-   $db->beginTransaction();if((int)$tracked!==1)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);adjustProductStockAtLocation($db,$productId,$location,(int)$quantity);addStockMovement($db,$productId,'received',(int)$quantity,$note!==''?$note:'Stock added',null,$supplier,$batch,$expiry,$unitCost,$location);$db->commit();
+   $db->beginTransaction();if((int)$tracked!==1)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);adjustProductStockAtLocation($db,$productId,$location,(int)$quantity);addStockMovement($db,$productId,'received',(int)$quantity,$note!==''?$note:'Stock added',null,$supplier,$batch,$expiry,$unitCost,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-(int)$quantity],[$location=>$movementId],(int)$tracked===1,'received','Stock receipt');
   }
   if($action==='stock_quick_adjust'){
    $productId=(int)($_POST['product_id']??0);$delta=filter_var($_POST['delta']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));
@@ -1417,7 +1420,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $before=(int)$product['available'];if((int)$delta<0&&$before<abs((int)$delta))throw new Exception('There is not enough available stock to remove that quantity. Orders already reserved are protected.');
    $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$location,(int)$delta);
    $movementType=(int)$delta>0?'manual_add':'manual_remove';$movementNote=(int)$delta>0?'Quick stock added to '.$location.'’s fridge':'Quick stock removed from '.$location.'’s fridge';
-   addStockMovement($db,$productId,$movementType,(int)$delta,$movementNote,null,'','','',null,$location);$db->commit();
+   addStockMovement($db,$productId,$movementType,(int)$delta,$movementNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-(int)$delta],[$location=>$movementId],true,$movementType,'Quick stock change');
   }
   if($action==='stock_count'){
    $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$note=trim((string)($_POST['note']??''));
@@ -1426,13 +1429,38 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $column=stockLocationColumn($location);$before=(int)$product[$column];$reserved=activeReservedStock($db,$productId,$location);$beforePhysical=$before+$reserved;
    if((int)$counted<$reserved)throw new Exception('That physical count is lower than the '.$reserved.' units currently reserved for orders. Check those orders or the fridge count first.');
    $available=max(0,(int)$counted-$reserved);$delta=$available-$before;
-   if($delta!==0){$countNote='Physical count corrected from '.$beforePhysical.' to '.(int)$counted.'; reservations preserved'.($note!==''?' · '.$note:'');$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,$available);addStockMovement($db,$productId,'count_adjustment',$delta,$countNote,null,'','','',null,$location);$db->commit();}
+   if($delta!==0){$countNote='Physical count corrected from '.$beforePhysical.' to '.(int)$counted.'; reservations preserved'.($note!==''?' · '.$note:'');$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,$available);addStockMovement($db,$productId,'count_adjustment',$delta,$countNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-$delta],[$location=>$movementId],true,'count_adjustment','Physical stock count');}
   }
   if($action==='stock_transfer'){
    $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$from=stockLocationName((string)($_POST['from_location']??''));$to=stockLocationName((string)($_POST['to_location']??''));$note=trim((string)($_POST['note']??''));
    if($productId<1||$quantity===false||$quantity<1||$quantity>999999||!in_array($from,['Jay','Tony','Unallocated'],true)||!in_array($to,['Jay','Tony','Unallocated'],true)||$from===$to||strlen($note)>500)throw new Exception('Choose a valid source and destination fridge, and enter a quantity.');
    $column=stockLocationColumn($from);$q=$db->prepare("SELECT stock_tracking,{$column} AS available FROM products WHERE id=?");$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');if((int)$product['available']<(int)$quantity)throw new Exception('There is not enough stock in that location to transfer.');
-   $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$from,-(int)$quantity);adjustProductStockAtLocation($db,$productId,$to,(int)$quantity);$transferNote=$note!==''?$note:'Stock transferred between locations';addStockMovement($db,$productId,'transfer_out',-(int)$quantity,$transferNote,null,'','','',null,$from);addStockMovement($db,$productId,'transfer_in',(int)$quantity,$transferNote,null,'','','',null,$to);$db->commit();
+   $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$from,-(int)$quantity);adjustProductStockAtLocation($db,$productId,$to,(int)$quantity);$transferNote=$note!==''?$note:'Stock transferred between locations';addStockMovement($db,$productId,'transfer_out',-(int)$quantity,$transferNote,null,'','','',null,$from);$fromMovementId=(int)$db->lastInsertId();addStockMovement($db,$productId,'transfer_in',(int)$quantity,$transferNote,null,'','','',null,$to);$toMovementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$from=>(int)$quantity,$to=>-(int)$quantity],[$from=>$fromMovementId,$to=>$toMovementId],true,'transfer','Stock transfer');
+  }
+  if($action==='stock_undo'){
+   $undo=$_SESSION['stock_undo']??null;
+   if(!is_array($undo)||time()>(int)($undo['expires']??0))throw new Exception('The undo window has expired. No stock was changed.');
+   $productId=(int)($undo['product_id']??0);$changes=is_array($undo['changes']??null)?$undo['changes']:[];$movementIds=is_array($undo['movement_ids']??null)?$undo['movement_ids']:[];
+   if($productId<1||!$changes||count($changes)!==count($movementIds))throw new Exception('This stock change cannot be undone.');
+   $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');
+   $nextByLocation=[];
+   foreach($changes as $location=>$change){$location=stockLocationName((string)$location);if(!in_array($location,['Jay','Tony','Unallocated'],true))throw new Exception('This stock location cannot be undone.');
+    $latest=$db->prepare('SELECT id FROM stock_movements WHERE product_id=? AND location=? ORDER BY id DESC LIMIT 1');$latest->execute([$productId,$location]);
+    if((int)$latest->fetchColumn()!==(int)($movementIds[$location]??0))throw new Exception('A newer stock movement exists for this product. The old change can no longer be undone safely.');
+    $column=stockLocationColumn($location);$next=(int)$product[$column]+(int)$change;if($next<0||$next>999999)throw new Exception('Stock has since been committed or changed, so this action can no longer be undone safely.');
+    $nextByLocation[$location]=$next;
+   }
+   $db->beginTransaction();
+   foreach($changes as $location=>$change)adjustProductStockAtLocation($db,$productId,(string)$location,(int)$change);
+   if(($undo['movement_type']??'')==='transfer'){
+    foreach($changes as $location=>$change)if((int)$change<0)addStockMovement($db,$productId,'transfer_out',(int)$change,'Undo of recent stock transfer',null,'','','',null,(string)$location);
+    foreach($changes as $location=>$change)if((int)$change>0)addStockMovement($db,$productId,'transfer_in',(int)$change,'Undo of recent stock transfer',null,'','','',null,(string)$location);
+   }else{
+    $inverseType=($undo['movement_type']??'')==='count_adjustment'?'count_adjustment':((int)reset($changes)>0?'manual_add':'manual_remove');
+    foreach($changes as $location=>$change)addStockMovement($db,$productId,$inverseType,(int)$change,'Undo of recent '.(string)($undo['label']??'stock change'),null,'','','',null,(string)$location);
+   }
+   if(empty($undo['tracking_before']) && array_sum($nextByLocation)===0 && activeReservedStock($db,$productId,'Jay')===0 && activeReservedStock($db,$productId,'Tony')===0)$db->prepare("UPDATE products SET stock_tracking=0,stock_tracking_since='' WHERE id=?")->execute([$productId]);
+   $db->commit();unset($_SESSION['stock_undo']);$_SESSION['flash']='Stock change undone.';header('Location: ./?view=stock');exit;
   }
   if($action==='supplier_order_create'){
    $supplier=trim((string)($_POST['supplier']??''));$expected=trim((string)($_POST['expected_date']??''));$note=trim((string)($_POST['note']??''));$productIds=$_POST['product_id']??[];$packs=$_POST['packs']??[];$costs=$_POST['unit_cost']??[];
@@ -2162,7 +2190,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
-<?php if(!empty($_SESSION['flash'])):?><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php unset($_SESSION['flash']);endif;?>
+<?php if(!empty($_SESSION['flash'])):?><div class="flash-confirmation"><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><?php unset($_SESSION['flash']);?></div><?php endif;?>
 <?php if($view==='dashboard'): ?>
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted page-description">What needs attention and how the business is doing.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="dashboard-stats">
