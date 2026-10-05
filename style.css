@@ -4752,3 +4752,26 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .ios-plan-row strong{font-size:11px}
  .ios-reorder-details>span{padding:6px 3px}
 }
+
+
+/* Keep the order wizard action dock anchored to the mobile viewport. */
+@media(max-width:760px){
+  .wizard-actions{
+    position:fixed!important;
+    left:0!important;
+    right:0!important;
+    bottom:calc(76px + env(safe-area-inset-bottom))!important;
+    z-index:150!important;
+    width:100%!important;
+    box-sizing:border-box!important;
+    margin:0!important;
+    padding:12px 14px calc(10px + env(safe-area-inset-bottom))!important;
+  }
+  .order-wizard,
+  #edit-order-form{
+    padding-bottom:calc(165px + env(safe-area-inset-bottom))!important;
+  }
+  .ankh-assistant-button{
+    bottom:calc(158px + env(safe-area-inset-bottom))!important;
+  }
+}
