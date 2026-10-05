@@ -4778,20 +4778,11 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 /* Show a distinct recipient under the purchaser on dashboard action cards. */
 .todo-recipient-line{
-  display:flex;
-  align-items:baseline;
-  gap:6px;
+  display:block;
   margin:-2px 0 8px;
   color:#d7d0bf;
   font-size:12px;
   line-height:1.25;
-}
-.todo-recipient-line span{
-  color:var(--gold);
-  font-size:9px;
-  font-weight:800;
-  letter-spacing:.8px;
-  text-transform:uppercase;
 }
 @media(max-width:760px){
   .todo-recipient-line{font-size:11px;margin:-2px 0 7px}
