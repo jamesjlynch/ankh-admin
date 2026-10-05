@@ -2262,7 +2262,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><span>For</span><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
 <?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
 <div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
@@ -2283,7 +2283,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><span>For</span><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
 <div class="todo-accordion-side"><?php if(!empty($todo['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($todo['assigned_to']))?>"><?=e($todo['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
