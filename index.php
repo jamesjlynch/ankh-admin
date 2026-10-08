@@ -60,6 +60,7 @@ if(!in_array('postage_cost',array_column($orderColumns,'name'),true))$db->exec("
 if(!in_array('payment_fee',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN payment_fee INTEGER NOT NULL DEFAULT 0");
 if(!in_array('assigned_to',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN assigned_to TEXT NOT NULL DEFAULT ''");
 if(!in_array('recipient_name',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN recipient_name TEXT NOT NULL DEFAULT ''");
+if(!in_array('reconstituted',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN reconstituted INTEGER NOT NULL DEFAULT 0");
 $itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('presentation',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -1603,6 +1604,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->prepare('UPDATE orders SET delivery_date=? WHERE id=?')->execute([$deliveryDate,$orderId]);
    reconcileDeliveredStock($db,$orderId,true);syncProductCyclesFromDeliveredOrder($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
   }
+  if($action==='order_reconstituted'){
+   $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   if($orderId===false)throw new Exception('Choose a valid order.');
+   $reconstituted=(string)($_POST['reconstituted']??'0');
+   if(!in_array($reconstituted,['0','1'],true))throw new Exception('Choose a valid preparation state.');
+   $q=$db->prepare('SELECT id FROM orders WHERE id=?');$q->execute([$orderId]);
+   if(!$q->fetchColumn())throw new Exception('Order could not be found.');
+   $db->prepare('UPDATE orders SET reconstituted=? WHERE id=?')->execute([(int)$reconstituted,$orderId]);
+  }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
    if(!in_array($newStatus,$statuses,true))throw new Exception('Choose a valid status.');
@@ -1760,6 +1770,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'stock_untrack'=>'Product removed from Stock Control. Historical movements were kept.',
   'product_delete'=>'Product deleted.',
   'delivery_mark'=>'Delivery recorded; balance remains outstanding.',
+  'order_reconstituted'=>(($_POST['reconstituted']??'0')==='1')?'Order marked as reconstituted.':'Reconstituted mark removed.',
   'status'=>'Order status updated.',
   'product'=>'Product saved.',
   'customer'=>(int)($_POST['id']??0)?'Customer updated.':'Customer added.',
@@ -1787,7 +1798,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile84-recipient-name"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile85-reconstituted"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2262,11 +2273,16 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
 <?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
 <div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
+<form method="post" class="order-preparation-form">
+<?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
+<label class="order-preparation-toggle"><input type="checkbox" name="reconstituted" value="1" <?=(int)($todo['reconstituted']??0)===1?'checked':''?>><span><strong>Reconstituted</strong><small>Mark when preparation is complete</small></span></label>
+<button type="submit" class="order-preparation-save">Save</button>
+</form>
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><span>Total <?=money($todo['total'])?></span><?php if($todoPaid>0):?><span class="todo-paid-chip">Paid <?=money($todoPaid)?></span><?php endif;?><span class="todo-due-chip">Due <?=money($todoBalance)?></span></div>
 <form method="post" class="todo-action dashboard-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
 <div class="dashboard-payment-heading"><strong>Record payment</strong><small><?=money($todoBalance)?> outstanding</small></div>
@@ -2283,10 +2299,15 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
 <div class="todo-accordion-side"><?php if(!empty($todo['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($todo['assigned_to']))?>"><?=e($todo['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
+<form method="post" class="order-preparation-form">
+<?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
+<label class="order-preparation-toggle"><input type="checkbox" name="reconstituted" value="1" <?=(int)($todo['reconstituted']??0)===1?'checked':''?>><span><strong>Reconstituted</strong><small>Mark when preparation is complete</small></span></label>
+<button type="submit" class="order-preparation-save">Save</button>
+</form>
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><?php if(!empty($todo['delivery_method'])):?><span><?=e($todo['delivery_method'])?></span><?php endif;?></div>
 
 <?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
@@ -3947,5 +3968,15 @@ const editDateToggle=document.querySelector('#edit-order-date-toggle'),editOrder
 if(editDateToggle&&editOrderDate)editDateToggle.addEventListener('change',()=>{editOrderDate.disabled=!editDateToggle.checked;if(editDateToggle.checked)editOrderDate.focus()});
 </script><?php endif;?><script>
 (()=>{document.addEventListener('click',event=>{const open=event.target.closest('[data-reservation-open]');if(open){const dialog=document.getElementById(open.dataset.reservationOpen);if(dialog&&typeof dialog.showModal==='function')dialog.showModal();return}const close=event.target.closest('[data-reservation-close]');if(close){const dialog=close.closest('dialog');if(dialog)dialog.close()}});document.querySelectorAll('.stock-reservation-dialog').forEach(dialog=>dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()}))})();
+</script>
+<script>
+document.querySelectorAll('.order-preparation-form').forEach(form=>{
+ const checkbox=form.querySelector('input[type="checkbox"]');
+ const save=form.querySelector('.order-preparation-save');
+ if(!checkbox||!save)return;
+ save.hidden=true;
+ checkbox.addEventListener('change',()=>{save.hidden=false;form.requestSubmit();});
+ form.addEventListener('submit',()=>{save.disabled=true;form.setAttribute('aria-busy','true');});
+});
 </script>
 </body></html>

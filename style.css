@@ -4787,3 +4787,15 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 @media(max-width:760px){
   .todo-recipient-line{font-size:11px;margin:-2px 0 7px}
 }
+
+/* Dashboard preparation state: compact badge and comfortable mobile checkbox. */
+.order-reconstituted-badge{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:4px 8px;border:1px solid #74b99b55;border-radius:999px;background:#74b99b18;color:#a5d8bf;font-size:10px;font-weight:700;line-height:1.4}
+.order-preparation-form{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0 0;padding:12px;border:1px solid var(--border);border-radius:12px;background:#ffffff03}
+.order-preparation-toggle{display:flex;align-items:center;gap:12px;flex:1;min-width:0;margin:0;min-height:44px;cursor:pointer}
+.order-preparation-toggle input[type="checkbox"]{width:24px;height:24px;min-height:0;flex:0 0 24px;margin:0;padding:0;accent-color:#8fc9ac}
+.order-preparation-toggle span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.order-preparation-toggle strong{font-size:14px;color:var(--text,#f1eee6)}
+.order-preparation-toggle small{font-size:11px;line-height:1.4;color:var(--muted,#9a9b98)}
+.order-preparation-save{width:auto;min-height:44px;margin:0;padding:8px 14px;font-size:12px}
+.order-preparation-save[hidden]{display:none}
+@media(max-width:760px){.order-preparation-form{padding:9px 10px}.order-reconstituted-badge{font-size:10px}}
