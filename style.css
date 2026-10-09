@@ -4799,3 +4799,36 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .order-preparation-save{width:auto;min-height:44px;margin:0;padding:8px 14px;font-size:12px}
 .order-preparation-save[hidden]{display:none}
 @media(max-width:760px){.order-preparation-form{padding:9px 10px}.order-reconstituted-badge{font-size:10px}}
+
+/* Mobile stock counts and dashboard drill-downs. */
+.dashboard-stat-card{display:block;padding:20px;border:1px solid var(--border);border-radius:15px;background:linear-gradient(135deg,#202122,#18191a);color:inherit;text-decoration:none;transition:border-color .15s,background .15s}
+.dashboard-stat-card:hover{border-color:#dfb66675;background:linear-gradient(135deg,#29271f,#1b1c1b)}
+.dashboard-stat-card small::after{content:'›';float:right;color:var(--gold);font-size:16px;line-height:1}
+.dashboard-stock-link{color:inherit;text-decoration:none;gap:12px;min-height:48px;border-radius:8px}
+.dashboard-stock-link:hover{background:#dfb6660b}
+.dashboard-stock-link strong{flex-shrink:0}
+.dashboard-stock-link i{font-style:normal;color:var(--gold);margin-left:6px}
+.order-scope-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border:1px solid #dfb66640;background:#dfb6660b;border-radius:14px;margin:18px 0}
+.order-scope-banner strong,.order-scope-banner small{display:block}
+.order-scope-banner small{color:var(--muted);margin-top:6px;font-size:12px}
+.stock-fridge-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.stock-fridge-total{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:8px;padding:12px;border-radius:12px;border:1px solid #7ca8b540;background:#7ca8b509}
+.stock-fridge-total.tony{border-color:#dfb66640;background:#dfb66609}
+.stock-fridge-total span{font-size:12px;font-weight:600;line-height:1.35}
+.stock-fridge-total strong{grid-row:span 2;font-size:24px;font-weight:700;color:#efe5c8}
+.stock-fridge-total small{font-size:10px;color:var(--muted);margin-top:4px}
+.stock-count-editor{margin:8px 0 14px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.stock-count-editor>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:10px 12px;color:var(--gold);font-size:12px;font-weight:600;cursor:pointer;list-style:none}
+.stock-count-editor>summary::-webkit-details-marker{display:none}
+.stock-count-editor[open]>summary{border-bottom:1px solid var(--border)}
+.stock-fridge-count-form{padding:12px;margin:0;border:0;background:transparent}
+.stock-fridge-count-form p{font-size:12px;line-height:1.5;color:var(--muted);margin:0 0 12px}
+.stock-count-inputs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.stock-count-inputs label{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0;font-size:12px}
+.stock-count-inputs input{width:100%;min-width:0;min-height:48px;font-size:18px;text-align:center;margin:0}
+.stock-count-inputs small{font-size:10px;color:var(--muted)}
+.stock-fridge-count-form>button{width:100%;min-height:44px;margin-top:12px;font-size:13px;padding:12px}
+.stock-product-card{scroll-margin-top:24px}
+.stock-product-card:target{border-color:var(--gold);box-shadow:0 0 0 2px #dfb66625}
+.stock-product-card[hidden]{display:none!important}
+@media(max-width:760px){.dashboard-stat-card{padding:15px 11px}.order-scope-banner{padding:12px}.order-scope-banner .quick-action{white-space:nowrap;font-size:11px}.stock-fridge-total{padding:10px}.stock-fridge-total span{font-size:11px}.stock-fridge-total strong{font-size:22px}}

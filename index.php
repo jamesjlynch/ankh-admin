@@ -1430,6 +1430,28 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $movementType=(int)$delta>0?'manual_add':'manual_remove';$movementNote=(int)$delta>0?'Quick stock added to '.$location.'’s fridge':'Quick stock removed from '.$location.'’s fridge';
    addStockMovement($db,$productId,$movementType,(int)$delta,$movementNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-(int)$delta],[$location=>$movementId],true,$movementType,'Quick stock change');
   }
+  if($action==='stock_fridge_counts'){
+   $productId=filter_var($_POST['product_id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   $counts=[];$expected=[];
+   foreach(['Jay','Tony'] as $person){$key=strtolower($person);$counts[$person]=filter_var($_POST[$key.'_physical']??'',FILTER_VALIDATE_INT);$expected[$person]=filter_var($_POST['expected_'.$key.'_physical']??'',FILTER_VALIDATE_INT);
+    if($productId===false||$counts[$person]===false||$counts[$person]<0||$counts[$person]>999999||$expected[$person]===false||$expected[$person]<0)throw new Exception('Enter valid physical counts for both fridges.');}
+   $db->beginTransaction();
+   $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Set up stock tracking on the product first.');
+   $changes=[];$movementIds=[];$updates=[];
+   foreach(['Jay','Tony'] as $person){
+    $before=(int)$product[stockLocationColumn($person)];$reserved=activeReservedStock($db,(int)$productId,$person);$physical=$before+$reserved;
+    if($physical!==$expected[$person])throw new Exception($person.'’s stock changed since this page was opened. Refresh and check the latest count before saving.');
+    if($counts[$person]<$reserved)throw new Exception($person.'’s total cannot be below the '.$reserved.' units reserved for orders. Check those orders first.');
+    $updates[$person]=['available'=>$counts[$person]-$reserved,'delta'=>$counts[$person]-$physical,'physical'=>$physical];
+   }
+   foreach($updates as $person=>$update){if($update['delta']===0)continue;
+    setProductStockAtLocation($db,(int)$productId,$person,$update['available']);
+    addStockMovement($db,(int)$productId,'count_adjustment',$update['delta'],'Physical count corrected from '.$update['physical'].' to '.$counts[$person].' on Stock Control; reservations preserved',null,'','','',null,$person);
+    $changes[$person]=-$update['delta'];$movementIds[$person]=(int)$db->lastInsertId();
+   }
+   $db->commit();if($changes)rememberStockUndo((int)$productId,$changes,$movementIds,true,'count_adjustment','Fridge counts');
+  }
   if($action==='stock_count'){
    $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$note=trim((string)($_POST['note']??''));
    if($productId<1||$counted===false||$counted<0||$counted>999999||!in_array($location,['Jay','Tony'],true)||strlen($note)>500)throw new Exception('Enter a valid fridge stock count.');
@@ -1766,6 +1788,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'supplier_order_create'=>'Supplier order added to Incoming Stock.',
   'supplier_stock_receive'=>'Incoming stock received and allocated.',
   'supplier_order_cancel'=>'Supplier order cancelled.',
+  'stock_fridge_counts'=>'Fridge totals saved; reserved orders were preserved.',
   'stock_count'=>'Physical stock count reconciled.',
   'stock_untrack'=>'Product removed from Stock Control. Historical movements were kept.',
   'product_delete'=>'Product deleted.',
@@ -1782,6 +1805,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if($flash!=='')$_SESSION['flash']=$flash;
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
  $returnView=(string)($_POST['return']??'orders');$returnSection=(string)($_POST['return_section']??'');
+ if($action==='stock_fridge_counts'){
+  $returnFilter=(($_POST['return_filter']??'')==='low')?'&filter=low':'';
+  $returnFridge=in_array($_POST['return_fridge']??'combined',['combined','jay','tony'],true)?(string)($_POST['return_fridge']??'combined'):'combined';
+  header('Location: ./?view=stock'.$returnFilter.'&fridge='.urlencode($returnFridge).'#stock-product-'.(int)($_POST['product_id']??0));exit;
+ }
  if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
  else if($returnView==='recurring')header('Location: ./?view=orders&section=recurring');
  else if($returnView==='stock' && in_array($returnSection,['incoming','forecast','history'],true))header('Location: ./?view=stock&section='.urlencode($returnSection));
@@ -1798,7 +1826,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile85-reconstituted"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile86-stock-drilldowns"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -1999,7 +2027,7 @@ foreach($orders as $dashboardOrder){
  if($dashboardOrder['status']!=='Cancelled')$unpaidBalance+=max(0,(int)$dashboardOrder['total']-(int)($dashboardOrder['paid_amount']??0));
 }
 $awaitingPayment=array_values(array_filter($orders,fn($o)=>$o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0));
-$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true)));
+$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))===''));
 usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 usort($awaitingDelivery,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 $todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id')));
@@ -2077,7 +2105,9 @@ usort($reportOrderRows,fn($a,$b)=>$b['ts']<=>$a['ts'] ?: $b['id']<=>$a['id']);
 $selectedReportOrders=array_values(array_filter($reportOrderRows,fn($row)=>$row['ts']>=$reportPeriods[$reportPeriodKey]['start']));
 $grossProfit=$reportPeriods['all']['profit'];
 $trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && (int)($p['stock_tracking']??0)===1 && $p['stock_qty']!==null));
-$lowStock=array_values(array_filter($trackedStock,fn($p)=>(int)$p['stock_qty']<=(int)$p['low_stock_at']));
+// Low stock follows the Combined fridge view (Jay + Tony), not holding stock.
+$lowStock=array_values(array_filter(array_map(function($p){$p['fridge_available']=(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0);return $p;},$trackedStock),fn($p)=>$p['fridge_available']<=(int)$p['low_stock_at']));
+usort($lowStock,fn($a,$b)=>$a['fridge_available']<=>$b['fridge_available'] ?: strcasecmp((string)$a['name'],(string)$b['name']));
 $penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -2239,12 +2269,12 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($view==='dashboard'): ?>
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted page-description">What needs attention and how the business is doing.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="dashboard-stats">
-<article><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></article>
-<article><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></article>
-<article><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></article>
-<article><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></article>
-<article><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></article>
-<article><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></article>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=today_sales"><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
+<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></a>
+<a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
 
 <?php if($topSelling):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
@@ -2318,12 +2348,28 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 
 </div></section><?php endif;?>
 
-<?php if($lowStock):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=products">Manage →</a></div>
-<?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><div class="dashboard-row"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['stock_qty']?> left</strong></div><?php endforeach;?>
+<?php if($lowStock):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=stock&amp;filter=low">View all →</a></div>
+<?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><a class="dashboard-row dashboard-stock-link" href="?view=stock&amp;filter=low#stock-product-<?=(int)$stockProduct['id']?>"><span><?=e($stockProduct['name'])?></span><strong><?=$stockProduct['fridge_available']?> left <i aria-hidden="true">›</i></strong></a><?php endforeach;?>
 </section></div><?php endif;?>
 <?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit excludes costs that have not been mapped yet.</p><?php endif;?>
 <?php elseif($view==='orders'): ?>
-<?php $ordersSection=(($_GET['section']??'all')==='recurring')?'recurring':'all';?>
+<?php
+$ordersSection=(($_GET['section']??'all')==='recurring')?'recurring':'all';
+$orderScopes=['today_sales'=>'Today’s sales','month_sales'=>'This month’s sales','unpaid'=>'Unpaid orders','to_deliver'=>'Orders to deliver'];
+$orderScope=in_array((string)($_GET['scope']??''),array_keys($orderScopes),true)?(string)$_GET['scope']:'';
+$listedOrders=$orders;
+if($ordersSection==='all' && $orderScope!==''){
+ $listedOrders=array_values(array_filter($orders,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart){
+  if($orderScope==='unpaid')return $o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0;
+  if($orderScope==='to_deliver')return in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='';
+  $salesTs=strtotime((string)($o['payment_date']?:$o['created']))?:0;
+  return in_array($o['status'],$paidStatuses,true) && $salesTs>=($orderScope==='today_sales'?$todayStart:$monthStart);
+ }));
+}
+$listedOpen=count(array_filter($listedOrders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
+$listedPaid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$listedOrders));
+$listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['total']-(int)($o['paid_amount']??0)):(int)$o['total'],$listedOrders));
+?>
 <div class="heading"><div><h1>Orders</h1><p class="muted page-description">Search, update or repeat any order.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="orders-section-tabs"><a href="?view=orders" class="<?=$ordersSection==='all'?'selected':''?>">All orders <b><?=count($orders)?></b></a><a href="?view=orders&amp;section=recurring" class="<?=$ordersSection==='recurring'?'selected':''?>">Recurring <b><?=count($retaCyclesActive)?></b></a></div>
 <?php if($ordersSection==='recurring'):?>
@@ -2389,10 +2435,11 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </section>
 <script>(()=>{const button=document.querySelector('[data-recurring-custom-toggle]'),form=document.querySelector('[data-recurring-custom-form]');if(button&&form)button.addEventListener('click',()=>form.classList.toggle('open'))})();</script>
 <?php else:?>
-<div class="stats compact-stats"><article><span>Open</span><strong><?=$open?></strong></article><article><span>Paid value</span><strong><?=money($paid)?></strong></article><article><span>Total</span><strong><?=count($orders)?></strong></article></div>
+<?php if($orderScope!==''):?><div class="order-scope-banner"><div><strong><?=e($orderScopes[$orderScope])?></strong><small><?=count($listedOrders)?> orders · <?=money($listedValue)?><?=$orderScope==='unpaid'?' outstanding':''?></small></div><a class="quick-action quiet" href="?view=orders">All orders →</a></div><?php endif;?>
+<div class="stats compact-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div>
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
-<?php foreach($orders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
+<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div>
 <div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
 <?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>
@@ -2406,7 +2453,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <details class="order-date-editor"><summary>Edit payment / delivery dates</summary><form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button>Save dates</button></form></details>
 <form method="post" class="status-form compact-status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="status-fields"><label>Status<select name="status"><?php foreach($statuses as $statusOption):?><option <?=$statusOption===$o['status']?'selected':''?>><?=e($statusOption)?></option><?php endforeach;?></select></label><label>Payment method<select name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$o['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div><button>Save</button></form>
 <form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
-<p id="empty" class="empty" <?=count($orders)?'hidden':''?>>No orders to show.</p>
+<p id="empty" class="empty" <?=count($listedOrders)?'hidden':''?>>No orders to show.</p>
 <?php endif;?>
 <?php elseif($view==='new'):?>
 <div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><div class="repeat-order-note"><strong>Current repeat only</strong><span>Remove any product they no longer want or take. The previous order stays unchanged.</span></div><?php endif;?></div><div class="new-order-tools"><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
@@ -2524,7 +2571,10 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </div></details><?php endforeach;?></div></details></section>
 <script>(()=>{const input=document.querySelector('#product-filter');if(!input)return;const active=[...document.querySelectorAll('.product-catalog-grid .product-tile')],hidden=[...document.querySelectorAll('.hidden-product-grid .product-admin-card')],hiddenList=document.querySelector('#hidden-product-list'),empty=document.querySelector('#product-no-results');input.addEventListener('input',()=>{const query=input.value.trim().toLocaleLowerCase();let visible=0;active.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)visible++});let hiddenVisible=0;hidden.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)hiddenVisible++});if(query&&hiddenVisible)hiddenList.open=true;empty.hidden=visible+hiddenVisible>0;});})();</script>
 <?php elseif($view==='stock'):?>
-<?php $trackedProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));$stockSection=in_array((string)($_GET['section']??'overview'),['overview','incoming','forecast','history'],true)?(string)($_GET['section']??'overview'):'overview';?>
+<?php $stockLowOnly=(($_GET['filter']??'')==='low');$stockInitialView=in_array($_GET['fridge']??'combined',['combined','jay','tony'],true)?(string)($_GET['fridge']??'combined'):'combined';
+$trackedProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));
+if($stockLowOnly){$initialQty=fn($p)=>$stockInitialView==='combined'?(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0):(int)($p[$stockInitialView==='jay'?'stock_jay_qty':'stock_tony_qty']??0);usort($trackedProducts,fn($a,$b)=>$initialQty($a)<=>$initialQty($b) ?: strcasecmp((string)$a['name'],(string)$b['name']));}
+$stockSection=in_array((string)($_GET['section']??'overview'),['overview','incoming','forecast','history'],true)?(string)($_GET['section']??'overview'):'overview';?>
 <div class="heading stock-heading"><div><p class="eyebrow">INVENTORY</p><h1>Stock control</h1><p class="muted page-description"><?=$stockSection==='overview'?'Your stock at a glance. Add, move and check balances without a long admin screen':($stockSection==='incoming'?'Supplier orders and stock that is on the way':($stockSection==='forecast'?'Plan ahead using available, incoming and expected recurring demand':'A complete recent audit of stock changes'))?>.</p></div><a class="quick-action stock-manage-link" href="?view=products"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/></svg><span>Manage stock</span><b>›</b></a></div>
 <nav class="stock-workspace-nav stock-workspace-dock" aria-label="Stock sections">
  <a href="?view=stock" class="<?=$stockSection==='overview'?'selected':''?>">
@@ -2626,7 +2676,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
  <a href="?view=stock&amp;section=forecast"><span class="stock-tool-icon">↗</span><div><strong>Potential stock needed</strong><small>Expected recurring demand</small></div><b>→</b></a>
  <a href="?view=stock&amp;section=history"><span class="stock-tool-icon">≡</span><div><strong>Movement history</strong><small>Stock audit trail</small></div><b>→</b></a>
 </section>
-<section class="stock-products-section"><header class="stock-products-heading"><p class="eyebrow">TRACKED PRODUCTS</p><h2 id="stock-view-title">Combined fridge stock</h2></header><div class="stock-filter-bar"><button class="stock-low-filter" type="button" aria-pressed="false" data-low-stock-filter>Low stock only</button><span class="stock-low-summary" data-low-stock-summary aria-live="polite"></span></div><div class="stock-product-grid" data-fridge-view="combined">
+<section class="stock-products-section"><header class="stock-products-heading"><p class="eyebrow">TRACKED PRODUCTS</p><h2 id="stock-view-title"><?=$stockLowOnly?'Low-stock products':'Combined fridge stock'?></h2></header><div class="stock-filter-bar"><button class="stock-low-filter" type="button" aria-pressed="<?=$stockLowOnly?'true':'false'?>" data-low-stock-filter>Low stock only</button><span class="stock-low-summary" data-low-stock-summary aria-live="polite"></span></div><div class="stock-product-grid" data-fridge-view="combined">
 <?php if($trackedProducts):foreach($trackedProducts as $sp):
  $jayAvailable=(int)($sp['stock_jay_qty']??0);$tonyAvailable=(int)($sp['stock_tony_qty']??0);$combinedAvailable=$jayAvailable+$tonyAvailable;
  $jayReserved=(int)($reservedStockByProduct[(int)$sp['id']]['jay']??0);$tonyReserved=(int)($reservedStockByProduct[(int)$sp['id']]['tony']??0);$combinedReserved=$jayReserved+$tonyReserved;
@@ -2634,15 +2684,29 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
  $retailUnit=(int)$sp['price'];$costUnit=$sp['cost']===null?null:(int)$sp['cost'];
  $jayRetail=$jayAvailable*$retailUnit;$tonyRetail=$tonyAvailable*$retailUnit;$combinedRetail=$combinedAvailable*$retailUnit;
  $jayProfit=$costUnit===null?null:$jayAvailable*($retailUnit-$costUnit);$tonyProfit=$costUnit===null?null:$tonyAvailable*($retailUnit-$costUnit);$combinedProfit=$costUnit===null?null:$combinedAvailable*($retailUnit-$costUnit);
-?><article class="stock-product-card" data-jay-qty="<?=$jayAvailable?>" data-tony-qty="<?=$tonyAvailable?>" data-combined-qty="<?=$combinedAvailable?>" data-low-threshold="<?=e((int)($sp['low_stock_at']??2))?>">
+$initialStockQty=$stockInitialView==='jay'?$jayAvailable:($stockInitialView==='tony'?$tonyAvailable:$combinedAvailable);$stockCardIsLow=(int)$sp['active']===1 && $initialStockQty<=(int)$sp['low_stock_at'];
+?><article class="stock-product-card" id="stock-product-<?=(int)$sp['id']?>" data-stock-active="<?=(int)$sp['active']?>" <?=$stockLowOnly&&!$stockCardIsLow?'hidden':''?> data-jay-qty="<?=$jayAvailable?>" data-tony-qty="<?=$tonyAvailable?>" data-combined-qty="<?=$combinedAvailable?>" data-low-threshold="<?=e((int)($sp['low_stock_at']??2))?>">
 <div class="stock-product-title"><span class="product-vial-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M12 4h8v4l2 2v15a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V10l2-2V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M12 14h8M13 7h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="3" opacity=".35"/></svg></span><div><h3><?=e($sp['name'])?></h3><small><?=money($retailUnit)?> each<?=$costUnit===null?' · cost not set':' · '.money($costUnit).' cost'?></small><?php $productIncoming=(int)($incomingByProduct[(int)$sp['id']]??0);if($productIncoming>0):?><em class="incoming-stock-pill">+<?=$productIncoming?> incoming</em><?php endif;?></div></div>
+<div class="stock-fridge-totals" aria-label="Physical fridge totals">
+ <div class="stock-fridge-total jay"><span>Jay’s fridge</span><strong><?=$jayPhysical?></strong><small>total units</small></div>
+ <div class="stock-fridge-total tony"><span>Tony’s fridge</span><strong><?=$tonyPhysical?></strong><small>total units</small></div>
+</div>
+<details class="stock-count-editor"><summary><span>Edit fridge counts</span><span aria-hidden="true">✎</span></summary>
+ <form method="post" class="stock-fridge-count-form"><?php csrf();?><input type="hidden" name="action" value="stock_fridge_counts"><input type="hidden" name="return" value="stock"><input type="hidden" name="product_id" value="<?=(int)$sp['id']?>">
+ <input type="hidden" name="expected_jay_physical" value="<?=$jayPhysical?>"><input type="hidden" name="expected_tony_physical" value="<?=$tonyPhysical?>">
+ <input type="hidden" name="return_filter" value="<?=$stockLowOnly?'low':''?>"><input type="hidden" name="return_fridge" value="<?=e($stockInitialView)?>">
+ <p>Enter the total physically in each fridge, including reserved units.</p>
+ <div class="stock-count-inputs"><label>Jay’s fridge<input type="number" inputmode="numeric" name="jay_physical" min="<?=$jayReserved?>" max="999999" step="1" value="<?=$jayPhysical?>" required><small><?=$jayReserved?> reserved</small></label><label>Tony’s fridge<input type="number" inputmode="numeric" name="tony_physical" min="<?=$tonyReserved?>" max="999999" step="1" value="<?=$tonyPhysical?>" required><small><?=$tonyReserved?> reserved</small></label></div>
+ <button type="submit">Save fridge counts</button>
+ </form>
+</details>
 <div class="stock-product-counts">
 <?php foreach([
  'jay'=>['label'=>'Jay’s fridge','physical'=>$jayPhysical,'reserved'=>$jayReserved,'available'=>$jayAvailable,'retail'=>$jayRetail,'profit'=>$jayProfit],
  'tony'=>['label'=>'Tony’s fridge','physical'=>$tonyPhysical,'reserved'=>$tonyReserved,'available'=>$tonyAvailable,'retail'=>$tonyRetail,'profit'=>$tonyProfit],
  'combined'=>['label'=>'Combined','physical'=>$combinedPhysical,'reserved'=>$combinedReserved,'available'=>$combinedAvailable,'retail'=>$combinedRetail,'profit'=>$combinedProfit]
 ] as $stockKey=>$stockView):$stockReservations=array_values(array_filter($reservationDetailsByProduct[(int)$sp['id']]??[],fn($reservation)=>$stockKey==='combined'||strtolower((string)$reservation['location'])===$stockKey));$reservationDialogId='reserved-'.(int)$sp['id'].'-'.$stockKey;?>
-<div class="<?=$stockKey==='combined'?'stock-product-combined ':''?>stock-availability-panel" data-stock-count="<?=$stockKey?>" <?=$stockKey!=='combined'?'hidden':''?>>
+<div class="<?=$stockKey==='combined'?'stock-product-combined ':''?>stock-availability-panel" data-stock-count="<?=$stockKey?>" <?=$stockKey!==$stockInitialView?'hidden':''?>>
  <div class="stock-availability-three"><span><small>Physical</small><b><?=$stockView['physical']?></b></span><?php if($stockView['reserved']>0):?><button type="button" class="stock-reserved-trigger" data-reservation-open="<?=e($reservationDialogId)?>"><small>Reserved</small><b class="has-reserved"><?=$stockView['reserved']?></b><em>Tap to view</em></button><?php else:?><span><small>Reserved</small><b>0</b></span><?php endif;?><span class="available"><small>Available</small><b><?=$stockView['available']?></b></span></div>
  <div class="stock-value-lines"><small><b>Retail value available</b><?=money($stockView['retail'])?></small><small><b>Potential profit</b><?=$stockView['profit']===null?'—':money($stockView['profit'])?></small></div>
  <?php if($stockReservations):?><dialog class="stock-reservation-dialog" id="<?=e($reservationDialogId)?>"><div class="reservation-sheet"><header><div><p class="eyebrow">RESERVED STOCK</p><h3><?=e($sp['name'])?></h3><small><?=$stockView['reserved']?> unit<?=$stockView['reserved']===1?'':'s'?> reserved · <?=e($stockView['label'])?></small></div><button type="button" class="reservation-close" data-reservation-close aria-label="Close">×</button></header><div class="reservation-order-list"><?php foreach($stockReservations as $reservation):?><article><div class="reservation-order-icon">#</div><div class="reservation-order-copy"><strong><?=e($reservation['customer'])?></strong><span>ANK-<?=str_pad((string)$reservation['order_id'],4,'0',STR_PAD_LEFT)?> · <?=e($reservation['status'])?></span><small><?=e($reservation['location']==='Unallocated'?'Holding / unallocated':$reservation['location'].'’s fridge')?><?php if(trim($reservation['assigned_to'])!==''):?> · Assigned to <?=e($reservation['assigned_to'])?><?php endif;?></small></div><b><?=$reservation['quantity']?> unit<?=$reservation['quantity']===1?'':'s'?></b></article><?php endforeach;?></div><footer><span>Reserved stock is already removed from Available.</span><button type="button" data-reservation-close>Done</button></footer></div></dialog><?php endif;?>
@@ -2650,7 +2714,31 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php endforeach;?>
 </div></article>
 <?php endforeach;else:?><div class="panel stock-empty-state"><span class="product-vial-icon" aria-hidden="true">＋</span><strong>No tracked products yet</strong><p>Open a product in Products and add a physical count for Jay’s or Tony’s fridge.</p><a class="quick-action" href="?view=products">Set up stock →</a></div><?php endif;?></div></section>
-<script>(()=>{const grid=document.querySelector('.stock-product-grid'),buttons=[...document.querySelectorAll('.stock-location-filter')],title=document.querySelector('#stock-view-title'),lowButton=document.querySelector('[data-low-stock-filter]'),lowSummary=document.querySelector('[data-low-stock-summary]');if(!grid||!buttons.length)return;const names={combined:'Combined fridge stock',jay:'Jay’s fridge',tony:'Tony’s fridge'};let view='combined',lowOnly=false;function refresh(){grid.dataset.fridgeView=view;if(title)title.textContent=names[view];buttons.forEach(button=>button.setAttribute('aria-pressed',button.dataset.stockView===view?'true':'false'));grid.querySelectorAll('[data-stock-count]').forEach(count=>{count.hidden=count.dataset.stockCount!==view});let lowCount=0;grid.querySelectorAll('.stock-product-card').forEach(card=>{const quantity=Number(card.dataset[view+'Qty']||0),threshold=Number(card.dataset.lowThreshold||0),isLow=quantity<=threshold;if(isLow)lowCount++;card.hidden=lowOnly&&!isLow});if(lowButton)lowButton.setAttribute('aria-pressed',lowOnly?'true':'false');if(lowSummary)lowSummary.textContent=lowCount?lowCount+' product'+(lowCount===1?'':'s')+' at or below alert level':'No products at or below alert level'}buttons.forEach(button=>button.addEventListener('click',()=>{view=button.dataset.stockView;refresh()}));if(lowButton)lowButton.addEventListener('click',()=>{lowOnly=!lowOnly;refresh()});refresh()})();</script>
+<script>(()=>{
+ const grid=document.querySelector('.stock-product-grid'),buttons=[...document.querySelectorAll('.stock-location-filter')],title=document.querySelector('#stock-view-title'),lowButton=document.querySelector('[data-low-stock-filter]'),lowSummary=document.querySelector('[data-low-stock-summary]');
+ if(!grid||!buttons.length)return;
+ const names={combined:'Combined fridge stock',jay:'Jay’s fridge',tony:'Tony’s fridge'},params=new URLSearchParams(location.search);
+ let view=['combined','jay','tony'].includes(params.get('fridge'))?params.get('fridge'):'combined',lowOnly=params.get('filter')==='low';
+ const cards=[...grid.querySelectorAll('.stock-product-card')],originalCards=[...cards];
+ function refresh(){
+  grid.dataset.fridgeView=view;if(title)title.textContent=lowOnly?'Low stock · '+names[view]:names[view];
+  buttons.forEach(button=>button.setAttribute('aria-pressed',button.dataset.stockView===view?'true':'false'));
+  grid.querySelectorAll('[data-stock-count]').forEach(count=>{count.hidden=count.dataset.stockCount!==view});
+  let lowCount=0;
+  cards.forEach(card=>{const quantity=Number(card.dataset[view+'Qty']||0),threshold=Number(card.dataset.lowThreshold||0),isLow=card.dataset.stockActive==='1' && quantity<=threshold;if(isLow)lowCount++;card.hidden=lowOnly&&!isLow});
+  const ordered=lowOnly?[...cards].sort((a,b)=>Number(a.dataset[view+'Qty']||0)-Number(b.dataset[view+'Qty']||0)||a.querySelector('h3').textContent.localeCompare(b.querySelector('h3').textContent)):originalCards;
+  ordered.forEach(card=>grid.appendChild(card));
+  if(lowButton)lowButton.setAttribute('aria-pressed',lowOnly?'true':'false');
+  if(lowSummary)lowSummary.textContent=lowCount?lowCount+' product'+(lowCount===1?'':'s')+' at or below alert level':'No products at or below alert level';
+  grid.querySelectorAll('input[name="return_filter"]').forEach(input=>{input.value=lowOnly?'low':''});
+  grid.querySelectorAll('input[name="return_fridge"]').forEach(input=>{input.value=view});
+ }
+ function keepFilters(){const url=new URL(location.href);if(lowOnly)url.searchParams.set('filter','low');else url.searchParams.delete('filter');url.searchParams.set('fridge',view);history.replaceState(null,'',url);}
+ buttons.forEach(button=>button.addEventListener('click',()=>{view=button.dataset.stockView;refresh();keepFilters()}));
+ if(lowButton)lowButton.addEventListener('click',()=>{lowOnly=!lowOnly;refresh();keepFilters()});
+ refresh();
+ if(location.hash.startsWith('#stock-product-')){const target=document.getElementById(location.hash.slice(1));if(target&&!target.hidden)requestAnimationFrame(()=>target.scrollIntoView({block:'start'}));}
+})();</script>
 <?php endif;?>
 <?php if($stockSection==='forecast'):?>
 <div class="stock-subpage-heading"><a href="?view=stock">← Stock overview</a><div><p class="eyebrow">STOCK PLANNING</p><h2>Potential stock needed</h2><p>Available + incoming stock compared with expected recurring demand.</p></div></div>
