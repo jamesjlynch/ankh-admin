@@ -27,13 +27,22 @@ $orders=[
 $start=strpos($source,'$futureDeliveries=array_values(');$end=strpos($source,'usort($awaitingPayment',$start);
 check($start!==false&&$end!==false,'Dashboard scheduling dataset must exist.');
 eval(substr($source,$start,$end-$start));
-check(array_column($futureDeliveries,'id')===[2,1],'Future orders must be nearest first; delivered/cancelled must be excluded.');
-check(array_column($awaitingDelivery,'id')===[1,3,4,5],'All paid undelivered orders must remain awaiting delivery, including future dates.');
+check(array_column($futureDeliveries,'id')===[1],'Future orders must exclude imminent deliveries and terminal orders.');
+check(array_column($awaitingDelivery,'id')===[2,3,4,5],'Imminent (including unpaid) and undated paid orders must be awaiting.');
+check(!array_intersect(array_column($futureDeliveries,'id'),array_column($awaitingDelivery,'id')),'Delivery sections must never duplicate orders.');
 check(!isFutureDelivery($orders[1],'2026-10-12'),'On its due date an order must leave Future deliveries.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-15']),'2026-10-11')==='awaiting','Four days away should be Awaiting delivery.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-16']),'2026-10-11')==='future','Five days away should be Future deliveries.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-16','delivery_section_override'=>'awaiting']),'2026-10-11')==='awaiting','A manual move to Awaiting should override the five-day rule.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-15','delivery_section_override'=>'future']),'2026-10-11')==='future','A manual move to Future should override the five-day rule.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-11','delivery_section_override'=>'future']),'2026-10-11')==='awaiting','A due-today order should not remain hidden in Future.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'','delivery_section_override'=>'future']),'2026-10-11')==='awaiting','A paid undated order cannot be hidden manually.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'','status'=>'New','paid_amount'=>0]),'2026-10-11')==='','An unpaid unscheduled order belongs to Awaiting payment only.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-19','delivery_date'=>'2026-10-11']),'2026-10-11')==='','Delivered orders must not appear in either delivery section.');
 $ordersSection='all';$_GET=['scope'=>'to_deliver'];$paidStatuses=['Paid','Packed','Dispatched','Delivered'];$todayStart=$today->getTimestamp();$monthStart=$today->modify('first day of this month')->getTimestamp();
 $start=strpos($source,"$"."orderScopes=['today_sales'");$end=strpos($source,'?>',$start);
 check($start!==false&&$end!==false,'Order drill-down must exist.');eval(substr($source,$start,$end-$start));
-check(array_column($listedOrders,'id')===[1,3,4,5],'To-deliver drill-down must match the dashboard.');
+check(array_column($listedOrders,'id')===[2,3,4,5],'To-deliver drill-down must match Awaiting delivery.');
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 preg_match("/INSERT INTO orders\\(customer,recipient_name,[^']+\\)/",$source,$insertMatch);
 check(!empty($insertMatch),'Order insert must exist.');
@@ -45,6 +54,9 @@ $db->exec("INSERT INTO orders(id,customer) VALUES (1,'Existing')");
 preg_match('/ALTER TABLE orders ADD COLUMN scheduled_delivery_date TEXT NOT NULL DEFAULT \'\'/',$source,$migration);
 check(!empty($migration),'Schedule migration must exist.');$db->exec($migration[0]);
 check($db->query('SELECT scheduled_delivery_date FROM orders WHERE id=1')->fetchColumn()==='','Existing orders must start unscheduled.');
+preg_match("/ALTER TABLE orders ADD COLUMN delivery_section_override TEXT NOT NULL DEFAULT \\'\\'/",$source,$overrideMigration);
+check(!empty($overrideMigration),'Manual delivery section migration must exist.');$db->exec($overrideMigration[0]);
+check($db->query('SELECT delivery_section_override FROM orders WHERE id=1')->fetchColumn()==='','Existing orders must start with automatic routing.');
 $values=array_map(fn($c)=>match($c){'customer'=>'New order','created'=>'2026-10-11T12:00:00+00:00','scheduled_delivery_date'=>'2026-10-20',default=>''},$columns);
 $db->prepare($insertSql)->execute($values);$id=(int)$db->lastInsertId();
 check($db->query('SELECT scheduled_delivery_date FROM orders WHERE id='.$id)->fetchColumn()==='2026-10-20','Schedule must persist.');
@@ -163,3 +175,39 @@ check(strpos($futureUi,'future-order-details') < strpos($futureUi,'dashboardDeli
 $futureCss=file_get_contents(dirname(__DIR__).'/style.css');
 check(str_contains($futureCss,'.future-order-entry[open] .future-order-chevron') && str_contains($futureCss,'.future-order-details'),'Compact future order CSS must include an expanded state.');
 echo "PASS: compact expandable future delivery tiles, paid/unpaid/part-paid labels, edit access, hidden preparation and date controls.\\n";
+
+$start=strpos($source,"  if(\$action==='order_delivery_section'){");$end=strpos($source,"  if(\$action==='order_reconstituted'){",$start);
+check($start!==false&&$end!==false,'Manual delivery section action must exist.');
+$moveCode=substr($source,$start,$end-$start);
+$action='order_delivery_section';
+$db->prepare("UPDATE orders SET status='Paid',delivery_date='',scheduled_delivery_date=?,delivery_section_override='' WHERE id=?")->execute([$planned,$id]);
+$moveBefore=preparationRow($db,$id);
+$_POST=['id'=>$id,'delivery_section'=>'awaiting'];eval($moveCode);
+$moveAfter=preparationRow($db,$id);
+check($moveAfter['delivery_section_override']==='awaiting','Manual move into Awaiting must persist.');
+unset($moveBefore['delivery_section_override'],$moveAfter['delivery_section_override']);
+check($moveBefore===$moveAfter,'Manual section changes cannot alter payment, delivery or preparation.');
+$_POST=['id'=>$id,'delivery_section'=>'future'];eval($moveCode);
+check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='future','Manual move into Future must persist.');
+$_POST=['id'=>$id,'delivery_section'=>'auto'];eval($moveCode);
+check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='','Automatic timing can be restored.');
+$_POST=['id'=>$id,'delivery_section'=>'awaiting'];eval($moveCode);
+$action='order_schedule';
+$_POST=['id'=>$id,'scheduled_delivery_date'=>$planned];eval($arrangeCode);
+check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='awaiting','Saving the same date must not lose a manual override.');
+$newPlanned=(new DateTimeImmutable('tomorrow',$tz))->modify('+1 day')->format('Y-m-d');
+$_POST=['id'=>$id,'scheduled_delivery_date'=>$newPlanned];eval($arrangeCode);
+check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='','Changing the planned date should restore automatic routing.');
+$action='order_delivery_section';
+$_POST=['id'=>$id,'delivery_section'=>'future'];eval($moveCode);
+$db->prepare("UPDATE orders SET scheduled_delivery_date=? WHERE id=?")->execute([(new DateTimeImmutable('today',$tz))->format('Y-m-d'),$id]);
+$before=preparationRow($db,$id);
+$_POST=['id'=>$id,'delivery_section'=>'future'];$rejected=false;try{eval($moveCode);}catch(Exception $e){$rejected=true;}
+check($rejected&&!$db->inTransaction()&&preparationRow($db,$id)===$before,'Due-today orders must reject manual moves into Future.');
+foreach(['Cancelled','Delivered'] as $terminal){
+ $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$terminal,$id]);
+ $_POST=['id'=>$id,'delivery_section'=>'awaiting'];$rejected=false;try{eval($moveCode);}catch(Exception $e){$rejected=true;}
+ check($rejected&&!$db->inTransaction(),'Completed/cancelled orders cannot be manually moved.');
+}
+check(str_contains($source,"dashboardDeliveryMoveControls(\$todo,'future')") && str_contains($source,"dashboardDeliveryMoveControls(\$futureOrder,'awaiting')"),'Both dashboard lists need a manual move control.');
+echo "PASS: exclusive 4-day/5-day grouping, manual moves, persistence, date-change reset, terminal-order protections.\\n";

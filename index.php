@@ -63,6 +63,7 @@ if(!in_array('recipient_name',array_column($orderColumns,'name'),true))$db->exec
 if(!in_array('reconstituted',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN reconstituted INTEGER NOT NULL DEFAULT 0");
 if(!in_array('packaged',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN packaged INTEGER NOT NULL DEFAULT 0");
 if(!in_array('scheduled_delivery_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN scheduled_delivery_date TEXT NOT NULL DEFAULT ''");
+if(!in_array('delivery_section_override',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN delivery_section_override TEXT NOT NULL DEFAULT ''");
 $itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('presentation',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -578,8 +579,22 @@ function plannedDeliveryDate(string $value,string $existing='',?DateTimeImmutabl
  if(($date<$today || (!$allowToday && $date==$today)) && $value!==$existing)throw new Exception($allowToday?'Choose today or a future delivery date.':'Choose a delivery date after today.');
  return $value;
 }
+function deliveryBoardSection(array $order,string $today):string{
+ if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true) || trim((string)($order['delivery_date']??''))!=='')return '';
+ $scheduled=trim((string)($order['scheduled_delivery_date']??''));
+ // Undated paid orders remain visible until a date is arranged.
+ if($scheduled==='')return in_array((string)($order['status']??''),['Paid','Packed','Dispatched'],true)?'awaiting':'';
+ $tz=new DateTimeZone('Europe/London');$scheduledDate=DateTimeImmutable::createFromFormat('!Y-m-d',$scheduled,$tz);
+ $todayDate=DateTimeImmutable::createFromFormat('!Y-m-d',$today,$tz);
+ if(!$scheduledDate||$scheduledDate->format('Y-m-d')!==$scheduled||!$todayDate)return '';
+ // Today/overdue orders cannot be manually hidden in Future.
+ if($scheduledDate<=$todayDate)return 'awaiting';
+ $override=(string)($order['delivery_section_override']??'');
+ if(in_array($override,['awaiting','future'],true))return $override;
+ return (int)$todayDate->diff($scheduledDate)->format('%r%a')<5?'awaiting':'future';
+}
 function isFutureDelivery(array $order,string $today):bool{
- return !in_array((string)($order['status']??''),['Cancelled','Delivered'],true) && trim((string)($order['delivery_date']??''))==='' && (string)($order['scheduled_delivery_date']??'')>$today;
+ return deliveryBoardSection($order,$today)==='future';
 }
 function deliveryCountdown(string $value,?DateTimeImmutable $today=null):string{
  $tz=new DateTimeZone('Europe/London');$today=($today??new DateTimeImmutable('today',$tz))->setTimezone($tz)->setTime(0,0);
@@ -1679,7 +1694,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $clear=(string)($_POST['schedule_clear']??'')==='1';
     $date=$clear?'':plannedDeliveryDate((string)($_POST['scheduled_delivery_date']??''),'',null,true);
     if(!$clear&&$date==='')throw new Exception('Choose a planned delivery date.');
-    $db->prepare('UPDATE orders SET scheduled_delivery_date=? WHERE id=?')->execute([$date,$orderId]);
+    $db->prepare("UPDATE orders SET delivery_section_override=CASE WHEN scheduled_delivery_date=? THEN delivery_section_override ELSE '' END,scheduled_delivery_date=? WHERE id=?")->execute([$date,$date,$orderId]);
+    $db->commit();
+   }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
+  }
+  if($action==='order_delivery_section'){
+   $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   $section=(string)($_POST['delivery_section']??'');
+   if($orderId===false||$orderId===null||!in_array($section,['awaiting','future','auto'],true))throw new Exception('Choose a valid delivery section.');
+   $db->beginTransaction();
+   try{
+    $q=$db->prepare('SELECT status,delivery_date,scheduled_delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$order||in_array((string)$order['status'],['Delivered','Cancelled'],true)||trim((string)$order['delivery_date'])!=='')throw new Exception('Only active undelivered orders can be moved.');
+    $today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+    if($section==='future' && trim((string)$order['scheduled_delivery_date'])<=$today)throw new Exception('Choose a future delivery date before moving this order to Future deliveries.');
+    $db->prepare('UPDATE orders SET delivery_section_override=? WHERE id=?')->execute([$section==='auto'?'':$section,$orderId]);
     $db->commit();
    }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
   }
@@ -1804,6 +1833,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->beginTransaction();
    if($isEdit){
     $db->prepare('UPDATE orders SET customer=?,recipient_name=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,assigned_to=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=?,scheduled_delivery_date=? WHERE id=?')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate,$orderId]);
+    if($scheduledDeliveryDate!==(string)($existingOrder['scheduled_delivery_date']??''))$db->prepare("UPDATE orders SET delivery_section_override='' WHERE id=?")->execute([$orderId]);
     $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
    }else{
     $db->prepare('INSERT INTO orders(customer,recipient_name,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee,scheduled_delivery_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
@@ -1861,6 +1891,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'product_delete'=>'Product deleted.',
   'delivery_mark'=>'Delivery recorded; balance remains outstanding.',
   'order_schedule'=>(($_POST['schedule_clear']??'')==='1')?'Planned delivery date cleared.':'Delivery date arranged.',
+  'order_delivery_section'=>(($_POST['delivery_section']??'')==='auto')?'Automatic delivery timing restored.':'Order moved to '.(($_POST['delivery_section']??'')==='future'?'Future deliveries.':'Awaiting delivery.'),
   'order_preparation'=>'Preparation stage updated.',
   'order_reconstituted'=>(($_POST['reconstituted']??'0')==='1')?'Order marked as reconstituted.':'Reconstituted mark removed.',
   'status'=>'Order status updated.',
@@ -1918,6 +1949,19 @@ function dashboardDeliveryScheduleForm(array $order):void{
  <form method="post" class="delivery-arrange-form"><?php csrf();?><input type="hidden" name="action" value="order_schedule"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard">
  <label>Planned delivery date<input type="date" name="scheduled_delivery_date" min="<?=e($today)?>" value="<?=e($date>=$today?$date:'')?>" required></label>
  <small>Arranges delivery only — does not mark the order delivered.</small><div class="delivery-arrange-actions"><button type="submit">Save date</button><?php if($date!==''):?><button type="submit" name="schedule_clear" value="1" formnovalidate class="secondary">Clear date</button><?php endif;?></div></form></details><?php
+}
+function dashboardDeliveryMoveControls(array $order,string $destination):void{
+ if(!in_array($destination,['awaiting','future'],true))return;
+ $today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+ $scheduled=trim((string)($order['scheduled_delivery_date']??''));$override=(string)($order['delivery_section_override']??'');
+ if($destination==='future' && $scheduled<=$today){
+  ?><p class="delivery-move-hint">Set a future delivery date before moving this order to Future deliveries.</p><?php
+ }else{
+  ?><form method="post" class="delivery-move-form"><?php csrf();?><input type="hidden" name="action" value="order_delivery_section"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="delivery_section" value="<?=e($destination)?>"><button type="submit" class="delivery-move-button">⇄ Move to <?=$destination==='future'?'Future deliveries':'Awaiting delivery'?></button></form><?php
+ }
+ if($override!==''){
+  ?><form method="post" class="delivery-move-form delivery-move-auto"><?php csrf();?><input type="hidden" name="action" value="order_delivery_section"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="delivery_section" value="auto"><button type="submit" class="delivery-move-button">Use automatic timing</button></form><?php
+ }
 }
 function futureDeliveryFields(array $order=[]):void{
  $submitted=array_key_exists('schedule_fields_present',$_POST);
@@ -2139,11 +2183,11 @@ foreach($orders as $dashboardOrder){
  if($dashboardOrder['status']!=='Cancelled')$unpaidBalance+=max(0,(int)$dashboardOrder['total']-(int)($dashboardOrder['paid_amount']??0));
 }
 $awaitingPayment=array_values(array_filter($orders,fn($o)=>$o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0));
-$futureDeliveries=array_values(array_filter($orders,fn($o)=>isFutureDelivery($o,$now->format('Y-m-d'))));
+$futureDeliveries=array_values(array_filter($orders,fn($o)=>deliveryBoardSection($o,$now->format('Y-m-d'))==='future'));
 usort($futureDeliveries,fn($a,$b)=>strcmp((string)$a['scheduled_delivery_date'],(string)$b['scheduled_delivery_date']) ?: (int)$a['id']<=>(int)$b['id']);
-$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))===''));
+$awaitingDelivery=array_values(array_filter($orders,fn($o)=>deliveryBoardSection($o,$now->format('Y-m-d'))==='awaiting'));
 usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
-usort($awaitingDelivery,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
+usort($awaitingDelivery,fn($a,$b)=>strcmp((string)($a['scheduled_delivery_date']?:'9999-12-31'),(string)($b['scheduled_delivery_date']?:'9999-12-31')) ?: strcmp((string)$a['created'],(string)$b['created']));
 $todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id'),array_column($futureDeliveries,'id')));
 $todoItems=[];
 if($todoOrderIds){
@@ -2387,7 +2431,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
 <a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Paid / packed / dispatched</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Due soon / unscheduled</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
 
@@ -2436,16 +2480,17 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php endforeach;?></div><?php endif;?>
 
 <?php if($awaitingDelivery):?><div class="todo-column">
-<div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Paid orders to complete</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
+<div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Due in under 5 days · or moved here</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php orderPreparationBadge($todo);?></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if(futureDeliveryPaymentLabel($todo)!=='Paid'):?><span class="future-order-meta <?=futureDeliveryPaymentLabel($todo)==='Part paid'?'is-part-paid':'is-unpaid'?>"><?=e(futureDeliveryPaymentLabel($todo))?></span><?php endif;?><?php orderPreparationBadge($todo);?></div>
 <div class="todo-accordion-side"><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
 <?php dashboardDeliveryScheduleForm($todo);?>
 <?php dashboardPreparationControls($todo);?>
+<?php dashboardDeliveryMoveControls($todo,'future');?>
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><?php if(!empty($todo['delivery_method'])):?><span><?=e($todo['delivery_method'])?></span><?php endif;?></div>
 
 <?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
@@ -2455,7 +2500,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php endforeach;?></div><?php endif;?>
 
 <?php if($futureDeliveries):?><div class="todo-column future-orders-column">
-<div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>Planned orders · nearest date first</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
+<div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>5+ days away · or moved here</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
 <div class="future-delivery-list">
 <?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));$futurePaymentLabel=futureDeliveryPaymentLabel($futureOrder);$futurePaymentTone=$futurePaymentLabel==='Paid'?'is-paid':($futurePaymentLabel==='Part paid'?'is-part-paid':'is-unpaid');?>
 <details class="future-order-entry" id="future-order-<?=(int)$futureOrder['id']?>">
@@ -2468,7 +2513,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
   <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><?php if($futureBalance>0):?><small><?=money($futureBalance)?> due</small><?php endif;?><span class="future-order-chevron" aria-hidden="true">⌄</span></div>
  </summary>
  <div class="future-order-details">
-  <?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);?>
+  <?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);dashboardDeliveryMoveControls($futureOrder,'awaiting');?>
   <a class="future-order-edit-link" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">View / edit order <span aria-hidden="true">↗</span></a>
  </div>
 </details>
@@ -2488,7 +2533,7 @@ $listedOrders=$orders;
 if($ordersSection==='all' && $orderScope!==''){
  $listedOrders=array_values(array_filter($orders,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart,$now){
   if($orderScope==='unpaid')return $o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0;
-  if($orderScope==='to_deliver')return in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='';
+  if($orderScope==='to_deliver')return deliveryBoardSection($o,$now->format('Y-m-d'))==='awaiting';
   $salesTs=strtotime((string)($o['payment_date']?:$o['created']))?:0;
   return in_array($o['status'],$paidStatuses,true) && $salesTs>=($orderScope==='today_sales'?$todayStart:$monthStart);
  }));
