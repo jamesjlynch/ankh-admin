@@ -28,12 +28,12 @@ $start=strpos($source,'$futureDeliveries=array_values(');$end=strpos($source,'us
 check($start!==false&&$end!==false,'Dashboard scheduling dataset must exist.');
 eval(substr($source,$start,$end-$start));
 check(array_column($futureDeliveries,'id')===[2,1],'Future orders must be nearest first; delivered/cancelled must be excluded.');
-check(array_column($awaitingDelivery,'id')===[3,4,5],'Only due or unscheduled paid orders should await delivery.');
+check(array_column($awaitingDelivery,'id')===[1,3,4,5],'All paid undelivered orders must remain awaiting delivery, including future dates.');
 check(!isFutureDelivery($orders[1],'2026-10-12'),'On its due date an order must leave Future deliveries.');
 $ordersSection='all';$_GET=['scope'=>'to_deliver'];$paidStatuses=['Paid','Packed','Dispatched','Delivered'];$todayStart=$today->getTimestamp();$monthStart=$today->modify('first day of this month')->getTimestamp();
 $start=strpos($source,"$"."orderScopes=['today_sales'");$end=strpos($source,'?>',$start);
 check($start!==false&&$end!==false,'Order drill-down must exist.');eval(substr($source,$start,$end-$start));
-check(array_column($listedOrders,'id')===[3,4,5],'To-deliver drill-down must match the dashboard.');
+check(array_column($listedOrders,'id')===[1,3,4,5],'To-deliver drill-down must match the dashboard.');
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 preg_match("/INSERT INTO orders\\(customer,recipient_name,[^']+\\)/",$source,$insertMatch);
 check(!empty($insertMatch),'Order insert must exist.');
@@ -105,3 +105,45 @@ foreach(['','bad-date',(new DateTimeImmutable('yesterday',$tz))->format('Y-m-d')
  try{eval($arrangeCode);}catch(Exception $e){$rejected=true;}check($rejected,'Invalid dashboard date must be rejected.');
 }
 echo "PASS: dashboard scheduling paid/unpaid, clear date, terminal safeguards, isolated date updates, calendar-day countdown.\n";
+
+foreach(['reconstituted','packaged'] as $column){
+ $cols=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
+ if(!in_array($column,array_column($cols,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN ".$column." INTEGER NOT NULL DEFAULT 0");
+}
+$db->prepare("UPDATE orders SET status='Paid',delivery_date='',reconstituted=0,packaged=0 WHERE id=?")->execute([$id]);
+function preparationRow(PDO $db,int $id):array{return $db->query('SELECT * FROM orders WHERE id='.$id)->fetch(PDO::FETCH_ASSOC);}
+check(orderPreparationState(preparationRow($db,$id))==='pending','Existing orders must start pending.');
+$before=preparationRow($db,$id);
+$rejected=false;try{setOrderPreparation($db,$id,'packaged',true);}catch(Exception $e){$rejected=true;}
+check($rejected&&!$db->inTransaction(),'Packaging must require preparation first.');
+check(preparationRow($db,$id)===$before,'Rejected packaging must leave data unchanged.');
+setOrderPreparation($db,$id,'reconstituted',true);
+check(orderPreparationState(preparationRow($db,$id))==='reconstituted','Reconstituted stage must persist.');
+setOrderPreparation($db,$id,'packaged',true);
+$after=preparationRow($db,$id);
+check(orderPreparationState($after)==='packaged'&&(int)$after['reconstituted']===0,'Packaging must replace reconstituted.');
+unset($before['reconstituted'],$before['packaged'],$after['reconstituted'],$after['packaged']);
+check($before===$after,'Preparation stages must not change status, delivery, price or schedule.');
+setOrderPreparation($db,$id,'packaged',false);
+check(orderPreparationState(preparationRow($db,$id))==='reconstituted','Undo packaging must return to reconstituted.');
+setOrderPreparation($db,$id,'reconstituted',false);
+check(orderPreparationState(preparationRow($db,$id))==='pending','Undo reconstitution must return to pending.');
+foreach(['Delivered','Cancelled'] as $status){
+ $db->prepare("UPDATE orders SET status=?,reconstituted=1,packaged=0 WHERE id=?")->execute([$status,$id]);
+ check(orderPreparationState(preparationRow($db,$id))==='closed','Terminal orders must hide preparation badges.');
+ $rejected=false;try{setOrderPreparation($db,$id,'packaged',true);}catch(Exception $e){$rejected=true;}check($rejected,'Terminal orders cannot change preparation.');
+}
+$db->prepare("UPDATE orders SET status='Paid',delivery_date='2026-10-11' WHERE id=?")->execute([$id]);
+check(orderPreparationState(preparationRow($db,$id))==='closed','An actual delivery date must hide preparation regardless of payment status.');
+$rejected=false;try{setOrderPreparation($db,$id,'reconstituted',true);}catch(Exception $e){$rejected=true;}check($rejected,'Actual delivered orders cannot change preparation.');
+// Render the shared badge and controls to verify all dashboard variants use the same terminal safeguards.
+function e($value):string{return htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');}
+function csrf():void{echo '<input name="csrf" value="test">';}
+$start=strpos($source,'function orderPreparationBadge(');$end=strpos($source,'function deliveryScheduleTags(',$start);
+check($start!==false&&$end!==false,'Shared preparation display helpers must exist.');eval(substr($source,$start,$end-$start));
+ob_start();orderPreparationBadge(preparationRow($db,$id));dashboardPreparationControls(preparationRow($db,$id));$html=ob_get_clean();
+check($html==='','Delivered dashboard cards must hide preparation badges and controls.');
+$db->prepare("UPDATE orders SET delivery_date='',reconstituted=0,packaged=1 WHERE id=?")->execute([$id]);
+ob_start();orderPreparationBadge(preparationRow($db,$id));$html=ob_get_clean();
+check(str_contains($html,'Packaged · Ready for delivery')&&!str_contains($html,'Reconstituted'),'Packaged badge must replace reconstituted.');
+echo "PASS: future orders remain to deliver, preparation transitions, packaging replaces reconstituted, undo, no premature delivery, delivered badge suppression.\n";

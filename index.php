@@ -61,6 +61,7 @@ if(!in_array('payment_fee',array_column($orderColumns,'name'),true))$db->exec("A
 if(!in_array('assigned_to',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN assigned_to TEXT NOT NULL DEFAULT ''");
 if(!in_array('recipient_name',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN recipient_name TEXT NOT NULL DEFAULT ''");
 if(!in_array('reconstituted',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN reconstituted INTEGER NOT NULL DEFAULT 0");
+if(!in_array('packaged',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN packaged INTEGER NOT NULL DEFAULT 0");
 if(!in_array('scheduled_delivery_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN scheduled_delivery_date TEXT NOT NULL DEFAULT ''");
 $itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
@@ -587,6 +588,26 @@ function deliveryCountdown(string $value,?DateTimeImmutable $today=null):string{
  $days=(int)$today->diff($date)->format('%r%a');
  if($days===0)return 'Today';
  return abs($days).' '.(abs($days)===1?'day':'days').($days<0?' overdue':'');
+}
+function orderPreparationState(array $order):string{
+ if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true)||trim((string)($order['delivery_date']??''))!=='')return 'closed';
+ if((int)($order['packaged']??0)===1)return 'packaged';
+ return (int)($order['reconstituted']??0)===1?'reconstituted':'pending';
+}
+function setOrderPreparation(PDO $db,int $id,string $stage,bool $complete):void{
+ if($id<1||!in_array($stage,['reconstituted','packaged'],true))throw new Exception('Choose a valid preparation stage.');
+ $db->beginTransaction();
+ try{
+  $q=$db->prepare('SELECT status,delivery_date,reconstituted,packaged FROM orders WHERE id=?');$q->execute([$id]);$order=$q->fetch(PDO::FETCH_ASSOC);
+  if(!$order)throw new Exception('Order could not be found.');
+  $state=orderPreparationState($order);
+  if($state==='closed')throw new Exception('Preparation cannot be changed on a delivered or cancelled order.');
+  if($stage==='packaged'&&$state==='pending')throw new Exception('Mark the order reconstituted before packaging.');
+  $packaged=$stage==='packaged'&&$complete?1:0;
+  $reconstituted=$packaged?0:($stage==='packaged'?1:($complete?1:0));
+  $db->prepare('UPDATE orders SET reconstituted=?,packaged=? WHERE id=?')->execute([$reconstituted,$packaged,$id]);
+  $db->commit();
+ }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
 }
 function orderActionDate(string $value,string $label):string{
  $value=trim($value);if($value==='')return '';
@@ -1664,12 +1685,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='order_reconstituted'){
    $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
-   if($orderId===false)throw new Exception('Choose a valid order.');
-   $reconstituted=(string)($_POST['reconstituted']??'0');
-   if(!in_array($reconstituted,['0','1'],true))throw new Exception('Choose a valid preparation state.');
-   $q=$db->prepare('SELECT id FROM orders WHERE id=?');$q->execute([$orderId]);
-   if(!$q->fetchColumn())throw new Exception('Order could not be found.');
-   $db->prepare('UPDATE orders SET reconstituted=? WHERE id=?')->execute([(int)$reconstituted,$orderId]);
+   $complete=(string)($_POST['reconstituted']??'0');
+   if($orderId===false||!in_array($complete,['0','1'],true))throw new Exception('Choose a valid preparation state.');
+   setOrderPreparation($db,$orderId,'reconstituted',$complete==='1');
+  }
+  if($action==='order_preparation'){
+   $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   $complete=(string)($_POST['complete']??'0');
+   if($orderId===false||!in_array($complete,['0','1'],true))throw new Exception('Choose a valid preparation state.');
+   setOrderPreparation($db,$orderId,(string)($_POST['stage']??''),$complete==='1');
   }
   if($action==='status'){
    $newStatus=(string)($_POST['status']??'');
@@ -1837,6 +1861,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'product_delete'=>'Product deleted.',
   'delivery_mark'=>'Delivery recorded; balance remains outstanding.',
   'order_schedule'=>(($_POST['schedule_clear']??'')==='1')?'Planned delivery date cleared.':'Delivery date arranged.',
+  'order_preparation'=>'Preparation stage updated.',
   'order_reconstituted'=>(($_POST['reconstituted']??'0')==='1')?'Order marked as reconstituted.':'Reconstituted mark removed.',
   'status'=>'Order status updated.',
   'product'=>'Product saved.',
@@ -1865,6 +1890,18 @@ $passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
 $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
+function orderPreparationBadge(array $order):void{
+ $state=orderPreparationState($order);if($state==='closed')return;
+ $label=match($state){'packaged'=>'Packaged · Ready for delivery','reconstituted'=>'Reconstituted',default=>'To reconstitute'};
+ ?><span class="order-preparation-badge preparation-<?=e($state)?>"><?=e($label)?></span><?php
+}
+function dashboardPreparationControls(array $order):void{
+ $state=orderPreparationState($order);if($state==='closed')return;
+ ?><div class="preparation-stage-controls"><?php foreach(['reconstituted'=>'Reconstituted','packaged'=>'Packaged'] as $stage=>$label):$checked=$state===$stage;$disabled=$stage==='packaged'&&$state==='pending';?>
+ <form method="post" class="order-preparation-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="stage" value="<?=e($stage)?>">
+ <label class="order-preparation-toggle"><input type="checkbox" name="complete" value="1" <?=$checked?'checked':''?> <?=$disabled?'disabled':''?>><span><strong><?=e($label)?></strong><small><?=$stage==='packaged'?'Ready for delivery':'Ready to package'?></small></span></label><button type="submit" class="order-preparation-save" <?=$disabled?'disabled':''?>>Save</button></form>
+ <?php endforeach;?></div><?php
+}
 function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
  $date=trim((string)($order['scheduled_delivery_date']??''));
  $active=!in_array((string)($order['status']??''),['Cancelled','Delivered'],true)&&trim((string)($order['delivery_date']??''))==='';
@@ -1897,7 +1934,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile88-delivery-countdown"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile89-preparation-stages"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2100,7 +2137,7 @@ foreach($orders as $dashboardOrder){
 $awaitingPayment=array_values(array_filter($orders,fn($o)=>$o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0));
 $futureDeliveries=array_values(array_filter($orders,fn($o)=>isFutureDelivery($o,$now->format('Y-m-d'))));
 usort($futureDeliveries,fn($a,$b)=>strcmp((string)$a['scheduled_delivery_date'],(string)$b['scheduled_delivery_date']) ?: (int)$a['id']<=>(int)$b['id']);
-$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='' && !isFutureDelivery($o,$now->format('Y-m-d'))));
+$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))===''));
 usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 usort($awaitingDelivery,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 $todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id'),array_column($futureDeliveries,'id')));
@@ -2376,17 +2413,13 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php orderPreparationBadge($todo);?></div>
 <?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
 <div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
 <?php dashboardDeliveryScheduleForm($todo);?>
-<form method="post" class="order-preparation-form">
-<?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
-<label class="order-preparation-toggle"><input type="checkbox" name="reconstituted" value="1" <?=(int)($todo['reconstituted']??0)===1?'checked':''?>><span><strong>Reconstituted</strong><small>Mark when preparation is complete</small></span></label>
-<button type="submit" class="order-preparation-save">Save</button>
-</form>
+<?php dashboardPreparationControls($todo);?>
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><span>Total <?=money($todo['total'])?></span><?php if($todoPaid>0):?><span class="todo-paid-chip">Paid <?=money($todoPaid)?></span><?php endif;?><span class="todo-due-chip">Due <?=money($todoBalance)?></span></div>
 <form method="post" class="todo-action dashboard-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
 <div class="dashboard-payment-heading"><strong>Record payment</strong><small><?=money($todoBalance)?> outstanding</small></div>
@@ -2403,16 +2436,12 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php orderPreparationBadge($todo);?></div>
 <div class="todo-accordion-side"><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
 <?php dashboardDeliveryScheduleForm($todo);?>
-<form method="post" class="order-preparation-form">
-<?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
-<label class="order-preparation-toggle"><input type="checkbox" name="reconstituted" value="1" <?=(int)($todo['reconstituted']??0)===1?'checked':''?>><span><strong>Reconstituted</strong><small>Mark when preparation is complete</small></span></label>
-<button type="submit" class="order-preparation-save">Save</button>
-</form>
+<?php dashboardPreparationControls($todo);?>
 <div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><?php if(!empty($todo['delivery_method'])):?><span><?=e($todo['delivery_method'])?></span><?php endif;?></div>
 
 <?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
@@ -2430,9 +2459,9 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
  <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
  <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
  <small class="future-order-meta"><?=e($futureOrder['status'])?></small><?php deliveryScheduleTags($futureOrder,$now);?>
- <?php if((int)($futureOrder['reconstituted']??0)===1):?><span class="order-reconstituted-badge">✓ Reconstituted</span><?php endif;?></div>
+ <?php orderPreparationBadge($futureOrder);?></div>
  <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><small><?=$futureBalance>0?money($futureBalance).' due':'Paid in full'?></small><span aria-hidden="true">›</span></div>
-</a><?php dashboardDeliveryScheduleForm($futureOrder);?></div>
+</a><?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);?></div>
 <?php endforeach;?></div></div><?php endif;?>
 </div></section><?php endif;?>
 
@@ -2449,7 +2478,7 @@ $listedOrders=$orders;
 if($ordersSection==='all' && $orderScope!==''){
  $listedOrders=array_values(array_filter($orders,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart,$now){
   if($orderScope==='unpaid')return $o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0;
-  if($orderScope==='to_deliver')return in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='' && !isFutureDelivery($o,$now->format('Y-m-d'));
+  if($orderScope==='to_deliver')return in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='';
   $salesTs=strtotime((string)($o['payment_date']?:$o['created']))?:0;
   return in_array($o['status'],$paidStatuses,true) && $salesTs>=($orderScope==='today_sales'?$todayStart:$monthStart);
  }));
@@ -2527,7 +2556,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="stats compact-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div>
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
-<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
+<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderPreparationBadge($o);?><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div>
 <div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!==''):?><span><b>Planned delivery</b><em><?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M Y'))?></em></span><?php endif;?><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
 <?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>

@@ -4879,3 +4879,16 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .delivery-arrange-actions button{flex:1;min-height:44px;padding:10px;font-size:13px}
 .future-order-entry>.delivery-arrange{margin:8px 0 0}
 .future-order-entry{min-width:0}
+
+/* Dashboard preparation stages */
+.order-preparation-badge{display:inline-flex;align-items:center;margin-top:8px;padding:4px 8px;border:1px solid #8d969644;border-radius:999px;font-size:10px;font-weight:700;line-height:1.4;color:var(--muted,#a2aaa7);background:#ffffff05}
+.order-preparation-badge.preparation-reconstituted{color:#a5d8bf;background:#74b99b18;border-color:#74b99b55}
+.order-preparation-badge.preparation-packaged{color:#e7c877;background:#deba6818;border-color:#deba6855}
+.preparation-stage-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
+.preparation-stage-controls .order-preparation-form{flex-wrap:wrap;min-width:0;margin:0;padding:10px}
+.preparation-stage-controls .order-preparation-toggle{gap:8px}
+.preparation-stage-controls .order-preparation-toggle strong{font-size:12px}
+.preparation-stage-controls .order-preparation-toggle small{font-size:10px}
+.preparation-stage-controls .order-preparation-save{flex:1}
+.preparation-stage-controls .order-preparation-form:has(input:disabled){opacity:.5}
+.order-summary-badges .order-preparation-badge{margin-top:0}
