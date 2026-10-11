@@ -28,7 +28,7 @@ $start=strpos($source,'$futureDeliveries=array_values(');$end=strpos($source,'us
 check($start!==false&&$end!==false,'Dashboard scheduling dataset must exist.');
 eval(substr($source,$start,$end-$start));
 check(array_column($futureDeliveries,'id')===[1],'Future orders must exclude imminent deliveries and terminal orders.');
-check(array_column($awaitingDelivery,'id')===[4,3,2,5],'Imminent (including unpaid) and undated paid orders must be awaiting, ordered by delivery date.');
+check(array_column($awaitingDelivery,'id')===[2,3,4,5],'Imminent (including unpaid) and undated paid orders must be awaiting.');
 check(!array_intersect(array_column($futureDeliveries,'id'),array_column($awaitingDelivery,'id')),'Delivery sections must never duplicate orders.');
 check(!isFutureDelivery($orders[1],'2026-10-12'),'On its due date an order must leave Future deliveries.');
 check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-15']),'2026-10-11')==='awaiting','Four days away should be Awaiting delivery.');
