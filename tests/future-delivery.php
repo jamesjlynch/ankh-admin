@@ -54,4 +54,12 @@ check(!empty($updateMatch)&&str_contains($updateMatch[0],'scheduled_delivery_dat
 $updateValues=$values;$updateValues[array_search('scheduled_delivery_date',$columns,true)]='';$updateValues[]=$id;
 $db->prepare($updateMatch[0])->execute($updateValues);
 check($db->query('SELECT scheduled_delivery_date FROM orders WHERE id='.$id)->fetchColumn()==='','Unticking must remove the schedule.');
+$start=strpos($source,'   $scheduleFieldsPresent=');$end=strpos($source,'   $lines=[];$presentations=[];',$start);
+$scheduleCode=substr($source,$start,$end-$start);$todayLocal=$today;
+$isEdit=false;$existingOrder=null;$_POST=['schedule_fields_present'=>'1','future_delivery'=>'1'];
+$rejected=false;try{eval($scheduleCode);}catch(Exception $e){$rejected=true;}check($rejected,'A selected schedule without a date must be rejected.');
+$_POST=['schedule_fields_present'=>'1','scheduled_delivery_date'=>'2026-10-20'];eval($scheduleCode);check($scheduledDeliveryDate==='','Unticked schedules must ignore stale date values.');
+$isEdit=true;$existingOrder=['status'=>'Delivered','delivery_date'=>'2026-10-11','scheduled_delivery_date'=>'2026-10-20'];
+$_POST=['schedule_fields_present'=>'1','future_delivery'=>'1','scheduled_delivery_date'=>'2026-10-20'];eval($scheduleCode);check($scheduledDeliveryDate==='2026-10-20','Unrelated edits after early delivery must preserve the original plan.');
+$_POST['scheduled_delivery_date']='2026-10-21';$rejected=false;try{eval($scheduleCode);}catch(Exception $e){$rejected=true;}check($rejected,'A completed order cannot receive a new future schedule.');
 echo "PASS: future date validation, historical edits, dashboard grouping/sorting, due-day rollover, delivery drill-down, migration, create/edit persistence, no premature delivery.\n";

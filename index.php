@@ -1718,7 +1718,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $scheduledDeliveryDate=$isEdit&&!$scheduleFieldsPresent?(string)($existingOrder['scheduled_delivery_date']??''):($scheduleEnabled?trim((string)($_POST['scheduled_delivery_date']??'')):'');
    if($scheduleEnabled && $scheduledDeliveryDate==='')throw new Exception('Choose the future delivery date.');
    $scheduledDeliveryDate=plannedDeliveryDate($scheduledDeliveryDate,$isEdit?(string)($existingOrder['scheduled_delivery_date']??''):'',$todayLocal);
-   if($isEdit && $scheduledDeliveryDate>$todayLocal->format('Y-m-d') && (in_array((string)$existingOrder['status'],['Delivered','Cancelled'],true)||trim((string)($existingOrder['delivery_date']??''))!==''))throw new Exception('Delivered or cancelled orders cannot be scheduled for a future delivery.');
+   if($isEdit && $scheduledDeliveryDate>$todayLocal->format('Y-m-d') && $scheduledDeliveryDate!==(string)($existingOrder['scheduled_delivery_date']??'') && (in_array((string)$existingOrder['status'],['Delivered','Cancelled'],true)||trim((string)($existingOrder['delivery_date']??''))!==''))throw new Exception('Delivered or cancelled orders cannot be scheduled for a future delivery.');
 
    $lines=[];$presentations=[];
    foreach(($_POST['lines']??[]) as $lineKey=>$line){
