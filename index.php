@@ -1942,6 +1942,14 @@ function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
  $active=!in_array((string)($order['status']??''),['Cancelled','Delivered'],true)&&trim((string)($order['delivery_date']??''))==='';
  ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span><?php if($active&&$date!==''):?><span class="delivery-plan-date" title="<?=e($date)?>">▦ <?=e((new DateTimeImmutable($date))->format('d M'))?></span><span class="delivery-plan-countdown"><?=e(deliveryCountdown($date,$today))?></span><?php endif;?></div><?php
 }
+function dashboardPlannedDateTile(array $order):void{
+ $scheduled=trim((string)($order['scheduled_delivery_date']??''));
+ if($scheduled==='')return;
+ $tz=new DateTimeZone('Europe/London');
+ $date=DateTimeImmutable::createFromFormat('!Y-m-d',$scheduled,$tz);
+ if(!$date||$date->format('Y-m-d')!==$scheduled)return;
+ ?><div class="future-order-date" aria-label="Planned delivery <?=e($date->format('j F Y'))?>"><span><?=e($date->format('M'))?></span><strong><?=e($date->format('d'))?></strong><small><?=e($date->format('D'))?></small></div><?php
+}
 function dashboardDeliveryScheduleForm(array $order):void{
  if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true)||trim((string)($order['delivery_date']??''))!=='')return;
  $date=(string)($order['scheduled_delivery_date']??'');$today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
@@ -2461,6 +2469,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
+<?php dashboardPlannedDateTile($todo);?>
 <div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php orderPreparationBadge($todo);?></div>
 <?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
 <div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
@@ -2484,6 +2493,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
+<?php dashboardPlannedDateTile($todo);?>
 <div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if(futureDeliveryPaymentLabel($todo)!=='Paid'):?><span class="future-order-meta <?=futureDeliveryPaymentLabel($todo)==='Part paid'?'is-part-paid':'is-unpaid'?>"><?=e(futureDeliveryPaymentLabel($todo))?></span><?php endif;?><?php orderPreparationBadge($todo);?></div>
 <div class="todo-accordion-side"><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
