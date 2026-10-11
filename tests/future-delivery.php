@@ -179,6 +179,7 @@ echo "PASS: compact expandable future delivery tiles, paid/unpaid/part-paid labe
 $start=strpos($source,"  if(\$action==='order_delivery_section'){");$end=strpos($source,"  if(\$action==='order_reconstituted'){",$start);
 check($start!==false&&$end!==false,'Manual delivery section action must exist.');
 $moveCode=substr($source,$start,$end-$start);
+$action='order_delivery_section';
 $db->prepare("UPDATE orders SET status='Paid',delivery_date='',scheduled_delivery_date=?,delivery_section_override='' WHERE id=?")->execute([$planned,$id]);
 $moveBefore=preparationRow($db,$id);
 $_POST=['id'=>$id,'delivery_section'=>'awaiting'];eval($moveCode);
@@ -191,11 +192,13 @@ check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->
 $_POST=['id'=>$id,'delivery_section'=>'auto'];eval($moveCode);
 check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='','Automatic timing can be restored.');
 $_POST=['id'=>$id,'delivery_section'=>'awaiting'];eval($moveCode);
+$action='order_schedule';
 $_POST=['id'=>$id,'scheduled_delivery_date'=>$planned];eval($arrangeCode);
 check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='awaiting','Saving the same date must not lose a manual override.');
 $newPlanned=(new DateTimeImmutable('tomorrow',$tz))->modify('+1 day')->format('Y-m-d');
 $_POST=['id'=>$id,'scheduled_delivery_date'=>$newPlanned];eval($arrangeCode);
 check($db->query('SELECT delivery_section_override FROM orders WHERE id='.$id)->fetchColumn()==='','Changing the planned date should restore automatic routing.');
+$action='order_delivery_section';
 $_POST=['id'=>$id,'delivery_section'=>'future'];eval($moveCode);
 $db->prepare("UPDATE orders SET scheduled_delivery_date=? WHERE id=?")->execute([(new DateTimeImmutable('today',$tz))->format('Y-m-d'),$id]);
 $before=preparationRow($db,$id);
