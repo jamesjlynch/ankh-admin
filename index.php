@@ -1922,8 +1922,10 @@ $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
 function orderPreparationBadge(array $order):void{
- $state=orderPreparationState($order);if($state==='closed')return;
- $label=match($state){'packaged'=>'Packaged · Ready for delivery','reconstituted'=>'Reconstituted',default=>'To reconstitute'};
+ $state=orderPreparationState($order);
+ // Pending is the default preparation state; only show a badge once preparation has advanced.
+ if(!in_array($state,['reconstituted','packaged'],true))return;
+ $label=$state==='packaged'?'Packaged · Ready for delivery':'Reconstituted';
  ?><span class="order-preparation-badge preparation-<?=e($state)?>"><?=e($label)?></span><?php
 }
 function dashboardPreparationControls(array $order):void{

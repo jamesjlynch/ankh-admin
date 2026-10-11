@@ -155,6 +155,17 @@ $start=strpos($source,'function orderPreparationBadge(');$end=strpos($source,'fu
 check($start!==false&&$end!==false,'Shared preparation display helpers must exist.');eval(substr($source,$start,$end-$start));
 ob_start();orderPreparationBadge(preparationRow($db,$id));dashboardPreparationControls(preparationRow($db,$id));$html=ob_get_clean();
 check($html==='','Delivered dashboard cards must hide preparation badges and controls.');
+foreach([
+ ['status'=>'Paid','delivery_date'=>'','reconstituted'=>0,'packaged'=>0],
+ ['status'=>'New','delivery_date'=>'','reconstituted'=>0,'packaged'=>0]
+] as $pendingOrder){
+ ob_start();orderPreparationBadge($pendingOrder);$pendingHtml=ob_get_clean();
+ check($pendingHtml==='','Pending preparation must not take up space with a To reconstitute badge.');
+}
+ob_start();orderPreparationBadge(['status'=>'Paid','delivery_date'=>'','reconstituted'=>1,'packaged'=>0]);$readyHtml=ob_get_clean();
+check(str_contains($readyHtml,'>Reconstituted</span>'),'Reconstituted badge must appear once preparation is complete.');
+check(!str_contains($readyHtml,'To reconstitute'),'Default pending text must never display in the badge.');
+
 $db->prepare("UPDATE orders SET delivery_date='',reconstituted=0,packaged=1 WHERE id=?")->execute([$id]);
 ob_start();orderPreparationBadge(preparationRow($db,$id));$html=ob_get_clean();
 check(str_contains($html,'Packaged · Ready for delivery')&&!str_contains($html,'Reconstituted'),'Packaged badge must replace reconstituted.');
