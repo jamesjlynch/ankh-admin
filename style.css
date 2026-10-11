@@ -4862,3 +4862,20 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .future-order-side>span{color:var(--gold);font-size:20px}
 .scheduled-delivery-badge{display:inline-flex;padding:4px 8px;border:1px solid #dfb66640;border-radius:999px;background:#dfb6660b;color:var(--gold);font-size:10px;font-weight:600;line-height:1.4;margin-top:6px}
 @media(max-width:760px){.future-order-card{padding:11px;gap:9px}.future-order-date{flex-basis:42px}.future-order-copy h3{font-size:14px}.future-order-side{max-width:84px}.future-order-side strong{font-size:13px}}
+
+/* Compact dashboard delivery scheduling */
+.delivery-schedule-tags{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px}
+.delivery-schedule-tags .delivery-assignee{margin:0}
+.delivery-plan-date,.delivery-plan-countdown{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border:1px solid rgba(222,184,100,.3);border-radius:999px;font-size:11px;font-weight:600;line-height:1.4;background:rgba(222,184,100,.08);color:#e7c877;white-space:nowrap}
+.delivery-plan-countdown{background:rgba(114,170,156,.1);border-color:rgba(114,170,156,.3);color:#a9d4c7}
+.delivery-arrange{margin:0 0 12px;border:1px solid var(--line,#343938);border-radius:12px;overflow:hidden}
+.delivery-arrange>summary{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:10px 12px;font-size:13px;font-weight:600;cursor:pointer;list-style:none}
+.delivery-arrange>summary::-webkit-details-marker{display:none}
+.delivery-arrange-form{display:grid;gap:12px;padding:0 12px 12px;margin:0;border:0}
+.delivery-arrange-form label{display:grid;gap:7px;font-size:12px}
+.delivery-arrange-form input[type=date]{box-sizing:border-box;width:100%;min-width:0;min-height:48px;font-size:16px}
+.delivery-arrange-form>small{font-size:11px;color:var(--muted,#969b98);line-height:1.5}
+.delivery-arrange-actions{display:flex;gap:8px}
+.delivery-arrange-actions button{flex:1;min-height:44px;padding:10px;font-size:13px}
+.future-order-entry>.delivery-arrange{margin:8px 0 0}
+.future-order-entry{min-width:0}

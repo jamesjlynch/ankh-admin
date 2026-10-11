@@ -568,16 +568,25 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin
  }catch(Throwable $ex){$error=$ex->getMessage();}
 }
 
-function plannedDeliveryDate(string $value,string $existing='',?DateTimeImmutable $today=null):string{
+function plannedDeliveryDate(string $value,string $existing='',?DateTimeImmutable $today=null,bool $allowToday=false):string{
  $value=trim($value);if($value==='')return '';
  $tz=new DateTimeZone('Europe/London');$today??=new DateTimeImmutable('today',$tz);
  $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$tz);
  if(!$date||$date->format('Y-m-d')!==$value)throw new Exception('Choose a valid planned delivery date.');
- if($date<=$today && $value!==$existing)throw new Exception('Choose a delivery date after today.');
+ $today=$today->setTime(0,0);
+ if(($date<$today || (!$allowToday && $date==$today)) && $value!==$existing)throw new Exception($allowToday?'Choose today or a future delivery date.':'Choose a delivery date after today.');
  return $value;
 }
 function isFutureDelivery(array $order,string $today):bool{
  return !in_array((string)($order['status']??''),['Cancelled','Delivered'],true) && trim((string)($order['delivery_date']??''))==='' && (string)($order['scheduled_delivery_date']??'')>$today;
+}
+function deliveryCountdown(string $value,?DateTimeImmutable $today=null):string{
+ $tz=new DateTimeZone('Europe/London');$today=($today??new DateTimeImmutable('today',$tz))->setTimezone($tz)->setTime(0,0);
+ $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$tz);
+ if(!$date||$date->format('Y-m-d')!==$value)return '';
+ $days=(int)$today->diff($date)->format('%r%a');
+ if($days===0)return 'Today';
+ return abs($days).' '.(abs($days)===1?'day':'days').($days<0?' overdue':'');
 }
 function orderActionDate(string $value,string $label):string{
  $value=trim($value);if($value==='')return '';
@@ -1638,6 +1647,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->prepare('UPDATE orders SET delivery_date=? WHERE id=?')->execute([$deliveryDate,$orderId]);
    reconcileDeliveredStock($db,$orderId,true);syncProductCyclesFromDeliveredOrder($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
   }
+  if($action==='order_schedule'){
+   $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   if($orderId===false)throw new Exception('Choose a valid order.');
+   $db->beginTransaction();
+   try{
+    $q=$db->prepare('SELECT status,delivery_date,scheduled_delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$current=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$current)throw new Exception('Order could not be found.');
+    if(in_array((string)$current['status'],['Cancelled','Delivered'],true)||trim((string)$current['delivery_date'])!=='')throw new Exception('Only an undelivered, active order can have delivery arranged.');
+    $clear=(string)($_POST['schedule_clear']??'')==='1';
+    $date=$clear?'':plannedDeliveryDate((string)($_POST['scheduled_delivery_date']??''),'',null,true);
+    if(!$clear&&$date==='')throw new Exception('Choose a planned delivery date.');
+    $db->prepare('UPDATE orders SET scheduled_delivery_date=? WHERE id=?')->execute([$date,$orderId]);
+    $db->commit();
+   }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
+  }
   if($action==='order_reconstituted'){
    $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    if($orderId===false)throw new Exception('Choose a valid order.');
@@ -1812,6 +1836,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'stock_untrack'=>'Product removed from Stock Control. Historical movements were kept.',
   'product_delete'=>'Product deleted.',
   'delivery_mark'=>'Delivery recorded; balance remains outstanding.',
+  'order_schedule'=>(($_POST['schedule_clear']??'')==='1')?'Planned delivery date cleared.':'Delivery date arranged.',
   'order_reconstituted'=>(($_POST['reconstituted']??'0')==='1')?'Order marked as reconstituted.':'Reconstituted mark removed.',
   'status'=>'Order status updated.',
   'product'=>'Product saved.',
@@ -1840,6 +1865,19 @@ $passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
 $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
+function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
+ $date=trim((string)($order['scheduled_delivery_date']??''));
+ $active=!in_array((string)($order['status']??''),['Cancelled','Delivered'],true)&&trim((string)($order['delivery_date']??''))==='';
+ ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span><?php if($active&&$date!==''):?><span class="delivery-plan-date" title="<?=e($date)?>">▦ <?=e((new DateTimeImmutable($date))->format('d M'))?></span><span class="delivery-plan-countdown"><?=e(deliveryCountdown($date,$today))?></span><?php endif;?></div><?php
+}
+function dashboardDeliveryScheduleForm(array $order):void{
+ if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true)||trim((string)($order['delivery_date']??''))!=='')return;
+ $date=(string)($order['scheduled_delivery_date']??'');$today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+ ?><details class="delivery-arrange"><summary><?= $date!==''?'Change delivery date':'Arrange delivery'?> <span aria-hidden="true">▦</span></summary>
+ <form method="post" class="delivery-arrange-form"><?php csrf();?><input type="hidden" name="action" value="order_schedule"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard">
+ <label>Planned delivery date<input type="date" name="scheduled_delivery_date" min="<?=e($today)?>" value="<?=e($date>=$today?$date:'')?>" required></label>
+ <small>Arranges delivery only — does not mark the order delivered.</small><div class="delivery-arrange-actions"><button type="submit">Save date</button><?php if($date!==''):?><button type="submit" name="schedule_clear" value="1" formnovalidate class="secondary">Clear date</button><?php endif;?></div></form></details><?php
+}
 function futureDeliveryFields(array $order=[]):void{
  $submitted=array_key_exists('schedule_fields_present',$_POST);
  $value=$submitted?(string)($_POST['scheduled_delivery_date']??''):(string)($order['scheduled_delivery_date']??'');
@@ -1859,7 +1897,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile87-future-deliveries"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile88-delivery-countdown"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2338,11 +2376,12 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if(isFutureDelivery($todo,$now->format('Y-m-d'))):?><span class="scheduled-delivery-badge">Scheduled <?=e((new DateTimeImmutable($todo['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
 <?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
 <div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
+<?php dashboardDeliveryScheduleForm($todo);?>
 <form method="post" class="order-preparation-form">
 <?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
 <label class="order-preparation-toggle"><input type="checkbox" name="reconstituted" value="1" <?=(int)($todo['reconstituted']??0)===1?'checked':''?>><span><strong>Reconstituted</strong><small>Mark when preparation is complete</small></span></label>
@@ -2364,10 +2403,11 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if(isFutureDelivery($todo,$now->format('Y-m-d'))):?><span class="scheduled-delivery-badge">Scheduled <?=e((new DateTimeImmutable($todo['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
-<div class="todo-accordion-side"><?php if(!empty($todo['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($todo['assigned_to']))?>"><?=e($todo['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="todo-chevron" aria-hidden="true">⌄</span></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
+<div class="todo-accordion-side"><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
+<?php dashboardDeliveryScheduleForm($todo);?>
 <form method="post" class="order-preparation-form">
 <?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
 <label class="order-preparation-toggle"><input type="checkbox" name="reconstituted" value="1" <?=(int)($todo['reconstituted']??0)===1?'checked':''?>><span><strong>Reconstituted</strong><small>Mark when preparation is complete</small></span></label>
@@ -2385,14 +2425,14 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>Planned orders · nearest date first</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
 <div class="future-delivery-list">
 <?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));?>
-<a class="future-order-card" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">
+<div class="future-order-entry"><a class="future-order-card" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">
  <div class="future-order-date"><span><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('M'))?></span><strong><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d'))?></strong><small><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('D'))?></small></div>
  <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
  <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
- <small class="future-order-meta"><?=e($futureOrder['assigned_to']?:'Unassigned')?> · <?=e($futureOrder['status'])?> · <?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d M Y'))?></small>
+ <small class="future-order-meta"><?=e($futureOrder['status'])?></small><?php deliveryScheduleTags($futureOrder,$now);?>
  <?php if((int)($futureOrder['reconstituted']??0)===1):?><span class="order-reconstituted-badge">✓ Reconstituted</span><?php endif;?></div>
  <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><small><?=$futureBalance>0?money($futureBalance).' due':'Paid in full'?></small><span aria-hidden="true">›</span></div>
-</a>
+</a><?php dashboardDeliveryScheduleForm($futureOrder);?></div>
 <?php endforeach;?></div></div><?php endif;?>
 </div></section><?php endif;?>
 

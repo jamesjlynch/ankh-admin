@@ -63,3 +63,45 @@ $isEdit=true;$existingOrder=['status'=>'Delivered','delivery_date'=>'2026-10-11'
 $_POST=['schedule_fields_present'=>'1','future_delivery'=>'1','scheduled_delivery_date'=>'2026-10-20'];eval($scheduleCode);check($scheduledDeliveryDate==='2026-10-20','Unrelated edits after early delivery must preserve the original plan.');
 $_POST['scheduled_delivery_date']='2026-10-21';$rejected=false;try{eval($scheduleCode);}catch(Exception $e){$rejected=true;}check($rejected,'A completed order cannot receive a new future schedule.');
 echo "PASS: future date validation, historical edits, dashboard grouping/sorting, due-day rollover, delivery drill-down, migration, create/edit persistence, no premature delivery.\n";
+
+check(plannedDeliveryDate('2026-10-11','',$today,true)==='2026-10-11','Arranging delivery today must be allowed.');
+check(deliveryCountdown('2026-10-11',$today)==='Today','Today countdown.');
+check(deliveryCountdown('2026-10-12',$today)==='1 day','Tomorrow countdown.');
+check(deliveryCountdown('2026-10-15',$today)==='4 days','Future countdown.');
+check(deliveryCountdown('2026-10-09',$today)==='2 days overdue','Overdue countdown.');
+check(deliveryCountdown('2026-10-26',new DateTimeImmutable('2026-10-24',$tz))==='2 days','Countdown must use calendar days across DST.');
+$columnsInDb=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('status',array_column($columnsInDb,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN status TEXT NOT NULL DEFAULT 'New'");
+$db->exec("CREATE TABLE payments (id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER)");
+$db->prepare('INSERT INTO payments(order_id,amount) VALUES (?,?)')->execute([$id,1000]);
+$action='order_schedule';
+$start=strpos($source,"  if(\$action==='order_schedule'){");$end=strpos($source,"  if(\$action==='order_reconstituted'){",$start);
+check($start!==false&&$end!==false,'Dashboard arrange-delivery action must exist.');
+$arrangeCode=substr($source,$start,$end-$start);
+$planned=(new DateTimeImmutable('tomorrow',$tz))->format('Y-m-d');
+foreach(['New','Paid'] as $status){
+ $db->prepare("UPDATE orders SET status=?,delivery_date='',scheduled_delivery_date='' WHERE id=?")->execute([$status,$id]);
+ $before=$db->query('SELECT * FROM orders WHERE id='.$id)->fetch(PDO::FETCH_ASSOC);
+ $_POST=['id'=>$id,'scheduled_delivery_date'=>$planned];eval($arrangeCode);
+ $after=$db->query('SELECT * FROM orders WHERE id='.$id)->fetch(PDO::FETCH_ASSOC);
+ check($after['scheduled_delivery_date']===$planned,'Both paid and unpaid orders must be schedulable.');
+ unset($before['scheduled_delivery_date'],$after['scheduled_delivery_date']);
+ check($before===$after,'Arranging delivery must change only the planned date.');
+ check((int)$db->query('SELECT SUM(amount) FROM payments')->fetchColumn()===1000,'Payments must remain untouched.');
+ $_POST=['id'=>$id,'schedule_clear'=>'1'];eval($arrangeCode);
+ check($db->query('SELECT scheduled_delivery_date FROM orders WHERE id='.$id)->fetchColumn()==='','Clear date must remove plan.');
+}
+foreach(['Delivered','Cancelled'] as $status){
+ $db->prepare('UPDATE orders SET status=? WHERE id=?')->execute([$status,$id]);
+ $_POST=['id'=>$id,'scheduled_delivery_date'=>$planned];$rejected=false;
+ try{eval($arrangeCode);}catch(Exception $e){$rejected=true;}
+ check($rejected&&!$db->inTransaction(),'Terminal orders must reject scheduling and roll back.');
+}
+$db->prepare("UPDATE orders SET status='Paid',delivery_date='2026-10-10' WHERE id=?")->execute([$id]);
+$rejected=false;try{eval($arrangeCode);}catch(Exception $e){$rejected=true;}check($rejected,'Delivered unpaid/paid orders must reject scheduling.');
+$db->prepare("UPDATE orders SET delivery_date='' WHERE id=?")->execute([$id]);
+foreach(['','bad-date',(new DateTimeImmutable('yesterday',$tz))->format('Y-m-d')] as $invalid){
+ $_POST=['id'=>$id,'scheduled_delivery_date'=>$invalid];$rejected=false;
+ try{eval($arrangeCode);}catch(Exception $e){$rejected=true;}check($rejected,'Invalid dashboard date must be rejected.');
+}
+echo "PASS: dashboard scheduling paid/unpaid, clear date, terminal safeguards, isolated date updates, calendar-day countdown.\n";
