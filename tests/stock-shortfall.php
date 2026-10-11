@@ -63,7 +63,7 @@ $record=$db->query('SELECT * FROM products WHERE id=1')->fetch(PDO::FETCH_ASSOC)
 check(count(stockReservationShortages([$record],$reserveMap,$details))===0,'Restocking the remaining fridge should clear all alerts.');
 // Repeat zero count via product-management editor, formerly blocked when reserved > physical.
 $start=strpos($source,"  if(\$action==='stock_open'){");
-$end=strpos($source,"  if($action==='stock_receive'){",$start);
+$end=strpos($source,"  if(\$action==='stock_receive'){",$start);
 check($start!==false&&$end!==false,'Product opening-count handler exists.');
 $openHandler=substr($source,$start,$end-$start);
 $action='stock_open';$_POST=['product_id'=>'1','opening_qty'=>'0','location'=>'Jay','confirm_opening'=>'1'];
