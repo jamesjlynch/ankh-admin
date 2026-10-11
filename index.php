@@ -673,6 +673,24 @@ function stockLocationForAssignee(string $assignee):string{
 function stockLocationColumn(string $location):string{
  return match(stockLocationName($location)){'Jay'=>'stock_jay_qty','Tony'=>'stock_tony_qty',default=>'stock_unallocated_qty'};
 }
+function stockReservationShortages(array $products,array $reservedByProduct,array $reservationDetails):array{
+ $shortages=[];
+ foreach($products as $product){
+  if((int)($product['stock_tracking']??0)!==1)continue;
+  $productId=(int)$product['id'];
+  foreach(['Jay'=>'stock_jay_qty','Tony'=>'stock_tony_qty','Unallocated'=>'stock_unallocated_qty'] as $location=>$column){
+   $reserved=max(0,(int)($reservedByProduct[$productId][strtolower($location)]??0));
+   if($reserved===0)continue;
+   // Available = physical minus reserved; a negative balance describes a shortage, not extra stock.
+   $physical=max(0,(int)($product[$column]??0)+$reserved);
+   if($physical>=$reserved)continue;
+   $affected=array_values(array_filter($reservationDetails[$productId]??[],fn($order)=>$order['location']===$location));
+   $shortages[]=['product_id'=>$productId,'name'=>(string)$product['name'],'location'=>$location,'physical'=>$physical,'reserved'=>$reserved,'missing'=>$reserved-$physical,'orders'=>$affected];
+  }
+ }
+ usort($shortages,fn($a,$b)=>$b['missing']<=>$a['missing'] ?: strcasecmp($a['name'],$b['name']) ?: strcmp($a['location'],$b['location']));
+ return $shortages;
+}
 function activeReservedStock(PDO $db,int $productId,string $location):int{
  $q=$db->prepare("SELECT COALESCE(SUM(sf.quantity),0) FROM stock_fulfilments sf JOIN orders o ON o.id=sf.order_id WHERE sf.product_id=? AND sf.location=? AND o.status NOT IN ('Cancelled','Dispatched','Delivered') AND trim(COALESCE(o.delivery_date,''))=''");
  $q->execute([$productId,stockLocationName($location)]);return max(0,(int)$q->fetchColumn());
@@ -1462,8 +1480,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($productId<1||$opening===false||$opening<0||$opening>999999||!in_array($location,['Jay','Tony'],true)||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical count for Jay or Tony’s fridge.');
    $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');
    $wasTracked=(int)$product['stock_tracking']===1;$column=stockLocationColumn($location);$before=(int)$product[$column];$reserved=$wasTracked?activeReservedStock($db,$productId,$location):0;
-   if($wasTracked && (int)$opening<$reserved)throw new Exception('That physical count is lower than the '.$reserved.' units currently reserved for orders. Check those orders or the fridge count first.');
-   $available=max(0,(int)$opening-$reserved);$delta=$available-$before;
+   $available=(int)$opening-$reserved;$delta=$available-$before;
    $db->beginTransaction();
    if(!$wasTracked)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),$productId]);
    setProductStockAtLocation($db,$productId,$location,$available);
@@ -1499,7 +1516,6 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    foreach(['Jay','Tony'] as $person){
     $before=(int)$product[stockLocationColumn($person)];$reserved=activeReservedStock($db,(int)$productId,$person);$physical=$before+$reserved;
     if($physical!==$expected[$person])throw new Exception($person.'’s stock changed since this page was opened. Refresh and check the latest count before saving.');
-    if($counts[$person]<$reserved)throw new Exception($person.'’s total cannot be below the '.$reserved.' units reserved for orders. Check those orders first.');
     $updates[$person]=['available'=>$counts[$person]-$reserved,'delta'=>$counts[$person]-$physical,'physical'=>$physical];
    }
    foreach($updates as $person=>$update){if($update['delta']===0)continue;
@@ -1514,8 +1530,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($productId<1||$counted===false||$counted<0||$counted>999999||!in_array($location,['Jay','Tony'],true)||strlen($note)>500)throw new Exception('Enter a valid fridge stock count.');
    $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');
    $column=stockLocationColumn($location);$before=(int)$product[$column];$reserved=activeReservedStock($db,$productId,$location);$beforePhysical=$before+$reserved;
-   if((int)$counted<$reserved)throw new Exception('That physical count is lower than the '.$reserved.' units currently reserved for orders. Check those orders or the fridge count first.');
-   $available=max(0,(int)$counted-$reserved);$delta=$available-$before;
+   $available=(int)$counted-$reserved;$delta=$available-$before;
    if($delta!==0){$countNote='Physical count corrected from '.$beforePhysical.' to '.(int)$counted.'; reservations preserved'.($note!==''?' · '.$note:'');$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,$available);addStockMovement($db,$productId,'count_adjustment',$delta,$countNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-$delta],[$location=>$movementId],true,'count_adjustment','Physical stock count');}
   }
   if($action==='stock_transfer'){
@@ -1534,7 +1549,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    foreach($changes as $location=>$change){$location=stockLocationName((string)$location);if(!in_array($location,['Jay','Tony','Unallocated'],true))throw new Exception('This stock location cannot be undone.');
     $latest=$db->prepare('SELECT id FROM stock_movements WHERE product_id=? AND location=? ORDER BY id DESC LIMIT 1');$latest->execute([$productId,$location]);
     if((int)$latest->fetchColumn()!==(int)($movementIds[$location]??0))throw new Exception('A newer stock movement exists for this product. The old change can no longer be undone safely.');
-    $column=stockLocationColumn($location);$next=(int)$product[$column]+(int)$change;if($next<0||$next>999999)throw new Exception('Stock has since been committed or changed, so this action can no longer be undone safely.');
+    $column=stockLocationColumn($location);$next=(int)$product[$column]+(int)$change;if($next+activeReservedStock($db,$productId,$location)<0||$next>999999)throw new Exception('Stock has since been committed or changed, so this action can no longer be undone safely.');
     $nextByLocation[$location]=$next;
    }
    $db->beginTransaction();
@@ -2022,6 +2037,8 @@ $reservedStockByProduct=[];$reservationDetailsByProduct=[];$fridgeReservedTotals
 $reservationRows=$db->query("SELECT sf.product_id,sf.order_id,sf.quantity,sf.location,o.customer,o.phone,o.status,o.created,o.assigned_to FROM stock_fulfilments sf JOIN orders o ON o.id=sf.order_id WHERE o.status NOT IN ('Cancelled','Dispatched','Delivered') AND trim(COALESCE(o.delivery_date,''))='' ORDER BY datetime(o.created) DESC,o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 foreach($reservationRows as $reservedRow){$locName=stockLocationName((string)$reservedRow['location']);$loc=strtolower($locName);$qty=max(0,(int)$reservedRow['quantity']);$productId=(int)$reservedRow['product_id'];$reservedStockByProduct[$productId][$loc]=($reservedStockByProduct[$productId][$loc]??0)+$qty;if(isset($fridgeReservedTotals[$loc]))$fridgeReservedTotals[$loc]+=$qty;$reservationDetailsByProduct[$productId][]=['order_id'=>(int)$reservedRow['order_id'],'quantity'=>$qty,'location'=>$locName,'customer'=>(string)$reservedRow['customer'],'phone'=>(string)$reservedRow['phone'],'status'=>(string)$reservedRow['status'],'created'=>(string)$reservedRow['created'],'assigned_to'=>(string)($reservedRow['assigned_to']??'')];}
 $fridgePhysicalTotals=['jay'=>(int)($fridgeTotals['jay']??0)+(int)$fridgeReservedTotals['jay'],'tony'=>(int)($fridgeTotals['tony']??0)+(int)$fridgeReservedTotals['tony'],'unallocated'=>(int)($fridgeTotals['unallocated']??0)+(int)$fridgeReservedTotals['unallocated']];
+$stockShortages=stockReservationShortages($stockProducts,$reservedStockByProduct,$reservationDetailsByProduct);
+$stockShortageUnits=array_sum(array_column($stockShortages,'missing'));
 $fridgeValueTotals=['jay'=>['retail'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>0],'tony'=>['retail'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>0],'combined'=>['retail'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>0]];
 foreach($stockProducts as $fridgeProduct){
  if((int)($fridgeProduct['stock_tracking']??0)!==1)continue;
@@ -2867,8 +2884,8 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
  $jayReserved=(int)($reservedStockByProduct[(int)$sp['id']]['jay']??0);$tonyReserved=(int)($reservedStockByProduct[(int)$sp['id']]['tony']??0);$combinedReserved=$jayReserved+$tonyReserved;
  $jayPhysical=$jayAvailable+$jayReserved;$tonyPhysical=$tonyAvailable+$tonyReserved;$combinedPhysical=$combinedAvailable+$combinedReserved;
  $retailUnit=(int)$sp['price'];$costUnit=$sp['cost']===null?null:(int)$sp['cost'];
- $jayRetail=$jayAvailable*$retailUnit;$tonyRetail=$tonyAvailable*$retailUnit;$combinedRetail=$combinedAvailable*$retailUnit;
- $jayProfit=$costUnit===null?null:$jayAvailable*($retailUnit-$costUnit);$tonyProfit=$costUnit===null?null:$tonyAvailable*($retailUnit-$costUnit);$combinedProfit=$costUnit===null?null:$combinedAvailable*($retailUnit-$costUnit);
+ $jayRetail=max(0,$jayAvailable)*$retailUnit;$tonyRetail=max(0,$tonyAvailable)*$retailUnit;$combinedRetail=max(0,$combinedAvailable)*$retailUnit;
+ $jayProfit=$costUnit===null?null:max(0,$jayAvailable)*($retailUnit-$costUnit);$tonyProfit=$costUnit===null?null:max(0,$tonyAvailable)*($retailUnit-$costUnit);$combinedProfit=$costUnit===null?null:max(0,$combinedAvailable)*($retailUnit-$costUnit);
 $initialStockQty=$stockInitialView==='jay'?$jayAvailable:($stockInitialView==='tony'?$tonyAvailable:$combinedAvailable);$stockCardIsLow=(int)$sp['active']===1 && $initialStockQty<=(int)$sp['low_stock_at'];
 ?><article class="stock-product-card" id="stock-product-<?=(int)$sp['id']?>" data-stock-active="<?=(int)$sp['active']?>" <?=$stockLowOnly&&!$stockCardIsLow?'hidden':''?> data-jay-qty="<?=$jayAvailable?>" data-tony-qty="<?=$tonyAvailable?>" data-combined-qty="<?=$combinedAvailable?>" data-low-threshold="<?=e((int)($sp['low_stock_at']??2))?>">
 <div class="stock-product-title"><span class="product-vial-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M12 4h8v4l2 2v15a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V10l2-2V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M12 14h8M13 7h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="3" opacity=".35"/></svg></span><div><h3><?=e($sp['name'])?></h3><small><?=money($retailUnit)?> each<?=$costUnit===null?' · cost not set':' · '.money($costUnit).' cost'?></small><?php $productIncoming=(int)($incomingByProduct[(int)$sp['id']]??0);if($productIncoming>0):?><em class="incoming-stock-pill">+<?=$productIncoming?> incoming</em><?php endif;?></div></div>
@@ -2881,7 +2898,7 @@ $initialStockQty=$stockInitialView==='jay'?$jayAvailable:($stockInitialView==='t
  <input type="hidden" name="expected_jay_physical" value="<?=$jayPhysical?>"><input type="hidden" name="expected_tony_physical" value="<?=$tonyPhysical?>">
  <input type="hidden" name="return_filter" value="<?=$stockLowOnly?'low':''?>"><input type="hidden" name="return_fridge" value="<?=e($stockInitialView)?>">
  <p>Enter the total physically in each fridge, including reserved units.</p>
- <div class="stock-count-inputs"><label>Jay’s fridge<input type="number" inputmode="numeric" name="jay_physical" min="<?=$jayReserved?>" max="999999" step="1" value="<?=$jayPhysical?>" required><small><?=$jayReserved?> reserved</small></label><label>Tony’s fridge<input type="number" inputmode="numeric" name="tony_physical" min="<?=$tonyReserved?>" max="999999" step="1" value="<?=$tonyPhysical?>" required><small><?=$tonyReserved?> reserved</small></label></div>
+ <div class="stock-count-inputs"><label>Jay’s fridge<input type="number" inputmode="numeric" name="jay_physical" min="0" max="999999" step="1" value="<?=$jayPhysical?>" required><small><?=$jayReserved?> reserved</small></label><label>Tony’s fridge<input type="number" inputmode="numeric" name="tony_physical" min="0" max="999999" step="1" value="<?=$tonyPhysical?>" required><small><?=$tonyReserved?> reserved</small></label></div>
  <button type="submit">Save fridge counts</button>
  </form>
 </details>
@@ -2892,7 +2909,8 @@ $initialStockQty=$stockInitialView==='jay'?$jayAvailable:($stockInitialView==='t
  'combined'=>['label'=>'Combined','physical'=>$combinedPhysical,'reserved'=>$combinedReserved,'available'=>$combinedAvailable,'retail'=>$combinedRetail,'profit'=>$combinedProfit]
 ] as $stockKey=>$stockView):$stockReservations=array_values(array_filter($reservationDetailsByProduct[(int)$sp['id']]??[],fn($reservation)=>$stockKey==='combined'||strtolower((string)$reservation['location'])===$stockKey));$reservationDialogId='reserved-'.(int)$sp['id'].'-'.$stockKey;?>
 <div class="<?=$stockKey==='combined'?'stock-product-combined ':''?>stock-availability-panel" data-stock-count="<?=$stockKey?>" <?=$stockKey!==$stockInitialView?'hidden':''?>>
- <div class="stock-availability-three"><span><small>Physical</small><b><?=$stockView['physical']?></b></span><?php if($stockView['reserved']>0):?><button type="button" class="stock-reserved-trigger" data-reservation-open="<?=e($reservationDialogId)?>"><small>Reserved</small><b class="has-reserved"><?=$stockView['reserved']?></b><em>Tap to view</em></button><?php else:?><span><small>Reserved</small><b>0</b></span><?php endif;?><span class="available"><small>Available</small><b><?=$stockView['available']?></b></span></div>
+ <div class="stock-availability-three"><span><small>Physical</small><b><?=$stockView['physical']?></b></span><?php if($stockView['reserved']>0):?><button type="button" class="stock-reserved-trigger" data-reservation-open="<?=e($reservationDialogId)?>"><small>Reserved</small><b class="has-reserved"><?=$stockView['reserved']?></b><em>Tap to view</em></button><?php else:?><span><small>Reserved</small><b>0</b></span><?php endif;?><span class="available"><small>Available</small><b><?=max(0,$stockView['available'])?></b></span></div>
+ <?php if($stockView['available']<0):?><p class="stock-card-shortage">! <?=abs($stockView['available'])?> unit<?=abs($stockView['available'])===1?'':'s'?> short for reserved orders</p><?php endif;?>
  <div class="stock-value-lines"><small><b>Retail value available</b><?=money($stockView['retail'])?></small><small><b>Potential profit</b><?=$stockView['profit']===null?'—':money($stockView['profit'])?></small></div>
  <?php if($stockReservations):?><dialog class="stock-reservation-dialog" id="<?=e($reservationDialogId)?>"><div class="reservation-sheet"><header><div><p class="eyebrow">RESERVED STOCK</p><h3><?=e($sp['name'])?></h3><small><?=$stockView['reserved']?> unit<?=$stockView['reserved']===1?'':'s'?> reserved · <?=e($stockView['label'])?></small></div><button type="button" class="reservation-close" data-reservation-close aria-label="Close">×</button></header><div class="reservation-order-list"><?php foreach($stockReservations as $reservation):?><article><div class="reservation-order-icon">#</div><div class="reservation-order-copy"><strong><?=e($reservation['customer'])?></strong><span>ANK-<?=str_pad((string)$reservation['order_id'],4,'0',STR_PAD_LEFT)?> · <?=e($reservation['status'])?></span><small><?=e($reservation['location']==='Unallocated'?'Holding / unallocated':$reservation['location'].'’s fridge')?><?php if(trim($reservation['assigned_to'])!==''):?> · Assigned to <?=e($reservation['assigned_to'])?><?php endif;?></small></div><b><?=$reservation['quantity']?> unit<?=$reservation['quantity']===1?'':'s'?></b></article><?php endforeach;?></div><footer><span>Reserved stock is already removed from Available.</span><button type="button" data-reservation-close>Done</button></footer></div></dialog><?php endif;?>
 </div>
@@ -2984,12 +3002,12 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
  <?php $fridgeReservations=array_values(array_filter($reservationDetailsByProduct[(int)$sp['id']]??[],fn($reservation)=>strtolower((string)$reservation['location'])===$fridgeKey));$fridgeReservationDialogId='fridge-reserved-'.(int)$sp['id'].'-'.$fridgeKey;?>
  <div class="fridge-balance-three"><span><small>Physical</small><b><?=$physical?></b></span><?php if($reserved>0):?><button type="button" class="stock-reserved-trigger" data-reservation-open="<?=e($fridgeReservationDialogId)?>"><small>Reserved</small><b class="has-reserved"><?=$reserved?></b><em>Tap to view</em></button><?php else:?><span><small>Reserved</small><b>0</b></span><?php endif;?><span class="available"><small>Available</small><b><?=$available?></b></span></div>
  <?php if($fridgeReservations):?><dialog class="stock-reservation-dialog" id="<?=e($fridgeReservationDialogId)?>"><div class="reservation-sheet"><header><div><p class="eyebrow">RESERVED STOCK</p><h3><?=e($sp['name'])?></h3><small><?=$reserved?> unit<?=$reserved===1?'':'s'?> reserved from <?=e($fridgePerson)?>’s fridge</small></div><button type="button" class="reservation-close" data-reservation-close aria-label="Close">×</button></header><div class="reservation-order-list"><?php foreach($fridgeReservations as $reservation):?><article><div class="reservation-order-icon">#</div><div class="reservation-order-copy"><strong><?=e($reservation['customer'])?></strong><span>ANK-<?=str_pad((string)$reservation['order_id'],4,'0',STR_PAD_LEFT)?> · <?=e($reservation['status'])?></span><small><?=e($reservation['location'])?>’s fridge<?php if(trim($reservation['assigned_to'])!==''):?> · Assigned to <?=e($reservation['assigned_to'])?><?php endif;?></small></div><b><?=$reservation['quantity']?> unit<?=$reservation['quantity']===1?'':'s'?></b></article><?php endforeach;?></div><footer><span>This stock is committed to these orders.</span><button type="button" data-reservation-close>Done</button></footer></div></dialog><?php endif;?>
- <?php if($shortfall>0):?><div class="fridge-stock-shortfall"><span>!</span><div><strong><?=$shortfall?> unit<?=$shortfall===1?'':'s'?> short</strong><small>Previous stock movements took this below zero. Add stock to cover it, or use Correct physical count if the fridge balance itself is wrong.</small></div></div><?php endif;?>
+ <?php if($shortfall>0):?><div class="fridge-stock-shortfall"><span>!</span><div><strong><?=$shortfall?> unit<?=$shortfall===1?'':'s'?> short</strong><small>More units are reserved on orders than physically in this fridge. Add stock to cover the missing units or correct the physical count if it is wrong.</small></div></div><?php endif;?>
  <form method="post" class="fridge-quick-adjust"><?php csrf();?><input type="hidden" name="action" value="stock_quick_adjust"><input type="hidden" name="return" value="<?=$view?>"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><input type="hidden" name="location" value="<?=e($fridgePerson)?>"><span>Quick stock</span><div><button type="submit" name="delta" value="-1" <?=$available<1?'disabled':''?>>−1</button><button type="submit" name="delta" value="1" class="add">+1</button><button type="submit" name="delta" value="10" class="pack">+10</button></div></form>
  <details class="fridge-compact-actions"><summary>Transfer or correct count</summary><div class="fridge-compact-action-grid">
   <form method="post" class="fridge-mini-form" data-pack-form><?php csrf();?><input type="hidden" name="action" value="stock_transfer"><input type="hidden" name="return" value="<?=$view?>"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><input type="hidden" name="from_location" value="<?=e($fridgePerson)?>"><h3>Move from <?=e($fridgePerson)?></h3><label>To<select name="to_location"><option value="<?=e($otherPerson)?>"><?=e($otherPerson)?>’s fridge</option><option value="Unallocated">Holding stock</option></select></label><div class="stock-pack-picker compact"><span>Quick</span><div><button type="button" data-pack-qty="10">10</button><button type="button" data-pack-qty="20">20</button></div></div><label>Quantity<input name="quantity" type="number" min="1" max="<?=$available?>" value="<?=min(10,max(1,$available))?>" data-pack-quantity <?=$available<1?'disabled':''?>></label><button <?=$available<1?'disabled':''?>>Move stock</button>
   </form>
-  <form method="post" class="fridge-mini-form"><?php csrf();?><input type="hidden" name="action" value="stock_count"><input type="hidden" name="return" value="<?=$view?>"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><input type="hidden" name="location" value="<?=e($fridgePerson)?>"><h3>Correct physical count</h3><p>Only use this after physically counting the fridge.</p><label>Physical count<input name="counted_qty" type="number" min="<?=$reserved?>" max="999999" value="<?=max($reserved,$physical)?>" required></label><label>Reason<input name="note" maxlength="500" placeholder="Count correction"></label><button class="quiet">Save correction</button>
+  <form method="post" class="fridge-mini-form"><?php csrf();?><input type="hidden" name="action" value="stock_count"><input type="hidden" name="return" value="<?=$view?>"><input type="hidden" name="product_id" value="<?=$sp['id']?>"><input type="hidden" name="location" value="<?=e($fridgePerson)?>"><h3>Correct physical count</h3><p>Only use this after physically counting the fridge.</p><label>Physical count<input name="counted_qty" type="number" min="0" max="999999" value="<?=$physical?>" required></label><label>Reason<input name="note" maxlength="500" placeholder="Count correction"></label><button class="quiet">Save correction</button>
   </form>
  </div></details>
 </article>
