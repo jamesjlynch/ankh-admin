@@ -4937,25 +4937,59 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 }
 
 
-/* Real stock shortages: reserved demand exceeds a verified fridge count. */
-.dashboard-stock-shortage{margin:14px 0 20px;padding:16px;border:1px solid rgba(211,122,96,.55);border-radius:16px;background:linear-gradient(135deg,rgba(99,47,36,.27),rgba(24,25,25,.96));color:var(--text)}
-.stock-shortage-header{display:flex;align-items:flex-start;gap:11px;margin-bottom:13px}
-.stock-shortage-alert-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;border:1px solid rgba(232,154,122,.5);border-radius:10px;color:#ffc9b0;background:rgba(232,154,122,.12);font-size:21px;font-weight:800}
-.stock-shortage-header .eyebrow{margin:0 0 3px;color:#f1ab90;font-size:10px;letter-spacing:.13em}
-.stock-shortage-header h2{margin:0;font-size:17px;line-height:1.3}
-.stock-shortage-header p:not(.eyebrow){margin:5px 0 0;color:#e6b1a0;font-size:12px}
-.stock-shortage-list{display:grid;gap:8px}
-.stock-shortage-row{padding:11px;border:1px solid rgba(219,139,111,.28);border-radius:11px;background:rgba(13,16,16,.34)}
-.stock-shortage-row-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.stock-shortage-row-top>div{min-width:0;display:grid;gap:5px}
-.stock-shortage-row-top strong{font-size:14px}
-.stock-shortage-row-top span{font-size:11px;line-height:1.45;color:var(--muted)}
-.stock-shortage-row-top>b{flex:0 0 auto;padding:5px 8px;border:1px solid rgba(223,143,110,.48);border-radius:999px;color:#ffc0a4;background:rgba(189,102,73,.15);font-size:12px;white-space:nowrap}
-.stock-shortage-orders{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:10px}
-.stock-shortage-orders>span,.stock-shortage-orders>small{font-size:10px;color:var(--muted)}
-.stock-shortage-orders a{padding:6px 8px;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:11px;text-decoration:none}
-.stock-shortage-orders a:hover{border-color:#dfb66688;color:var(--gold)}
-.stock-shortage-stock-link{display:inline-block;margin-top:10px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none}
-.stock-shortage-footnote{margin:12px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+/* Fulfilment warning — uses the same card language as ANKH dashboard panels. */
+.dashboard-stock-shortage{margin:14px 0 20px;padding:16px;border:1px solid #34302a;border-radius:16px;background:linear-gradient(140deg,#1b1b1b,#161819);color:#f0eee8}
+.stock-shortage-header{display:flex;align-items:flex-start;gap:11px;margin-bottom:14px}
+.stock-shortage-alert-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;border:1px solid #715a36;background:#dfb66616;color:var(--gold)}
+.stock-shortage-alert-icon svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.stock-shortage-heading-copy{flex:1;min-width:0}
+.stock-shortage-heading-copy .eyebrow{margin:1px 0 5px;font-size:10px;letter-spacing:.14em;color:var(--gold)}
+.stock-shortage-heading-copy h2{margin:0;font-size:20px;line-height:1.25;font-weight:700;letter-spacing:-.3px;color:#f0eee8}
+.stock-shortage-heading-copy>p:not(.eyebrow){margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.45}
+.stock-shortage-total{display:flex;flex:0 0 auto;align-items:center;justify-content:center;flex-direction:column;min-width:58px;padding:8px 7px;border:1px solid #dfb66625;border-radius:14px;background:#dfb66610;text-align:center;color:var(--gold)}
+.stock-shortage-total b{font-size:22px;line-height:1.12;font-weight:700}
+.stock-shortage-total small{font-size:9px;line-height:1.3;white-space:nowrap;color:#d2bd8e}
+.stock-shortage-list{display:grid;gap:10px}
+.stock-shortage-row{min-width:0;padding:14px;border:1px solid #343637;border-radius:13px;background:#1d1e1f}
+.stock-shortage-row-top{display:flex;align-items:center;gap:9px;min-width:0}
+.stock-shortage-product-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border:1px solid #dfb66630;border-radius:10px;background:#dfb66610;color:var(--gold)}
+.stock-shortage-product-icon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round}
+.stock-shortage-product-info{min-width:0;flex:1}
+.stock-shortage-product-info h3{font-size:14px;line-height:1.35;font-weight:700;margin:0;color:#f0eee8;overflow-wrap:anywhere}
+.stock-shortage-product-info p{margin:3px 0 0;color:var(--muted);font-size:11px;line-height:1.4}
+.stock-shortage-pill{flex:0 0 auto;padding:5px 8px;border:1px solid #b889694d;border-radius:999px;background:#b8896915;color:#f0b49f;font-size:11px;line-height:1.3;font-weight:700;white-space:nowrap}
+.stock-shortage-message{margin:11px 0 12px;color:#e5e1d9;font-size:12px;line-height:1.5}
+.stock-shortage-message strong{color:#f0eee8}
+.stock-shortage-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:10px}
+.stock-shortage-metrics>div{min-width:0;display:flex;align-items:center;flex-direction:column;justify-content:center;gap:3px;padding:10px 4px;border:1px solid #363839;border-radius:10px;background:#141617;text-align:center}
+.stock-shortage-metrics span{font-size:10px;color:var(--muted);white-space:nowrap}
+.stock-shortage-metrics strong{font-size:17px;line-height:1.25;font-weight:700;color:#f0eee8}
+.stock-shortage-metrics .is-short{border-color:#bd816044;background:#bb805d10}
+.stock-shortage-metrics .is-short strong{color:#eab18f}
+.stock-shortage-opportunity{display:flex;align-items:flex-start;gap:10px;padding:11px 12px;border:1px solid #536c594d;border-radius:11px;background:#31503b23}
+.stock-shortage-opportunity.no-stock{border-color:#63564255;background:#4e3e291e}
+.stock-shortage-opportunity-icon{display:grid;place-items:center;flex:0 0 26px;width:26px;height:26px;border-radius:8px;background:#5c997226;color:#a8d1b7}
+.stock-shortage-opportunity.no-stock .stock-shortage-opportunity-icon{background:#bc976020;color:#dbb977}
+.stock-shortage-opportunity-icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.stock-shortage-opportunity>div{min-width:0;flex:1}
+.stock-shortage-opportunity strong{display:block;font-size:12px;line-height:1.4;color:#badac6}
+.stock-shortage-opportunity.no-stock strong{color:#e7c58f}
+.stock-shortage-opportunity p{margin:4px 0 0;font-size:11px;line-height:1.5;color:#c1c8c1}
+.stock-shortage-orders{margin-top:12px;padding-top:11px;border-top:1px solid #363839}
+.stock-shortage-orders-title{display:flex;align-items:center;gap:7px;margin-bottom:8px;color:var(--muted)}
+.stock-shortage-orders-title strong{font-size:11px;font-weight:700}
+.stock-shortage-orders-icon{display:grid;place-items:center;width:18px;height:18px}
+.stock-shortage-orders-icon svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.stock-shortage-order-links{display:flex;flex-wrap:wrap;gap:6px}
+.stock-shortage-order-links a{display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;padding:7px 9px;border:1px solid #3c3e3d;border-radius:9px;background:#17191a;color:#f0eee8;font-size:11px;line-height:1.45;text-decoration:none;max-width:100%;overflow-wrap:anywhere}
+.stock-shortage-order-links a span{font-size:10px;color:var(--gold);font-weight:700}
+.stock-shortage-order-links a:hover{border-color:#dfb66688;background:#dfb6660b}
+.stock-shortage-order-links small{align-self:center;color:var(--muted);font-size:10px}
+.stock-shortage-stock-link{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding:11px 12px;min-height:44px;border-radius:10px;border:1px solid #dfb66638;color:var(--gold);background:#dfb6660b;font-size:12px;font-weight:700;text-decoration:none}
+.stock-shortage-stock-link svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.stock-shortage-stock-link:hover{background:#dfb66617;border-color:#dfb66670}
+.stock-shortage-footnote{margin:12px 2px 0;font-size:11px;color:var(--muted);line-height:1.5}
+@media(max-width:760px){.dashboard-stock-shortage{padding:12px;margin:12px 0 18px;border-radius:15px}.stock-shortage-header{gap:9px}.stock-shortage-alert-icon{width:38px;height:38px;flex-basis:38px}.stock-shortage-heading-copy h2{font-size:17px}.stock-shortage-total{min-width:52px;padding:7px 5px}.stock-shortage-row{padding:12px}.stock-shortage-row-top{gap:8px}.stock-shortage-metrics{gap:6px}}
+@media(max-width:375px){.stock-shortage-product-info h3{font-size:13px}.stock-shortage-row{padding:10px}.stock-shortage-heading-copy h2{font-size:16px}.stock-shortage-metrics span{font-size:9px}}
 .stock-card-shortage{margin:8px 0 2px;padding:7px 9px;border:1px solid rgba(211,122,96,.45);border-radius:9px;color:#f2b19c;background:rgba(211,122,96,.08);font-size:11px;font-weight:700}
 @media(max-width:760px){.dashboard-stock-shortage{padding:12px;margin:12px 0 18px}.stock-shortage-header h2{font-size:15px}.stock-shortage-row{padding:10px}}
