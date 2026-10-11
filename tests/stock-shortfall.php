@@ -37,12 +37,12 @@ check((int)$record['stock_tony_qty']+activeReservedStock($db,1,'Tony')===0,'Tony
 check((int)$db->query("SELECT count(*) FROM stock_fulfilments")->fetchColumn()===2,'Reservations must not be deleted by a physical count.');
 check((int)$db->query("SELECT count(*) FROM stock_movements WHERE movement_type='count_adjustment'")->fetchColumn()===2,'Both physical count adjustments must be audited.');
 // Alert calculations must identify which fridge and affected orders.
-$reserved=[1=>['jay'=>2,'tony'=>1]];
+$reserveMap=[1=>['jay'=>2,'tony'=>1]];
 $details=[1=>[
  ['order_id'=>1,'customer'=>'Customer A','location'=>'Jay','quantity'=>2],
  ['order_id'=>2,'customer'=>'Customer B','location'=>'Tony','quantity'=>1]
 ]];
-$shortages=stockReservationShortages([$record],$reserved,$details);
+$shortages=stockReservationShortages([$record],$reserveMap,$details);
 check(count($shortages)===2,'Both fridges should produce distinct dashboard warnings.');
 check($shortages[0]['location']==='Jay' && $shortages[0]['missing']===2,'Jay should show two missing units.');
 check($shortages[1]['location']==='Tony' && $shortages[1]['missing']===1,'Tony should show one missing unit.');
@@ -56,11 +56,11 @@ $action='stock_count';$_POST=['product_id'=>'1','counted_qty'=>'2','location'=>'
 eval($singleHandler);
 $record=$db->query('SELECT * FROM products WHERE id=1')->fetch(PDO::FETCH_ASSOC);
 check((int)$record['stock_jay_qty']===0,'Single-fridge physical recount should restore Jay without changing reservations.');
-$shortages=stockReservationShortages([$record],$reserved,$details);
+$shortages=stockReservationShortages([$record],$reserveMap,$details);
 check(count($shortages)===1 && $shortages[0]['location']==='Tony','Reconciled fridge should vanish from alerts while another shortage stays active.');
 adjustProductStockAtLocation($db,1,'Tony',1);
 $record=$db->query('SELECT * FROM products WHERE id=1')->fetch(PDO::FETCH_ASSOC);
-check(count(stockReservationShortages([$record],$reserved,$details))===0,'Restocking the remaining fridge should clear all alerts.');
+check(count(stockReservationShortages([$record],$reserveMap,$details))===0,'Restocking the remaining fridge should clear all alerts.');
 // Repeat zero count via product-management editor, formerly blocked when reserved > physical.
 $start=strpos($source,"  if(\$action==='stock_open'){");
 $end=strpos($source,"  if($action==='stock_receive'){",$start);
