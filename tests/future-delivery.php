@@ -147,3 +147,19 @@ $db->prepare("UPDATE orders SET delivery_date='',reconstituted=0,packaged=1 WHER
 ob_start();orderPreparationBadge(preparationRow($db,$id));$html=ob_get_clean();
 check(str_contains($html,'Packaged · Ready for delivery')&&!str_contains($html,'Reconstituted'),'Packaged badge must replace reconstituted.');
 echo "PASS: future orders remain to deliver, preparation transitions, packaging replaces reconstituted, undo, no premature delivery, delivered badge suppression.\n";
+
+check(futureDeliveryPaymentLabel(['total'=>8000,'paid_amount'=>8000])==='Paid','A settled future order should display Paid.');
+check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>0,'status'=>'New'])==='Unpaid','An unpaid future order should display Unpaid, not New.');
+check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>2000])==='Part paid','A deposit should display Part paid.');
+check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>7000])==='Paid','Overpayments should not display unpaid.');
+$futureUiStart=strpos($source,'<div class="future-delivery-list">');
+$futureUiEnd=strpos($source,'<?php endforeach;?></div></div><?php endif;?>',$futureUiStart);
+check($futureUiStart!==false && $futureUiEnd!==false,'Future-delivery section must render.');
+$futureUi=substr($source,$futureUiStart,$futureUiEnd-$futureUiStart);
+check(str_contains($futureUi,'<details class="future-order-entry"') && str_contains($futureUi,'<summary class="future-order-card"'),'Future order tile must expand when tapped.');
+check(!str_contains($futureUi,'<a class="future-order-card"'),'Future order tile should no longer navigate away on tap.');
+check(str_contains($futureUi,'future-order-edit-link') && str_contains($futureUi,'?view=edit&amp;id='),'Edit order must remain available inside expansion.');
+check(strpos($futureUi,'future-order-details') < strpos($futureUi,'dashboardDeliveryScheduleForm(') && str_contains($futureUi,'dashboardPreparationControls('),'Delivery and preparation controls must stay inside the expandable area.');
+$futureCss=file_get_contents(dirname(__DIR__).'/style.css');
+check(str_contains($futureCss,'.future-order-entry[open] .future-order-chevron') && str_contains($futureCss,'.future-order-details'),'Compact future order CSS must include an expanded state.');
+echo "PASS: compact expandable future delivery tiles, paid/unpaid/part-paid labels, edit access, hidden preparation and date controls.\\n";
