@@ -74,3 +74,42 @@ check(str_contains($source,'stock-shortage-orders'),'Dashboard must show linked 
 check(str_contains($source,'name="jay_physical" min="0"') && str_contains($source,'name="tony_physical" min="0"'),'Combined form HTML must permit a zero count.');
 check(str_contains($source,'name="counted_qty" type="number" min="0"'),'Single fridge HTML must permit a zero count.');
 echo "PASS: below-reservation physical counts, per-fridge alerts, reservation safety, audit, and recovery.\n";
+
+/* A shortage can be covered by the OTHER fridge's genuinely unreserved stock. */
+$exampleProduct=[
+ 'id'=>3,'name'=>'Retatrutide 20mg','stock_tracking'=>1,
+ 'stock_jay_qty'=>-1,'stock_tony_qty'=>3,'stock_unallocated_qty'=>0
+];
+$exampleReservations=[3=>['jay'=>2,'tony'=>2]];
+$exampleOrders=[3=>[
+ ['order_id'=>71,'customer'=>'Trish Beech','location'=>'Jay','quantity'=>1],
+ ['order_id'=>72,'customer'=>'Steph Myhan','location'=>'Jay','quantity'=>1],
+ ['order_id'=>73,'customer'=>'Tony Customer','location'=>'Tony','quantity'=>2]
+]];
+$example=stockReservationShortages([$exampleProduct],$exampleReservations,$exampleOrders);
+check(count($example)===1,'Only James has a stock shortage.');
+check($example[0]['location_owner']==='James','Jay reservations must be attributed to James.');
+check($example[0]['other_owner']==='Tony'&&$example[0]['other_available']===3,'Tony’s true available quantity must exclude his two reserved units.');
+check($example[0]['transferable']===1&&$example[0]['remaining_after_transfer']===0,'A one-unit transfer from Tony would fully cover the shortage.');
+check(count($example[0]['orders'])===2,'Both affected James orders must remain linked.');
+$exampleProduct['stock_jay_qty']=-3;$exampleReservations[3]['jay']=4;$exampleProduct['stock_tony_qty']=1;
+$partial=stockReservationShortages([$exampleProduct],$exampleReservations,$exampleOrders);
+check($partial[0]['missing']===3&&$partial[0]['other_available']===1&&$partial[0]['transferable']===1&&$partial[0]['remaining_after_transfer']===2,'Partial spare stock must not be presented as fully sufficient.');
+$exampleProduct['stock_tony_qty']=-1;
+$none=stockReservationShortages([$exampleProduct],$exampleReservations,$exampleOrders);
+$jay=array_values(array_filter($none,fn($row)=>$row['location']==='Jay'));
+check(count($jay)===1&&$jay[0]['other_available']===0&&$jay[0]['transferable']===0,'Tony’s shortage must never count as transferable stock.');
+$tony=array_values(array_filter($none,fn($row)=>$row['location']==='Tony'));
+check(count($tony)===1&&$tony[0]['location_owner']==='Tony'&&$tony[0]['other_owner']==='James'&&$tony[0]['other_available']===0,'Tony shortages should look at James’s truly available units.');
+$unallocated=stockReservationShortages([[
+ 'id'=>4,'name'=>'Selank','stock_tracking'=>1,'stock_jay_qty'=>0,'stock_tony_qty'=>2,'stock_unallocated_qty'=>-1
+]],[4=>['unallocated'=>1]],[4=>[['order_id'=>74,'customer'=>'Unassigned','location'=>'Unallocated','quantity'=>1]]]);
+check($unallocated[0]['other_owner']===null&&$unallocated[0]['transferable']===0,'Unallocated stock should not arbitrarily imply a transfer from a named fridge.');
+check(str_contains($source,'class="stock-shortage-product-icon"'),'New design must use a product SVG icon.');
+check(str_contains($source,'class="stock-shortage-opportunity '),'Dashboard must display other-fridge transfer availability.');
+check(str_contains($source,'stock-shortage-order-links'),'Affected customer orders must remain navigable.');
+check(str_contains($source,"'remaining_after_transfer'=>max(0,") ,'Transfer advice must distinguish shortages not fully covered.');
+check(str_contains($source,"@filemtime(__DIR__.'/style.css')"),'New releases must cache-bust the stylesheet.');
+$css=file_get_contents(dirname(__DIR__).'/style.css');
+check(str_contains($css,'.dashboard-stock-shortage')&&str_contains($css,'.stock-shortage-opportunity-icon svg'),'Styled warning and transfer SVG icons must exist in the stylesheet.');
+echo "PASS: assignment-aware shortage alerts, other-fridge available units, full/partial/no transfer, styling and cache versioning.\n";
