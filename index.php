@@ -685,7 +685,19 @@ function stockReservationShortages(array $products,array $reservedByProduct,arra
    $physical=max(0,(int)($product[$column]??0)+$reserved);
    if($physical>=$reserved)continue;
    $affected=array_values(array_filter($reservationDetails[$productId]??[],fn($order)=>$order['location']===$location));
-   $shortages[]=['product_id'=>$productId,'name'=>(string)$product['name'],'location'=>$location,'physical'=>$physical,'reserved'=>$reserved,'missing'=>$reserved-$physical,'orders'=>$affected];
+   $otherLocation=$location==='Jay'?'Tony':($location==='Tony'?'Jay':null);
+   $otherColumn=$otherLocation===null?null:stockLocationColumn($otherLocation);
+   // Available balances have already excluded the OTHER fridge's own reserved orders.
+   $otherAvailable=$otherColumn===null?0:max(0,(int)($product[$otherColumn]??0));
+   $missing=$reserved-$physical;
+   $shortages[]=[
+    'product_id'=>$productId,'name'=>(string)$product['name'],'location'=>$location,
+    'location_owner'=>$location==='Jay'?'James':($location==='Tony'?'Tony':'Holding stock'),
+    'physical'=>$physical,'reserved'=>$reserved,'missing'=>$missing,'orders'=>$affected,
+    'other_location'=>$otherLocation,'other_owner'=>$otherLocation==='Jay'?'James':($otherLocation==='Tony'?'Tony':null),
+    'other_available'=>$otherAvailable,'transferable'=>min($missing,$otherAvailable),
+    'remaining_after_transfer'=>max(0,$missing-$otherAvailable)
+   ];
   }
  }
  usort($shortages,fn($a,$b)=>$b['missing']<=>$a['missing'] ?: strcasecmp($a['name'],$b['name']) ?: strcmp($a['location'],$b['location']));
@@ -2007,7 +2019,7 @@ function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile89-preparation-stages"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=<?=e((string)(@filemtime(__DIR__.'/style.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2463,15 +2475,41 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </div>
 <?php if($stockShortages):?>
 <section class="dashboard-stock-shortage" role="alert" aria-labelledby="stock-shortage-title">
- <div class="stock-shortage-header"><span class="stock-shortage-alert-icon" aria-hidden="true">!</span><div><p class="eyebrow">STOCK ALERT</p><h2 id="stock-shortage-title">Not enough stock to fulfil reserved orders</h2><p><?=count($stockShortages)?> shortage<?=count($stockShortages)===1?'':'s'?> · <?=$stockShortageUnits?> unit<?=$stockShortageUnits===1?'':'s'?> missing</p></div></div>
- <div class="stock-shortage-list">
- <?php foreach($stockShortages as $shortage):?><article class="stock-shortage-row">
-  <div class="stock-shortage-row-top"><div><strong><?=e($shortage['name'])?></strong><span><?=e($shortage['location']==='Unallocated'?'Unallocated / holding':$shortage['location'].'’s fridge')?> · <?=$shortage['physical']?> physical / <?=$shortage['reserved']?> reserved</span></div><b><?=$shortage['missing']?> short</b></div>
-  <?php if($shortage['orders']):?><div class="stock-shortage-orders"><span>Reserved for:</span><?php foreach(array_slice($shortage['orders'],0,4) as $affected):?><a href="?view=edit&amp;id=<?=(int)$affected['order_id']?>">ANK-<?=str_pad((string)$affected['order_id'],4,'0',STR_PAD_LEFT)?> · <?=e($affected['customer'])?></a><?php endforeach;?><?php if(count($shortage['orders'])>4):?><small>+<?=count($shortage['orders'])-4?> other orders</small><?php endif;?></div><?php endif;?>
-  <a class="stock-shortage-stock-link" href="?view=stock#stock-product-<?=(int)$shortage['product_id']?>">Check stock →</a>
- </article><?php endforeach;?>
+ <div class="stock-shortage-header">
+  <span class="stock-shortage-alert-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 9v4.8M12 17h.01"/></svg></span>
+  <div class="stock-shortage-heading-copy"><p class="eyebrow">STOCK ALERT</p><h2 id="stock-shortage-title">Orders need stock</h2><p>Reserved orders exceed the stock available in their assigned fridge.</p></div>
+  <span class="stock-shortage-total"><b><?=$stockShortageUnits?></b><small>unit<?=$stockShortageUnits===1?'':'s'?> short</small></span>
  </div>
- <p class="stock-shortage-footnote">Physical counts are unchanged and reserved orders remain recorded. Add stock, correct a fridge count or review the affected orders to clear this alert.</p>
+ <div class="stock-shortage-list">
+ <?php foreach($stockShortages as $shortage):$owner=$shortage['location_owner'];$otherOwner=$shortage['other_owner'];$otherAvailable=$shortage['other_available'];$transferable=$shortage['transferable'];$remaining=$shortage['remaining_after_transfer'];?>
+ <article class="stock-shortage-row">
+  <div class="stock-shortage-row-top">
+   <span class="stock-shortage-product-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6m-5 0v4l-3 3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9l-3-3V3M8 12h8"/></svg></span>
+   <div class="stock-shortage-product-info"><h3><?=e($shortage['name'])?></h3><p><?=e($shortage['location']==='Unallocated'?'Holding / unallocated':$owner.' · '.$shortage['location'].'’s fridge')?></p></div>
+   <span class="stock-shortage-pill"><?=$shortage['missing']?> short</span>
+  </div>
+  <p class="stock-shortage-message"><strong><?=e($owner)?></strong> <?=$shortage['location']==='Unallocated'?'doesn’t have enough stock allocated to cover these reservations.':'doesn’t have enough stock to fulfil the orders assigned to '.e($owner).'.'?></p>
+  <div class="stock-shortage-metrics" aria-label="Current stock balance"><div><span>In fridge</span><strong><?=$shortage['physical']?></strong></div><div><span>Reserved</span><strong><?=$shortage['reserved']?></strong></div><div class="is-short"><span>Still needed</span><strong><?=$shortage['missing']?></strong></div></div>
+  <?php if($otherOwner!==null):?>
+  <div class="stock-shortage-opportunity <?=$transferable>0?'has-stock':'no-stock'?>">
+   <span class="stock-shortage-opportunity-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4"/></svg></span>
+   <div><strong><?=e($otherOwner)?> has <?=$otherAvailable?> available unit<?=$otherAvailable===1?'':'s'?> of this product.</strong>
+    <?php if($transferable===$shortage['missing']):?><p>Transferring <?=$transferable?> unit<?=$transferable===1?'':'s'?> from <?=e($otherOwner)?> would cover the shortage.</p>
+    <?php elseif($transferable>0):?><p>A transfer could cover <?=$transferable?> of the <?=$shortage['missing']?> missing; <?=$remaining?> would still be needed.</p>
+    <?php else:?><p>There is no spare stock in <?=e($otherOwner)?>’s fridge to transfer. Replenishment is needed.</p><?php endif;?>
+   </div>
+  </div>
+  <?php else:?>
+  <div class="stock-shortage-opportunity no-stock"><span class="stock-shortage-opportunity-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h16m-4-4 4 4-4 4M20 16H4m4-4-4 4 4 4"/></svg></span><div><strong>Holding stock is short.</strong><p>Check the order allocation or replenish the missing quantity.</p></div></div>
+  <?php endif;?>
+  <?php if($shortage['orders']):?>
+  <div class="stock-shortage-orders"><div class="stock-shortage-orders-title"><span class="stock-shortage-orders-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8M8 3h8v3H8zM6 5H5a2 2 0 0 0-2 2v13h18V7a2 2 0 0 0-2-2h-1M7 11h10M7 15h10"/></svg></span><strong>Orders reserving this stock</strong></div><div class="stock-shortage-order-links"><?php foreach(array_slice($shortage['orders'],0,4) as $affected):?><a href="?view=edit&amp;id=<?=(int)$affected['order_id']?>"><span>ANK-<?=str_pad((string)$affected['order_id'],4,'0',STR_PAD_LEFT)?></span><?=e($affected['customer'])?></a><?php endforeach;?><?php if(count($shortage['orders'])>4):?><small>+<?=count($shortage['orders'])-4?> more orders</small><?php endif;?></div></div>
+  <?php endif;?>
+  <a class="stock-shortage-stock-link" href="?view=stock#stock-product-<?=(int)$shortage['product_id']?>">View stock &amp; transfer <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></a>
+ </article>
+ <?php endforeach;?>
+ </div>
+ <p class="stock-shortage-footnote">Nothing has been moved automatically. Reservations stay in place until stock is added, transferred or the orders are changed.</p>
 </section>
 <?php endif;?>
 
