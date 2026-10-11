@@ -2488,7 +2488,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
    <div class="stock-shortage-product-info"><h3><?=e($shortage['name'])?></h3><p><?=e($shortage['location']==='Unallocated'?'Holding / unallocated':$owner.' · '.$shortage['location'].'’s fridge')?></p></div>
    <span class="stock-shortage-pill"><?=$shortage['missing']?> short</span>
   </div>
-  <p class="stock-shortage-message"><strong><?=e($owner)?></strong> <?=$shortage['location']==='Unallocated'?'doesn’t have enough stock allocated to cover these reservations.':'doesn’t have enough stock to fulfil the orders assigned to '.e($owner).'.'?></p>
+  <p class="stock-shortage-message"><?php if($shortage['location']==='Unallocated'):?>There isn’t enough holding stock allocated to cover these reservations.<?php else:?><strong><?=e($owner)?></strong> doesn’t have enough stock in <?=e($shortage['location'])?>’s fridge to fulfil these orders.<?php endif;?></p>
   <div class="stock-shortage-metrics" aria-label="Current stock balance"><div><span>In fridge</span><strong><?=$shortage['physical']?></strong></div><div><span>Reserved</span><strong><?=$shortage['reserved']?></strong></div><div class="is-short"><span>Still needed</span><strong><?=$shortage['missing']?></strong></div></div>
   <?php if($otherOwner!==null):?>
   <div class="stock-shortage-opportunity <?=$transferable>0?'has-stock':'no-stock'?>">
