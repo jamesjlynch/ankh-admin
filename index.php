@@ -1902,6 +1902,10 @@ function dashboardPreparationControls(array $order):void{
  <label class="order-preparation-toggle"><input type="checkbox" name="complete" value="1" <?=$checked?'checked':''?> <?=$disabled?'disabled':''?>><span><strong><?=e($label)?></strong><small><?=$stage==='packaged'?'Ready for delivery':'Ready to package'?></small></span></label><button type="submit" class="order-preparation-save" <?=$disabled?'disabled':''?>>Save</button></form>
  <?php endforeach;?></div><?php
 }
+function futureDeliveryPaymentLabel(array $order):string{
+ $total=max(0,(int)($order['total']??0));$paid=max(0,(int)($order['paid_amount']??0));
+ return $paid>=$total?'Paid':($paid>0?'Part paid':'Unpaid');
+}
 function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
  $date=trim((string)($order['scheduled_delivery_date']??''));
  $active=!in_array((string)($order['status']??''),['Cancelled','Delivered'],true)&&trim((string)($order['delivery_date']??''))==='';
@@ -2453,15 +2457,21 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if($futureDeliveries):?><div class="todo-column future-orders-column">
 <div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>Planned orders · nearest date first</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
 <div class="future-delivery-list">
-<?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));?>
-<div class="future-order-entry"><a class="future-order-card" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">
- <div class="future-order-date"><span><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('M'))?></span><strong><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d'))?></strong><small><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('D'))?></small></div>
- <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
- <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
- <small class="future-order-meta"><?=e($futureOrder['status'])?></small><?php deliveryScheduleTags($futureOrder,$now);?>
- <?php orderPreparationBadge($futureOrder);?></div>
- <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><small><?=$futureBalance>0?money($futureBalance).' due':'Paid in full'?></small><span aria-hidden="true">›</span></div>
-</a><?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);?></div>
+<?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));$futurePaymentLabel=futureDeliveryPaymentLabel($futureOrder);$futurePaymentTone=$futurePaymentLabel==='Paid'?'is-paid':($futurePaymentLabel==='Part paid'?'is-part-paid':'is-unpaid');?>
+<details class="future-order-entry" id="future-order-<?=(int)$futureOrder['id']?>">
+ <summary class="future-order-card" aria-label="<?=e($futureOrder['customer'])?>, <?=e($futurePaymentLabel)?>, planned delivery <?=e(date('j F',strtotime($futureOrder['scheduled_delivery_date'])))?>">
+  <div class="future-order-date"><span><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('M'))?></span><strong><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d'))?></strong><small><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('D'))?></small></div>
+  <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
+   <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
+   <div class="future-order-badges"><span class="future-order-meta <?=$futurePaymentTone?>"><?=e($futurePaymentLabel)?></span><?php deliveryScheduleTags($futureOrder,$now);?><?php orderPreparationBadge($futureOrder);?></div>
+  </div>
+  <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><?php if($futureBalance>0):?><small><?=money($futureBalance)?> due</small><?php endif;?><span class="future-order-chevron" aria-hidden="true">⌄</span></div>
+ </summary>
+ <div class="future-order-details">
+  <?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);?>
+  <a class="future-order-edit-link" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">View / edit order <span aria-hidden="true">↗</span></a>
+ </div>
+</details>
 <?php endforeach;?></div></div><?php endif;?>
 </div></section><?php endif;?>
 
