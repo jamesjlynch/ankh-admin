@@ -2461,6 +2461,19 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Due soon / unscheduled</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
+<?php if($stockShortages):?>
+<section class="dashboard-stock-shortage" role="alert" aria-labelledby="stock-shortage-title">
+ <div class="stock-shortage-header"><span class="stock-shortage-alert-icon" aria-hidden="true">!</span><div><p class="eyebrow">STOCK ALERT</p><h2 id="stock-shortage-title">Not enough stock to fulfil reserved orders</h2><p><?=count($stockShortages)?> shortage<?=count($stockShortages)===1?'':'s'?> · <?=$stockShortageUnits?> unit<?=$stockShortageUnits===1?'':'s'?> missing</p></div></div>
+ <div class="stock-shortage-list">
+ <?php foreach($stockShortages as $shortage):?><article class="stock-shortage-row">
+  <div class="stock-shortage-row-top"><div><strong><?=e($shortage['name'])?></strong><span><?=e($shortage['location']==='Unallocated'?'Unallocated / holding':$shortage['location'].'’s fridge')?> · <?=$shortage['physical']?> physical / <?=$shortage['reserved']?> reserved</span></div><b><?=$shortage['missing']?> short</b></div>
+  <?php if($shortage['orders']):?><div class="stock-shortage-orders"><span>Reserved for:</span><?php foreach(array_slice($shortage['orders'],0,4) as $affected):?><a href="?view=edit&amp;id=<?=(int)$affected['order_id']?>">ANK-<?=str_pad((string)$affected['order_id'],4,'0',STR_PAD_LEFT)?> · <?=e($affected['customer'])?></a><?php endforeach;?><?php if(count($shortage['orders'])>4):?><small>+<?=count($shortage['orders'])-4?> other orders</small><?php endif;?></div><?php endif;?>
+  <a class="stock-shortage-stock-link" href="?view=stock#stock-product-<?=(int)$shortage['product_id']?>">Check stock →</a>
+ </article><?php endforeach;?>
+ </div>
+ <p class="stock-shortage-footnote">Physical counts are unchanged and reserved orders remain recorded. Add stock, correct a fridge count or review the affected orders to clear this alert.</p>
+</section>
+<?php endif;?>
 
 <?php if($topSelling):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
 <?php $rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;?>
