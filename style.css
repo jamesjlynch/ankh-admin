@@ -4922,3 +4922,16 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .delivery-move-auto .delivery-move-button{background:transparent;border-color:var(--border);color:var(--muted)}
 .delivery-move-hint{margin:10px 0;padding:8px 10px;border:1px dashed var(--border);border-radius:10px;font-size:11px;line-height:1.5;color:var(--muted)}
 .todo-accordion-main>.future-order-meta{margin-top:7px}
+
+/* Use the same gold planned-date tile in Awaiting payment and Awaiting delivery. */
+.todo-accordion-summary>.future-order-date{align-self:center;flex:0 0 44px;min-height:62px}
+.todo-accordion-summary:has(>.future-order-date){gap:10px}
+@media(max-width:760px){
+ .todo-accordion-summary:has(>.future-order-date){gap:8px;padding:10px}
+ .todo-accordion-summary>.future-order-date{flex-basis:42px;min-height:60px}
+ .todo-accordion-summary:has(>.future-order-date)>.todo-accordion-side{gap:5px}
+}
+@media(max-width:375px){
+ .todo-accordion-summary:has(>.future-order-date){gap:7px;padding:8px}
+ .todo-accordion-summary>.future-order-date{flex-basis:39px;min-height:58px}
+}

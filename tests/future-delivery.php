@@ -211,3 +211,24 @@ foreach(['Cancelled','Delivered'] as $terminal){
 }
 check(str_contains($source,"dashboardDeliveryMoveControls(\$todo,'future')") && str_contains($source,"dashboardDeliveryMoveControls(\$futureOrder,'awaiting')"),'Both dashboard lists need a manual move control.');
 echo "PASS: exclusive 4-day/5-day grouping, manual moves, persistence, date-change reset, terminal-order protections.\\n";
+
+$tileStart=strpos($source,'function dashboardPlannedDateTile(');
+$tileEnd=strpos($source,'function dashboardDeliveryScheduleForm(',$tileStart);
+check($tileStart!==false&&$tileEnd!==false,'Shared planned-date tile renderer must exist.');
+eval(substr($source,$tileStart,$tileEnd-$tileStart));
+ob_start();dashboardPlannedDateTile(['scheduled_delivery_date'=>'2026-10-16']);$tileHtml=ob_get_clean();
+check(str_contains($tileHtml,'class="future-order-date"'),'Awaiting cards must reuse the Future deliveries gold date tile.');
+check(str_contains($tileHtml,'>Oct</span>')&&str_contains($tileHtml,'>16</strong>')&&str_contains($tileHtml,'>Fri</small>'),'Date tile must display the correct month, number and weekday.');
+check(str_contains($tileHtml,'Planned delivery 16 October 2026'),'Tile must identify the full scheduled date accessibly.');
+foreach(['', '2026-02-30', 'invalid'] as $emptyOrInvalid){
+ ob_start();dashboardPlannedDateTile(['scheduled_delivery_date'=>$emptyOrInvalid]);$noTile=ob_get_clean();
+ check($noTile==='','Awaiting cards must not show a tile without a valid planned delivery date.');
+}
+$paymentBlockStart=strpos($source,'<?php if($awaitingPayment):?><div class="todo-column">');
+$deliveryBlockStart=strpos($source,'<?php if($awaitingDelivery):?><div class="todo-column">');
+$futureBlockStart=strpos($source,'<?php if($futureDeliveries):?><div class="todo-column future-orders-column">');
+check($paymentBlockStart!==false&&$deliveryBlockStart!==false&&$futureBlockStart!==false,'Dashboard payment and delivery sections must exist.');
+foreach([substr($source,$paymentBlockStart,$deliveryBlockStart-$paymentBlockStart),substr($source,$deliveryBlockStart,$futureBlockStart-$deliveryBlockStart)] as $block){
+ check(str_contains($block,'<summary class="todo-accordion-summary">'.PHP_EOL.'<?php dashboardPlannedDateTile($todo);?>'),'Date tile must be on the left of each expandable awaiting card.');
+}
+echo "PASS: Awaiting payment/delivery display identical date tiles only when a valid planned date is present.\\n";
