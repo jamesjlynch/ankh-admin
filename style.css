@@ -4914,3 +4914,11 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .preparation-stage-controls .order-preparation-save{flex:1}
 .preparation-stage-controls .order-preparation-form:has(input:disabled){opacity:.5}
 .order-summary-badges .order-preparation-badge{margin-top:0}
+
+/* Mutually exclusive Awaiting/Future delivery actions, revealed in the expanded tile. */
+.delivery-move-form{margin:9px 0 0}
+.delivery-move-button{display:flex;align-items:center;justify-content:center;width:100%;min-height:44px;padding:10px 12px;border:1px solid #dfb66660;border-radius:11px;background:#dfb6660c;color:var(--gold);font-size:12px;font-weight:700;cursor:pointer}
+.delivery-move-button:hover{background:#dfb6661b;border-color:#dfb66699}
+.delivery-move-auto .delivery-move-button{background:transparent;border-color:var(--border);color:var(--muted)}
+.delivery-move-hint{margin:10px 0;padding:8px 10px;border:1px dashed var(--border);border-radius:10px;font-size:11px;line-height:1.5;color:var(--muted)}
+.todo-accordion-main>.future-order-meta{margin-top:7px}
