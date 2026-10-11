@@ -4832,3 +4832,33 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-product-card:target{border-color:var(--gold);box-shadow:0 0 0 2px #dfb66625}
 .stock-product-card[hidden]{display:none!important}
 @media(max-width:760px){.dashboard-stat-card{padding:15px 11px}.order-scope-banner{padding:12px}.order-scope-banner .quick-action{white-space:nowrap;font-size:11px}.stock-fridge-total{padding:10px}.stock-fridge-total span{font-size:11px}.stock-fridge-total strong{font-size:22px}}
+
+/* Scheduled deliveries: a separate planned date, never a delivered status. */
+.future-delivery-control{margin:14px 0;padding:14px;border:1px solid var(--border);border-radius:14px;background:#dfb66606}
+.future-delivery-toggle{display:flex;align-items:center;gap:12px;margin:0;min-height:44px;cursor:pointer}
+.future-delivery-toggle input[type="checkbox"]{width:24px;height:24px;min-height:0;flex:0 0 24px;margin:0;padding:0;accent-color:var(--gold)}
+.future-delivery-toggle span{display:flex;flex-direction:column;gap:4px}
+.future-delivery-toggle strong{font-size:14px}
+.future-delivery-toggle small,.future-delivery-date-wrap>small{font-size:11px;line-height:1.5;color:var(--muted)}
+.future-delivery-date-wrap{margin-top:14px}
+.future-delivery-date-wrap[hidden]{display:none}
+.future-delivery-date-wrap label{display:flex;flex-direction:column;gap:8px;min-width:0;margin-bottom:8px;font-size:13px}
+.future-delivery-date-wrap input[type="date"]{width:100%;max-width:100%;min-width:0;min-height:48px;font-size:16px;text-align:left}
+.future-orders-column{grid-column:1/-1}
+.future-delivery-list{display:grid;gap:10px}
+.future-order-card{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--border);border-radius:14px;background:#ffffff03;color:inherit;text-decoration:none}
+.future-order-card:hover{border-color:#dfb66680}
+.future-order-date{display:flex;flex-direction:column;align-items:center;justify-content:center;flex:0 0 48px;min-height:70px;border-radius:10px;background:#dfb66612;border:1px solid #dfb66635;color:var(--gold)}
+.future-order-date span{font-size:10px;text-transform:uppercase;letter-spacing:.6px}
+.future-order-date strong{font-size:23px;line-height:1.2}
+.future-order-date small{font-size:10px;color:var(--muted)}
+.future-order-copy{min-width:0;flex:1}
+.future-order-copy h3{margin:0 0 5px;font-size:15px}
+.future-order-copy .todo-recipient-line{margin:4px 0 6px}
+.future-order-meta{display:block;font-size:10px;line-height:1.5;color:var(--muted);margin-top:7px}
+.future-order-side{flex:0 0 auto;text-align:right;display:flex;flex-direction:column;gap:5px;max-width:110px}
+.future-order-side strong{font-size:14px}
+.future-order-side small{font-size:10px;color:var(--muted)}
+.future-order-side>span{color:var(--gold);font-size:20px}
+.scheduled-delivery-badge{display:inline-flex;padding:4px 8px;border:1px solid #dfb66640;border-radius:999px;background:#dfb6660b;color:var(--gold);font-size:10px;font-weight:600;line-height:1.4;margin-top:6px}
+@media(max-width:760px){.future-order-card{padding:11px;gap:9px}.future-order-date{flex-basis:42px}.future-order-copy h3{font-size:14px}.future-order-side{max-width:84px}.future-order-side strong{font-size:13px}}

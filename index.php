@@ -61,6 +61,7 @@ if(!in_array('payment_fee',array_column($orderColumns,'name'),true))$db->exec("A
 if(!in_array('assigned_to',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN assigned_to TEXT NOT NULL DEFAULT ''");
 if(!in_array('recipient_name',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN recipient_name TEXT NOT NULL DEFAULT ''");
 if(!in_array('reconstituted',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN reconstituted INTEGER NOT NULL DEFAULT 0");
+if(!in_array('scheduled_delivery_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN scheduled_delivery_date TEXT NOT NULL DEFAULT ''");
 $itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('presentation',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -567,6 +568,17 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin
  }catch(Throwable $ex){$error=$ex->getMessage();}
 }
 
+function plannedDeliveryDate(string $value,string $existing='',?DateTimeImmutable $today=null):string{
+ $value=trim($value);if($value==='')return '';
+ $tz=new DateTimeZone('Europe/London');$today??=new DateTimeImmutable('today',$tz);
+ $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$tz);
+ if(!$date||$date->format('Y-m-d')!==$value)throw new Exception('Choose a valid planned delivery date.');
+ if($date<=$today && $value!==$existing)throw new Exception('Choose a delivery date after today.');
+ return $value;
+}
+function isFutureDelivery(array $order,string $today):bool{
+ return !in_array((string)($order['status']??''),['Cancelled','Delivered'],true) && trim((string)($order['delivery_date']??''))==='' && (string)($order['scheduled_delivery_date']??'')>$today;
+}
 function orderActionDate(string $value,string $label):string{
  $value=trim($value);if($value==='')return '';
  $tz=new DateTimeZone('Europe/London');$date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$tz);$today=new DateTimeImmutable('today',$tz);
@@ -1701,6 +1713,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);if($isEdit && (string)($_POST['change_order_date']??'')!=='1')$orderDate=(new DateTimeImmutable((string)$existingOrder['created']))->setTimezone($orderTz)->format('Y-m-d');$chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
    if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate || $chosenDate>$todayLocal)throw new Exception('Choose a valid order date.');
 
+   $scheduleFieldsPresent=array_key_exists('schedule_fields_present',$_POST);
+   $scheduleEnabled=(string)($_POST['future_delivery']??'')==='1';
+   $scheduledDeliveryDate=$isEdit&&!$scheduleFieldsPresent?(string)($existingOrder['scheduled_delivery_date']??''):($scheduleEnabled?trim((string)($_POST['scheduled_delivery_date']??'')):'');
+   if($scheduleEnabled && $scheduledDeliveryDate==='')throw new Exception('Choose the future delivery date.');
+   $scheduledDeliveryDate=plannedDeliveryDate($scheduledDeliveryDate,$isEdit?(string)($existingOrder['scheduled_delivery_date']??''):'',$todayLocal);
+   if($isEdit && $scheduledDeliveryDate>$todayLocal->format('Y-m-d') && (in_array((string)$existingOrder['status'],['Delivered','Cancelled'],true)||trim((string)($existingOrder['delivery_date']??''))!==''))throw new Exception('Delivered or cancelled orders cannot be scheduled for a future delivery.');
+
    $lines=[];$presentations=[];
    foreach(($_POST['lines']??[]) as $lineKey=>$line){
     if(!is_array($line))continue;
@@ -1736,10 +1755,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 
    $db->beginTransaction();
    if($isEdit){
-    $db->prepare('UPDATE orders SET customer=?,recipient_name=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,assigned_to=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=? WHERE id=?')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$orderId]);
+    $db->prepare('UPDATE orders SET customer=?,recipient_name=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,assigned_to=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=?,scheduled_delivery_date=? WHERE id=?')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate,$orderId]);
     $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
    }else{
-    $db->prepare('INSERT INTO orders(customer,recipient_name,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
+    $db->prepare('INSERT INTO orders(customer,recipient_name,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee,scheduled_delivery_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
    }
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
    $insertItem=$db->prepare('INSERT INTO items(order_id,product_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
@@ -1821,12 +1840,26 @@ $passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
 $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
+function futureDeliveryFields(array $order=[]):void{
+ $submitted=array_key_exists('schedule_fields_present',$_POST);
+ $value=$submitted?(string)($_POST['scheduled_delivery_date']??''):(string)($order['scheduled_delivery_date']??'');
+ $enabled=$submitted?((string)($_POST['future_delivery']??'')==='1'):$value!=='';
+ $tomorrow=(new DateTimeImmutable('tomorrow',new DateTimeZone('Europe/London')))->format('Y-m-d');
+ $min=$enabled&&$value!==''&&$value<$tomorrow?$value:$tomorrow;
+ ?>
+ <section class="future-delivery-control">
+ <input type="hidden" name="schedule_fields_present" value="1">
+ <label class="future-delivery-toggle"><input id="future-delivery" name="future_delivery" type="checkbox" value="1" <?=$enabled?'checked':''?> aria-controls="future-delivery-date-wrap"><span><strong>Future delivery</strong><small>Choose a planned delivery date</small></span></label>
+ <div id="future-delivery-date-wrap" class="future-delivery-date-wrap" <?=$enabled?'':'hidden'?>><label>Deliver on<input id="scheduled-delivery-date" name="scheduled_delivery_date" type="date" min="<?=e($min)?>" value="<?=e($value)?>" <?=$enabled?'required':'disabled'?>></label><small>This is the planned date, not confirmation of delivery.</small></div>
+ </section>
+ <?php
+}
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile86-stock-drilldowns"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=mobile87-future-deliveries"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -2027,10 +2060,12 @@ foreach($orders as $dashboardOrder){
  if($dashboardOrder['status']!=='Cancelled')$unpaidBalance+=max(0,(int)$dashboardOrder['total']-(int)($dashboardOrder['paid_amount']??0));
 }
 $awaitingPayment=array_values(array_filter($orders,fn($o)=>$o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0));
-$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))===''));
+$futureDeliveries=array_values(array_filter($orders,fn($o)=>isFutureDelivery($o,$now->format('Y-m-d'))));
+usort($futureDeliveries,fn($a,$b)=>strcmp((string)$a['scheduled_delivery_date'],(string)$b['scheduled_delivery_date']) ?: (int)$a['id']<=>(int)$b['id']);
+$awaitingDelivery=array_values(array_filter($orders,fn($o)=>in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='' && !isFutureDelivery($o,$now->format('Y-m-d'))));
 usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 usort($awaitingDelivery,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
-$todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id')));
+$todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id'),array_column($futureDeliveries,'id')));
 $todoItems=[];
 if($todoOrderIds){
  $placeholders=implode(',',array_fill(0,count($todoOrderIds),'?'));
@@ -2294,8 +2329,8 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php else:?><div class="cycle-preview-clear"><span>✓</span><div><strong>Nothing due in the next 7 days</strong><small><?=count($retaCyclesActive)?> active recurring cycle<?=count($retaCyclesActive)===1?'':'s'?></small></div></div><?php endif;?>
 </section>
 
-<?php if($awaitingPayment||$awaitingDelivery):?><section class="todo-board">
-<div class="todo-board-head"><div><p class="eyebrow">TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><?php if($awaitingPayment):?><span><?=count($awaitingPayment)?> payment</span><?php endif;?><?php if($awaitingDelivery):?><span><?=count($awaitingDelivery)?> delivery</span><?php endif;?></div></div>
+<?php if($awaitingPayment||$awaitingDelivery||$futureDeliveries):?><section class="todo-board">
+<div class="todo-board-head"><div><p class="eyebrow">TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><?php if($awaitingPayment):?><span><?=count($awaitingPayment)?> payment</span><?php endif;?><?php if($awaitingDelivery):?><span><?=count($awaitingDelivery)?> delivery</span><?php endif;?><?php if($futureDeliveries):?><span><?=count($futureDeliveries)?> future</span><?php endif;?></div></div>
 <div class="todo-columns<?=(!$awaitingPayment||!$awaitingDelivery)?' single':''?>">
 
 <?php if($awaitingPayment):?><div class="todo-column">
@@ -2303,7 +2338,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if(isFutureDelivery($todo,$now->format('Y-m-d'))):?><span class="scheduled-delivery-badge">Scheduled <?=e((new DateTimeImmutable($todo['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
 <?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
 <div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
@@ -2329,7 +2364,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
 <details class="todo-card todo-accordion">
 <summary class="todo-accordion-summary">
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
+<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php if(isFutureDelivery($todo,$now->format('Y-m-d'))):?><span class="scheduled-delivery-badge">Scheduled <?=e((new DateTimeImmutable($todo['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if((int)($todo['reconstituted']??0)===1):?><span class="order-reconstituted-badge"><span aria-hidden="true">✓</span> Reconstituted</span><?php endif;?></div>
 <div class="todo-accordion-side"><?php if(!empty($todo['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($todo['assigned_to']))?>"><?=e($todo['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="todo-chevron" aria-hidden="true">⌄</span></div>
 </summary>
 <div class="todo-accordion-body">
@@ -2346,6 +2381,19 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </details>
 <?php endforeach;?></div><?php endif;?>
 
+<?php if($futureDeliveries):?><div class="todo-column future-orders-column">
+<div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>Planned orders · nearest date first</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
+<div class="future-delivery-list">
+<?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));?>
+<a class="future-order-card" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">
+ <div class="future-order-date"><span><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('M'))?></span><strong><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d'))?></strong><small><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('D'))?></small></div>
+ <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
+ <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
+ <small class="future-order-meta"><?=e($futureOrder['assigned_to']?:'Unassigned')?> · <?=e($futureOrder['status'])?> · <?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d M Y'))?></small>
+ <?php if((int)($futureOrder['reconstituted']??0)===1):?><span class="order-reconstituted-badge">✓ Reconstituted</span><?php endif;?></div>
+ <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><small><?=$futureBalance>0?money($futureBalance).' due':'Paid in full'?></small><span aria-hidden="true">›</span></div>
+</a>
+<?php endforeach;?></div></div><?php endif;?>
 </div></section><?php endif;?>
 
 <?php if($lowStock):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=stock&amp;filter=low">View all →</a></div>
@@ -2359,9 +2407,9 @@ $orderScopes=['today_sales'=>'Today’s sales','month_sales'=>'This month’s sa
 $orderScope=in_array((string)($_GET['scope']??''),array_keys($orderScopes),true)?(string)$_GET['scope']:'';
 $listedOrders=$orders;
 if($ordersSection==='all' && $orderScope!==''){
- $listedOrders=array_values(array_filter($orders,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart){
+ $listedOrders=array_values(array_filter($orders,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart,$now){
   if($orderScope==='unpaid')return $o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0;
-  if($orderScope==='to_deliver')return in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='';
+  if($orderScope==='to_deliver')return in_array($o['status'],['Paid','Packed','Dispatched'],true) && trim((string)($o['delivery_date']??''))==='' && !isFutureDelivery($o,$now->format('Y-m-d'));
   $salesTs=strtotime((string)($o['payment_date']?:$o['created']))?:0;
   return in_array($o['status'],$paidStatuses,true) && $salesTs>=($orderScope==='today_sales'?$todayStart:$monthStart);
  }));
@@ -2439,9 +2487,9 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="stats compact-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div>
 <div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <div class="order-list">
-<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
+<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div>
-<div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
+<div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!==''):?><span><b>Planned delivery</b><em><?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M Y'))?></em></span><?php endif;?><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
 <?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>
 <?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].(!empty($i['presentation'])?' · '.$i['presentation']:'').((int)($i['discount']??0)>0?' · Family & Friends':'').' @ '.money($i['price']))?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if((int)$o['delivery_charge']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($o['delivery_charge'])?></strong></div><?php endif;?><?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
@@ -2500,6 +2548,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <label>Referrer <span class="muted">(optional)</span><input id="customer-referrer" name="referrer" maxlength="160" list="referrer-list" placeholder="Who sent them to us?" value="<?=e($_POST['referrer']??'')?>"></label><datalist id="referrer-list"><?php foreach($referrers as $r):?><option value="<?=e($r)?>"><?php endforeach;?></datalist>
 <label>Delivery address<textarea id="customer-address" name="address" maxlength="2000" autocomplete="street-address"><?=e($_POST['address']??($newOrderCustomer['address']??''))?></textarea></label>
 <label class="order-date-field">Order date<input id="order-date" name="order_date" type="date" required max="<?=e($now->format('Y-m-d'))?>" value="<?=e($_POST['order_date']??$now->format('Y-m-d'))?>"></label>
+<?php futureDeliveryFields();?>
 <div class="order-subsection compact-delivery"><span class="order-check-label">Delivery</span>
 <label>Delivery method<select id="delivery-method" name="delivery_method" required><?php $selectedDelivery=$_POST['delivery_method']??($repeatDeliveryMethod?:'Local Delivery');foreach($deliveryMethods as $method):?><option value="<?=e($method)?>" <?=$selectedDelivery===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label>
 <label>Assigned to <span class="muted">(optional)</span><select id="assigned-to" name="assigned_to"><option value="">Unassigned</option><?php $selectedAssignee=$_POST['assigned_to']??'';foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$selectedAssignee===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label>
@@ -2543,7 +2592,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 
 <div class="edit-section"><span class="wizard-kicker">PRODUCTS</span><div class="product-search-wrap"><label for="product-search">Add product<input id="product-search" type="search" placeholder="Search products…" autocomplete="off" aria-autocomplete="list" aria-controls="product-results"></label><div id="product-results" class="product-results" role="listbox" hidden></div></div><div id="strength-picker" class="strength-picker" hidden><div class="strength-picker-head"><div><span class="muted">Choose strength</span><strong id="strength-product-name"></strong></div><button type="button" id="close-strength-picker" class="strength-close" aria-label="Close strength choices">×</button></div><div id="strength-options" class="strength-options"></div></div><div id="selected-order-lines" class="selected-order-lines"></div><p id="selected-empty" class="selected-empty">No products added yet.</p></div>
 
-<div class="edit-section"><span class="wizard-kicker">DELIVERY</span><label>Delivery method<select id="delivery-method" name="delivery_method" required><?php $editDeliveryMethod=$editOrder['delivery_method']?:'Local Delivery';foreach($deliveryMethods as $method):?><option value="<?=e($method)?>" <?=$editDeliveryMethod===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Assigned to<select id="assigned-to" name="assigned_to"><option value="">Unassigned</option><?php foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$editOrder['assigned_to']===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label><div id="postage-fields" class="postage-fields" hidden><label>Tracking / reference<input id="tracking-reference" name="tracking_reference" maxlength="200" value="<?=e($editOrder['tracking_reference']??'')?>"></label><div class="two"><label>Postage charged (£)<input id="delivery-charge" name="delivery_charge" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['delivery_charge']/100,2,'.',''))?>"></label><label>Actual postage cost (£)<input id="postage-cost" name="postage_cost" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['postage_cost']/100,2,'.',''))?>"></label></div></div></div>
+<div class="edit-section"><span class="wizard-kicker">DELIVERY</span><?php futureDeliveryFields($editOrder);?><label>Delivery method<select id="delivery-method" name="delivery_method" required><?php $editDeliveryMethod=$editOrder['delivery_method']?:'Local Delivery';foreach($deliveryMethods as $method):?><option value="<?=e($method)?>" <?=$editDeliveryMethod===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Assigned to<select id="assigned-to" name="assigned_to"><option value="">Unassigned</option><?php foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$editOrder['assigned_to']===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label><div id="postage-fields" class="postage-fields" hidden><label>Tracking / reference<input id="tracking-reference" name="tracking_reference" maxlength="200" value="<?=e($editOrder['tracking_reference']??'')?>"></label><div class="two"><label>Postage charged (£)<input id="delivery-charge" name="delivery_charge" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['delivery_charge']/100,2,'.',''))?>"></label><label>Actual postage cost (£)<input id="postage-cost" name="postage_cost" type="number" min="0" step=".01" value="<?=e(number_format((int)$editOrder['postage_cost']/100,2,'.',''))?>"></label></div></div></div>
 
 <div class="edit-section"><span class="wizard-kicker">PAYMENT & NOTES</span><label>Payment method<select id="payment-method" name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$editOrder['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Notes<textarea name="notes" maxlength="4000"><?=e($editOrder['notes'])?></textarea></label></div>
 <div class="edit-total"><span>Order total</span><strong id="subtotal">£0.00</strong></div><button class="save-order">Save changes</button>
@@ -3693,6 +3742,13 @@ const initialOrderLines=<?=json_encode($view==='edit'?$editLines:$repeatLines,JS
 const customerSearch=document.querySelector('#customer-search'),customerResults=document.querySelector('#customer-results'),customerPhone=document.querySelector('#customer-phone'),customerAddress=document.querySelector('#customer-address'),recipientName=document.querySelector('#recipient-name');
 const productSearch=document.querySelector('#product-search'),productSearchWrap=productSearch?.closest('.product-search-wrap'),productResults=document.querySelector('#product-results'),strengthPicker=document.querySelector('#strength-picker'),strengthOptions=document.querySelector('#strength-options'),strengthProductName=document.querySelector('#strength-product-name'),closeStrengthPicker=document.querySelector('#close-strength-picker'),selectedLinesContainer=document.querySelector('#selected-order-lines'),selectedEmpty=document.querySelector('#selected-empty'),addAnotherButton=document.querySelector('#add-another-product');
 const deliveryMethodSelect=document.querySelector('#delivery-method'),assignedToSelect=document.querySelector('#assigned-to'),postageFields=document.querySelector('#postage-fields'),deliveryChargeInput=document.querySelector('#delivery-charge'),postageCostInput=document.querySelector('#postage-cost'),trackingReferenceInput=document.querySelector('#tracking-reference'),paymentMethodInput=document.querySelector('#payment-method');
+const futureDeliveryToggle=document.querySelector('#future-delivery'),scheduledDeliveryInput=document.querySelector('#scheduled-delivery-date'),futureDeliveryWrap=document.querySelector('#future-delivery-date-wrap');
+function toggleFutureDelivery(){
+ if(!futureDeliveryToggle||!scheduledDeliveryInput||!futureDeliveryWrap)return;
+ const enabled=futureDeliveryToggle.checked;futureDeliveryWrap.hidden=!enabled;scheduledDeliveryInput.disabled=!enabled;scheduledDeliveryInput.required=enabled;
+}
+futureDeliveryToggle?.addEventListener('change',toggleFutureDelivery);
+toggleFutureDelivery();
 const draftEnabled=wizard?.dataset.draftEnabled==='1';
 let currentWizardStep=1,lineCounter=0,productSearchMoved=false;
 
@@ -3860,7 +3916,7 @@ function buildOrderCheck(){
  if(detail){const bits=[customerPhone?.value.trim(),document.querySelector('#customer-referrer')?.value.trim()].filter(Boolean);detail.textContent=bits.join(' · ')}
  if(checkOrderDate&&orderDate?.value){const d=new Date(orderDate.value+'T12:00:00');checkOrderDate.textContent=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}
  if(checkDelivery)checkDelivery.textContent=deliveryMethodSelect?.value||'—';
- if(checkDeliveryDetail){const bits=[];if(deliveryMethodSelect?.value==='Postage'&&Number(deliveryChargeInput?.value||0)>0)bits.push('Postage charged £'+Number(deliveryChargeInput.value).toFixed(2));if(trackingReferenceInput?.value.trim())bits.push(trackingReferenceInput.value.trim());checkDeliveryDetail.textContent=bits.join(' · ')}
+ if(checkDeliveryDetail){const bits=[];if(futureDeliveryToggle?.checked&&scheduledDeliveryInput?.value)bits.push('Planned '+new Date(scheduledDeliveryInput.value+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}));if(deliveryMethodSelect?.value==='Postage'&&Number(deliveryChargeInput?.value||0)>0)bits.push('Postage charged £'+Number(deliveryChargeInput.value).toFixed(2));if(trackingReferenceInput?.value.trim())bits.push(trackingReferenceInput.value.trim());checkDeliveryDetail.textContent=bits.join(' · ')}
  if(products){products.replaceChildren();selectedOrderCards().forEach(card=>{const d=lineData(card),line=document.createElement('div');line.className='check-product-line';const name=document.createElement('span');name.textContent=d.quantity+' × '+card.dataset.productName+(d.presentation?' · '+d.presentation:'')+(d.discount?' · Family & Friends':'');const amount=document.createElement('strong');amount.textContent=moneyFormat(d.quantity*d.price);line.append(name,amount);products.append(line)})}
  updateTotal();
 }
@@ -3876,7 +3932,7 @@ function showWizardStep(step){
 }
 document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventListener('click',()=>{
  const next=Number(button.dataset.wizardNext);
- if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}const orderDate=document.querySelector('#order-date');if(!orderDate?.value||!orderDate.checkValidity()){orderDate?.reportValidity();orderDate?.focus();return}if(!deliveryMethodSelect?.value){deliveryMethodSelect?.reportValidity();deliveryMethodSelect?.focus();return}}
+ if(next===2){if(!customerSearch?.value.trim()){customerSearch?.reportValidity();customerSearch?.focus();return}const orderDate=document.querySelector('#order-date');if(!orderDate?.value||!orderDate.checkValidity()){orderDate?.reportValidity();orderDate?.focus();return}if(futureDeliveryToggle?.checked&&(!scheduledDeliveryInput?.value||!scheduledDeliveryInput.checkValidity())){scheduledDeliveryInput?.reportValidity();scheduledDeliveryInput?.focus();return}if(!deliveryMethodSelect?.value){deliveryMethodSelect?.reportValidity();deliveryMethodSelect?.focus();return}}
  if(next===3&&!validateLines())return;showWizardStep(next);
 }));
 document.querySelectorAll('[data-wizard-back]').forEach(button=>button.addEventListener('click',()=>showWizardStep(Number(button.dataset.wizardBack))));
@@ -3924,13 +3980,14 @@ deliveryMethodSelect?.addEventListener('change',togglePostageFields);deliveryCha
 function serializeLines(){return selectedOrderCards().map(card=>lineData(card))}
 function saveDraftOrder(){
  if(!draftEnabled||!wizard)return;
- const draft={step:currentWizardStep,customer:customerSearch?.value||'',recipient_name:recipientName?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',delivery_method:deliveryMethodSelect?.value||'Local Delivery',assigned_to:assignedToSelect?.value||'',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',lines:serializeLines()};
- const useful=draft.customer||draft.recipient_name||draft.phone||draft.address||draft.lines.length;try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
+ const draft={step:currentWizardStep,customer:customerSearch?.value||'',recipient_name:recipientName?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',future_delivery:futureDeliveryToggle?.checked||false,scheduled_delivery_date:scheduledDeliveryInput?.value||'',delivery_method:deliveryMethodSelect?.value||'Local Delivery',assigned_to:assignedToSelect?.value||'',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',lines:serializeLines()};
+ const useful=draft.customer||draft.recipient_name||draft.phone||draft.address||draft.lines.length||draft.future_delivery;try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
 }
 function restoreDraftOrder(){
  if(!draftEnabled||!wizard)return false;let draft=null;try{draft=JSON.parse(localStorage.getItem(orderDraftKey)||'null')}catch(_){}if(!draft)return false;
  if(customerSearch)customerSearch.value=draft.customer||'';if(recipientName)recipientName.value=draft.recipient_name||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
  const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
+ if(futureDeliveryToggle)futureDeliveryToggle.checked=draft.future_delivery===true;if(scheduledDeliveryInput)scheduledDeliveryInput.value=draft.scheduled_delivery_date||'';toggleFutureDelivery();
  if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||'Local Delivery';if(assignedToSelect)assignedToSelect.value=draft.assigned_to||'';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';
  selectedLinesContainer?.replaceChildren();(draft.lines||[]).forEach(line=>addOrderLine(line,false));if(clearDraftButton)clearDraftButton.hidden=false;togglePostageFields();showWizardStep(Math.min(3,Math.max(1,Number(draft.step)||1)));return true;
 }
