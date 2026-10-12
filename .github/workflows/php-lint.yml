@@ -29,6 +29,7 @@ jobs:
           php -l tests/smart-buying-apply.php
           php -l tests/supplier-flat-shipping.php
           php -l tests/supplier-mobile-ux.php
+          php -l tests/supplier-stock-circles.php
           php -l tests/deploy-smoke.php
           php -l tests/supplier-mobile-catalogue.php
       - name: Test future delivery scheduling
@@ -51,5 +52,7 @@ jobs:
         run: php tests/supplier-mobile-catalogue.php
       - name: Test iPhone supplier purchasing, category and compact layout
         run: php tests/supplier-mobile-ux.php
+      - name: Test combined available-vial stock circles
+        run: php tests/supplier-stock-circles.php
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
