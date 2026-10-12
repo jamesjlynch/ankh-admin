@@ -453,7 +453,48 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   const cards=[...document.querySelectorAll('[data-smart-sku]')];
   const fx=<?=json_encode($fx)?>,shipping=<?=json_encode($shippingCents)?>;
   const selector=document.querySelector('#sc-smart-budget-input'),explain=document.querySelector('#sc-smart-budget-explain'),submit=document.querySelector('#sc-smart-add-button');
-  const dollar=cents=>'
+  const dollar=n=>'$'+(n/100).toFixed(2),pound=n=>'£'+(n/100).toFixed(2);
+  function quantity(card,n){
+   const input=card.querySelector('[data-sc-smart-qty]');
+   input.value=Math.max(0,Math.min(100,Math.trunc(n||0)));
+   card.querySelector('[data-sc-smart-check]').checked=Number(input.value)>0;
+  }
+  function update(){
+   const selected=cards.map(card=>({boxes:Number(card.querySelector('[data-sc-smart-qty]').value)||0,price:Number(card.dataset.smartPrice)})).filter(r=>r.boxes>0);
+   const boxes=selected.reduce((sum,r)=>sum+r.boxes,0),usd=selected.reduce((sum,r)=>sum+r.boxes*r.price,0);
+   document.querySelector('#sc-smart-selected-boxes').textContent=String(boxes);
+   document.querySelector('#sc-smart-selected-usd').textContent=dollar(usd);
+   document.querySelector('#sc-smart-selected-gbp').textContent=fx?pound(Math.round(usd*fx+boxes*shipping)):'Set FX rate';
+   submit.disabled=boxes===0;
+  }
+  function applyBudget(limit){
+   cards.forEach(card=>quantity(card,0));
+   let cost=0,boxes=0;
+   for(const card of cards){
+    const suggested=Number(card.dataset.smartBoxes)||0,price=Number(card.dataset.smartPrice)||0;
+    if(suggested<1)continue;
+    const perBox=fx?Math.ceil(price*fx)+shipping:0;
+    const count=limit===null?suggested:(perBox>0?Math.min(suggested,Math.max(0,Math.floor((limit-cost)/perBox))):0);
+    if(count<1)continue;
+    quantity(card,count);cost+=count*perBox;boxes+=count;
+   }
+   explain.textContent=limit===null?boxes+' suggested boxes selected. Review before saving.':boxes+' boxes selected for about '+pound(cost)+' against a '+pound(limit)+' estimated budget. Review before saving.';
+   update();
+  }
+  cards.forEach(card=>{
+   const input=card.querySelector('[data-sc-smart-qty]'),check=card.querySelector('[data-sc-smart-check]');
+   check.addEventListener('change',()=>{quantity(card,check.checked?(Number(card.dataset.smartBoxes)||1):0);update()});
+   input.addEventListener('input',()=>{quantity(card,Number(input.value));update()});
+   card.querySelectorAll('[data-sc-step]').forEach(button=>button.addEventListener('click',()=>{quantity(card,Number(input.value)+Number(button.dataset.scStep));update()}));
+  });
+  document.querySelectorAll('[data-sc-budget]').forEach(button=>button.addEventListener('click',()=>applyBudget(button.dataset.scBudget==='all'?null:Math.round(Number(button.dataset.scBudget)*100))));
+  document.querySelector('#sc-smart-apply-budget').addEventListener('click',()=>{const value=Number(selector.value);if(value>0&&fx)applyBudget(Math.round(value*100))});
+  update();
+ })();
+ </script>
+ <?php endif;?>
+</section>
+<?php elseif($tab==='order'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
 <?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
 <p class="sc-notice">Only products matched to your ANKH catalogue can be saved as Incoming Stock. You can still prepare and copy a supplier message for any SKU. A few specialty products have different supplier box sizes; these are shown explicitly.</p>
