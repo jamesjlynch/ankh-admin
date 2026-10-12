@@ -330,9 +330,9 @@ function sc_supplier_message(array $lines,int $totalUsd):string{
  $text.="\nProduct total: ".sc_money_usd($totalUsd)." USD, excluding shipping.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.";
  return $text;
 }
-function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct):void{
- $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','order','products','incoming'],true))$tab='profit';
- $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
+function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
+ $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','smart','order','products','incoming'],true))$tab='profit';
+ $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.low_stock_at FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
  $allProducts=$db->query('SELECT id,name,active FROM products ORDER BY active DESC,name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
  $fx=sc_fx($db);
  $shippingCents=(int)($db->query("SELECT value FROM settings WHERE key='supplier_shipping_per_box_pence'")->fetchColumn()?:0);
@@ -360,12 +360,16 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
    'reserved'=>$jayReserved+$tonyReserved,'incoming'=>$mappedId===null?0:(int)($incomingByProduct[$mappedId]??0),
    'sold30'=>$mappedId===null?0:(int)($orderUnits[$mappedId]??0)];
  }
+ $lookbackDays=in_array((int)($_GET['lookback_days']??30),[30,60,90],true)?(int)($_GET['lookback_days']??30):30;
+ $smartRows=$tab==='smart'?sc_smart_suggestions($catalogue,$reservedByProduct,$incomingByProduct,sc_recent_delivered($db,$lookbackDays),$recurringForecast,$lookbackDays):[];
+ $smartSuggested=array_values(array_filter($smartRows,fn($row)=>$row['boxes']>0));
  $matchedRows=array_values(array_filter($rows,fn($r)=>$r['product_id']!==null));
  $profitRows=$rows;
  usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));?>
 <div class="heading sc-heading"><div><p class="eyebrow">ANKH / SUPPLIER CENTRE</p><h1>Supplier &amp; Profit</h1><p class="muted page-description">Compare costs, build combined MJT orders and split stock after delivery.</p></div></div>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
  <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
+ <a href="?view=supplier&amp;tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
  <a href="?view=supplier&amp;tab=order" <?=$tab==='order'?'aria-current="page"':''?>>Build order</a>
  <a href="?view=supplier&amp;tab=products" <?=$tab==='products'?'aria-current="page"':''?>>Prices &amp; matching</a>
  <a href="?view=supplier&amp;tab=incoming" <?=$tab==='incoming'?'aria-current="page"':''?>>Incoming</a>
@@ -390,6 +394,173 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 </article>
 <?php endforeach;?></div></section>
 <?php endif;?>
+<?php elseif($tab==='smart'):?>
+<section class="panel sc-panel sc-buying-panel">
+ <div class="sc-panel-heading"><div><p class="eyebrow">SMART BUYING ASSISTANT</p><h2>What should we reorder?</h2><p>Checks each fridge, existing reservations, incoming supplier purchases, recent delivered sales and possible upcoming recurring orders.</p></div></div>
+ <?php if(!$catalogue):?>
+ <div class="sc-notice">Import the MJT price list in Prices &amp; matching before using Smart Buying. Your wholesale costs stay private.</div>
+ <a class="quick-action" href="?view=supplier&amp;tab=products">Import &amp; match products →</a>
+ <?php else:?>
+ <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="supplier"><input type="hidden" name="tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
+ <div class="sc-smart-stats"><div><small>Products to consider</small><strong><?=count($smartSuggested)?></strong></div><div><small>Suggested boxes</small><strong><?=array_sum(array_column($smartSuggested,'boxes'))?></strong></div><div><small>Product total (USD)</small><strong><?=sc_money_usd(array_sum(array_map(fn($r)=>$r['boxes']*$r['box_usd_cents'],$smartSuggested)))?></strong></div></div>
+ <?php if($fx===null):?><p class="sc-notice">Set the GBP-per-USD rate in Prices &amp; matching to use the purchasing budget calculator. You can still review suggested quantities in USD.</p><?php endif;?>
+ <div class="sc-smart-explainer"><span class="sc-smart-info-icon" aria-hidden="true">ⓘ</span><p><strong>How it decides:</strong> Stock available <em>already excludes</em> reserved customer orders. Suggestions use available + incoming, then allow for your low-stock threshold, estimated 7-day sales and possible recurring orders. Spare stock in James’s or Tony’s fridge is counted before recommending more purchases, but transfers must be done manually.</p></div>
+ <div class="sc-smart-budget">
+  <div class="sc-smart-budget-heading"><span><strong>Set a buying budget</strong><small>Optional, in GBP · selects affordable boxes in priority order</small></span><span class="sc-smart-budget-symbol" aria-hidden="true">£</span></div>
+  <div class="sc-budget-buttons" role="group" aria-label="Supplier purchasing budget">
+   <button type="button" data-sc-budget="all">All suggested</button><button type="button" data-sc-budget="250" <?=$fx===null?'disabled':''?>>£250</button><button type="button" data-sc-budget="500" <?=$fx===null?'disabled':''?>>£500</button><button type="button" data-sc-budget="1000" <?=$fx===null?'disabled':''?>>£1,000</button>
+  </div>
+  <div class="sc-smart-custom"><label>Or enter a budget (£)<input type="number" min="1" max="100000" step="1" id="sc-smart-budget-input" placeholder="e.g. 750" <?=$fx===null?'disabled':''?>></label><button type="button" id="sc-smart-apply-budget" class="quiet" <?=$fx===null?'disabled':''?>>Apply budget</button></div>
+  <p id="sc-smart-budget-explain" class="sc-smart-budget-explain" aria-live="polite">Select products below, or apply a suggested budget. Nothing is purchased automatically.</p>
+ </div>
+ <form method="post" id="sc-smart-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_smart_apply"><input type="hidden" name="return" value="supplier">
+ <div class="sc-smart-list">
+ <?php foreach($smartRows as $row):
+  $hasTransfer=$row['transfer_jay_to_tony']+$row['transfer_tony_to_jay']+$row['transfer_holding']>0;
+  $label=$row['status']==='shortage'?'Urgent shortage':($row['status']==='reorder'?'Consider reordering':($row['status']==='untracked'?'Stock not tracked':'Covered'));
+ ?>
+ <article class="sc-smart-card status-<?=e($row['status'])?>" data-smart-sku="<?=e($row['sku'])?>" data-smart-boxes="<?=$row['boxes']?>" data-smart-price="<?=$row['box_usd_cents']?>" data-smart-pack="<?=$row['pack']?>">
+  <div class="sc-smart-card-head">
+   <span class="sc-smart-product-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6m-5 0v4l-3 3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9l-3-3V3M8 12h8"/></svg></span>
+   <div class="sc-smart-product-name"><small><?=e($row['sku'])?> · <?=$row['pack']?> vials/box</small><h3><?=e($row['name'])?></h3></div>
+   <span class="sc-smart-status"><?=e($label)?></span>
+  </div>
+  <div class="sc-smart-metrics"><span><small>Available</small><strong><?=$row['available']?></strong></span><span><small>Reserved</small><strong><?=$row['reserved']?></strong></span><span><small>Incoming</small><strong><?=$row['incoming']?></strong></span><span><small>Target</small><strong><?=$row['target']?></strong></span></div>
+  <?php if($row['status']==='untracked'):?><p class="sc-smart-context">Confirm a physical stock count before the assistant recommends buying this product.</p>
+  <?php else:?><p class="sc-smart-context">7-day sales estimate: <b><?=$row['lead_demand']?></b> · Potential recurring (30d): <b><?=$row['recurring30']?></b> · Low-stock threshold: <b><?=$row['low_at']?></b></p>
+  <?php if($row['jay_short']>0||$row['tony_short']>0):?>
+  <div class="sc-smart-transfer"><span aria-hidden="true">⇄</span><div><?php if($row['jay_short']>0):?>James’s fridge is <?=$row['jay_short']?> short. Tony has <?=$row['tony_available']?> available; up to <?=$row['transfer_tony_to_jay']?> could be transferred.<?php endif;?>
+  <?php if($row['tony_short']>0):?>Tony’s fridge is <?=$row['tony_short']?> short. James has <?=$row['jay_available']?> available; up to <?=$row['transfer_jay_to_tony']?> could be transferred.<?php endif;?>
+  <?php if($row['transfer_holding']>0):?> Holding stock could cover up to <?=$row['transfer_holding']?> after manual allocation.<?php endif;?></div></div>
+  <?php endif;?>
+  <?php endif;?>
+  <div class="sc-smart-choice">
+   <label class="sc-smart-tick"><input type="checkbox" data-sc-smart-check <?=$row['boxes']<1?'disabled':''?>><span><b><?=$row['boxes']?> box<?=$row['boxes']===1?'':'es'?> suggested</b><small><?=sc_money_usd($row['box_usd_cents'])?> per box · <?=$row['units']?> vials suggested</small></span></label>
+   <div class="sc-stepper"><button type="button" data-sc-step="-1" aria-label="Remove a box for <?=e($row['name'])?>" <?=$row['tracked']?'':'disabled'?>>−</button><input type="number" name="boxes[<?=e($row['sku'])?>]" value="0" min="0" max="100" step="1" inputmode="numeric" data-sc-smart-qty aria-label="Boxes of <?=e($row['name'])?>" <?=$row['tracked']?'':'disabled'?>> <button type="button" data-sc-step="1" aria-label="Add a box for <?=e($row['name'])?>" <?=$row['tracked']?'':'disabled'?>>+</button></div>
+  </div>
+  <?php if($row['boxes']>0):?><div class="sc-smart-recommendation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 14l7 7 7-7"/></svg><span><?=$row['gap']?> units needed to reach target, after <?=$row['incoming']?> incoming → <strong><?=$row['boxes']?> box<?=$row['boxes']===1?'':'es'?> recommended</strong></span></div><?php endif;?>
+ </article>
+ <?php endforeach;?>
+ </div>
+ <div class="sc-smart-footer">
+  <div class="sc-smart-footer-stats"><div><small>Selected boxes</small><strong id="sc-smart-selected-boxes">0</strong></div><div><small>Supplier cost</small><strong id="sc-smart-selected-usd">$0.00</strong></div><div><small>Estimated GBP incl. shipping</small><strong id="sc-smart-selected-gbp"><?=$fx===null?'Set FX rate':'£0.00'?></strong></div></div>
+  <button type="submit" class="sc-smart-add-button" id="sc-smart-add-button" disabled>Add selected boxes to shared basket →</button>
+  <p>Adding products <strong>never places an order</strong>. Your existing basket quantities are preserved; adding a suggestion again will not multiply them.</p>
+ </div>
+ </form>
+ <script>
+ (() => {
+  const cards=[...document.querySelectorAll('[data-smart-sku]')];
+  const fx=<?=json_encode($fx)?>,shipping=<?=json_encode($shippingCents)?>;
+  const selector=document.querySelector('#sc-smart-budget-input'),explain=document.querySelector('#sc-smart-budget-explain'),submit=document.querySelector('#sc-smart-add-button');
+  const dollar=cents=>'
+<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
+<?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
+<p class="sc-notice">Only products matched to your ANKH catalogue can be saved as Incoming Stock. You can still prepare and copy a supplier message for any SKU. A few specialty products have different supplier box sizes; these are shown explicitly.</p>
+<div class="sc-filters"><input type="search" id="sc-order-search" placeholder="Find a product or SKU…" aria-label="Search supplier ordering products"></div>
+<form method="post" id="sc-order-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_place"><input type="hidden" name="return" value="supplier">
+<div class="sc-order-items" id="sc-order-items">
+<?php foreach($rows as $item):?><div class="sc-order-item" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength']))?>">
+ <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=e($item['product_id']===null?'Match needed':'ANKH matched')?></small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span><?=sc_money_usd($item['usd'])?> / box · <?=$item['pack']?> vials</span><em>James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?> available<?= $item['incoming']>0?' · '.$item['incoming'].' incoming':''?></em></div>
+ <div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div>
+</div><?php endforeach;?></div>
+<div class="sc-order-checkout"><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
+<label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Estimated shipping in GBP (£)<input type="number" min="0" max="100000" step=".01" name="shipping_gbp" value="<?=e((string)($draftRow['shipping_gbp']??'0'))?>" id="sc-basket-shipping"></label>
+<div class="sc-order-cost"><span>Estimated landed cost in GBP</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small>Uses saved GBP per USD rate; shipping is estimated and may change on final invoice.</small></div>
+<label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="6" aria-label="Generated supplier message"></textarea>
+<div class="sc-order-actions"><button type="button" id="sc-copy-message" class="sc-copy-button">Copy supplier message</button><button type="submit" name="supplier_intent" value="draft" class="sc-draft-button">Save shared draft</button><button type="submit" id="sc-place-order">Mark as ordered &amp; track incoming</button></div><p id="sc-order-warning" class="sc-order-warning" role="status"></p>
+</div></form>
+<script>
+(function(){
+ const rows=<?=json_encode(array_map(fn($r)=>['sku'=>$r['sku'],'name'=>$r['name'],'strength'=>$r['strength'],'pack'=>$r['pack'],'usd'=>$r['usd'],'mapped'=>$r['product_id']!==null],$rows),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+ const fx=<?=json_encode($fx)?>;
+ const inputs=[...document.querySelectorAll('[data-box-sku]')],lookup=Object.fromEntries(rows.map(r=>[r.sku,r])),form=document.querySelector('#sc-order-form'),copy=document.querySelector('#sc-copy-message'),save=document.querySelector('#sc-place-order'),preview=document.querySelector('#sc-supplier-message'),warning=document.querySelector('#sc-order-warning');
+ function update(){
+  const selected=inputs.map(i=>({...lookup[i.dataset.boxSku],boxes:Math.max(0,Math.min(100,Math.trunc(Number(i.value)||0)))})).filter(r=>r.boxes>0);
+  const boxCount=selected.reduce((n,r)=>n+r.boxes,0),vials=selected.reduce((n,r)=>n+r.boxes*r.pack,0),usd=selected.reduce((n,r)=>n+r.boxes*r.usd,0);
+  const dollar=(n)=>'$'+(n/100).toFixed(2),gbp=(n)=>'£'+(n/100).toFixed(2);
+  document.querySelector('#sc-total-boxes').textContent=String(boxCount);
+  document.querySelector('#sc-total-vials').textContent=String(vials);
+  document.querySelector('#sc-total-usd').textContent=dollar(usd);
+  const shipping=Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0);
+  document.querySelector('#sc-total-gbp').textContent=fx?gbp(Math.round(usd*fx+shipping*100)):'Set exchange rate';
+  preview.value=selected.length?'Hi, please can I order the following from MJT:\n\n'+selected.map(r=>r.sku+' — '+r.name+' '+r.strength+': '+r.boxes+' box'+(r.boxes===1?'':'es')+' ('+(r.boxes*r.pack)+' vials)').join('\n')+'\n\nProduct total: '+dollar(usd)+' USD, excluding shipping.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.':'Select boxes to generate a supplier message.';
+  const missing=selected.filter(r=>!r.mapped);
+  warning.textContent=missing.length?'Match '+missing.map(r=>r.sku).join(', ')+' to ANKH products before marking this basket as ordered.':(!fx?'Save an exchange rate in Prices & matching before recording a purchase.':'');
+  save.disabled=!selected.length||missing.length>0||!fx;copy.disabled=!selected.length;
+ }
+ inputs.forEach(i=>{i.addEventListener('input',update);i.closest('.sc-stepper').querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>{i.value=Math.max(0,Math.min(100,(Number(i.value)||0)+Number(btn.dataset.step)));update()}))});
+ document.querySelector('#sc-basket-shipping').addEventListener('input',update);
+ copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(preview.value);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy supplier message',1600)}catch(err){preview.select();document.execCommand('copy');copy.textContent='Message selected — copy it'}})
+ const search=document.querySelector('#sc-order-search');search.addEventListener('input',()=>document.querySelectorAll('.sc-order-item').forEach(item=>{const checked=Number(item.querySelector('[data-box-sku]').value)>0;item.hidden=!checked&&!item.dataset.search.includes(search.value.trim().toLowerCase())}));
+ form.addEventListener('submit',e=>{update();if(e.submitter&&e.submitter.value==='draft')return;if(save.disabled)e.preventDefault();else if(!confirm('Record this combined MJT supplier order in Incoming Stock? This does not add physical stock yet.'))e.preventDefault()});
+ update();
+})();
+</script>
+<?php endif;?></section>
+<?php elseif($tab==='products'):?>
+<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">PRIVATE PRICE IMPORT</p><h2>MJT supplier catalogue</h2><p>Upload wholesale costs directly into the authenticated ANKH database. An import updates current supplier prices but keeps order history and product matches.</p></div></div>
+<form method="post" enctype="multipart/form-data" class="sc-import-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_import"><input type="hidden" name="return" value="supplier"><label>August MJT supplier CSV<input type="file" name="supplier_csv" accept=".csv,text/csv" required></label><button>Import / update supplier prices</button><small>Most recent import: <?=$lastImport!==''?e(date('d M Y H:i',strtotime($lastImport))):'Not imported yet'?></small></form>
+<form method="post" class="sc-config-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_config"><input type="hidden" name="return" value="supplier"><h3>Currency &amp; cost estimates</h3><div class="sc-config-grid"><label>GBP per 1 USD <input name="usd_gbp_rate" type="number" min="0.0001" max="9.99" step=".0001" placeholder="e.g. 0.7800" value="<?=$fx===null?'':e((string)$fx)?>"></label><label>Estimated shipping / box (£)<input name="shipping_per_box" type="number" min="0" max="10000" step=".01" value="<?=e(number_format($shippingCents/100,2,'.',''))?>"></label></div><button class="quiet">Save conversion settings</button><p class="muted">Exchange rate is entered manually; figures are estimates, not a live currency quote. Historical orders keep their original costs.</p></form>
+<?php if($rows):?><div class="sc-filters"><input id="sc-map-search" type="search" placeholder="Search SKU, strength or product…" aria-label="Filter supplier price mappings"></div><div class="sc-map-list">
+<?php foreach($rows as $item):?><details class="sc-map-row" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>"><summary><div><small><?=e($item['sku'])?> · <?=$item['pack']?>/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><em><?=e($item['ankh_name']?:'Unmapped to ANKH')?></em></div><span><?=sc_money_usd($item['usd'])?> ▾</span></summary><div class="sc-map-edit"><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_map"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Link to ANKH product<select name="product_id"><option value="">Not linked</option><?php foreach($allProducts as $p):?><option value="<?=(int)$p['id']?>" <?=$item['product_id']!==null&&(int)$item['product_id']===(int)$p['id']?'selected':''?>><?=e($p['name'])?><?=(int)$p['active']===0?' (hidden)':''?></option><?php endforeach;?></select></label><button>Save product match</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_price"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Supplier box cost (USD)<input type="number" min="0" max="100000" step=".01" name="box_usd" value="<?=e(number_format($item['usd']/100,2,'.',''))?>"></label><button class="quiet">Update box price</button></form></div></details><?php endforeach;?></div><?php endif;?>
+</section>
+<?php elseif($tab==='incoming'):?>
+<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">EXISTING INVENTORY</p><h2>Incoming &amp; receiving</h2><p>Placed orders go directly into your existing Incoming Stock system. When parcels arrive, confirm exactly how many units were received and allocate them to James’s or Tony’s fridge.</p></div></div>
+<div class="sc-incoming-links"><a class="quick-action" href="?view=stock&amp;section=incoming">Open Incoming Stock →</a><a class="quick-action quiet" href="?view=reorder">Reorder suggestions →</a><a class="quick-action quiet" href="?view=stock">Combined fridge stock →</a></div>
+<p class="sc-notice">Buying stock never adds it to a fridge automatically. Your original purchases, exchange rates, supplier messages and unit-cost snapshots remain saved.</p>
+</section>
+<?php endif;?>
+<script>
+(function(){
+ function bindSearch(inputId,listId,selector){
+  const input=document.getElementById(inputId),list=document.getElementById(listId);if(!input||!list)return;
+  input.addEventListener('input',()=>list.querySelectorAll(selector).forEach(row=>row.hidden=!row.dataset.search.includes(input.value.trim().toLowerCase())));
+ }
+ bindSearch('sc-profit-search','sc-profit-list','.sc-profit-card');
+ const sort=document.getElementById('sc-profit-sort'),list=document.getElementById('sc-profit-list');
+ if(sort&&list)sort.addEventListener('change',()=>{const nodes=[...list.children],metric=sort.value;nodes.sort((a,b)=>metric==='name'?a.dataset.name.localeCompare(b.dataset.name):Number(b.dataset[metric])-Number(a.dataset[metric]));nodes.forEach(node=>list.appendChild(node))});
+ const mapSearch=document.getElementById('sc-map-search');if(mapSearch)mapSearch.addEventListener('input',()=>document.querySelectorAll('.sc-map-row').forEach(row=>row.hidden=!row.dataset.search.includes(mapSearch.value.trim().toLowerCase())));
+})();
+</script>
+<?php
+}
++(cents/100).toFixed(2),pound=cents=>'£'+(cents/100).toFixed(2);
+  function quantity(card,n){const input=card.querySelector('[data-sc-smart-qty]');input.value=Math.max(0,Math.min(100,Math.trunc(n||0)));card.querySelector('[data-sc-smart-check]').checked=Number(input.value)>0}
+  function update(){
+   const chosen=cards.map(card=>({card,boxes:Number(card.querySelector('[data-sc-smart-qty]').value)||0,price:Number(card.dataset.smartPrice)})).filter(row=>row.boxes>0);
+   const boxes=chosen.reduce((sum,row)=>sum+row.boxes,0),usd=chosen.reduce((sum,row)=>sum+row.boxes*row.price,0);
+   document.querySelector('#sc-smart-selected-boxes').textContent=String(boxes);
+   document.querySelector('#sc-smart-selected-usd').textContent=dollar(usd);
+   document.querySelector('#sc-smart-selected-gbp').textContent=fx?pound(Math.round(usd*fx+boxes*shipping)):'Set FX rate';
+   submit.disabled=boxes===0;
+  }
+  function applyBudget(limit){
+   cards.forEach(card=>quantity(card,0));
+   let cost=0,boxes=0;
+   for(const card of cards){
+    const recommended=Number(card.dataset.smartBoxes)||0,price=Number(card.dataset.smartPrice)||0;
+    if(recommended<1)continue;
+    const perBox=fx?Math.ceil(price*fx)+shipping:0;
+    const count=limit===null?recommended:(perBox>0?Math.min(recommended,Math.max(0,Math.floor((limit-cost)/perBox))):0);
+    if(count<1)continue;quantity(card,count);cost+=count*perBox;boxes+=count;
+   }
+   explain.textContent=limit===null?boxes+' suggested boxes selected. Review before adding to your basket.':boxes+' boxes selected for about '+pound(cost)+' against a '+pound(limit)+' estimated budget. You may edit quantities before saving.';
+   update();
+  }
+  cards.forEach(card=>{
+   const input=card.querySelector('[data-sc-smart-qty]'),check=card.querySelector('[data-sc-smart-check]');
+   check.addEventListener('change',()=>{quantity(card,check.checked?Number(card.dataset.smartBoxes)||1:0);update()});
+   input.addEventListener('input',()=>{quantity(card,Number(input.value));update()});
+   card.querySelectorAll('[data-sc-step]').forEach(b=>b.addEventListener('click',()=>{quantity(card,Number(input.value)+Number(b.dataset.scStep));update()}));
+  });
+  document.querySelectorAll('[data-sc-budget]').forEach(b=>b.addEventListener('click',()=>applyBudget(b.dataset.scBudget==='all'?null:Math.round(Number(b.dataset.scBudget)*100))));
+  document.querySelector('#sc-smart-apply-budget').addEventListener('click',()=>{const value=Number(selector.value);if(value>0&&fx)applyBudget(Math.round(value*100))});
+  update();
+ })();
+ </script>
+ <?php endif;?>
+</section>
 <?php elseif($tab==='order'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
 <?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
