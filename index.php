@@ -457,7 +457,7 @@ function sc_post(PDO $db,string $action):void{
    $totalUsd+=$cost;$totalUnits+=(int)$item['pack_size']*$qty;
    $lines[]=['sku'=>$sku,'name'=>$item['name'],'strength'=>$item['strength'],'product_id'=>(int)$item['mapped_id'],'packs'=>$qty,'pack_size'=>(int)$item['pack_size'],'box_usd_cents'=>(int)$item['box_usd_cents'],'usd_total'=>$cost];
   }
-  $message=sc_supplier_message($lines,$totalUsd,$shippingUsdCents);
+  $message=sc_supplier_message($lines);
   $db->beginTransaction();
   try{
    $db->prepare("INSERT INTO supplier_orders(supplier,expected_date,status,note,created) VALUES (?,?, 'Ordered', ?, ?)")->execute(['MJT',$expected,'Combined James + Tony order from Supplier Centre',gmdate('c')]);
@@ -482,14 +482,25 @@ function sc_post(PDO $db,string $action):void{
  }
  throw new Exception('Unknown supplier action.');
 }
-function sc_supplier_message(array $lines,int $totalUsd,int $shippingUsdCents=0):string{
- $text="Hi, please can I order the following from MJT:\n\n";
+/**
+ * The message to Jessica is a request for full supplier boxes, not a cost invoice.
+ * Keep labels presentational; retain the imported SKU and underlying product unchanged.
+ */
+function sc_supplier_item_label(string $name,string $strength):string{
+ $base=trim($name);
+ $key=strtolower(preg_replace('/\s+/','',$base));
+ $aliases=['bpc157'=>'BPC-157','kisspeptin-10'=>'Kisspeptin-10','ara290'=>'ARA-290'];
+ $base=$aliases[$key]??$base;
+ return trim($base.' '.trim($strength));
+}
+function sc_supplier_message(array $lines):string{
+ $parts=[];
  foreach($lines as $line){
-  $boxes=(int)$line['packs'];$vials=$boxes*(int)$line['pack_size'];
-  $text.=$line['sku'].' — '.$line['name'].' '.$line['strength'].': '.$boxes.' box'.($boxes===1?'':'es').' ('.$vials.' vials)'."\n";
+  $boxes=(int)$line['packs'];
+  if($boxes<1)continue;
+  $parts[]='X'.$boxes.' '.sc_supplier_item_label((string)$line['name'],(string)$line['strength']).' ('.$line['sku'].')';
  }
- $text.="\nProduct total: ".sc_money_usd($totalUsd)." USD.\nEstimated shipping: ".sc_money_usd($shippingUsdCents)." USD per order.\nEstimated overall total: ".sc_money_usd($totalUsd+$shippingUsdCents)." USD.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.";
- return $text;
+ return "Hi Jessica,\nCan we place an order please for the following?\n\n".implode("\n",$parts)."\n\nThanks";
 }
 function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
  $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','smart','order','products','incoming'],true))$tab='profit';
@@ -697,12 +708,12 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <div class="sc-order-checkout"><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
 <label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Supplier shipping per entire order (USD $)<input type="number" min="0" max="100000" step=".01" name="shipping_usd" value="<?=e(number_format($draftShippingUsdCents/100,2,'.',''))?>" id="sc-basket-shipping"><small>Flat $70.00 USD by default. Change here only if this order has a different quoted shipping fee.</small></label>
 <div class="sc-order-cost"><span>Estimated landed cost in GBP including order shipping</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small id="sc-shipping-breakdown">Fixed shipping applies once per order and is allocated proportionally by supplier value across purchased vials. Rates and actual invoices may differ.</small></div>
-<label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="6" aria-label="Generated supplier message"></textarea>
+<label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="10" aria-label="Generated supplier message"></textarea><small class="muted">The message lists full boxes and supplier codes. Costs and shipping are calculated above for your ANKH records, not included in Jessica’s message.</small>
 <div class="sc-order-actions"><button type="button" id="sc-copy-message" class="sc-copy-button">Copy supplier message</button><button type="submit" name="supplier_intent" value="draft" class="sc-draft-button">Save shared draft</button><button type="submit" id="sc-place-order">Mark as ordered &amp; track incoming</button></div><p id="sc-order-warning" class="sc-order-warning" role="status"></p>
 </div></form>
 <script>
 (function(){
- const rows=<?=json_encode(array_map(fn($r)=>['sku'=>$r['sku'],'name'=>$r['name'],'strength'=>$r['strength'],'pack'=>$r['pack'],'usd'=>$r['usd'],'mapped'=>$r['product_id']!==null],$rows),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+ const rows=<?=json_encode(array_map(fn($r)=>['sku'=>$r['sku'],'name'=>$r['name'],'strength'=>$r['strength'],'message_label'=>sc_supplier_item_label($r['name'],$r['strength']),'pack'=>$r['pack'],'usd'=>$r['usd'],'mapped'=>$r['product_id']!==null],$rows),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
  const fx=<?=json_encode($fx)?>;
  const inputs=[...document.querySelectorAll('[data-box-sku]')],lookup=Object.fromEntries(rows.map(r=>[r.sku,r])),form=document.querySelector('#sc-order-form'),copy=document.querySelector('#sc-copy-message'),save=document.querySelector('#sc-place-order'),preview=document.querySelector('#sc-supplier-message'),warning=document.querySelector('#sc-order-warning');
  function update(){
@@ -715,7 +726,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   const shippingUsd=Math.round(Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0)*100);
   document.querySelector('#sc-total-gbp').textContent=fx?gbp(Math.round((usd+(boxCount>0?shippingUsd:0))*fx)):'Set exchange rate';
   document.querySelector('#sc-shipping-breakdown').textContent='Shipping once per order: '+dollar(boxCount>0?shippingUsd:0)+(fx?' ≈ '+gbp(Math.round((boxCount>0?shippingUsd:0)*fx)):'')+'. Allocated across the ordered products by supplier value. Final invoice may differ.';
-  preview.value=selected.length?'Hi, please can I order the following from MJT:\n\n'+selected.map(r=>r.sku+' — '+r.name+' '+r.strength+': '+r.boxes+' box'+(r.boxes===1?'':'es')+' ('+(r.boxes*r.pack)+' vials)').join('\n')+'\n\nProduct total: '+dollar(usd)+' USD.\nEstimated shipping: '+dollar(shippingUsd)+' USD per order.\nEstimated overall total: '+dollar(usd+shippingUsd)+' USD.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.':'Select boxes to generate a supplier message.';
+  preview.value=selected.length?'Hi Jessica,\nCan we place an order please for the following?\n\n'+selected.map(r=>'X'+r.boxes+' '+r.message_label+' ('+r.sku+')').join('\n')+'\n\nThanks':'Select boxes to generate a supplier message.';
   const missing=selected.filter(r=>!r.mapped);
   warning.textContent=missing.length?'Match '+missing.map(r=>r.sku).join(', ')+' to ANKH products before marking this basket as ordered.':(!fx?'Save an exchange rate in Prices & matching before recording a purchase.':'');
   save.disabled=!selected.length||missing.length>0||!fx;copy.disabled=!selected.length;
