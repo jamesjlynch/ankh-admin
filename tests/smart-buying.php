@@ -63,7 +63,7 @@ function csrf(){echo '<input type="hidden" name="csrf" value="test">';}
 sc_save_setting($db,'supplier_usd_gbp_rate','0.78');
 $_GET=['tab'=>'smart','lookback_days'=>'30'];
 ob_start();sc_render($db,[],$reserved,$incoming,$forecast);$html=ob_get_clean();
-checkSmart(str_contains($html,'Smart Buying Assistant')&&str_contains($html,'What should we reorder?'),'Smart Buying screen must render.');
+checkSmart(str_contains($html,'SMART BUYING ASSISTANT')&&str_contains($html,'What should we reorder?'),'Smart Buying screen must render.');
 checkSmart(str_contains($html,'data-smart-sku="XX10"')&&str_contains($html,'data-smart-boxes="1"'),'Each suggestion must expose a selectable integer full-box count.');
 checkSmart(str_contains($html,'Tony has 5 available; up to 2 could be transferred'),'Explain other-fridge spare stock clearly.');
 checkSmart(str_contains($html,'£250')&&str_contains($html,'£500')&&str_contains($html,'£1,000'),'Preset budgets should appear.');
