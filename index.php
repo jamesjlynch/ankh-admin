@@ -138,6 +138,8 @@ CREATE TABLE IF NOT EXISTS supplier_order_items (
 );
 CREATE INDEX IF NOT EXISTS idx_supplier_orders_status ON supplier_orders(status,expected_date);
 CREATE INDEX IF NOT EXISTS idx_supplier_order_items_order ON supplier_order_items(supplier_order_id);');
+require_once __DIR__.'/supplier-centre.php';
+sc_setup($db);
 if(!in_array('supplier_pack_size',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN supplier_pack_size INTEGER NOT NULL DEFAULT 10");
 $stockMovementColumns=$db->query('PRAGMA table_info(stock_movements)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('location',array_column($stockMovementColumns,'name'),true))$db->exec("ALTER TABLE stock_movements ADD COLUMN location TEXT NOT NULL DEFAULT 'Unallocated'");
@@ -1487,6 +1489,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
+  if(str_starts_with($action,'supplier_centre_'))sc_post($db,$action);
   if($action==='stock_open'){
    $productId=(int)($_POST['product_id']??0);$opening=filter_var($_POST['opening_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));
    if($productId<1||$opening===false||$opening<0||$opening>999999||!in_array($location,['Jay','Tony'],true)||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical count for Jay or Tony’s fridge.');
@@ -2017,7 +2020,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=<?=e((string)(@filemtime(__DIR__.'/style.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
@@ -2458,7 +2461,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
-<a class="<?=in_array($view,['more','products','reports','reorder','sheets'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['more','products','reports','reorder','sheets','supplier'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
@@ -3710,11 +3713,14 @@ document.addEventListener('DOMContentLoaded',()=>{
 <script>
 (()=>{document.querySelectorAll('.report-table,.expanded-profit-table').forEach(table=>{const labels=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());table.querySelectorAll('tbody tr').forEach(row=>{[...row.children].forEach((cell,index)=>{if(cell.tagName==='TD'&&!cell.hasAttribute('colspan'))cell.dataset.label=labels[index]||'';});});});})();
 </script>
+<?php elseif($view==='supplier'):?>
+<?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct); ?>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
 <a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
+<a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; Profit Centre</h2><p>Supplier box prices, margins, combined purchases and incoming stock.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2><p>See what’s running low and suggested supplier pack quantities.</p></div><b>›</b></a>
 <a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2><p>Opening counts, receipts, adjustments and movement history.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
