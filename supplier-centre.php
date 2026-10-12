@@ -358,18 +358,34 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.low_stock_at FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
  $allProducts=$db->query('SELECT id,name,active FROM products ORDER BY active DESC,name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
  $fx=sc_fx($db);
- $shippingCents=(int)($db->query("SELECT value FROM settings WHERE key='supplier_shipping_per_box_pence'")->fetchColumn()?:0);
+ $orderShippingUsdCents=sc_shipping_order_usd_cents($db);
  $lastImport=(string)($db->query("SELECT value FROM settings WHERE key='supplier_import_last'")->fetchColumn()?:'');
- $draftRow=$db->query('SELECT boxes_json,shipping_gbp,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+ $draftRow=$db->query('SELECT boxes_json,shipping_gbp,shipping_usd_cents,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
  $draft=json_decode((string)($draftRow['boxes_json']??'{}'),true);
  if(!is_array($draft))$draft=[];
+ $draftShippingUsdCents=sc_shipping_draft_usd_cents($draftRow,$fx,$orderShippingUsdCents);
+ $draftTotalUsd=0;$draftTotalVials=0;
+ foreach($catalogue as $row){
+  $boxes=max(0,min(100,(int)($draft[$row['sku']]??0)));
+  $draftTotalUsd+=$boxes*(int)$row['box_usd_cents'];
+  $draftTotalVials+=$boxes*(int)$row['pack_size'];
+ }
  $mapped=count(array_filter($catalogue,fn($r)=>$r['product_id']!==null));
  $orderUnits=$db->query("SELECT i.product_id,COALESCE(SUM(i.quantity),0) qty FROM items i JOIN orders o ON o.id=i.order_id WHERE i.product_id IS NOT NULL AND o.status IN ('Paid','Packed','Dispatched','Delivered') AND datetime(o.created)>=datetime('now','-30 days') GROUP BY i.product_id")->fetchAll(PDO::FETCH_KEY_PAIR);
  $rows=[];
  foreach($catalogue as $item){
   $pack=(int)$item['pack_size'];$usd=(int)$item['box_usd_cents'];
   $mappedId=$item['product_id']===null?null:(int)$item['product_id'];
-  $estimate=$fx===null?null:((int)round($usd*$fx)+$shippingCents)/$pack;
+  // Shipping is a flat order expense: only allocate it where the current shared basket gives
+  // a real order composition. Other products show price-before-shipping, not fictitious fees.
+  $basketPacks=max(0,min(100,(int)($draft[$item['sku']]??0)));
+  $shippingAllocated=$basketPacks>0&&$draftTotalVials>0;
+  $lineUsd=$usd*$basketPacks;
+  $allocatedShipping=$shippingAllocated&&$fx!==null
+    ?($draftTotalUsd>0?(int)round($draftShippingUsdCents*$fx*$lineUsd/$draftTotalUsd):(int)round($draftShippingUsdCents*$fx*($pack*$basketPacks)/$draftTotalVials)):0;
+  $estimate=$fx===null?null:($shippingAllocated
+    ?((int)round($lineUsd*$fx)+$allocatedShipping)/($pack*$basketPacks)
+    :($usd*$fx)/$pack);
   $price=$item['retail']===null?null:(int)$item['retail'];
   $friends=$price===null?null:($item['friends']===null?max(0,$price-500):(int)$item['friends']);
   $profit=$estimate===null||$price===null?null:$price-$estimate;
@@ -378,7 +394,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   $jayReserved=$mappedId===null?0:(int)($reservedByProduct[$mappedId]['jay']??0);
   $tonyReserved=$mappedId===null?0:(int)($reservedByProduct[$mappedId]['tony']??0);
   $rows[]=['sku'=>(string)$item['sku'],'name'=>(string)$item['name'],'strength'=>(string)$item['strength'],'pack'=>$pack,'usd'=>$usd,'product_id'=>$mappedId,
-   'ankh_name'=>(string)($item['ankh_name']??''),'retail'=>$price,'friends'=>$friends,'estimate'=>$estimate,'profit'=>$profit,'margin'=>$margin,
+   'ankh_name'=>(string)($item['ankh_name']??''),'retail'=>$price,'friends'=>$friends,'estimate'=>$estimate,'shipping_allocated'=>$shippingAllocated,'profit'=>$profit,'margin'=>$margin,
    'jay_physical'=>$jay+$jayReserved,'tony_physical'=>$tony+$tonyReserved,'jay_available'=>max(0,$jay),'tony_available'=>max(0,$tony),
    'reserved'=>$jayReserved+$tonyReserved,'incoming'=>$mappedId===null?0:(int)($incomingByProduct[$mappedId]??0),
    'sold30'=>$mappedId===null?0:(int)($orderUnits[$mappedId]??0)];
@@ -404,7 +420,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 </div>
 <?php if($tab==='profit'):?>
 <?php if(!$catalogue):?><section class="panel sc-empty"><h2>Start with the MJT supplier price import</h2><p>Upload the August 2026 supplier CSV through Prices &amp; matching. Wholesale costs are stored privately in ANKH Admin, never in the public code repository.</p><a class="quick-action" href="?view=supplier&amp;tab=products">Import supplier prices →</a></section><?php else:?>
-<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimated profit before overheads, based on the current supplier price and your saved GBP/USD rate.</p></div></div>
+<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
 <div class="sc-product-list" id="sc-profit-list">
@@ -412,7 +428,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <article class="sc-profit-card" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>" data-margin="<?=e((string)($item['margin']??-999999))?>" data-profit="<?=e((string)($item['profit']??-999999))?>" data-sold="<?=$item['sold30']?>" data-stock="<?=$availability?>" data-name="<?=e(strtolower($item['name'].' '.$item['strength']))?>">
  <div class="sc-profit-head"><div><small><?=e($item['sku'])?> · <?=e($item['pack'])?> vials/box</small><h3><?=e($item['name'].' '.$item['strength'])?></h3></div><span class="sc-margin-label <?=$item['margin']!==null&&$item['margin']<0?'loss':''?>"><?=$item['margin']===null?'Not mapped':number_format($item['margin'],1).'% margin'?></span></div>
  <div class="sc-profit-metrics"><div><span>Supplier box</span><strong><?=sc_money_usd($item['usd'])?></strong></div><div><span>Landed / vial</span><strong><?=$item['estimate']===null?'—':'£'.number_format($item['estimate']/100,2)?></strong></div><div><span>ANKH retail</span><strong><?=$item['retail']===null?'—':money($item['retail'])?></strong></div><div><span>Gross profit</span><strong><?=$item['profit']===null?'—':'£'.number_format($item['profit']/100,2)?></strong></div></div>
- <div class="sc-profit-bottom"><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
+ <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?'Includes proportional order shipping':'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
  <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=supplier&amp;tab=products">Match to ANKH product →</a><?php endif;?>
 </article>
 <?php endforeach;?></div></section>
@@ -426,7 +442,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <?php else:?>
  <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="supplier"><input type="hidden" name="tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
  <div class="sc-smart-stats"><div><small>Products to consider</small><strong><?=count($smartSuggested)?></strong></div><div><small>Suggested boxes</small><strong><?=array_sum(array_column($smartSuggested,'boxes'))?></strong></div><div><small>Product total (USD)</small><strong><?=sc_money_usd(array_sum(array_map(fn($r)=>$r['boxes']*$r['box_usd_cents'],$smartSuggested)))?></strong></div></div>
- <?php if($fx===null):?><p class="sc-notice">Set the GBP-per-USD rate in Prices &amp; matching to use the purchasing budget calculator. You can still review suggested quantities in USD.</p><?php endif;?>
+ <?php if($fx===null):?><p class="sc-notice">Set the GBP-per-USD rate in Prices &amp; matching to use the purchasing budget calculator. You can still review suggested quantities in USD.</p><?php else:?><p class="sc-notice">Budgets include the <strong>one-off <?=sc_money_usd($orderShippingUsdCents)?> USD order shipping charge</strong> (approximately £<?=number_format($orderShippingUsdCents*$fx/100,2)?>), not a fee for every box.</p><?php endif;?>
  <div class="sc-smart-explainer"><span class="sc-smart-info-icon" aria-hidden="true">ⓘ</span><p><strong>How it decides:</strong> Stock available <em>already excludes</em> reserved customer orders. Suggestions use available + incoming, then allow for your low-stock threshold, estimated 7-day sales and possible recurring orders. Spare stock in James’s or Tony’s fridge is counted before recommending more purchases, but transfers must be done manually.</p></div>
  <div class="sc-smart-budget">
   <div class="sc-smart-budget-heading"><span><strong>Set a buying budget</strong><small>Optional, in GBP · selects affordable boxes in priority order</small></span><span class="sc-smart-budget-symbol" aria-hidden="true">£</span></div>
@@ -474,7 +490,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <script>
  (() => {
   const cards=[...document.querySelectorAll('[data-smart-sku]')];
-  const fx=<?=json_encode($fx)?>,shipping=<?=json_encode($shippingCents)?>;
+  const fx=<?=json_encode($fx)?>,shippingUsd=<?=json_encode($orderShippingUsdCents)?>;
   const selector=document.querySelector('#sc-smart-budget-input'),explain=document.querySelector('#sc-smart-budget-explain'),submit=document.querySelector('#sc-smart-add-button');
   const dollar=n=>'$'+(n/100).toFixed(2),pound=n=>'£'+(n/100).toFixed(2);
   function quantity(card,n){
@@ -487,20 +503,26 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
    const boxes=selected.reduce((sum,r)=>sum+r.boxes,0),usd=selected.reduce((sum,r)=>sum+r.boxes*r.price,0);
    document.querySelector('#sc-smart-selected-boxes').textContent=String(boxes);
    document.querySelector('#sc-smart-selected-usd').textContent=dollar(usd);
-   document.querySelector('#sc-smart-selected-gbp').textContent=fx?pound(Math.round(usd*fx+boxes*shipping)):'Set FX rate';
+   document.querySelector('#sc-smart-selected-gbp').textContent=fx?pound(Math.round((usd+(boxes>0?shippingUsd:0))*fx)):'Set FX rate';
    submit.disabled=boxes===0;
   }
   function applyBudget(limit){
    cards.forEach(card=>quantity(card,0));
-   let cost=0,boxes=0;
+   let totalUsd=0,boxes=0;
    for(const card of cards){
     const suggested=Number(card.dataset.smartBoxes)||0,price=Number(card.dataset.smartPrice)||0;
     if(suggested<1)continue;
-    const perBox=fx?Math.ceil(price*fx)+shipping:0;
-    const count=limit===null?suggested:(perBox>0?Math.min(suggested,Math.max(0,Math.floor((limit-cost)/perBox))):0);
-    if(count<1)continue;
-    quantity(card,count);cost+=count*perBox;boxes+=count;
+    let count=0;
+    // Budget includes the single shipment fee once if at least one box is selected.
+    while(count<suggested){
+     const nextUsd=totalUsd+price;
+     const nextCost=fx?Math.round((nextUsd+shippingUsd)*fx):0;
+     if(limit!==null&&(!fx||nextCost>limit))break;
+     totalUsd=nextUsd;count++;boxes++;
+    }
+    if(count>0)quantity(card,count);
    }
+   const cost=fx&&boxes?Math.round((totalUsd+shippingUsd)*fx):0;
    explain.textContent=limit===null?boxes+' suggested boxes selected. Review before saving.':boxes+' boxes selected for about '+pound(cost)+' against a '+pound(limit)+' estimated budget. Review before saving.';
    update();
   }
@@ -529,8 +551,8 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div>
 </div><?php endforeach;?></div>
 <div class="sc-order-checkout"><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
-<label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Estimated shipping in GBP (£)<input type="number" min="0" max="100000" step=".01" name="shipping_gbp" value="<?=e((string)($draftRow['shipping_gbp']??'0'))?>" id="sc-basket-shipping"></label>
-<div class="sc-order-cost"><span>Estimated landed cost in GBP</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small>Uses saved GBP per USD rate; shipping is estimated and may change on final invoice.</small></div>
+<label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Supplier shipping per entire order (USD $)<input type="number" min="0" max="100000" step=".01" name="shipping_usd" value="<?=e(number_format($draftShippingUsdCents/100,2,'.',''))?>" id="sc-basket-shipping"><small>Flat $70.00 USD by default. Change here only if this order has a different quoted shipping fee.</small></label>
+<div class="sc-order-cost"><span>Estimated landed cost in GBP including order shipping</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small id="sc-shipping-breakdown">Fixed shipping applies once per order and is allocated proportionally by supplier value across purchased vials. Rates and actual invoices may differ.</small></div>
 <label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="6" aria-label="Generated supplier message"></textarea>
 <div class="sc-order-actions"><button type="button" id="sc-copy-message" class="sc-copy-button">Copy supplier message</button><button type="submit" name="supplier_intent" value="draft" class="sc-draft-button">Save shared draft</button><button type="submit" id="sc-place-order">Mark as ordered &amp; track incoming</button></div><p id="sc-order-warning" class="sc-order-warning" role="status"></p>
 </div></form>
@@ -546,9 +568,10 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   document.querySelector('#sc-total-boxes').textContent=String(boxCount);
   document.querySelector('#sc-total-vials').textContent=String(vials);
   document.querySelector('#sc-total-usd').textContent=dollar(usd);
-  const shipping=Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0);
-  document.querySelector('#sc-total-gbp').textContent=fx?gbp(Math.round(usd*fx+shipping*100)):'Set exchange rate';
-  preview.value=selected.length?'Hi, please can I order the following from MJT:\n\n'+selected.map(r=>r.sku+' — '+r.name+' '+r.strength+': '+r.boxes+' box'+(r.boxes===1?'':'es')+' ('+(r.boxes*r.pack)+' vials)').join('\n')+'\n\nProduct total: '+dollar(usd)+' USD, excluding shipping.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.':'Select boxes to generate a supplier message.';
+  const shippingUsd=Math.round(Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0)*100);
+  document.querySelector('#sc-total-gbp').textContent=fx?gbp(Math.round((usd+(boxCount>0?shippingUsd:0))*fx)):'Set exchange rate';
+  document.querySelector('#sc-shipping-breakdown').textContent='Shipping once per order: '+dollar(boxCount>0?shippingUsd:0)+(fx?' ≈ '+gbp(Math.round((boxCount>0?shippingUsd:0)*fx)):'')+'. Allocated across the ordered products by supplier value. Final invoice may differ.';
+  preview.value=selected.length?'Hi, please can I order the following from MJT:\n\n'+selected.map(r=>r.sku+' — '+r.name+' '+r.strength+': '+r.boxes+' box'+(r.boxes===1?'':'es')+' ('+(r.boxes*r.pack)+' vials)').join('\n')+'\n\nProduct total: '+dollar(usd)+' USD.\nEstimated shipping: '+dollar(shippingUsd)+' USD per order.\nEstimated overall total: '+dollar(usd+shippingUsd)+' USD.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.':'Select boxes to generate a supplier message.';
   const missing=selected.filter(r=>!r.mapped);
   warning.textContent=missing.length?'Match '+missing.map(r=>r.sku).join(', ')+' to ANKH products before marking this basket as ordered.':(!fx?'Save an exchange rate in Prices & matching before recording a purchase.':'');
   save.disabled=!selected.length||missing.length>0||!fx;copy.disabled=!selected.length;
@@ -565,7 +588,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <?php elseif($tab==='products'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">PRIVATE PRICE IMPORT</p><h2>MJT supplier catalogue</h2><p>Upload wholesale costs directly into the authenticated ANKH database. An import updates current supplier prices but keeps order history and product matches.</p></div></div>
 <form method="post" enctype="multipart/form-data" class="sc-import-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_import"><input type="hidden" name="return" value="supplier"><label>August MJT supplier CSV<input type="file" name="supplier_csv" accept=".csv,text/csv" required></label><button>Import / update supplier prices</button><small>Most recent import: <?=$lastImport!==''?e(date('d M Y H:i',strtotime($lastImport))):'Not imported yet'?></small></form>
-<form method="post" class="sc-config-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_config"><input type="hidden" name="return" value="supplier"><h3>Currency &amp; cost estimates</h3><div class="sc-config-grid"><label>GBP per 1 USD <input name="usd_gbp_rate" type="number" min="0.0001" max="9.99" step=".0001" placeholder="e.g. 0.7800" value="<?=$fx===null?'':e((string)$fx)?>"></label><label>Estimated shipping / box (£)<input name="shipping_per_box" type="number" min="0" max="10000" step=".01" value="<?=e(number_format($shippingCents/100,2,'.',''))?>"></label></div><button class="quiet">Save conversion settings</button><p class="muted">Exchange rate is entered manually; figures are estimates, not a live currency quote. Historical orders keep their original costs.</p></form>
+<form method="post" class="sc-config-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_config"><input type="hidden" name="return" value="supplier"><h3>Currency &amp; cost estimates</h3><div class="sc-config-grid"><label>GBP per 1 USD <input name="usd_gbp_rate" type="number" min="0.0001" max="9.99" step=".0001" placeholder="e.g. 0.7572" value="<?=$fx===null?'':e((string)$fx)?>"></label><label>Supplier shipping per order (USD $)<input name="shipping_per_order_usd" type="number" min="0" max="100000" step=".01" value="<?=e(number_format($orderShippingUsdCents/100,2,'.',''))?>"></label></div><button class="quiet">Save conversion settings</button><p class="muted">MJT currently quotes $70.00 for the whole order, regardless of boxes. The fixed USD shipping amount is converted at your manually saved exchange rate and allocated to products when you build an order. No historical costs are overwritten.</p></form>
 <?php if($rows):?><div class="sc-filters"><input id="sc-map-search" type="search" placeholder="Search SKU, strength or product…" aria-label="Filter supplier price mappings"></div><div class="sc-map-list">
 <?php foreach($rows as $item):?><details class="sc-map-row" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>"><summary><div><small><?=e($item['sku'])?> · <?=$item['pack']?>/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><em><?=e($item['ankh_name']?:'Unmapped to ANKH')?></em></div><span><?=sc_money_usd($item['usd'])?> ▾</span></summary><div class="sc-map-edit"><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_map"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Link to ANKH product<select name="product_id"><option value="">Not linked</option><?php foreach($allProducts as $p):?><option value="<?=(int)$p['id']?>" <?=$item['product_id']!==null&&(int)$item['product_id']===(int)$p['id']?'selected':''?>><?=e($p['name'])?><?=(int)$p['active']===0?' (hidden)':''?></option><?php endforeach;?></select></label><button>Save product match</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_price"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Supplier box cost (USD)<input type="number" min="0" max="100000" step=".01" name="box_usd" value="<?=e(number_format($item['usd']/100,2,'.',''))?>"></label><button class="quiet">Update box price</button></form></div></details><?php endforeach;?></div><?php endif;?>
 </section>
