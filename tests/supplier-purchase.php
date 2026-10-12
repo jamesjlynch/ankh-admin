@@ -15,7 +15,7 @@ $db->exec("INSERT INTO supplier_catalogue(sku,name,strength,pack_size,box_usd_ce
 sc_save_setting($db,'supplier_usd_gbp_rate','0.78');
 $_SESSION=[];
 $_POST=[
- 'boxes'=>['XX10'=>'2','YY5'=>'1'],
+ 'boxes'=>['XX10'=>'2','YY5'=>'1',375=>'0'], // zero-quantity numeric-only SKU must not block order submission
  'expected_date'=>'2026-11-01',
  'shipping_usd'=>'70.00'
 ];
