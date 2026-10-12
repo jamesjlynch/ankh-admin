@@ -177,7 +177,9 @@ function sc_post(PDO $db,string $action):void{
   if(!is_array($boxes)||count($boxes)>500)throw new Exception('Choose valid box quantities.');
   $chosen=[];
   foreach($boxes as $sku=>$count){
-   if(!is_string($sku)||!preg_match('/^[A-Z0-9-]{1,20}$/',$sku))throw new Exception('Invalid supplier product code.');
+   // HTML form field boxes[375] becomes integer key 375 in PHP; normalise before validating.
+   $sku=(string)$sku;
+   if(!preg_match('/^[A-Z0-9-]{1,20}$/',$sku))throw new Exception('Invalid supplier product code.');
    $n=filter_var($count,FILTER_VALIDATE_INT);
    if($n===false||$n<0||$n>100)throw new Exception('Choose between 0 and 100 boxes.');
    if($n>0)$chosen[$sku]=(int)$n;
@@ -286,7 +288,9 @@ function sc_post(PDO $db,string $action):void{
  if($action==='supplier_centre_place'){
   $boxes=$_POST['boxes']??[];if(!is_array($boxes))throw new Exception('Choose supplier boxes.');
   $requested=[];foreach($boxes as $sku=>$quantity){
-   if(!is_string($sku)||!preg_match('/^[A-Z0-9-]{1,20}$/',$sku))throw new Exception('Invalid supplier code.');
+   // MJT supplies numeric-only codes (e.g. LL37 = 375). PHP turns boxes[375] into an integer key.
+   $sku=(string)$sku;
+   if(!preg_match('/^[A-Z0-9-]{1,20}$/',$sku))throw new Exception('Invalid supplier code.');
    $qty=filter_var($quantity,FILTER_VALIDATE_INT);
    if($qty===false||$qty<0||$qty>100)throw new Exception('Select 0–100 full boxes per product.');
    if($qty>0)$requested[$sku]=(int)$qty;
