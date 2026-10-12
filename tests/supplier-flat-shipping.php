@@ -28,6 +28,18 @@ ob_start();sc_render($db,[],[],[]);$planned=ob_get_clean();
 shipAssert(str_contains($planned,'Includes proportional order shipping'),'Profit display must label landed costs as including order shipping when draft composition is known.');
 shipAssert(str_contains($planned,'£7.85')&&str_contains($planned,'£2.24'),'One $70 shipping fee must be shared by product value, then by vials.');
 shipAssert(!str_contains($planned,'£12.48'),'Do not apply a full fixed shipping fee to EACH supplier box.');
+// Verify real MJT price card: GHK-CU $33/10 at saved FX 0.7570 = £24.98/box, £2.50/vial before shipping.
+$db->exec("INSERT INTO products(id,name,price) VALUES(3,'GHK-CU 50mg',2300)");
+$db->exec("INSERT INTO supplier_catalogue(sku,name,strength,pack_size,box_usd_cents,product_id,updated) VALUES ('CU50','GHK-CU','50mg',10,3300,3,'')");
+sc_save_setting($db,'supplier_usd_gbp_rate','0.7570');
+ob_start();sc_render($db,[],[],[]);$ghkCard=ob_get_clean();
+shipAssert(str_contains($ghkCard,'GHK-CU 50mg')&&str_contains($ghkCard,'Supplier box (10 vials)'),'GHK-CU card must clearly label the box quantity.');
+shipAssert(str_contains($ghkCard,'£24.98')&&str_contains($ghkCard,'$33.00 USD')&&str_contains($ghkCard,'£2.50'),'GHK-CU card must show both GBP box and per-vial costs and supplier USD reference.');
+shipAssert(str_contains($ghkCard,'Cost / vial')&&str_contains($ghkCard,'Before shipping'),'Product outside basket must not be falsely described as landed cost.');
+sc_save_setting($db,'supplier_usd_gbp_rate','');
+ob_start();sc_render($db,[],[],[]);$missingFx=ob_get_clean();
+shipAssert(str_contains($missingFx,'Set exchange rate'),'Missing FX must be displayed honestly rather than inventing GBP box costs.');
+sc_save_setting($db,'supplier_usd_gbp_rate','0.78');
 // A snapshot recorded before this migration must keep its historical GBP charge unchanged.
 $db->exec("INSERT INTO supplier_orders(id,supplier,status,note,created) VALUES (1,'MJT','Received','','2026-08-01')");
 $db->exec("INSERT INTO supplier_purchase_snapshots(supplier_order_id,usd_total_cents,fx_rate,shipping_gbp_pence,estimated_gbp_pence,order_message,created)
