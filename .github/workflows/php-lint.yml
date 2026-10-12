@@ -25,6 +25,8 @@ jobs:
           php -l tests/supplier-centre.php
           php -l tests/supplier-purchase.php
           php -l tests/supplier-draft.php
+          php -l tests/smart-buying.php
+          php -l tests/smart-buying-apply.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
@@ -35,3 +37,7 @@ jobs:
         run: php tests/supplier-purchase.php
       - name: Test shared supplier basket draft
         run: php tests/supplier-draft.php
+      - name: Test Smart Buying demand and budget UI
+        run: php tests/smart-buying.php
+      - name: Test safe merge of suggested boxes into shared basket
+        run: php tests/smart-buying-apply.php
