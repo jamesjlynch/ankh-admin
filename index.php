@@ -138,8 +138,12 @@ CREATE TABLE IF NOT EXISTS supplier_order_items (
 );
 CREATE INDEX IF NOT EXISTS idx_supplier_orders_status ON supplier_orders(status,expected_date);
 CREATE INDEX IF NOT EXISTS idx_supplier_order_items_order ON supplier_order_items(supplier_order_id);');
-require_once __DIR__.'/supplier-centre.php';
-sc_setup($db);
+// The dashboard must remain available even if a new optional module was missed in deployment.
+$supplierCentreAvailable=is_file(__DIR__.'/supplier-centre.php');
+if($supplierCentreAvailable){
+ require_once __DIR__.'/supplier-centre.php';
+ sc_setup($db);
+}
 if(!in_array('supplier_pack_size',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN supplier_pack_size INTEGER NOT NULL DEFAULT 10");
 $stockMovementColumns=$db->query('PRAGMA table_info(stock_movements)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('location',array_column($stockMovementColumns,'name'),true))$db->exec("ALTER TABLE stock_movements ADD COLUMN location TEXT NOT NULL DEFAULT 'Unallocated'");
@@ -1489,7 +1493,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
-  if(str_starts_with($action,'supplier_centre_'))sc_post($db,$action);
+  if(str_starts_with($action,'supplier_centre_')){
+   if(!$supplierCentreAvailable)throw new Exception('Supplier Centre is temporarily unavailable while deployment completes. Other app functions are unaffected.');
+   sc_post($db,$action);
+  }
   if($action==='stock_open'){
    $productId=(int)($_POST['product_id']??0);$opening=filter_var($_POST['opening_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));
    if($productId<1||$opening===false||$opening<0||$opening>999999||!in_array($location,['Jay','Tony'],true)||($_POST['confirm_opening']??'')!=='1')throw new Exception('Enter and confirm a physical count for Jay or Tony’s fridge.');
@@ -3714,7 +3721,12 @@ document.addEventListener('DOMContentLoaded',()=>{
 (()=>{document.querySelectorAll('.report-table,.expanded-profit-table').forEach(table=>{const labels=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());table.querySelectorAll('tbody tr').forEach(row=>{[...row.children].forEach((cell,index)=>{if(cell.tagName==='TD'&&!cell.hasAttribute('colspan'))cell.dataset.label=labels[index]||'';});});});})();
 </script>
 <?php elseif($view==='supplier'):?>
+<?php if($supplierCentreAvailable):?>
 <?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
+<?php else:?>
+<div class="heading"><div><h1>Supplier Centre unavailable</h1><p class="muted page-description">The supplier module is waiting to be deployed. Your orders, customers and stock are still accessible.</p></div></div>
+<section class="panel"><p role="alert">The supplier feature files have not all reached the server yet. Please retry after the deployment is finished.</p><a href="?view=dashboard" class="button">Return to dashboard</a></section>
+<?php endif;?>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
