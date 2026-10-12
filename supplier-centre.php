@@ -84,7 +84,103 @@ function sc_fx(PDO $db):?float{
 function sc_save_setting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')->execute([$key,$value]);
 }
+/**
+ * Build transparent buying suggestions. Product's available stock is already AFTER
+ * reservations (including negative balances for order shortages), so do not deduct
+ * reservations again. Positive spare stock across fridges/holding can cover the
+ * other fridge's shortage via a MANUAL transfer before buying.
+ */
+function sc_smart_suggestions(array $catalogue,array $reservedByProduct,array $incomingByProduct,array $deliveredByProduct,array $recurringByName,int $lookbackDays=30):array{
+ if(!in_array($lookbackDays,[30,60,90],true))$lookbackDays=30;
+ $forecast=[];foreach($recurringByName as $name=>$quantity){
+  $key=strtolower(trim((string)$name));if($key==='pen')continue;
+  $forecast[$key]=($forecast[$key]??0)+max(0,(int)$quantity);
+ }
+ $out=[];
+ foreach($catalogue as $item){
+  $id=isset($item['product_id'])?(int)$item['product_id']:0;
+  if($id<1)continue;
+  $tracked=(int)($item['stock_tracking']??0)===1;
+  $jay=(int)($item['stock_jay_qty']??0);$tony=(int)($item['stock_tony_qty']??0);$holding=(int)($item['stock_unallocated_qty']??0);
+  $rawAvailable=$jay+$tony+$holding;
+  $available=max(0,$rawAvailable);$incoming=max(0,(int)($incomingByProduct[$id]??0));
+  $reserved=array_sum(array_map('intval',$reservedByProduct[$id]??[]));
+  $delivered=max(0,(int)($deliveredByProduct[$id]??0));
+  $leadDemand=(int)ceil($delivered*7/$lookbackDays);
+  $recurring=max(0,(int)($forecast[strtolower(trim((string)($item['ankh_name']??'')))]??0));
+  $threshold=max(0,(int)($item['low_stock_at']??5));
+  $pack=max(1,(int)($item['pack_size']??10));
+  // Shortage is NOT a second deduction: negative raw available already reflects it.
+  $urgent=max(0,-$rawAvailable-$incoming);
+  $target=$threshold+$leadDemand+$recurring;
+  $gap=$tracked?max(0,$target-$rawAvailable-$incoming):0;
+  $boxes=$tracked&&$gap>0?(int)ceil($gap/$pack):0;
+  $transferJamesToTony=min(max(0,-$tony),max(0,$jay));
+  $transferTonyToJames=min(max(0,-$jay),max(0,$tony));
+  $transferHolding=min(max(0,-$jay)+max(0,-$tony),max(0,$holding));
+  $status=!$tracked?'untracked':($urgent>0?'shortage':($boxes>0?'reorder':'covered'));
+  $out[]=[
+   'sku'=>(string)$item['sku'],'name'=>(string)$item['name'].' '.(string)$item['strength'],
+   'product_id'=>$id,'pack'=>$pack,'box_usd_cents'=>(int)$item['box_usd_cents'],'tracked'=>$tracked,
+   'jay_available'=>max(0,$jay),'tony_available'=>max(0,$tony),'holding_available'=>max(0,$holding),
+   'jay_short'=>max(0,-$jay),'tony_short'=>max(0,-$tony),'available_raw'=>$rawAvailable,
+   'available'=>$available,'reserved'=>$reserved,'incoming'=>$incoming,
+   'recent_delivered'=>$delivered,'lead_demand'=>$leadDemand,'recurring30'=>$recurring,'low_at'=>$threshold,
+   'target'=>$target,'gap'=>$gap,'urgent'=>$urgent,'boxes'=>$boxes,'units'=>$boxes*$pack,'status'=>$status,
+   'transfer_jay_to_tony'=>$transferJamesToTony,'transfer_tony_to_jay'=>$transferTonyToJames,'transfer_holding'=>$transferHolding
+  ];
+ }
+ $rank=['shortage'=>0,'reorder'=>1,'untracked'=>2,'covered'=>3];
+ usort($out,static fn($a,$b)=>$rank[$a['status']]<=>$rank[$b['status']] ?: $b['urgent']<=>$a['urgent'] ?: $b['gap']<=>$a['gap'] ?: strcmp($a['name'],$b['name']));
+ return $out;
+}
+function sc_recent_delivered(PDO $db,int $days):array{
+ if(!in_array($days,[30,60,90],true))$days=30;
+ // Only actually delivered non-recurring units; don't infer future demand from unpaid or open orders.
+ $local=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));
+ $start=$local->modify('-'.($days-1).' days')->format('Y-m-d');
+ $stmt=$db->prepare("SELECT p.id,SUM(i.quantity) AS qty
+  FROM stock_delivery_events e JOIN orders o ON o.id=e.order_id
+  JOIN items i ON i.order_id=e.order_id
+  JOIN products p ON p.id=COALESCE(i.product_id,(SELECT p2.id FROM products p2 WHERE lower(trim(p2.name))=lower(trim(i.name)) ORDER BY p2.id LIMIT 1))
+  WHERE o.status<>'Cancelled' AND COALESCE(i.recurring,0)=0
+   AND date(e.delivery_date)>=date(?) AND date(e.delivery_date)<=date(?)
+   AND (trim(COALESCE(p.stock_tracking_since,''))='' OR date(e.delivery_date)>=date(p.stock_tracking_since))
+  GROUP BY p.id");
+ $stmt->execute([$start,$local->format('Y-m-d')]);
+ return array_map('intval',$stmt->fetchAll(PDO::FETCH_KEY_PAIR));
+}
 function sc_post(PDO $db,string $action):void{
+ if($action==='supplier_centre_smart_apply'){
+  $boxes=$_POST['boxes']??[];
+  if(!is_array($boxes)||count($boxes)>500)throw new Exception('Choose valid box quantities.');
+  $chosen=[];
+  foreach($boxes as $sku=>$count){
+   if(!is_string($sku)||!preg_match('/^[A-Z0-9-]{1,20}$/',$sku))throw new Exception('Invalid supplier product code.');
+   $n=filter_var($count,FILTER_VALIDATE_INT);
+   if($n===false||$n<0||$n>100)throw new Exception('Choose between 0 and 100 boxes.');
+   if($n>0)$chosen[$sku]=(int)$n;
+  }
+  if(!$chosen)throw new Exception('Tick at least one suggested product to add to the shared basket.');
+  $catalogue=$db->prepare('SELECT s.product_id,p.stock_tracking FROM supplier_catalogue s JOIN products p ON p.id=s.product_id WHERE s.sku=?');
+  foreach($chosen as $sku=>$n){
+   $catalogue->execute([$sku]);$row=$catalogue->fetch(PDO::FETCH_ASSOC);
+   if(!$row||(int)$row['stock_tracking']!==1)throw new Exception('Match and track the stock for '.$sku.' before adding it.');
+  }
+  $db->beginTransaction();
+  try{
+   $row=$db->query('SELECT boxes_json,shipping_gbp,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+   $draft=json_decode((string)($row['boxes_json']??'{}'),true);if(!is_array($draft))$draft=[];
+   foreach($chosen as $sku=>$n)$draft[$sku]=max((int)($draft[$sku]??0),$n);
+   $draft=array_filter($draft,static fn($n)=>(int)$n>0);
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,expected_date,updated)
+    VALUES (1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,updated=excluded.updated")
+    ->execute([json_encode($draft,JSON_THROW_ON_ERROR),(string)($row['shipping_gbp']??'0'),(string)($row['expected_date']??''),gmdate('c')]);
+   $db->commit();
+  }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
+  $_SESSION['flash']='Selected boxes added to your shared supplier basket for review. Nothing has been ordered.';
+  header('Location: ./?view=supplier&tab=order');exit;
+ }
  if($action==='supplier_centre_import'){
   $file=$_FILES['supplier_csv']??null;
   if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)($file['tmp_name']??'')))throw new Exception('Choose the supplier CSV file and try again.');
