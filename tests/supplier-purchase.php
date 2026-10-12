@@ -17,7 +17,7 @@ $_SESSION=[];
 $_POST=[
  'boxes'=>['XX10'=>'2','YY5'=>'1'],
  'expected_date'=>'2026-11-01',
- 'shipping_gbp'=>'9.60'
+ 'shipping_usd'=>'70.00'
 ];
 register_shutdown_function(static function()use($db):void{
  $orders=$db->query('SELECT * FROM supplier_orders')->fetchAll(PDO::FETCH_ASSOC);
@@ -25,10 +25,10 @@ register_shutdown_function(static function()use($db):void{
  $id=(int)$orders[0]['id'];
  $items=$db->query('SELECT * FROM supplier_order_items ORDER BY product_id')->fetchAll(PDO::FETCH_ASSOC);
  if(count($items)!==2||(int)$items[0]['packs']!==2||(int)$items[0]['quantity']!==20||(int)$items[1]['packs']!==1||(int)$items[1]['quantity']!==10)throw new RuntimeException('Expected one combined order with full ten-vial boxes.');
- if((int)$items[0]['unit_cost']!==588||(int)$items[1]['unit_cost']!==168)throw new RuntimeException('Landed unit costs should include saved FX and proportionally allocated shipping.');
+ if((int)$items[0]['unit_cost']!==785||(int)$items[1]['unit_cost']!==224)throw new RuntimeException('Landed unit costs should include saved FX and proportionally allocated shipping.');
  $snap=$db->query('SELECT * FROM supplier_purchase_snapshots WHERE supplier_order_id='.$id)->fetch(PDO::FETCH_ASSOC);
- if((int)$snap['usd_total_cents']!==16000||(int)$snap['shipping_gbp_pence']!==960||(int)$snap['estimated_gbp_pence']!==13440)throw new RuntimeException('Supplier order value and shipping snapshot incorrect.');
- if((float)$snap['fx_rate']!==0.78||!str_contains($snap['order_message'],'XX10')||!str_contains($snap['order_message'],'$160.00'))throw new RuntimeException('Supplier message and exchange-rate snapshots must persist.');
+ if((int)$snap['usd_total_cents']!==16000||(int)$snap['shipping_gbp_pence']!==5460||(int)$snap['shipping_usd_cents']!==7000||(int)$snap['estimated_gbp_pence']!==17940)throw new RuntimeException('Supplier order value and shipping snapshot incorrect.');
+ if((float)$snap['fx_rate']!==0.78||!str_contains($snap['order_message'],'XX10')||!str_contains($snap['order_message'],'$160.00')||!str_contains($snap['order_message'],'$70.00')||!str_contains($snap['order_message'],'$230.00'))throw new RuntimeException('Supplier message and exchange-rate snapshots must persist.');
  $lines=$db->query('SELECT * FROM supplier_purchase_lines ORDER BY sku')->fetchAll(PDO::FETCH_ASSOC);
  if(count($lines)!==2||(int)$lines[0]['box_usd_cents']!==7000||(int)$lines[1]['box_usd_cents']!==2000)throw new RuntimeException('Per-SKU historical supplier box costs not recorded.');
  $stock=$db->query('SELECT stock_jay_qty,stock_tony_qty FROM products WHERE id=1')->fetch(PDO::FETCH_ASSOC);
