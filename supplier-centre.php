@@ -16,6 +16,13 @@ function sc_setup(PDO $db):void{
   product_id INTEGER UNIQUE REFERENCES products(id) ON DELETE SET NULL,
   updated TEXT NOT NULL DEFAULT ''
  );
+ CREATE TABLE IF NOT EXISTS supplier_basket_drafts (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  boxes_json TEXT NOT NULL DEFAULT '{}',
+  shipping_gbp TEXT NOT NULL DEFAULT '0',
+  expected_date TEXT NOT NULL DEFAULT '',
+  updated TEXT NOT NULL
+ );
  CREATE TABLE IF NOT EXISTS supplier_price_history (
   id INTEGER PRIMARY KEY,
   sku TEXT NOT NULL,
@@ -167,6 +174,15 @@ function sc_post(PDO $db,string $action):void{
    if($qty===false||$qty<0||$qty>100)throw new Exception('Select 0–100 full boxes per product.');
    if($qty>0)$requested[$sku]=(int)$qty;
   }
+  if(($_POST['supplier_intent']??'')==='draft'){
+   $shipDraft=trim((string)($_POST['shipping_gbp']??'0'));
+   $expectedDraft=trim((string)($_POST['expected_date']??''));
+   if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$shipDraft)||(float)$shipDraft>100000)throw new Exception('Enter valid shipping for the draft.');
+   if($expectedDraft!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expectedDraft)||!checkdate((int)substr($expectedDraft,5,2),(int)substr($expectedDraft,8,2),(int)substr($expectedDraft,0,4))))throw new Exception('Enter a valid expected date.');
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,expected_date,updated) VALUES (1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$shipDraft,$expectedDraft,gmdate('c')]);
+   $_SESSION['flash']='Shared supplier basket draft saved for James and Tony.';
+   header('Location: ./?view=supplier&tab=order');exit;
+  }
   if(!$requested||count($requested)>100)throw new Exception('Select at least one mapped supplier product.');
   $fx=sc_fx($db);
   if($fx===null)throw new Exception('Save an exchange rate first, so stock costs can be recorded in GBP.');
@@ -201,6 +217,7 @@ function sc_post(PDO $db,string $action):void{
    }
    $estimate=(int)round($totalUsd*$fx)+$shippingPence;
    $db->prepare('INSERT INTO supplier_purchase_snapshots(supplier_order_id,usd_total_cents,fx_rate,shipping_gbp_pence,estimated_gbp_pence,order_message,created) VALUES (?,?,?,?,?,?,?)')->execute([$orderId,$totalUsd,$fx,$shippingPence,$estimate,$message,gmdate('c')]);
+   $db->prepare('DELETE FROM supplier_basket_drafts WHERE id=1')->execute();
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='MJT purchase recorded in Incoming Stock; no inventory has been added yet.';
@@ -224,6 +241,9 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $fx=sc_fx($db);
  $shippingCents=(int)($db->query("SELECT value FROM settings WHERE key='supplier_shipping_per_box_pence'")->fetchColumn()?:0);
  $lastImport=(string)($db->query("SELECT value FROM settings WHERE key='supplier_import_last'")->fetchColumn()?:'');
+ $draftRow=$db->query('SELECT boxes_json,shipping_gbp,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+ $draft=json_decode((string)($draftRow['boxes_json']??'{}'),true);
+ if(!is_array($draft))$draft=[];
  $mapped=count(array_filter($catalogue,fn($r)=>$r['product_id']!==null));
  $orderUnits=$db->query("SELECT i.product_id,COALESCE(SUM(i.quantity),0) qty FROM items i JOIN orders o ON o.id=i.order_id WHERE i.product_id IS NOT NULL AND o.status IN ('Paid','Packed','Dispatched','Delivered') AND datetime(o.created)>=datetime('now','-30 days') GROUP BY i.product_id")->fetchAll(PDO::FETCH_KEY_PAIR);
  $rows=[];
@@ -283,13 +303,13 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <div class="sc-order-items" id="sc-order-items">
 <?php foreach($rows as $item):?><div class="sc-order-item" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength']))?>">
  <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=e($item['product_id']===null?'Match needed':'ANKH matched')?></small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span><?=sc_money_usd($item['usd'])?> / box · <?=$item['pack']?> vials</span><em>James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?> available<?= $item['incoming']>0?' · '.$item['incoming'].' incoming':''?></em></div>
- <div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="0" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div>
+ <div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div>
 </div><?php endforeach;?></div>
 <div class="sc-order-checkout"><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
-<label>Expected delivery date (optional)<input type="date" name="expected_date"></label><label>Estimated shipping in GBP (£)<input type="number" min="0" max="100000" step=".01" name="shipping_gbp" value="0" id="sc-basket-shipping"></label>
+<label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Estimated shipping in GBP (£)<input type="number" min="0" max="100000" step=".01" name="shipping_gbp" value="<?=e((string)($draftRow['shipping_gbp']??'0'))?>" id="sc-basket-shipping"></label>
 <div class="sc-order-cost"><span>Estimated landed cost in GBP</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small>Uses saved GBP per USD rate; shipping is estimated and may change on final invoice.</small></div>
 <label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="6" aria-label="Generated supplier message"></textarea>
-<div class="sc-order-actions"><button type="button" id="sc-copy-message" class="sc-copy-button">Copy supplier message</button><button type="submit" id="sc-place-order">Mark as ordered &amp; track incoming</button></div><p id="sc-order-warning" class="sc-order-warning" role="status"></p>
+<div class="sc-order-actions"><button type="button" id="sc-copy-message" class="sc-copy-button">Copy supplier message</button><button type="submit" name="supplier_intent" value="draft" class="sc-draft-button">Save shared draft</button><button type="submit" id="sc-place-order">Mark as ordered &amp; track incoming</button></div><p id="sc-order-warning" class="sc-order-warning" role="status"></p>
 </div></form>
 <script>
 (function(){
@@ -314,7 +334,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  document.querySelector('#sc-basket-shipping').addEventListener('input',update);
  copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(preview.value);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy supplier message',1600)}catch(err){preview.select();document.execCommand('copy');copy.textContent='Message selected — copy it'}})
  const search=document.querySelector('#sc-order-search');search.addEventListener('input',()=>document.querySelectorAll('.sc-order-item').forEach(item=>{const checked=Number(item.querySelector('[data-box-sku]').value)>0;item.hidden=!checked&&!item.dataset.search.includes(search.value.trim().toLowerCase())}));
- form.addEventListener('submit',e=>{update();if(save.disabled)e.preventDefault();else if(!confirm('Record this combined MJT supplier order in Incoming Stock? This does not add physical stock yet.'))e.preventDefault()});
+ form.addEventListener('submit',e=>{update();if(e.submitter&&e.submitter.value==='draft')return;if(save.disabled)e.preventDefault();else if(!confirm('Record this combined MJT supplier order in Incoming Stock? This does not add physical stock yet.'))e.preventDefault()});
  update();
 })();
 </script>
