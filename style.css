@@ -5026,6 +5026,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .sc-profit-metrics>div{min-width:0;background:#202223;border:1px solid #2d3031;border-radius:9px;padding:9px}
 .sc-profit-metrics span{display:block;font-size:10px;color:var(--muted)}
 .sc-profit-metrics strong{display:block;margin-top:4px;font-size:16px;overflow-wrap:anywhere}
+.sc-profit-metrics .sc-profit-subvalue{display:block;margin-top:5px;font-size:10px;line-height:1.45;color:var(--muted);overflow-wrap:anywhere}
 .sc-profit-bottom{display:flex;flex-wrap:wrap;gap:6px;padding-top:10px}
 .sc-profit-bottom span{border:1px solid #353737;border-radius:6px;padding:4px 6px;font-size:10px;color:#bdbfbc}
 .sc-map-link{display:block;padding:9px 0 0;font-size:11px;color:var(--gold)}
