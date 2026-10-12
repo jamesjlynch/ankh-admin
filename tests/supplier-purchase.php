@@ -28,7 +28,9 @@ register_shutdown_function(static function()use($db):void{
  if((int)$items[0]['unit_cost']!==785||(int)$items[1]['unit_cost']!==224)throw new RuntimeException('Landed unit costs should include saved FX and proportionally allocated shipping.');
  $snap=$db->query('SELECT * FROM supplier_purchase_snapshots WHERE supplier_order_id='.$id)->fetch(PDO::FETCH_ASSOC);
  if((int)$snap['usd_total_cents']!==16000||(int)$snap['shipping_gbp_pence']!==5460||(int)$snap['shipping_usd_cents']!==7000||(int)$snap['estimated_gbp_pence']!==17940)throw new RuntimeException('Supplier order value and shipping snapshot incorrect.');
- if((float)$snap['fx_rate']!==0.78||!str_contains($snap['order_message'],'XX10')||!str_contains($snap['order_message'],'$160.00')||!str_contains($snap['order_message'],'$70.00')||!str_contains($snap['order_message'],'$230.00'))throw new RuntimeException('Supplier message and exchange-rate snapshots must persist.');
+ $expectedMessage="Hi Jessica,\nCan we place an order please for the following?\n\nX2 Sample 10mg (XX10)\nX1 Sample 5mg (YY5)\n\nThanks";
+ if((float)$snap['fx_rate']!==0.78||$snap['order_message']!==$expectedMessage)throw new RuntimeException('Saved supplier order message must preserve Jessica’s exact X-count format without internal prices.');
+ if((int)$snap['shipping_usd_cents']!==7000||(int)$snap['usd_total_cents']!==16000)throw new RuntimeException('Removing prices from supplier message must not change internal purchase accounting.');
  $lines=$db->query('SELECT * FROM supplier_purchase_lines ORDER BY sku')->fetchAll(PDO::FETCH_ASSOC);
  if(count($lines)!==2||(int)$lines[0]['box_usd_cents']!==7000||(int)$lines[1]['box_usd_cents']!==2000)throw new RuntimeException('Per-SKU historical supplier box costs not recorded.');
  $stock=$db->query('SELECT stock_jay_qty,stock_tony_qty FROM products WHERE id=1')->fetch(PDO::FETCH_ASSOC);

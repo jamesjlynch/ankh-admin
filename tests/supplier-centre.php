@@ -32,9 +32,24 @@ ok(sc_fx($db)===null,'Missing FX must not silently invent a live exchange rate.'
 sc_save_setting($db,'supplier_usd_gbp_rate','0.7800');
 ok(sc_money_usd(12000)==='$120.00','USD amounts must be expressed as cents, not pounds.');
 $lines=[['sku'=>'XX10','name'=>'Example','strength'=>'10mg','packs'=>2,'pack_size'=>10],['sku'=>'ZZ10','name'=>'Unmatched','strength'=>'10mg','packs'=>1,'pack_size'=>10]];
-$message=sc_supplier_message($lines,17000);
-ok(str_contains($message,'XX10')&&str_contains($message,'2 boxes (20 vials)'),'Supplier message should show full boxes and total vials.');
-ok(str_contains($message,'$170.00 USD')&&!str_contains($message,'GBP'),'Supplier message should quote USD and keep GBP estimates separate.');
+$message=sc_supplier_message($lines);
+$expected="Hi Jessica,\nCan we place an order please for the following?\n\nX2 Example 10mg (XX10)\nX1 Unmatched 10mg (ZZ10)\n\nThanks";
+ok($message===$expected,'Supplier request must match Jessica’s exact greeting, X-count, product name, SKU and Thanks format.');
+ok(!str_contains($message,'$')&&!str_contains($message,'vials')&&!str_contains($message,'shipping'),'Supplier WhatsApp request should exclude costs, vial counts and shipping details.');
+$realProducts=[
+ ['sku'=>'MS10','name'=>'MOTS-C','strength'=>'10mg','packs'=>1],
+ ['sku'=>'BC10','name'=>'BPC157','strength'=>'10mg','packs'=>1],
+ ['sku'=>'IP5','name'=>'Ipamorelin','strength'=>'5mg','packs'=>1],
+ ['sku'=>'RT10','name'=>'Retatrutide','strength'=>'10mg','packs'=>5],
+ ['sku'=>'RT20','name'=>'Retatrutide','strength'=>'20mg','packs'=>1],
+ ['sku'=>'NJ500','name'=>'NAD+','strength'=>'500mg','packs'=>1],
+ ['sku'=>'KS5','name'=>'KissPeptin-10','strength'=>'5mg','packs'=>1],
+ ['sku'=>'RA10','name'=>'ARA290','strength'=>'10mg','packs'=>1]
+];
+$realMessage=sc_supplier_message($realProducts);
+ok(str_contains($realMessage,'X1 BPC-157 10mg (BC10)')&&str_contains($realMessage,'X5 Retatrutide 10mg (RT10)'),'SKU and quantities should match the supplier basket while common name formatting is readable.');
+ok(str_contains($realMessage,'X1 Kisspeptin-10 5mg (KS5)')&&str_contains($realMessage,'X1 NAD+ 500mg (NJ500)')&&str_contains($realMessage,'X1 ARA-290 10mg (RA10)'),'Imported supplier SKUs must remain authoritative; no guessed RJ500 or RS10 codes.');
+ok(!str_contains($realMessage,'RJ500')&&!str_contains($realMessage,'RS10'),'Never substitute manually typed codes that are absent from the imported MJT list.');
 ob_start();
 $_GET['tab']='profit';
 function e($s){return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');}
@@ -49,6 +64,7 @@ ok(str_contains($html,'Available: James 2 · Tony 3')&&str_contains($html,'Physi
 $_GET['tab']='order';
 ob_start();sc_render($db,[],[],[]);$orderPage=ob_get_clean();
 ok(str_contains($orderPage,'Copy supplier message'),'Combined supplier message action must render.');
+ok(str_contains($orderPage,'Hi Jessica,')&&str_contains($orderPage,'r.message_label')&&!str_contains($orderPage,'please can I order the following from MJT'),'Browser message preview must use same Jessica format, without legacy text.');
 ok(str_contains($orderPage,'name="boxes[XX10]"'),'Full supplier boxes must be selectable by SKU.');
 ok(str_contains($orderPage,'name="shipping_usd"')&&str_contains($orderPage,'70.00'),'Supplier order must default to a single $70 USD shipping fee.');
 ok(!str_contains($orderPage,'name="shipping_gbp"'),'Supplier basket must not display the legacy GBP shipping field.');
