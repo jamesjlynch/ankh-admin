@@ -58,6 +58,6 @@ ok(str_contains($incoming,'?view=stock&amp;section=incoming'),'Incoming Stock mu
 ok(str_contains(file_get_contents(dirname(__DIR__).'/index.php'),"sc_post(\$db,\$action)"),'Main app must wire supplier action handling.');
 $main=file_get_contents(dirname(__DIR__).'/index.php');
 ok(str_contains($main,'sc_setup($db);'),'Main app must initialize private supplier tables.');
-ok(str_contains($main,'sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct)'),'Supplier page must use existing inventory balances.');
+ok(str_contains($main,"sc_render(\$db,\$stockProducts,\$reservedStockByProduct,\$incomingByProduct,\$recurringForecast30['stock']??[])"),'Supplier page must use stock balances and the existing recurring forecast.');
 ok(!str_contains($main,'MJT Peptide Price List')&&!str_contains(file_get_contents(dirname(__DIR__).'/supplier-centre.php'),'Retatrutide 20mg'),'Wholesale catalogue must not be hardcoded into the public app.');
 echo "PASS: supplier schema, matching, FX, USD message, profit, mobile order basket, private CSV import UI, incoming stock integration.\n";
