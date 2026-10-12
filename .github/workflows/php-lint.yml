@@ -24,6 +24,7 @@ jobs:
           php -l supplier-centre.php
           php -l tests/supplier-centre.php
           php -l tests/supplier-purchase.php
+          php -l tests/supplier-draft.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
@@ -32,3 +33,5 @@ jobs:
         run: php tests/supplier-centre.php
       - name: Test supplier purchase into incoming stock
         run: php tests/supplier-purchase.php
+      - name: Test shared supplier basket draft
+        run: php tests/supplier-draft.php
