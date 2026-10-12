@@ -4993,3 +4993,92 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 @media(max-width:375px){.stock-shortage-product-info h3{font-size:13px}.stock-shortage-row{padding:10px}.stock-shortage-heading-copy h2{font-size:16px}.stock-shortage-metrics span{font-size:9px}}
 .stock-card-shortage{margin:8px 0 2px;padding:7px 9px;border:1px solid rgba(211,122,96,.45);border-radius:9px;color:#f2b19c;background:rgba(211,122,96,.08);font-size:11px;font-weight:700}
 @media(max-width:760px){.dashboard-stock-shortage{padding:12px;margin:12px 0 18px}.stock-shortage-header h2{font-size:15px}.stock-shortage-row{padding:10px}}
+
+
+/* ANKH Supplier & Profit Centre — compact, phone-first, no duplicated stock state. */
+.sc-heading{margin-bottom:12px}
+.sc-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:14px 0}
+.sc-tabs a{display:grid;place-items:center;min-height:44px;padding:8px 5px;border:1px solid var(--border);border-radius:10px;text-align:center;background:#1a1b1c;color:#aeb2ad;text-decoration:none;font-size:11px;font-weight:700}
+.sc-tabs a[aria-current=page]{color:var(--gold);border-color:#dfb66665;background:#dfb66612}
+.sc-overview{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 15px}
+.sc-overview>div{min-width:0;padding:13px;border:1px solid var(--border);border-radius:12px;background:#1b1c1d}
+.sc-overview small{display:block;font-size:10px;color:var(--muted);line-height:1.3}
+.sc-overview strong{display:block;margin-top:5px;font-size:23px;color:#f0eee8}
+.sc-panel{margin:0 0 16px;padding:17px}
+.sc-panel-heading{display:flex;justify-content:space-between;margin-bottom:14px}
+.sc-panel-heading .eyebrow{margin:0 0 4px;font-size:10px}
+.sc-panel-heading h2{margin:0;font-size:20px;font-weight:700}
+.sc-panel-heading p:not(.eyebrow){margin:5px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+.sc-notice{margin:12px 0 16px;padding:11px;border:1px solid #dfb66640;border-radius:10px;background:#dfb6660c;color:#ddcba8;font-size:12px;line-height:1.5}
+.sc-filters{display:grid;grid-template-columns:1fr minmax(150px,.48fr);gap:8px;margin-bottom:11px}
+.sc-filters input,.sc-filters select{margin:0;min-height:44px}
+.sc-filters:has(input:only-child){grid-template-columns:1fr}
+.sc-product-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.sc-profit-card{min-width:0;padding:13px;background:#151718;border:1px solid var(--border);border-radius:13px}
+.sc-profit-card[hidden],.sc-order-item[hidden],.sc-map-row[hidden]{display:none}
+.sc-profit-head{display:flex;align-items:start;justify-content:space-between;gap:7px}
+.sc-profit-head>div{min-width:0}
+.sc-profit-head small,.sc-map-row summary small{display:block;color:var(--gold);font-size:10px;letter-spacing:.03em}
+.sc-profit-head h3{margin:5px 0 8px;font-size:14px;font-weight:700}
+.sc-margin-label{flex:0 0 auto;color:#bce0c7;background:#568e6826;border:1px solid #568e6855;border-radius:999px;padding:5px 7px;font-size:10px;white-space:nowrap}
+.sc-margin-label.loss{color:#ffc1aa;background:#9e4a3626;border-color:#9e4a3655}
+.sc-profit-metrics{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.sc-profit-metrics>div{min-width:0;background:#202223;border:1px solid #2d3031;border-radius:9px;padding:9px}
+.sc-profit-metrics span{display:block;font-size:10px;color:var(--muted)}
+.sc-profit-metrics strong{display:block;margin-top:4px;font-size:16px;overflow-wrap:anywhere}
+.sc-profit-bottom{display:flex;flex-wrap:wrap;gap:6px;padding-top:10px}
+.sc-profit-bottom span{border:1px solid #353737;border-radius:6px;padding:4px 6px;font-size:10px;color:#bdbfbc}
+.sc-map-link{display:block;padding:9px 0 0;font-size:11px;color:var(--gold)}
+.sc-empty{margin:0}
+.sc-empty p{font-size:13px;color:var(--muted);line-height:1.5}
+.sc-order-items{display:grid;gap:8px;max-height:620px;overflow-y:auto;padding-right:2px}
+.sc-order-item{display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0;padding:11px;border:1px solid var(--border);border-radius:11px;background:#151718}
+.sc-order-name{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.sc-order-name small{font-size:9px;color:var(--gold)}
+.sc-order-name strong{font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.sc-order-name span,.sc-order-name em{font-size:10px;line-height:1.3;color:var(--muted);font-style:normal}
+.sc-stepper{display:flex;align-items:center;gap:3px;flex:0 0 auto}
+.sc-stepper button{display:grid;place-items:center;min-height:34px;width:34px;height:34px;padding:0;background:#252729;border:1px solid #42433f;color:var(--gold);font-size:19px}
+.sc-stepper input{margin:0;padding:3px;width:46px;min-height:34px;height:34px;border-radius:7px;text-align:center;font-size:14px;font-weight:700;appearance:textfield}
+.sc-stepper input::-webkit-inner-spin-button,.sc-stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.sc-order-checkout{margin-top:14px;padding:13px;border:1px solid #dfb66638;border-radius:12px;background:#dfb66606}
+.sc-order-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:12px}
+.sc-order-summary>div{min-width:0;padding:10px 7px;border:1px solid #dfb66620;border-radius:9px;background:#141516;text-align:center}
+.sc-order-summary small{display:block;font-size:10px;color:var(--muted)}
+.sc-order-summary strong{display:block;margin-top:4px;font-size:17px;color:#e8d5aa;overflow-wrap:anywhere}
+.sc-order-checkout label{font-size:12px;margin:0 0 12px}
+.sc-order-checkout label input{margin-top:5px}
+.sc-order-cost{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 0;margin:3px 0 13px;border-top:1px solid #dfb66625}
+.sc-order-cost>span{font-size:12px}
+.sc-order-cost>strong{font-size:17px;color:var(--gold)}
+.sc-order-cost>small{width:100%;font-size:10px;color:var(--muted)}
+.sc-order-checkout textarea{min-height:145px;font-size:12px;line-height:1.5;resize:vertical;margin:0 0 10px}
+.sc-order-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sc-order-actions button{font-size:12px;padding:10px;line-height:1.3;min-height:47px}
+.sc-copy-button{background:#262728;border:1px solid #dfb66660;color:var(--gold)}
+.sc-order-warning{min-height:0;margin:9px 0 0;font-size:11px;line-height:1.5;color:#e9bba6}
+.sc-import-form,.sc-config-form{padding:12px;border:1px solid var(--border);border-radius:11px;margin-bottom:12px;background:#151718}
+.sc-import-form label,.sc-config-form label{margin:0 0 8px;font-size:12px}
+.sc-import-form input,.sc-config-form input{min-height:45px;margin:6px 0 8px}
+.sc-import-form button,.sc-config-form button{display:block;width:100%;padding:10px;font-size:13px}
+.sc-import-form>small{display:block;color:var(--muted);font-size:10px;margin-top:9px}
+.sc-config-form h3{margin:0 0 11px;font-size:15px}
+.sc-config-form .muted{margin:8px 0 0;font-size:10px}
+.sc-config-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sc-map-list{display:grid;gap:7px}
+.sc-map-row{border:1px solid #343536;border-radius:11px;background:#17191a}
+.sc-map-row>summary{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:60px;padding:10px}
+.sc-map-row>summary div{min-width:0;display:flex;flex-direction:column;gap:3px}
+.sc-map-row>summary strong{font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.sc-map-row>summary em{font-size:10px;color:var(--muted);font-style:normal}
+.sc-map-row>summary>span{font-size:12px;flex:0 0 auto;color:var(--gold)}
+.sc-map-edit{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;border-top:1px solid var(--border)}
+.sc-map-edit form{min-width:0}
+.sc-map-edit label{font-size:11px;margin:0 0 8px}
+.sc-map-edit input,.sc-map-edit select{min-height:44px;margin-top:6px}
+.sc-map-edit button{width:100%;padding:10px;font-size:11px}
+.sc-incoming-links{display:grid;gap:8px}
+.sc-incoming-links a{width:100%;text-align:center}
+.sc-visually-hidden{display:none}
+@media(max-width:760px){.sc-heading h1{font-size:27px}.sc-panel{padding:12px}.sc-panel-heading h2{font-size:18px}.sc-profit-card{padding:11px}.sc-product-list{grid-template-columns:1fr}.sc-filters{grid-template-columns:1fr 155px}.sc-tabs a{font-size:10px;line-height:1.2}.sc-order-actions{grid-template-columns:1fr}.sc-order-summary strong{font-size:15px}.sc-config-grid,.sc-map-edit{grid-template-columns:1fr}}
+@media(max-width:365px){.sc-tabs{gap:4px}.sc-tabs a{font-size:9px;padding:6px 2px}.sc-stepper button{width:29px;height:32px;min-height:32px}.sc-stepper input{width:37px;height:32px;min-height:32px}.sc-order-item{padding:8px;gap:6px}}
