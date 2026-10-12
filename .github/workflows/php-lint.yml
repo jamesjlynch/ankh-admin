@@ -29,6 +29,7 @@ jobs:
           php -l tests/smart-buying-apply.php
           php -l tests/supplier-flat-shipping.php
           php -l tests/deploy-smoke.php
+          php -l tests/supplier-mobile-catalogue.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
@@ -45,5 +46,7 @@ jobs:
         run: php tests/smart-buying-apply.php
       - name: Test fixed USD order shipping and gross profit models
         run: php tests/supplier-flat-shipping.php
+      - name: Test mobile supplier grouping, filtering and purchase priority
+        run: php tests/supplier-mobile-catalogue.php
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
