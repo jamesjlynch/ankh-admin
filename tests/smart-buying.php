@@ -67,6 +67,8 @@ checkSmart(str_contains($html,'SMART BUYING ASSISTANT')&&str_contains($html,'Wha
 checkSmart(str_contains($html,'data-smart-sku="XX10"')&&str_contains($html,'data-smart-boxes="1"'),'Each suggestion must expose a selectable integer full-box count.');
 checkSmart(str_contains($html,'Tony has 5 available; up to 2 could be transferred'),'Explain other-fridge spare stock clearly.');
 checkSmart(str_contains($html,'£250')&&str_contains($html,'£500')&&str_contains($html,'£1,000'),'Preset budgets should appear.');
+checkSmart(str_contains($html,'one-off $70.00 USD order shipping charge'),'Smart Buying should explain that shipping is paid once per order.');
+checkSmart(str_contains($html,'nextUsd+shippingUsd')&&!str_contains($html,'boxes*shipping'),'Budget calculation must count fixed shipping once, not per box.');
 checkSmart(str_contains($html,'supplier_centre_smart_apply')&&str_contains($html,'Add selected boxes to shared basket'),'Smart buying must stage recommendations, not place an order.');
 checkSmart(str_contains($html,'Existing reservations')===false,'Avoid misleading duplicate deduction language.');
 echo "PASS: Smart Buying run rate, 30-day recurring, transfer, reserved/incoming, pack rounding, budget UI and prioritization.\n";
