@@ -436,11 +436,16 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   $profit=$estimate===null||$price===null?null:$price-$estimate;
   $margin=$profit===null||$price<=0?null:$profit/$price*100;
   $jay=(int)($item['stock_jay_qty']??0);$tony=(int)($item['stock_tony_qty']??0);
+  // These source quantities are already NET of customer reservations.
+  // Count both fridges plus unallocated holding as one combined available-vial figure.
+  // Do not sum independently clamped locations: doing so overstates availability if one is negative.
+  $combinedAvailable=$mappedId!==null&&(int)($item['stock_tracking']??0)===1
+    ?max(0,$jay+$tony+(int)($item['stock_unallocated_qty']??0)):null;
   $jayReserved=$mappedId===null?0:(int)($reservedByProduct[$mappedId]['jay']??0);
   $tonyReserved=$mappedId===null?0:(int)($reservedByProduct[$mappedId]['tony']??0);
   $rows[]=['sku'=>(string)$item['sku'],'name'=>(string)$item['name'],'strength'=>(string)$item['strength'],'pack'=>$pack,'usd'=>$usd,'product_id'=>$mappedId,
    'ankh_name'=>(string)($item['ankh_name']??''),'retail'=>$price,'friends'=>$friends,'box_gbp'=>$boxGbp,'estimate'=>$estimate,'shipping_allocated'=>$shippingAllocated,'profit'=>$profit,'margin'=>$margin,
-   'jay_physical'=>$jay+$jayReserved,'tony_physical'=>$tony+$tonyReserved,'jay_available'=>max(0,$jay),'tony_available'=>max(0,$tony),
+   'jay_physical'=>$jay+$jayReserved,'tony_physical'=>$tony+$tonyReserved,'jay_available'=>max(0,$jay),'tony_available'=>max(0,$tony),'combined_available'=>$combinedAvailable,
    'reserved'=>$jayReserved+$tonyReserved,'incoming'=>$mappedId===null?0:(int)($incomingByProduct[$mappedId]??0),
    'sold30'=>$mappedId===null?0:(int)($orderUnits[$mappedId]??0)];
  }
@@ -615,7 +620,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
 <?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
 <p class="sc-notice">Only products matched to your ANKH catalogue can be saved as Incoming Stock. You can still prepare and copy a supplier message for any SKU. A few specialty products have different supplier box sizes; these are shown explicitly.</p>
-<div class="sc-filters sc-order-filters"><input type="search" id="sc-order-search" placeholder="Search all supplier products…" aria-label="Search all supplier products"></div><p class="sc-find-help">Previously purchased and currently stocked products appear first. Unstocked products stay closed until you open them. Search finds items in every section.</p>
+<div class="sc-filters sc-order-filters"><input type="search" id="sc-order-search" placeholder="Search all supplier products…" aria-label="Search all supplier products"></div><p class="sc-find-help">Previously purchased and currently stocked products appear first. Unstocked products stay closed until you open them. Search finds items in every section.</p><p class="sc-stock-legend" aria-label="Combined available vial stock colour key"><span class="sc-stock-dot is-good" aria-hidden="true"></span>6+ vials <span class="sc-stock-dot is-low" aria-hidden="true"></span>0–4 vials <span class="sc-stock-dot is-edge" aria-hidden="true"></span>5 vials <span class="sc-stock-dot is-unknown" aria-hidden="true"></span>Not tracked</p>
 <form method="post" id="sc-order-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_place"><input type="hidden" name="return" value="supplier">
 <div class="sc-order-quick" id="sc-order-quick" role="status" aria-live="polite"><div><small>YOUR SUPPLIER BASKET</small><strong><span id="sc-quick-boxes">0</span> boxes · <span id="sc-quick-usd">$0.00</span></strong><small id="sc-quick-gbp">Add boxes to see estimated GBP total</small></div><button type="button" id="sc-quick-review" aria-controls="sc-order-checkout">Review basket <span aria-hidden="true">→</span></button></div>
 <div class="sc-order-groups" id="sc-order-items">
@@ -626,7 +631,9 @@ $groupOpen=in_array($groupKey,['purchased','stocked'],true)||$groupHasDraft;?>
 <summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
 <div class="sc-order-items">
 <?php foreach($groupItems as $item):?><div class="sc-order-item" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength']))?>">
- <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=$item['pack']?> vials/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span class="sc-order-unit-price"><?=sc_money_usd($item['usd'])?> / box<?=$item['box_gbp']===null?'':' · '.money($item['box_gbp'])?></span><em><?=$item['product_id']===null?'Supplier-only · match to receive stock':'James '.$item['jay_available'].' · Tony '.$item['tony_available'].' in stock'?></em></div>
+ <?php $available=$item['combined_available'];$stockLevel=$available===null?'unknown':($available>5?'good':($available<5?'low':'edge')); ?>
+ <span class="sc-order-stock-badge is-<?=$stockLevel?>" role="img" aria-label="<?=$available===null?'Combined stock not tracked':'Combined available stock: '.$available.' vial'.($available===1?'':'s')?> " title="<?=$available===null?'Stock not tracked for this product':$available.' available vials across both fridges and holding, after reservations'?>"><?=$available===null?'—':$available?></span>
+ <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=$item['pack']?> vials/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span class="sc-order-unit-price"><?=sc_money_usd($item['usd'])?> / box<?=$item['box_gbp']===null?'':' · '.money($item['box_gbp'])?></span><?php if($item['product_id']===null):?><em>Supplier-only · match to receive stock</em><?php endif;?></div>
  <div class="sc-order-pick"><div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div><small class="sc-order-line-total" data-sc-line-total aria-live="polite"></small></div>
 </div><?php endforeach;?></div></details>
 <?php endforeach;?></div>
