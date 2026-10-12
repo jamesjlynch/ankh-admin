@@ -516,12 +516,17 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   <p id="sc-smart-budget-explain" class="sc-smart-budget-explain" aria-live="polite">Select products below, or apply a suggested budget. Nothing is purchased automatically.</p>
  </div>
  <form method="post" id="sc-smart-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_smart_apply"><input type="hidden" name="return" value="supplier">
+ <div class="sc-filters"><input type="search" id="sc-smart-search" placeholder="Find one of your ANKH products…" aria-label="Search Smart Buying products"></div>
+ <div class="sc-smart-groups" id="sc-smart-list">
+ <?php foreach(['attention'=>['Reorder recommendations','Products where buying more may be useful'],'covered'=>['Covered / no order needed','Adequate stock or stock that has not yet been counted']] as $smartGroupKey=>$smartGroupLabel):$smartGroupRows=$groupedSmart[$smartGroupKey];if(!$smartGroupRows)continue;?>
+ <details class="sc-catalogue-group" data-sc-group="<?=e($smartGroupKey)?>" data-default-open="<?=$smartGroupKey==='attention'?'1':'0'?>" <?=$smartGroupKey==='attention'?'open':''?>>
+ <summary class="sc-catalogue-heading"><span><strong><?=e($smartGroupLabel[0])?></strong><small><?=e($smartGroupLabel[1])?></small></span><b><?=count($smartGroupRows)?></b></summary>
  <div class="sc-smart-list">
- <?php foreach($smartRows as $row):
+ <?php foreach($smartGroupRows as $row):
   $hasTransfer=$row['transfer_jay_to_tony']+$row['transfer_tony_to_jay']+$row['transfer_holding']>0;
   $label=$row['status']==='shortage'?'Urgent shortage':($row['status']==='reorder'?'Consider reordering':($row['status']==='untracked'?'Stock not tracked':'Covered'));
  ?>
- <article class="sc-smart-card status-<?=e($row['status'])?>" data-smart-sku="<?=e($row['sku'])?>" data-smart-boxes="<?=$row['boxes']?>" data-smart-price="<?=$row['box_usd_cents']?>" data-smart-pack="<?=$row['pack']?>">
+ <article class="sc-smart-card status-<?=e($row['status'])?>" data-search="<?=e(strtolower($row['sku'].' '.$row['name']))?>" data-smart-sku="<?=e($row['sku'])?>" data-smart-boxes="<?=$row['boxes']?>" data-smart-price="<?=$row['box_usd_cents']?>" data-smart-pack="<?=$row['pack']?>">
   <div class="sc-smart-card-head">
    <span class="sc-smart-product-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6m-5 0v4l-3 3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9l-3-3V3M8 12h8"/></svg></span>
    <div class="sc-smart-product-name"><small><?=e($row['sku'])?> · <?=$row['pack']?> vials/box</small><h3><?=e($row['name'])?></h3></div>
@@ -542,6 +547,8 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   </div>
   <?php if($row['boxes']>0):?><div class="sc-smart-recommendation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 14l7 7 7-7"/></svg><span><?=$row['gap']?> units needed to reach target, after <?=$row['incoming']?> incoming → <strong><?=$row['boxes']?> box<?=$row['boxes']===1?'':'es'?> recommended</strong></span></div><?php endif;?>
  </article>
+ <?php endforeach;?>
+ </div></details>
  <?php endforeach;?>
  </div>
  <div class="sc-smart-footer">
@@ -676,14 +683,38 @@ $groupOpen=$groupKey!=='other'||$groupHasDraft;?>
 <?php endif;?>
 <script>
 (function(){
- function bindSearch(inputId,listId,selector){
-  const input=document.getElementById(inputId),list=document.getElementById(listId);if(!input||!list)return;
-  input.addEventListener('input',()=>list.querySelectorAll(selector).forEach(row=>row.hidden=!row.dataset.search.includes(input.value.trim().toLowerCase())));
+ function filterGroups(listId,cardSelector,search){
+  const list=document.getElementById(listId);if(!list)return;
+  const term=(search||'').trim().toLowerCase();
+  list.querySelectorAll('.sc-catalogue-group').forEach(group=>{
+   const cards=[...group.querySelectorAll(cardSelector)];
+   let visible=0;
+   cards.forEach(card=>{
+    // Selected basket products remain visible even when filtering by search.
+    const quantityInput=card.querySelector('[data-box-sku]');
+    const selected=quantityInput&&Number(quantityInput.value)>0;
+    const match=!term||card.dataset.search.includes(term)||selected;
+    card.hidden=!match;if(match)visible++;
+   });
+   group.hidden=visible===0;
+   if(term&&visible)group.open=true;
+   else if(!term)group.open=group.dataset.defaultOpen==='1'||cards.some(card=>Number(card.querySelector('[data-box-sku]')?.value||0)>0);
+  });
  }
- bindSearch('sc-profit-search','sc-profit-list','.sc-profit-card');
+ window.scFilterSupplierGroups=filterGroups;
+ [['sc-profit-search','sc-profit-list','.sc-profit-card'],['sc-map-search','sc-map-list','.sc-map-row'],['sc-smart-search','sc-smart-list','.sc-smart-card']].forEach(([inputId,listId,cardSelector])=>{
+  const input=document.getElementById(inputId);
+  if(input)input.addEventListener('input',()=>filterGroups(listId,cardSelector,input.value));
+ });
  const sort=document.getElementById('sc-profit-sort'),list=document.getElementById('sc-profit-list');
- if(sort&&list)sort.addEventListener('change',()=>{const nodes=[...list.children],metric=sort.value;nodes.sort((a,b)=>metric==='name'?a.dataset.name.localeCompare(b.dataset.name):Number(b.dataset[metric])-Number(a.dataset[metric]));nodes.forEach(node=>list.appendChild(node))});
- const mapSearch=document.getElementById('sc-map-search');if(mapSearch)mapSearch.addEventListener('input',()=>document.querySelectorAll('.sc-map-row').forEach(row=>row.hidden=!row.dataset.search.includes(mapSearch.value.trim().toLowerCase())));
+ if(sort&&list)sort.addEventListener('change',()=>{
+  const metric=sort.value;
+  list.querySelectorAll('.sc-product-list').forEach(inner=>{
+   const nodes=[...inner.children].filter(el=>el.classList.contains('sc-profit-card'));
+   nodes.sort((a,b)=>metric==='name'?a.dataset.name.localeCompare(b.dataset.name):Number(b.dataset[metric])-Number(a.dataset[metric]));
+   nodes.forEach(node=>inner.appendChild(node));
+  });
+ });
 })();
 </script>
 <?php
