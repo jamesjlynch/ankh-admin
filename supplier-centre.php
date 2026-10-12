@@ -49,6 +49,11 @@ function sc_setup(PDO $db):void{
   box_usd_cents INTEGER NOT NULL,
   PRIMARY KEY(supplier_order_id,sku)
  );");
+ // Idempotent optional columns; older drafts and completed purchases remain intact.
+ $draftColumns=array_column($db->query('PRAGMA table_info(supplier_basket_drafts)')->fetchAll(PDO::FETCH_ASSOC),'name');
+ if(!in_array('shipping_usd_cents',$draftColumns,true))$db->exec('ALTER TABLE supplier_basket_drafts ADD COLUMN shipping_usd_cents INTEGER DEFAULT NULL');
+ $snapshotColumns=array_column($db->query('PRAGMA table_info(supplier_purchase_snapshots)')->fetchAll(PDO::FETCH_ASSOC),'name');
+ if(!in_array('shipping_usd_cents',$snapshotColumns,true))$db->exec('ALTER TABLE supplier_purchase_snapshots ADD COLUMN shipping_usd_cents INTEGER DEFAULT NULL');
 }
 function sc_money_usd(int $cents):string{return '$'.number_format($cents/100,2);}
 function sc_normal_name(string $name):string{return preg_replace('/[^a-z0-9]/','',strtolower($name));}
@@ -80,6 +85,22 @@ function sc_fx(PDO $db):?float{
  if($value===''||!is_numeric($value))return null;
  $fx=(float)$value;
  return $fx>0&&$fx<10?$fx:null;
+}
+function sc_shipping_order_usd_cents(PDO $db):int{
+ $value=$db->query("SELECT value FROM settings WHERE key='supplier_shipping_order_usd_cents'")->fetchColumn();
+ if($value===false)return 7000; // Quoted $70 shipping fee per entire MJT order.
+ return max(0,min(10000000,(int)$value));
+}
+function sc_shipping_draft_usd_cents(array $draft,?float $fx,int $default):int{
+ if(isset($draft['shipping_usd_cents']))return max(0,(int)$draft['shipping_usd_cents']);
+ // Preserve older GBP draft shipping estimates until reviewed in the USD field.
+ $legacy=(string)($draft['shipping_gbp']??'0');
+ if(is_numeric($legacy)&&(float)$legacy>0&&$fx!==null)return (int)round((float)$legacy*100/$fx);
+ return $default;
+}
+function sc_valid_shipping_usd(string $input):int{
+ if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$input)||(float)$input>100000)throw new Exception('Enter valid supplier order shipping in USD.');
+ return (int)round((float)$input*100);
 }
 function sc_save_setting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')->execute([$key,$value]);
@@ -169,13 +190,13 @@ function sc_post(PDO $db,string $action):void{
   }
   $db->beginTransaction();
   try{
-   $row=$db->query('SELECT boxes_json,shipping_gbp,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+   $row=$db->query('SELECT boxes_json,shipping_gbp,shipping_usd_cents,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
    $draft=json_decode((string)($row['boxes_json']??'{}'),true);if(!is_array($draft))$draft=[];
    foreach($chosen as $sku=>$n)$draft[$sku]=max((int)($draft[$sku]??0),$n);
    $draft=array_filter($draft,static fn($n)=>(int)$n>0);
-   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,expected_date,updated)
-    VALUES (1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,updated=excluded.updated")
-    ->execute([json_encode($draft,JSON_THROW_ON_ERROR),(string)($row['shipping_gbp']??'0'),(string)($row['expected_date']??''),gmdate('c')]);
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,expected_date,updated)
+    VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,updated=excluded.updated")
+    ->execute([json_encode($draft,JSON_THROW_ON_ERROR),(string)($row['shipping_gbp']??'0'),$row['shipping_usd_cents']===null?null:(int)$row['shipping_usd_cents'],(string)($row['expected_date']??''),gmdate('c')]);
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='Selected boxes added to your shared supplier basket for review. Nothing has been ordered.';
@@ -224,12 +245,12 @@ function sc_post(PDO $db,string $action):void{
  }
  if($action==='supplier_centre_config'){
   $rate=trim((string)($_POST['usd_gbp_rate']??''));
-  $shipping=trim((string)($_POST['shipping_per_box']??'0'));
+  $shipping=trim((string)($_POST['shipping_per_order_usd']??'70'));
   if($rate!==''&&(!is_numeric($rate)||(float)$rate<=0||(float)$rate>=10))throw new Exception('Enter GBP per 1 USD, such as 0.78.');
-  if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$shipping)||(float)$shipping>10000)throw new Exception('Enter a valid GBP shipping estimate per box.');
+  $shippingUsdCents=sc_valid_shipping_usd($shipping);
   sc_save_setting($db,'supplier_usd_gbp_rate',$rate);
-  sc_save_setting($db,'supplier_shipping_per_box_pence',(string)(int)round((float)$shipping*100));
-  $_SESSION['flash']='Supplier exchange-rate and shipping estimates saved.';
+  sc_save_setting($db,'supplier_shipping_order_usd_cents',(string)$shippingUsdCents);
+  $_SESSION['flash']='Exchange rate and fixed USD shipping per supplier order saved. Existing purchases are unchanged.';
   header('Location: ./?view=supplier&tab=profit');exit;
  }
  if($action==='supplier_centre_map'){
@@ -271,20 +292,22 @@ function sc_post(PDO $db,string $action):void{
    if($qty>0)$requested[$sku]=(int)$qty;
   }
   if(($_POST['supplier_intent']??'')==='draft'){
-   $shipDraft=trim((string)($_POST['shipping_gbp']??'0'));
+   $shipDraft=trim((string)($_POST['shipping_usd']??number_format(sc_shipping_order_usd_cents($db)/100,2,'.','')));
    $expectedDraft=trim((string)($_POST['expected_date']??''));
-   if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$shipDraft)||(float)$shipDraft>100000)throw new Exception('Enter valid shipping for the draft.');
+   $shipDraftCents=sc_valid_shipping_usd($shipDraft);
    if($expectedDraft!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expectedDraft)||!checkdate((int)substr($expectedDraft,5,2),(int)substr($expectedDraft,8,2),(int)substr($expectedDraft,0,4))))throw new Exception('Enter a valid expected date.');
-   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,expected_date,updated) VALUES (1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$shipDraft,$expectedDraft,gmdate('c')]);
+   $draftFx=sc_fx($db);
+   $legacyGbp=$draftFx===null?'0':number_format($shipDraftCents*$draftFx/100,2,'.','');
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,expected_date,updated) VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,shipping_usd_cents=excluded.shipping_usd_cents,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$legacyGbp,$shipDraftCents,$expectedDraft,gmdate('c')]);
    $_SESSION['flash']='Shared supplier basket draft saved for James and Tony.';
    header('Location: ./?view=supplier&tab=order');exit;
   }
   if(!$requested||count($requested)>100)throw new Exception('Select at least one mapped supplier product.');
   $fx=sc_fx($db);
   if($fx===null)throw new Exception('Save an exchange rate first, so stock costs can be recorded in GBP.');
-  $ship=trim((string)($_POST['shipping_gbp']??'0'));
-  if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$ship)||(float)$ship>100000)throw new Exception('Enter shipping in GBP.');
-  $shippingPence=(int)round((float)$ship*100);
+  $ship=trim((string)($_POST['shipping_usd']??number_format(sc_shipping_order_usd_cents($db)/100,2,'.','')));
+  $shippingUsdCents=sc_valid_shipping_usd($ship);
+  $shippingPence=(int)round($shippingUsdCents*$fx);
   $expected=trim((string)($_POST['expected_date']??''));
   if($expected!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expected)||!checkdate((int)substr($expected,5,2),(int)substr($expected,8,2),(int)substr($expected,0,4))))throw new Exception('Enter a valid expected delivery date.');
   $fetch=$db->prepare('SELECT s.*,p.id AS mapped_id,p.name AS mapped_name FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id WHERE s.sku=?');
@@ -296,7 +319,7 @@ function sc_post(PDO $db,string $action):void{
    $totalUsd+=$cost;$totalUnits+=(int)$item['pack_size']*$qty;
    $lines[]=['sku'=>$sku,'name'=>$item['name'],'strength'=>$item['strength'],'product_id'=>(int)$item['mapped_id'],'packs'=>$qty,'pack_size'=>(int)$item['pack_size'],'box_usd_cents'=>(int)$item['box_usd_cents'],'usd_total'=>$cost];
   }
-  $message=sc_supplier_message($lines,$totalUsd);
+  $message=sc_supplier_message($lines,$totalUsd,$shippingUsdCents);
   $db->beginTransaction();
   try{
    $db->prepare("INSERT INTO supplier_orders(supplier,expected_date,status,note,created) VALUES (?,?, 'Ordered', ?, ?)")->execute(['MJT',$expected,'Combined James + Tony order from Supplier Centre',gmdate('c')]);
@@ -312,7 +335,7 @@ function sc_post(PDO $db,string $action):void{
     $snap->execute([$orderId,$line['sku'],$line['name'],$line['strength'],$line['packs'],$line['pack_size'],$line['box_usd_cents']]);
    }
    $estimate=(int)round($totalUsd*$fx)+$shippingPence;
-   $db->prepare('INSERT INTO supplier_purchase_snapshots(supplier_order_id,usd_total_cents,fx_rate,shipping_gbp_pence,estimated_gbp_pence,order_message,created) VALUES (?,?,?,?,?,?,?)')->execute([$orderId,$totalUsd,$fx,$shippingPence,$estimate,$message,gmdate('c')]);
+   $db->prepare('INSERT INTO supplier_purchase_snapshots(supplier_order_id,usd_total_cents,fx_rate,shipping_gbp_pence,shipping_usd_cents,estimated_gbp_pence,order_message,created) VALUES (?,?,?,?,?,?,?,?)')->execute([$orderId,$totalUsd,$fx,$shippingPence,$shippingUsdCents,$estimate,$message,gmdate('c')]);
    $db->prepare('DELETE FROM supplier_basket_drafts WHERE id=1')->execute();
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
@@ -321,13 +344,13 @@ function sc_post(PDO $db,string $action):void{
  }
  throw new Exception('Unknown supplier action.');
 }
-function sc_supplier_message(array $lines,int $totalUsd):string{
+function sc_supplier_message(array $lines,int $totalUsd,int $shippingUsdCents=0):string{
  $text="Hi, please can I order the following from MJT:\n\n";
  foreach($lines as $line){
   $boxes=(int)$line['packs'];$vials=$boxes*(int)$line['pack_size'];
   $text.=$line['sku'].' — '.$line['name'].' '.$line['strength'].': '.$boxes.' box'.($boxes===1?'':'es').' ('.$vials.' vials)'."\n";
  }
- $text.="\nProduct total: ".sc_money_usd($totalUsd)." USD, excluding shipping.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.";
+ $text.="\nProduct total: ".sc_money_usd($totalUsd)." USD.\nEstimated shipping: ".sc_money_usd($shippingUsdCents)." USD per order.\nEstimated overall total: ".sc_money_usd($totalUsd+$shippingUsdCents)." USD.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.";
  return $text;
 }
 function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
