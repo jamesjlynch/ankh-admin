@@ -16,7 +16,19 @@ if(!str_contains($cpanel,'index.php supplier-centre.php style.css'))throw new Ru
 foreach(['deploy-krystal.sh'=>$deploy,'.cpanel.yml'=>$cpanel] as $name=>$content){
  if(!str_contains($content,'php -l supplier-centre.php'))throw new RuntimeException($name.' must lint supplier-centre.php before deploying.');
 }
-if(!str_contains($index,"is_file(__DIR__.'/supplier-centre.php')"))throw new RuntimeException('Entry point must guard missing optional module.');
-if(!str_contains($index,'if($supplierCentreAvailable)'))throw new RuntimeException('Optional supplier render/startup guards absent.');
-if(!str_contains($index,'Supplier Centre unavailable'))throw new RuntimeException('Supplier route must provide a safe fallback.');
-echo "PASS: both deployment methods include and lint supplier module; dashboard has missing-file fallback.\n";
+// cPanel installations using an older deployment manifest may still only publish index.php.
+// Keep the production module inlined until all servers have successfully deployed the separate file.
+$begin="// BEGIN SELF-CONTAINED SUPPLIER CENTRE — included in index.php so legacy Krystal deployments work.\n";
+$end="\n// END SELF-CONTAINED SUPPLIER CENTRE";
+$start=strpos($index,$begin);
+if($start===false)throw new RuntimeException('Self-contained Supplier Centre code missing from deployed index.php.');
+$start+=strlen($begin);
+$stop=strpos($index,$end,$start);
+if($stop===false)throw new RuntimeException('Self-contained supplier code lacks a closing marker.');
+$inline=substr($index,$start,$stop-$start);
+$reference=file_get_contents($module);
+$reference=preg_replace('/^<\\?php\\s+declare\\(strict_types=1\\);\\s*/','',$reference);
+if(rtrim($inline)!==rtrim($reference))throw new RuntimeException('Inlined module is out of sync with supplier-centre.php.');
+if(str_contains($index,"require_once __DIR__.'/supplier-centre.php'"))throw new RuntimeException('Entry point still depends on a separately deployed module.');
+if(!str_contains($index,'sc_setup($db);')||!str_contains($index,'sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct'))throw new RuntimeException('Inlined supplier module is not wired into the app.');
+echo "PASS: Supplier Centre works from deployed index.php alone; reference module matches and both deploy scripts include it.\\n";
