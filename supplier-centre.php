@@ -368,6 +368,35 @@ function sc_supplier_message(array $lines):string{
  }
  return "Hi Jessica,\nCan we place an order please for the following?\n\n".implode("\n",$parts)."\n\nThanks";
 }
+/**
+ * Prioritise catalogue entries ANKH has actually purchased from suppliers,
+ * then those physically stocked, then products mapped into ANKH's range.
+ * Never infer a historical supplier purchase merely from a retail sale.
+ */
+function sc_previously_purchased_skus(PDO $db):array{
+ $skus=[];
+ // New purchases preserve the exact supplier SKU even if product mapping later changes.
+ $direct=$db->query("SELECT DISTINCT l.sku FROM supplier_purchase_lines l JOIN supplier_orders o ON o.id=l.supplier_order_id WHERE o.status<>'Cancelled'")->fetchAll(PDO::FETCH_COLUMN);
+ foreach($direct as $sku)$skus[(string)$sku]=true;
+ // Historical supplier orders created before the price-list importer stored product IDs only.
+ $legacy=$db->query("SELECT DISTINCT s.sku FROM supplier_order_items i JOIN supplier_orders o ON o.id=i.supplier_order_id JOIN supplier_catalogue s ON s.product_id=i.product_id WHERE o.status<>'Cancelled'")->fetchAll(PDO::FETCH_COLUMN);
+ foreach($legacy as $sku)$skus[(string)$sku]=true;
+ return $skus;
+}
+function sc_catalogue_group(array $row,array $purchased):string{
+ if(isset($purchased[(string)$row['sku']]))return 'purchased';
+ if(((int)($row['jay_physical']??0)+(int)($row['tony_physical']??0))>0)return 'stocked';
+ if($row['product_id']!==null)return 'range';
+ return 'other';
+}
+function sc_group_definitions():array{
+ return [
+  'purchased'=>['Previously purchased','Supplier products with recorded ANKH purchase history'],
+  'stocked'=>['Currently stocked','Products held in James’s or Tony’s fridge'],
+  'range'=>['Other ANKH products','Matched to your ANKH catalogue but not currently stocked or previously purchased'],
+  'other'=>['Other MJT products','Supplier-only products you have not yet added to ANKH']
+ ];
+}
 function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
  $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','smart','order','products','incoming'],true))$tab='profit';
  $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.low_stock_at FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
@@ -419,8 +448,15 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $smartRows=$tab==='smart'?sc_smart_suggestions($catalogue,$reservedByProduct,$incomingByProduct,sc_recent_delivered($db,$lookbackDays),$recurringForecast,$lookbackDays):[];
  $smartSuggested=array_values(array_filter($smartRows,fn($row)=>$row['boxes']>0));
  $matchedRows=array_values(array_filter($rows,fn($r)=>$r['product_id']!==null));
+ $purchasedSkus=sc_previously_purchased_skus($db);
+ $groupDefinitions=sc_group_definitions();
+ $groupedRows=array_fill_keys(array_keys($groupDefinitions),[]);
  $profitRows=$rows;
- usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));?>
+ usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));
+ foreach($profitRows as $row)$groupedRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
+ $groupedSmart=['attention'=>[],'covered'=>[]];
+ foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
+ ?>
 <div class="heading sc-heading"><div><p class="eyebrow">ANKH / SUPPLIER CENTRE</p><h1>Supplier &amp; Profit</h1><p class="muted page-description">Compare costs, build combined MJT orders and split stock after delivery.</p></div></div>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
  <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
@@ -439,10 +475,15 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
-<div class="sc-product-list" id="sc-profit-list">
-<?php foreach($profitRows as $item):$availability=$item['jay_available']+$item['tony_available'];?>
-<article class="sc-profit-card" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>" data-margin="<?=e((string)($item['margin']??-999999))?>" data-profit="<?=e((string)($item['profit']??-999999))?>" data-sold="<?=$item['sold30']?>" data-stock="<?=$availability?>" data-name="<?=e(strtolower($item['name'].' '.$item['strength']))?>">
- <div class="sc-profit-head"><div><small><?=e($item['sku'])?> · <?=e($item['pack'])?> vials/box</small><h3><?=e($item['name'].' '.$item['strength'])?></h3></div><span class="sc-margin-label <?=$item['margin']!==null&&$item['margin']<0?'loss':''?>"><?=$item['margin']===null?'Not mapped':number_format($item['margin'],1).'% margin'?></span></div>
+<div class="sc-group-container" id="sc-profit-list">
+<?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedRows[$groupKey];if(!$groupItems)continue;?>
+<details class="sc-catalogue-group" data-sc-group="<?=e($groupKey)?>" data-default-open="<?=$groupKey==='other'?'0':'1'?>" <?=$groupKey==='other'?'':'open'?>>
+<summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
+<div class="sc-product-list">
+<?php foreach($groupItems as $item):$availability=$item['jay_available']+$item['tony_available'];?>
+<details class="sc-profit-card" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>" data-margin="<?=e((string)($item['margin']??-999999))?>" data-profit="<?=e((string)($item['profit']??-999999))?>" data-sold="<?=$item['sold30']?>" data-stock="<?=$availability?>" data-name="<?=e(strtolower($item['name'].' '.$item['strength']))?>">
+ <summary class="sc-profit-head"><div><small><?=e($item['sku'])?> · <?=e($item['pack'])?> vials/box · <?=$item['box_gbp']===null?'FX required':money($item['box_gbp'])?> per box</small><h3><?=e($item['name'].' '.$item['strength'])?></h3></div><span class="sc-margin-label <?=$item['margin']!==null&&$item['margin']<0?'loss':''?>"><?=$item['margin']===null?'Not mapped':number_format($item['margin'],1).'% margin'?></span></summary>
+<div class="sc-profit-expanded">
  <div class="sc-profit-metrics">
   <div><span>Supplier box (<?=$item['pack']?> vials)</span><strong><?=$item['box_gbp']===null?'Set exchange rate':money($item['box_gbp'])?></strong><small class="sc-profit-subvalue"><?=sc_money_usd($item['usd'])?> USD · before shipping</small></div>
   <div><span><?=$item['shipping_allocated']?'Landed cost / vial':'Cost / vial'?></span><strong><?=$item['estimate']===null?'—':'£'.number_format($item['estimate']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?'Includes allocated order shipping':'Before shipping'?></small></div>
@@ -451,7 +492,8 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  </div>
  <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?'Includes proportional order shipping':'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
  <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=supplier&amp;tab=products">Match to ANKH product →</a><?php endif;?>
-</article>
+</div></details>
+<?php endforeach;?></div></details>
 <?php endforeach;?></div></section>
 <?php endif;?>
 <?php elseif($tab==='smart'):?>
