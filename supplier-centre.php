@@ -368,6 +368,35 @@ function sc_supplier_message(array $lines):string{
  }
  return "Hi Jessica,\nCan we place an order please for the following?\n\n".implode("\n",$parts)."\n\nThanks";
 }
+/**
+ * Prioritise catalogue entries ANKH has actually purchased from suppliers,
+ * then those physically stocked, then products mapped into ANKH's range.
+ * Never infer a historical supplier purchase merely from a retail sale.
+ */
+function sc_previously_purchased_skus(PDO $db):array{
+ $skus=[];
+ // New purchases preserve the exact supplier SKU even if product mapping later changes.
+ $direct=$db->query("SELECT DISTINCT l.sku FROM supplier_purchase_lines l JOIN supplier_orders o ON o.id=l.supplier_order_id WHERE o.status<>'Cancelled'")->fetchAll(PDO::FETCH_COLUMN);
+ foreach($direct as $sku)$skus[(string)$sku]=true;
+ // Historical supplier orders created before the price-list importer stored product IDs only.
+ $legacy=$db->query("SELECT DISTINCT s.sku FROM supplier_order_items i JOIN supplier_orders o ON o.id=i.supplier_order_id JOIN supplier_catalogue s ON s.product_id=i.product_id WHERE o.status<>'Cancelled'")->fetchAll(PDO::FETCH_COLUMN);
+ foreach($legacy as $sku)$skus[(string)$sku]=true;
+ return $skus;
+}
+function sc_catalogue_group(array $row,array $purchased):string{
+ if(isset($purchased[(string)$row['sku']]))return 'purchased';
+ if(((int)($row['jay_physical']??0)+(int)($row['tony_physical']??0))>0)return 'stocked';
+ if($row['product_id']!==null)return 'range';
+ return 'other';
+}
+function sc_group_definitions():array{
+ return [
+  'purchased'=>['Previously purchased','Supplier products with recorded ANKH purchase history'],
+  'stocked'=>['Currently stocked','Products held in James’s or Tony’s fridge'],
+  'range'=>['Other ANKH products','Matched to your ANKH catalogue but not currently stocked or previously purchased'],
+  'other'=>['Other MJT products','Supplier-only products you have not yet added to ANKH']
+ ];
+}
 function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
  $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','smart','order','products','incoming'],true))$tab='profit';
  $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.low_stock_at FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
@@ -419,8 +448,17 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $smartRows=$tab==='smart'?sc_smart_suggestions($catalogue,$reservedByProduct,$incomingByProduct,sc_recent_delivered($db,$lookbackDays),$recurringForecast,$lookbackDays):[];
  $smartSuggested=array_values(array_filter($smartRows,fn($row)=>$row['boxes']>0));
  $matchedRows=array_values(array_filter($rows,fn($r)=>$r['product_id']!==null));
+ $purchasedSkus=sc_previously_purchased_skus($db);
+ $groupDefinitions=sc_group_definitions();
+ $groupedRows=array_fill_keys(array_keys($groupDefinitions),[]);
+ foreach($rows as $row)$groupedRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $profitRows=$rows;
- usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));?>
+ usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));
+ $groupedProfitRows=array_fill_keys(array_keys($groupDefinitions),[]);
+ foreach($profitRows as $row)$groupedProfitRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
+ $groupedSmart=['attention'=>[],'covered'=>[]];
+ foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
+ ?>
 <div class="heading sc-heading"><div><p class="eyebrow">ANKH / SUPPLIER CENTRE</p><h1>Supplier &amp; Profit</h1><p class="muted page-description">Compare costs, build combined MJT orders and split stock after delivery.</p></div></div>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
  <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
@@ -439,10 +477,15 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
-<div class="sc-product-list" id="sc-profit-list">
-<?php foreach($profitRows as $item):$availability=$item['jay_available']+$item['tony_available'];?>
-<article class="sc-profit-card" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>" data-margin="<?=e((string)($item['margin']??-999999))?>" data-profit="<?=e((string)($item['profit']??-999999))?>" data-sold="<?=$item['sold30']?>" data-stock="<?=$availability?>" data-name="<?=e(strtolower($item['name'].' '.$item['strength']))?>">
- <div class="sc-profit-head"><div><small><?=e($item['sku'])?> · <?=e($item['pack'])?> vials/box</small><h3><?=e($item['name'].' '.$item['strength'])?></h3></div><span class="sc-margin-label <?=$item['margin']!==null&&$item['margin']<0?'loss':''?>"><?=$item['margin']===null?'Not mapped':number_format($item['margin'],1).'% margin'?></span></div>
+<div class="sc-group-container" id="sc-profit-list">
+<?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedProfitRows[$groupKey];if(!$groupItems)continue;?>
+<details class="sc-catalogue-group" data-sc-group="<?=e($groupKey)?>" data-default-open="<?=$groupKey==='other'?'0':'1'?>" <?=$groupKey==='other'?'':'open'?>>
+<summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
+<div class="sc-product-list">
+<?php foreach($groupItems as $item):$availability=$item['jay_available']+$item['tony_available'];?>
+<details class="sc-profit-card" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>" data-margin="<?=e((string)($item['margin']??-999999))?>" data-profit="<?=e((string)($item['profit']??-999999))?>" data-sold="<?=$item['sold30']?>" data-stock="<?=$availability?>" data-name="<?=e(strtolower($item['name'].' '.$item['strength']))?>">
+ <summary class="sc-profit-head"><div><small><?=e($item['sku'])?> · <?=e($item['pack'])?> vials/box · <?=$item['box_gbp']===null?'FX required':money($item['box_gbp'])?> per box</small><h3><?=e($item['name'].' '.$item['strength'])?></h3></div><span class="sc-margin-label <?=$item['margin']!==null&&$item['margin']<0?'loss':''?>"><?=$item['margin']===null?'Not mapped':number_format($item['margin'],1).'% margin'?></span></summary>
+<div class="sc-profit-expanded">
  <div class="sc-profit-metrics">
   <div><span>Supplier box (<?=$item['pack']?> vials)</span><strong><?=$item['box_gbp']===null?'Set exchange rate':money($item['box_gbp'])?></strong><small class="sc-profit-subvalue"><?=sc_money_usd($item['usd'])?> USD · before shipping</small></div>
   <div><span><?=$item['shipping_allocated']?'Landed cost / vial':'Cost / vial'?></span><strong><?=$item['estimate']===null?'—':'£'.number_format($item['estimate']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?'Includes allocated order shipping':'Before shipping'?></small></div>
@@ -451,7 +494,8 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  </div>
  <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?'Includes proportional order shipping':'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
  <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=supplier&amp;tab=products">Match to ANKH product →</a><?php endif;?>
-</article>
+</div></details>
+<?php endforeach;?></div></details>
 <?php endforeach;?></div></section>
 <?php endif;?>
 <?php elseif($tab==='smart'):?>
@@ -474,12 +518,17 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   <p id="sc-smart-budget-explain" class="sc-smart-budget-explain" aria-live="polite">Select products below, or apply a suggested budget. Nothing is purchased automatically.</p>
  </div>
  <form method="post" id="sc-smart-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_smart_apply"><input type="hidden" name="return" value="supplier">
+ <div class="sc-filters"><input type="search" id="sc-smart-search" placeholder="Find one of your ANKH products…" aria-label="Search Smart Buying products"></div>
+ <div class="sc-smart-groups" id="sc-smart-list">
+ <?php foreach(['attention'=>['Reorder recommendations','Products where buying more may be useful'],'covered'=>['Covered / no order needed','Adequate stock or stock that has not yet been counted']] as $smartGroupKey=>$smartGroupLabel):$smartGroupRows=$groupedSmart[$smartGroupKey];if(!$smartGroupRows)continue;?>
+ <details class="sc-catalogue-group" data-sc-group="<?=e($smartGroupKey)?>" data-default-open="<?=$smartGroupKey==='attention'?'1':'0'?>" <?=$smartGroupKey==='attention'?'open':''?>>
+ <summary class="sc-catalogue-heading"><span><strong><?=e($smartGroupLabel[0])?></strong><small><?=e($smartGroupLabel[1])?></small></span><b><?=count($smartGroupRows)?></b></summary>
  <div class="sc-smart-list">
- <?php foreach($smartRows as $row):
+ <?php foreach($smartGroupRows as $row):
   $hasTransfer=$row['transfer_jay_to_tony']+$row['transfer_tony_to_jay']+$row['transfer_holding']>0;
   $label=$row['status']==='shortage'?'Urgent shortage':($row['status']==='reorder'?'Consider reordering':($row['status']==='untracked'?'Stock not tracked':'Covered'));
  ?>
- <article class="sc-smart-card status-<?=e($row['status'])?>" data-smart-sku="<?=e($row['sku'])?>" data-smart-boxes="<?=$row['boxes']?>" data-smart-price="<?=$row['box_usd_cents']?>" data-smart-pack="<?=$row['pack']?>">
+ <article class="sc-smart-card status-<?=e($row['status'])?>" data-search="<?=e(strtolower($row['sku'].' '.$row['name']))?>" data-smart-sku="<?=e($row['sku'])?>" data-smart-boxes="<?=$row['boxes']?>" data-smart-price="<?=$row['box_usd_cents']?>" data-smart-pack="<?=$row['pack']?>">
   <div class="sc-smart-card-head">
    <span class="sc-smart-product-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6m-5 0v4l-3 3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9l-3-3V3M8 12h8"/></svg></span>
    <div class="sc-smart-product-name"><small><?=e($row['sku'])?> · <?=$row['pack']?> vials/box</small><h3><?=e($row['name'])?></h3></div>
@@ -500,6 +549,8 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   </div>
   <?php if($row['boxes']>0):?><div class="sc-smart-recommendation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 14l7 7 7-7"/></svg><span><?=$row['gap']?> units needed to reach target, after <?=$row['incoming']?> incoming → <strong><?=$row['boxes']?> box<?=$row['boxes']===1?'':'es'?> recommended</strong></span></div><?php endif;?>
  </article>
+ <?php endforeach;?>
+ </div></details>
  <?php endforeach;?>
  </div>
  <div class="sc-smart-footer">
@@ -564,13 +615,20 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
 <?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
 <p class="sc-notice">Only products matched to your ANKH catalogue can be saved as Incoming Stock. You can still prepare and copy a supplier message for any SKU. A few specialty products have different supplier box sizes; these are shown explicitly.</p>
-<div class="sc-filters"><input type="search" id="sc-order-search" placeholder="Find a product or SKU…" aria-label="Search supplier ordering products"></div>
+<div class="sc-filters"><input type="search" id="sc-order-search" placeholder="Find a product or SKU across all groups…" aria-label="Search all supplier products"></div><p class="sc-find-help">Products you’ve bought before appear first. Supplier-only products are collapsed below. Search opens matching groups automatically.</p>
 <form method="post" id="sc-order-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_place"><input type="hidden" name="return" value="supplier">
-<div class="sc-order-items" id="sc-order-items">
-<?php foreach($rows as $item):?><div class="sc-order-item" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength']))?>">
+<div class="sc-order-groups" id="sc-order-items">
+<?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedRows[$groupKey];if(!$groupItems)continue;
+$groupHasDraft=false;foreach($groupItems as $groupEntry){if((int)($draft[$groupEntry['sku']]??0)>0){$groupHasDraft=true;break;}}
+$groupOpen=$groupKey!=='other'||$groupHasDraft;?>
+<details class="sc-catalogue-group" data-sc-group="<?=e($groupKey)?>" data-default-open="<?=$groupOpen?'1':'0'?>" <?=$groupOpen?'open':''?>>
+<summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
+<div class="sc-order-items">
+<?php foreach($groupItems as $item):?><div class="sc-order-item" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength']))?>">
  <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=e($item['product_id']===null?'Match needed':'ANKH matched')?></small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span><?=sc_money_usd($item['usd'])?> / box · <?=$item['pack']?> vials</span><em>James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?> available<?= $item['incoming']>0?' · '.$item['incoming'].' incoming':''?></em></div>
  <div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div>
-</div><?php endforeach;?></div>
+</div><?php endforeach;?></div></details>
+<?php endforeach;?></div>
 <div class="sc-order-checkout"><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
 <label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Supplier shipping per entire order (USD $)<input type="number" min="0" max="100000" step=".01" name="shipping_usd" value="<?=e(number_format($draftShippingUsdCents/100,2,'.',''))?>" id="sc-basket-shipping"><small>Flat $70.00 USD by default. Change here only if this order has a different quoted shipping fee.</small></label>
 <div class="sc-order-cost"><span>Estimated landed cost in GBP including order shipping</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small id="sc-shipping-breakdown">Fixed shipping applies once per order and is allocated proportionally by supplier value across purchased vials. Rates and actual invoices may differ.</small></div>
@@ -600,7 +658,8 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  inputs.forEach(i=>{i.addEventListener('input',update);i.closest('.sc-stepper').querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>{i.value=Math.max(0,Math.min(100,(Number(i.value)||0)+Number(btn.dataset.step)));update()}))});
  document.querySelector('#sc-basket-shipping').addEventListener('input',update);
  copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(preview.value);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy supplier message',1600)}catch(err){preview.select();document.execCommand('copy');copy.textContent='Message selected — copy it'}})
- const search=document.querySelector('#sc-order-search');search.addEventListener('input',()=>document.querySelectorAll('.sc-order-item').forEach(item=>{const checked=Number(item.querySelector('[data-box-sku]').value)>0;item.hidden=!checked&&!item.dataset.search.includes(search.value.trim().toLowerCase())}));
+ const search=document.querySelector('#sc-order-search');
+ search.addEventListener('input',()=>window.scFilterSupplierGroups&&window.scFilterSupplierGroups('sc-order-items','.sc-order-item',search.value));
  form.addEventListener('submit',e=>{update();if(e.submitter&&e.submitter.value==='draft')return;if(save.disabled)e.preventDefault();else if(!confirm('Record this combined MJT supplier order in Incoming Stock? This does not add physical stock yet.'))e.preventDefault()});
  update();
 })();
@@ -610,8 +669,13 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">PRIVATE PRICE IMPORT</p><h2>MJT supplier catalogue</h2><p>Upload wholesale costs directly into the authenticated ANKH database. An import updates current supplier prices but keeps order history and product matches.</p></div></div>
 <form method="post" enctype="multipart/form-data" class="sc-import-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_import"><input type="hidden" name="return" value="supplier"><label>August MJT supplier CSV<input type="file" name="supplier_csv" accept=".csv,text/csv" required></label><button>Import / update supplier prices</button><small>Most recent import: <?=$lastImport!==''?e(date('d M Y H:i',strtotime($lastImport))):'Not imported yet'?></small></form>
 <form method="post" class="sc-config-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_config"><input type="hidden" name="return" value="supplier"><h3>Currency &amp; cost estimates</h3><div class="sc-config-grid"><label>GBP per 1 USD <input name="usd_gbp_rate" type="number" min="0.0001" max="9.99" step=".0001" placeholder="e.g. 0.7572" value="<?=$fx===null?'':e((string)$fx)?>"></label><label>Supplier shipping per order (USD $)<input name="shipping_per_order_usd" type="number" min="0" max="100000" step=".01" value="<?=e(number_format($orderShippingUsdCents/100,2,'.',''))?>"></label></div><button class="quiet">Save conversion settings</button><p class="muted">MJT currently quotes $70.00 for the whole order, regardless of boxes. The fixed USD shipping amount is converted at your manually saved exchange rate and allocated to products when you build an order. No historical costs are overwritten.</p></form>
-<?php if($rows):?><div class="sc-filters"><input id="sc-map-search" type="search" placeholder="Search SKU, strength or product…" aria-label="Filter supplier price mappings"></div><div class="sc-map-list">
-<?php foreach($rows as $item):?><details class="sc-map-row" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>"><summary><div><small><?=e($item['sku'])?> · <?=$item['pack']?>/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><em><?=e($item['ankh_name']?:'Unmapped to ANKH')?></em></div><span><?=sc_money_usd($item['usd'])?> ▾</span></summary><div class="sc-map-edit"><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_map"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Link to ANKH product<select name="product_id"><option value="">Not linked</option><?php foreach($allProducts as $p):?><option value="<?=(int)$p['id']?>" <?=$item['product_id']!==null&&(int)$item['product_id']===(int)$p['id']?'selected':''?>><?=e($p['name'])?><?=(int)$p['active']===0?' (hidden)':''?></option><?php endforeach;?></select></label><button>Save product match</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_price"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Supplier box cost (USD)<input type="number" min="0" max="100000" step=".01" name="box_usd" value="<?=e(number_format($item['usd']/100,2,'.',''))?>"></label><button class="quiet">Update box price</button></form></div></details><?php endforeach;?></div><?php endif;?>
+<?php if($rows):?><div class="sc-filters"><input id="sc-map-search" type="search" placeholder="Search all supplier SKUs, strengths or products…" aria-label="Filter supplier price mappings"></div><p class="sc-find-help">Your existing products come first. Tap any row to edit its mapping or supplier price. The wider MJT catalogue is collapsed below.</p><div class="sc-map-groups" id="sc-map-list">
+<?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedRows[$groupKey];if(!$groupItems)continue;?>
+<details class="sc-catalogue-group" data-sc-group="<?=e($groupKey)?>" data-default-open="<?=$groupKey==='other'?'0':'1'?>" <?=$groupKey==='other'?'':'open'?>>
+<summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
+<div class="sc-map-list">
+<?php foreach($groupItems as $item):?><details class="sc-map-row" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength'].' '.$item['ankh_name']))?>"><summary><div><small><?=e($item['sku'])?> · <?=$item['pack']?>/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><em><?=e($item['ankh_name']?:'Unmapped to ANKH')?></em></div><span><?=sc_money_usd($item['usd'])?> ▾</span></summary><div class="sc-map-edit"><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_map"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Link to ANKH product<select name="product_id"><option value="">Not linked</option><?php foreach($allProducts as $p):?><option value="<?=(int)$p['id']?>" <?=$item['product_id']!==null&&(int)$item['product_id']===(int)$p['id']?'selected':''?>><?=e($p['name'])?><?=(int)$p['active']===0?' (hidden)':''?></option><?php endforeach;?></select></label><button>Save product match</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_price"><input type="hidden" name="return" value="supplier"><input type="hidden" name="sku" value="<?=e($item['sku'])?>"><label>Supplier box cost (USD)<input type="number" min="0" max="100000" step=".01" name="box_usd" value="<?=e(number_format($item['usd']/100,2,'.',''))?>"></label><button class="quiet">Update box price</button></form></div></details><?php endforeach;?></div></details>
+<?php endforeach;?></div><?php endif;?>
 </section>
 <?php elseif($tab==='incoming'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">EXISTING INVENTORY</p><h2>Incoming &amp; receiving</h2><p>Placed orders go directly into your existing Incoming Stock system. When parcels arrive, confirm exactly how many units were received and allocate them to James’s or Tony’s fridge.</p></div></div>
@@ -621,14 +685,38 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <?php endif;?>
 <script>
 (function(){
- function bindSearch(inputId,listId,selector){
-  const input=document.getElementById(inputId),list=document.getElementById(listId);if(!input||!list)return;
-  input.addEventListener('input',()=>list.querySelectorAll(selector).forEach(row=>row.hidden=!row.dataset.search.includes(input.value.trim().toLowerCase())));
+ function filterGroups(listId,cardSelector,search){
+  const list=document.getElementById(listId);if(!list)return;
+  const term=(search||'').trim().toLowerCase();
+  list.querySelectorAll('.sc-catalogue-group').forEach(group=>{
+   const cards=[...group.querySelectorAll(cardSelector)];
+   let visible=0;
+   cards.forEach(card=>{
+    // Selected basket products remain visible even when filtering by search.
+    const quantityInput=card.querySelector('[data-box-sku]');
+    const selected=quantityInput&&Number(quantityInput.value)>0;
+    const match=!term||card.dataset.search.includes(term)||selected;
+    card.hidden=!match;if(match)visible++;
+   });
+   group.hidden=visible===0;
+   if(term&&visible)group.open=true;
+   else if(!term)group.open=group.dataset.defaultOpen==='1'||cards.some(card=>Number(card.querySelector('[data-box-sku]')?.value||0)>0);
+  });
  }
- bindSearch('sc-profit-search','sc-profit-list','.sc-profit-card');
+ window.scFilterSupplierGroups=filterGroups;
+ [['sc-profit-search','sc-profit-list','.sc-profit-card'],['sc-map-search','sc-map-list','.sc-map-row'],['sc-smart-search','sc-smart-list','.sc-smart-card']].forEach(([inputId,listId,cardSelector])=>{
+  const input=document.getElementById(inputId);
+  if(input)input.addEventListener('input',()=>filterGroups(listId,cardSelector,input.value));
+ });
  const sort=document.getElementById('sc-profit-sort'),list=document.getElementById('sc-profit-list');
- if(sort&&list)sort.addEventListener('change',()=>{const nodes=[...list.children],metric=sort.value;nodes.sort((a,b)=>metric==='name'?a.dataset.name.localeCompare(b.dataset.name):Number(b.dataset[metric])-Number(a.dataset[metric]));nodes.forEach(node=>list.appendChild(node))});
- const mapSearch=document.getElementById('sc-map-search');if(mapSearch)mapSearch.addEventListener('input',()=>document.querySelectorAll('.sc-map-row').forEach(row=>row.hidden=!row.dataset.search.includes(mapSearch.value.trim().toLowerCase())));
+ if(sort&&list)sort.addEventListener('change',()=>{
+  const metric=sort.value;
+  list.querySelectorAll('.sc-product-list').forEach(inner=>{
+   const nodes=[...inner.children].filter(el=>el.classList.contains('sc-profit-card'));
+   nodes.sort((a,b)=>metric==='name'?a.dataset.name.localeCompare(b.dataset.name):Number(b.dataset[metric])-Number(a.dataset[metric]));
+   nodes.forEach(node=>inner.appendChild(node));
+  });
+ });
 })();
 </script>
 <?php
