@@ -5231,6 +5231,30 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .sc-order-groups .sc-order-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;padding:0 10px 11px;max-height:none;overflow:visible}
 .sc-order-groups .sc-order-item{display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:8px;padding:12px;min-height:142px;min-width:0;border-radius:12px}
 .sc-order-groups .sc-order-item.is-selected{background:#dfb66610;border-color:#dfb66688;box-shadow:0 0 0 1px #dfb66625}
+
+/* Combined, reservation-aware available vial stock — one legible badge per order tile. */
+.sc-order-groups .sc-order-item{position:relative}
+.sc-order-groups .sc-order-name{padding-right:42px}
+.sc-order-groups .sc-order-name .sc-order-unit-price,
+.sc-order-groups .sc-order-name em{margin-right:-42px}
+.sc-order-stock-badge{position:absolute;top:10px;right:10px;display:grid;place-items:center;box-sizing:border-box;width:38px;height:38px;border-radius:50%;border:2px solid;line-height:1;font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap;isolation:isolate}
+.sc-order-stock-badge.is-good{background:#17372b;color:#abefc9;border-color:#53ba81}
+.sc-order-stock-badge.is-low{background:#44201f;color:#ffb3a9;border-color:#de6d64}
+.sc-order-stock-badge.is-edge{background:#433718;color:#f2db8a;border-color:#c7a04c}
+.sc-order-stock-badge.is-unknown{background:#272a2b;color:#b8bcb9;border-color:#5a6163}
+.sc-stock-legend{display:flex;flex-wrap:wrap;align-items:center;column-gap:7px;row-gap:5px;margin:0 0 12px;color:var(--muted);font-size:10px;line-height:1.5}
+.sc-stock-dot{width:9px;height:9px;display:inline-block;border-radius:50%;flex:0 0 9px;margin-left:5px}
+.sc-stock-dot.is-good{background:#53ba81}
+.sc-stock-dot.is-low{background:#de6d64}
+.sc-stock-dot.is-edge{background:#c7a04c}
+.sc-stock-dot.is-unknown{background:#5a6163}
+@media(max-width:760px){
+ .sc-order-stock-badge{top:9px;right:9px;width:36px;height:36px;font-size:13px}
+ .sc-order-groups .sc-order-name{padding-right:40px}
+ .sc-order-groups .sc-order-name .sc-order-unit-price,
+ .sc-order-groups .sc-order-name em{margin-right:-40px}
+}
+
 .sc-order-groups .sc-order-name{width:100%;gap:4px}
 .sc-order-groups .sc-order-name strong{font-size:13px;line-height:1.3;overflow-wrap:anywhere}
 .sc-order-groups .sc-order-name small{font-size:10px}
