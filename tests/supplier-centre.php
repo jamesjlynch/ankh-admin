@@ -42,7 +42,7 @@ $html=ob_get_clean();
 ok(str_contains($html,'Profit explorer')&&str_contains($html,'Example 10mg'),'Profit explorer should render existing product mappings.');
 ok(str_contains($html,'$70.00')&&str_contains($html,'£5.46'),'Estimated unit landed cost should use box USD cost, exchange rate and pack size.');
 ok(str_contains($html,'2 units on paid orders (30d)'),'Product order quantities should appear with their status and period labelled.');
-ok(str_contains($html,'James 2 · Tony 3 available'),'Fridge availability should use existing balances.');
+ok(str_contains($html,'Available: James 2 · Tony 3')&&str_contains($html,'Physical: James 3 · Tony 4'),'Physical stock and available units must remain distinct from reservations.');
 $_GET['tab']='order';
 ob_start();sc_render($db,[],[],[]);$orderPage=ob_get_clean();
 ok(str_contains($orderPage,'Copy supplier message'),'Combined supplier message action must render.');
