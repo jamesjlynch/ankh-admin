@@ -36,6 +36,7 @@ ob_start();
 $_GET['tab']='profit';
 function e($s){return htmlspecialchars((string)$s,ENT_QUOTES,'UTF-8');}
 function money($p){return '£'.number_format((int)$p/100,2);}
+function csrf():void{echo '<input type="hidden" name="csrf" value="test">';}
 sc_render($db,[],[1=>['jay'=>1,'tony'=>1]],[]);
 $html=ob_get_clean();
 ok(str_contains($html,'Profit explorer')&&str_contains($html,'Example 10mg'),'Profit explorer should render existing product mappings.');
