@@ -451,9 +451,11 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $purchasedSkus=sc_previously_purchased_skus($db);
  $groupDefinitions=sc_group_definitions();
  $groupedRows=array_fill_keys(array_keys($groupDefinitions),[]);
+ foreach($rows as $row)$groupedRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $profitRows=$rows;
  usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));
- foreach($profitRows as $row)$groupedRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
+ $groupedProfitRows=array_fill_keys(array_keys($groupDefinitions),[]);
+ foreach($profitRows as $row)$groupedProfitRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $groupedSmart=['attention'=>[],'covered'=>[]];
  foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
  ?>
@@ -476,7 +478,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
 <div class="sc-group-container" id="sc-profit-list">
-<?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedRows[$groupKey];if(!$groupItems)continue;?>
+<?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedProfitRows[$groupKey];if(!$groupItems)continue;?>
 <details class="sc-catalogue-group" data-sc-group="<?=e($groupKey)?>" data-default-open="<?=$groupKey==='other'?'0':'1'?>" <?=$groupKey==='other'?'':'open'?>>
 <summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
 <div class="sc-product-list">
