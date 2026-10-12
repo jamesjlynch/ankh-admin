@@ -5,7 +5,7 @@ function ok(bool $condition,string $message):void{if(!$condition)throw new Runti
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $db->exec("PRAGMA foreign_keys=ON;
 CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,price INTEGER NOT NULL DEFAULT 0,family_friends_price INTEGER DEFAULT NULL,stock_tracking INTEGER NOT NULL DEFAULT 1,stock_jay_qty INTEGER NOT NULL DEFAULT 0,stock_tony_qty INTEGER NOT NULL DEFAULT 0,stock_unallocated_qty INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1,price INTEGER NOT NULL DEFAULT 0,family_friends_price INTEGER DEFAULT NULL,stock_tracking INTEGER NOT NULL DEFAULT 1,stock_jay_qty INTEGER NOT NULL DEFAULT 0,stock_tony_qty INTEGER NOT NULL DEFAULT 0,stock_unallocated_qty INTEGER NOT NULL DEFAULT 0,low_stock_at INTEGER NOT NULL DEFAULT 5);
 CREATE TABLE orders(id INTEGER PRIMARY KEY,status TEXT NOT NULL,created TEXT NOT NULL);
 CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER NOT NULL,product_id INTEGER,quantity INTEGER NOT NULL);
 CREATE TABLE supplier_orders(id INTEGER PRIMARY KEY,supplier TEXT NOT NULL,expected_date TEXT NOT NULL DEFAULT '',status TEXT NOT NULL,note TEXT NOT NULL DEFAULT '',created TEXT NOT NULL);
@@ -58,6 +58,6 @@ ok(str_contains($incoming,'?view=stock&amp;section=incoming'),'Incoming Stock mu
 ok(str_contains(file_get_contents(dirname(__DIR__).'/index.php'),"sc_post(\$db,\$action)"),'Main app must wire supplier action handling.');
 $main=file_get_contents(dirname(__DIR__).'/index.php');
 ok(str_contains($main,'sc_setup($db);'),'Main app must initialize private supplier tables.');
-ok(str_contains($main,'sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct)'),'Supplier page must use existing inventory balances.');
+ok(str_contains($main,"sc_render(\$db,\$stockProducts,\$reservedStockByProduct,\$incomingByProduct,\$recurringForecast30['stock']??[])"),'Supplier page must use stock balances and the existing recurring forecast.');
 ok(!str_contains($main,'MJT Peptide Price List')&&!str_contains(file_get_contents(dirname(__DIR__).'/supplier-centre.php'),'Retatrutide 20mg'),'Wholesale catalogue must not be hardcoded into the public app.');
 echo "PASS: supplier schema, matching, FX, USD message, profit, mobile order basket, private CSV import UI, incoming stock integration.\n";

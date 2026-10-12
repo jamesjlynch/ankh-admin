@@ -3714,7 +3714,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 (()=>{document.querySelectorAll('.report-table,.expanded-profit-table').forEach(table=>{const labels=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());table.querySelectorAll('tbody tr').forEach(row=>{[...row.children].forEach((cell,index)=>{if(cell.tagName==='TD'&&!cell.hasAttribute('colspan'))cell.dataset.label=labels[index]||'';});});});})();
 </script>
 <?php elseif($view==='supplier'):?>
-<?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct); ?>
+<?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">

@@ -84,7 +84,103 @@ function sc_fx(PDO $db):?float{
 function sc_save_setting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')->execute([$key,$value]);
 }
+/**
+ * Build transparent buying suggestions. Product's available stock is already AFTER
+ * reservations (including negative balances for order shortages), so do not deduct
+ * reservations again. Positive spare stock across fridges/holding can cover the
+ * other fridge's shortage via a MANUAL transfer before buying.
+ */
+function sc_smart_suggestions(array $catalogue,array $reservedByProduct,array $incomingByProduct,array $deliveredByProduct,array $recurringByName,int $lookbackDays=30):array{
+ if(!in_array($lookbackDays,[30,60,90],true))$lookbackDays=30;
+ $forecast=[];foreach($recurringByName as $name=>$quantity){
+  $key=strtolower(trim((string)$name));if($key==='pen')continue;
+  $forecast[$key]=($forecast[$key]??0)+max(0,(int)$quantity);
+ }
+ $out=[];
+ foreach($catalogue as $item){
+  $id=isset($item['product_id'])?(int)$item['product_id']:0;
+  if($id<1)continue;
+  $tracked=(int)($item['stock_tracking']??0)===1;
+  $jay=(int)($item['stock_jay_qty']??0);$tony=(int)($item['stock_tony_qty']??0);$holding=(int)($item['stock_unallocated_qty']??0);
+  $rawAvailable=$jay+$tony+$holding;
+  $available=max(0,$rawAvailable);$incoming=max(0,(int)($incomingByProduct[$id]??0));
+  $reserved=array_sum(array_map('intval',$reservedByProduct[$id]??[]));
+  $delivered=max(0,(int)($deliveredByProduct[$id]??0));
+  $leadDemand=(int)ceil($delivered*7/$lookbackDays);
+  $recurring=max(0,(int)($forecast[strtolower(trim((string)($item['ankh_name']??'')))]??0));
+  $threshold=max(0,(int)($item['low_stock_at']??5));
+  $pack=max(1,(int)($item['pack_size']??10));
+  // Shortage is NOT a second deduction: negative raw available already reflects it.
+  $urgent=max(0,-$rawAvailable-$incoming);
+  $target=$threshold+$leadDemand+$recurring;
+  $gap=$tracked?max(0,$target-$rawAvailable-$incoming):0;
+  $boxes=$tracked&&$gap>0?(int)ceil($gap/$pack):0;
+  $transferJamesToTony=min(max(0,-$tony),max(0,$jay));
+  $transferTonyToJames=min(max(0,-$jay),max(0,$tony));
+  $transferHolding=min(max(0,-$jay)+max(0,-$tony),max(0,$holding));
+  $status=!$tracked?'untracked':($urgent>0?'shortage':($boxes>0?'reorder':'covered'));
+  $out[]=[
+   'sku'=>(string)$item['sku'],'name'=>(string)$item['name'].' '.(string)$item['strength'],
+   'product_id'=>$id,'pack'=>$pack,'box_usd_cents'=>(int)$item['box_usd_cents'],'tracked'=>$tracked,
+   'jay_available'=>max(0,$jay),'tony_available'=>max(0,$tony),'holding_available'=>max(0,$holding),
+   'jay_short'=>max(0,-$jay),'tony_short'=>max(0,-$tony),'available_raw'=>$rawAvailable,
+   'available'=>$available,'reserved'=>$reserved,'incoming'=>$incoming,
+   'recent_delivered'=>$delivered,'lead_demand'=>$leadDemand,'recurring30'=>$recurring,'low_at'=>$threshold,
+   'target'=>$target,'gap'=>$gap,'urgent'=>$urgent,'boxes'=>$boxes,'units'=>$boxes*$pack,'status'=>$status,
+   'transfer_jay_to_tony'=>$transferJamesToTony,'transfer_tony_to_jay'=>$transferTonyToJames,'transfer_holding'=>$transferHolding
+  ];
+ }
+ $rank=['shortage'=>0,'reorder'=>1,'untracked'=>2,'covered'=>3];
+ usort($out,static fn($a,$b)=>$rank[$a['status']]<=>$rank[$b['status']] ?: $b['urgent']<=>$a['urgent'] ?: $b['gap']<=>$a['gap'] ?: strcmp($a['name'],$b['name']));
+ return $out;
+}
+function sc_recent_delivered(PDO $db,int $days):array{
+ if(!in_array($days,[30,60,90],true))$days=30;
+ // Only actually delivered non-recurring units; don't infer future demand from unpaid or open orders.
+ $local=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));
+ $start=$local->modify('-'.($days-1).' days')->format('Y-m-d');
+ $stmt=$db->prepare("SELECT p.id,SUM(i.quantity) AS qty
+  FROM stock_delivery_events e JOIN orders o ON o.id=e.order_id
+  JOIN items i ON i.order_id=e.order_id
+  JOIN products p ON p.id=COALESCE(i.product_id,(SELECT p2.id FROM products p2 WHERE lower(trim(p2.name))=lower(trim(i.name)) ORDER BY p2.id LIMIT 1))
+  WHERE o.status<>'Cancelled' AND COALESCE(i.recurring,0)=0
+   AND date(e.delivery_date)>=date(?) AND date(e.delivery_date)<=date(?)
+   AND (trim(COALESCE(p.stock_tracking_since,''))='' OR date(e.delivery_date)>=date(p.stock_tracking_since))
+  GROUP BY p.id");
+ $stmt->execute([$start,$local->format('Y-m-d')]);
+ return array_map('intval',$stmt->fetchAll(PDO::FETCH_KEY_PAIR));
+}
 function sc_post(PDO $db,string $action):void{
+ if($action==='supplier_centre_smart_apply'){
+  $boxes=$_POST['boxes']??[];
+  if(!is_array($boxes)||count($boxes)>500)throw new Exception('Choose valid box quantities.');
+  $chosen=[];
+  foreach($boxes as $sku=>$count){
+   if(!is_string($sku)||!preg_match('/^[A-Z0-9-]{1,20}$/',$sku))throw new Exception('Invalid supplier product code.');
+   $n=filter_var($count,FILTER_VALIDATE_INT);
+   if($n===false||$n<0||$n>100)throw new Exception('Choose between 0 and 100 boxes.');
+   if($n>0)$chosen[$sku]=(int)$n;
+  }
+  if(!$chosen)throw new Exception('Tick at least one suggested product to add to the shared basket.');
+  $catalogue=$db->prepare('SELECT s.product_id,p.stock_tracking FROM supplier_catalogue s JOIN products p ON p.id=s.product_id WHERE s.sku=?');
+  foreach($chosen as $sku=>$n){
+   $catalogue->execute([$sku]);$row=$catalogue->fetch(PDO::FETCH_ASSOC);
+   if(!$row||(int)$row['stock_tracking']!==1)throw new Exception('Match and track the stock for '.$sku.' before adding it.');
+  }
+  $db->beginTransaction();
+  try{
+   $row=$db->query('SELECT boxes_json,shipping_gbp,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+   $draft=json_decode((string)($row['boxes_json']??'{}'),true);if(!is_array($draft))$draft=[];
+   foreach($chosen as $sku=>$n)$draft[$sku]=max((int)($draft[$sku]??0),$n);
+   $draft=array_filter($draft,static fn($n)=>(int)$n>0);
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,expected_date,updated)
+    VALUES (1,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,updated=excluded.updated")
+    ->execute([json_encode($draft,JSON_THROW_ON_ERROR),(string)($row['shipping_gbp']??'0'),(string)($row['expected_date']??''),gmdate('c')]);
+   $db->commit();
+  }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
+  $_SESSION['flash']='Selected boxes added to your shared supplier basket for review. Nothing has been ordered.';
+  header('Location: ./?view=supplier&tab=order');exit;
+ }
  if($action==='supplier_centre_import'){
   $file=$_FILES['supplier_csv']??null;
   if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)($file['tmp_name']??'')))throw new Exception('Choose the supplier CSV file and try again.');
@@ -234,9 +330,9 @@ function sc_supplier_message(array $lines,int $totalUsd):string{
  $text.="\nProduct total: ".sc_money_usd($totalUsd)." USD, excluding shipping.\nPlease confirm stock availability, final shipping cost and delivery timeframe. Thank you.";
  return $text;
 }
-function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct):void{
- $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','order','products','incoming'],true))$tab='profit';
- $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
+function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
+ $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','smart','order','products','incoming'],true))$tab='profit';
+ $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.low_stock_at FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
  $allProducts=$db->query('SELECT id,name,active FROM products ORDER BY active DESC,name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
  $fx=sc_fx($db);
  $shippingCents=(int)($db->query("SELECT value FROM settings WHERE key='supplier_shipping_per_box_pence'")->fetchColumn()?:0);
@@ -264,12 +360,16 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
    'reserved'=>$jayReserved+$tonyReserved,'incoming'=>$mappedId===null?0:(int)($incomingByProduct[$mappedId]??0),
    'sold30'=>$mappedId===null?0:(int)($orderUnits[$mappedId]??0)];
  }
+ $lookbackDays=in_array((int)($_GET['lookback_days']??30),[30,60,90],true)?(int)($_GET['lookback_days']??30):30;
+ $smartRows=$tab==='smart'?sc_smart_suggestions($catalogue,$reservedByProduct,$incomingByProduct,sc_recent_delivered($db,$lookbackDays),$recurringForecast,$lookbackDays):[];
+ $smartSuggested=array_values(array_filter($smartRows,fn($row)=>$row['boxes']>0));
  $matchedRows=array_values(array_filter($rows,fn($r)=>$r['product_id']!==null));
  $profitRows=$rows;
  usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));?>
 <div class="heading sc-heading"><div><p class="eyebrow">ANKH / SUPPLIER CENTRE</p><h1>Supplier &amp; Profit</h1><p class="muted page-description">Compare costs, build combined MJT orders and split stock after delivery.</p></div></div>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
  <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
+ <a href="?view=supplier&amp;tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
  <a href="?view=supplier&amp;tab=order" <?=$tab==='order'?'aria-current="page"':''?>>Build order</a>
  <a href="?view=supplier&amp;tab=products" <?=$tab==='products'?'aria-current="page"':''?>>Prices &amp; matching</a>
  <a href="?view=supplier&amp;tab=incoming" <?=$tab==='incoming'?'aria-current="page"':''?>>Incoming</a>
@@ -294,6 +394,106 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 </article>
 <?php endforeach;?></div></section>
 <?php endif;?>
+<?php elseif($tab==='smart'):?>
+<section class="panel sc-panel sc-buying-panel">
+ <div class="sc-panel-heading"><div><p class="eyebrow">SMART BUYING ASSISTANT</p><h2>What should we reorder?</h2><p>Checks each fridge, existing reservations, incoming supplier purchases, recent delivered sales and possible upcoming recurring orders.</p></div></div>
+ <?php if(!$catalogue):?>
+ <div class="sc-notice">Import the MJT price list in Prices &amp; matching before using Smart Buying. Your wholesale costs stay private.</div>
+ <a class="quick-action" href="?view=supplier&amp;tab=products">Import &amp; match products →</a>
+ <?php else:?>
+ <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="supplier"><input type="hidden" name="tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
+ <div class="sc-smart-stats"><div><small>Products to consider</small><strong><?=count($smartSuggested)?></strong></div><div><small>Suggested boxes</small><strong><?=array_sum(array_column($smartSuggested,'boxes'))?></strong></div><div><small>Product total (USD)</small><strong><?=sc_money_usd(array_sum(array_map(fn($r)=>$r['boxes']*$r['box_usd_cents'],$smartSuggested)))?></strong></div></div>
+ <?php if($fx===null):?><p class="sc-notice">Set the GBP-per-USD rate in Prices &amp; matching to use the purchasing budget calculator. You can still review suggested quantities in USD.</p><?php endif;?>
+ <div class="sc-smart-explainer"><span class="sc-smart-info-icon" aria-hidden="true">ⓘ</span><p><strong>How it decides:</strong> Stock available <em>already excludes</em> reserved customer orders. Suggestions use available + incoming, then allow for your low-stock threshold, estimated 7-day sales and possible recurring orders. Spare stock in James’s or Tony’s fridge is counted before recommending more purchases, but transfers must be done manually.</p></div>
+ <div class="sc-smart-budget">
+  <div class="sc-smart-budget-heading"><span><strong>Set a buying budget</strong><small>Optional, in GBP · selects affordable boxes in priority order</small></span><span class="sc-smart-budget-symbol" aria-hidden="true">£</span></div>
+  <div class="sc-budget-buttons" role="group" aria-label="Supplier purchasing budget">
+   <button type="button" data-sc-budget="all">All suggested</button><button type="button" data-sc-budget="250" <?=$fx===null?'disabled':''?>>£250</button><button type="button" data-sc-budget="500" <?=$fx===null?'disabled':''?>>£500</button><button type="button" data-sc-budget="1000" <?=$fx===null?'disabled':''?>>£1,000</button>
+  </div>
+  <div class="sc-smart-custom"><label>Or enter a budget (£)<input type="number" min="1" max="100000" step="1" id="sc-smart-budget-input" placeholder="e.g. 750" <?=$fx===null?'disabled':''?>></label><button type="button" id="sc-smart-apply-budget" class="quiet" <?=$fx===null?'disabled':''?>>Apply budget</button></div>
+  <p id="sc-smart-budget-explain" class="sc-smart-budget-explain" aria-live="polite">Select products below, or apply a suggested budget. Nothing is purchased automatically.</p>
+ </div>
+ <form method="post" id="sc-smart-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_smart_apply"><input type="hidden" name="return" value="supplier">
+ <div class="sc-smart-list">
+ <?php foreach($smartRows as $row):
+  $hasTransfer=$row['transfer_jay_to_tony']+$row['transfer_tony_to_jay']+$row['transfer_holding']>0;
+  $label=$row['status']==='shortage'?'Urgent shortage':($row['status']==='reorder'?'Consider reordering':($row['status']==='untracked'?'Stock not tracked':'Covered'));
+ ?>
+ <article class="sc-smart-card status-<?=e($row['status'])?>" data-smart-sku="<?=e($row['sku'])?>" data-smart-boxes="<?=$row['boxes']?>" data-smart-price="<?=$row['box_usd_cents']?>" data-smart-pack="<?=$row['pack']?>">
+  <div class="sc-smart-card-head">
+   <span class="sc-smart-product-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 3h6m-5 0v4l-3 3v9a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9l-3-3V3M8 12h8"/></svg></span>
+   <div class="sc-smart-product-name"><small><?=e($row['sku'])?> · <?=$row['pack']?> vials/box</small><h3><?=e($row['name'])?></h3></div>
+   <span class="sc-smart-status"><?=e($label)?></span>
+  </div>
+  <div class="sc-smart-metrics"><span><small>Available</small><strong><?=$row['available']?></strong></span><span><small>Reserved</small><strong><?=$row['reserved']?></strong></span><span><small>Incoming</small><strong><?=$row['incoming']?></strong></span><span><small>Target</small><strong><?=$row['target']?></strong></span></div>
+  <?php if($row['status']==='untracked'):?><p class="sc-smart-context">Confirm a physical stock count before the assistant recommends buying this product.</p>
+  <?php else:?><p class="sc-smart-context">7-day sales estimate: <b><?=$row['lead_demand']?></b> · Potential recurring (30d): <b><?=$row['recurring30']?></b> · Low-stock threshold: <b><?=$row['low_at']?></b></p>
+  <?php if($row['jay_short']>0||$row['tony_short']>0):?>
+  <div class="sc-smart-transfer"><span aria-hidden="true">⇄</span><div><?php if($row['jay_short']>0):?>James’s fridge is <?=$row['jay_short']?> short. Tony has <?=$row['tony_available']?> available; up to <?=$row['transfer_tony_to_jay']?> could be transferred.<?php endif;?>
+  <?php if($row['tony_short']>0):?>Tony’s fridge is <?=$row['tony_short']?> short. James has <?=$row['jay_available']?> available; up to <?=$row['transfer_jay_to_tony']?> could be transferred.<?php endif;?>
+  <?php if($row['transfer_holding']>0):?> Holding stock could cover up to <?=$row['transfer_holding']?> after manual allocation.<?php endif;?></div></div>
+  <?php endif;?>
+  <?php endif;?>
+  <div class="sc-smart-choice">
+   <label class="sc-smart-tick"><input type="checkbox" data-sc-smart-check <?=$row['boxes']<1?'disabled':''?>><span><b><?=$row['boxes']?> box<?=$row['boxes']===1?'':'es'?> suggested</b><small><?=sc_money_usd($row['box_usd_cents'])?> per box · <?=$row['units']?> vials suggested</small></span></label>
+   <div class="sc-stepper"><button type="button" data-sc-step="-1" aria-label="Remove a box for <?=e($row['name'])?>" <?=$row['tracked']?'':'disabled'?>>−</button><input type="number" name="boxes[<?=e($row['sku'])?>]" value="0" min="0" max="100" step="1" inputmode="numeric" data-sc-smart-qty aria-label="Boxes of <?=e($row['name'])?>" <?=$row['tracked']?'':'disabled'?>> <button type="button" data-sc-step="1" aria-label="Add a box for <?=e($row['name'])?>" <?=$row['tracked']?'':'disabled'?>>+</button></div>
+  </div>
+  <?php if($row['boxes']>0):?><div class="sc-smart-recommendation"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 14l7 7 7-7"/></svg><span><?=$row['gap']?> units needed to reach target, after <?=$row['incoming']?> incoming → <strong><?=$row['boxes']?> box<?=$row['boxes']===1?'':'es'?> recommended</strong></span></div><?php endif;?>
+ </article>
+ <?php endforeach;?>
+ </div>
+ <div class="sc-smart-footer">
+  <div class="sc-smart-footer-stats"><div><small>Selected boxes</small><strong id="sc-smart-selected-boxes">0</strong></div><div><small>Supplier cost</small><strong id="sc-smart-selected-usd">$0.00</strong></div><div><small>Estimated GBP incl. shipping</small><strong id="sc-smart-selected-gbp"><?=$fx===null?'Set FX rate':'£0.00'?></strong></div></div>
+  <button type="submit" class="sc-smart-add-button" id="sc-smart-add-button" disabled>Add selected boxes to shared basket →</button>
+  <p>Adding products <strong>never places an order</strong>. Your existing basket quantities are preserved; adding a suggestion again will not multiply them.</p>
+ </div>
+ </form>
+ <script>
+ (() => {
+  const cards=[...document.querySelectorAll('[data-smart-sku]')];
+  const fx=<?=json_encode($fx)?>,shipping=<?=json_encode($shippingCents)?>;
+  const selector=document.querySelector('#sc-smart-budget-input'),explain=document.querySelector('#sc-smart-budget-explain'),submit=document.querySelector('#sc-smart-add-button');
+  const dollar=n=>'$'+(n/100).toFixed(2),pound=n=>'£'+(n/100).toFixed(2);
+  function quantity(card,n){
+   const input=card.querySelector('[data-sc-smart-qty]');
+   input.value=Math.max(0,Math.min(100,Math.trunc(n||0)));
+   card.querySelector('[data-sc-smart-check]').checked=Number(input.value)>0;
+  }
+  function update(){
+   const selected=cards.map(card=>({boxes:Number(card.querySelector('[data-sc-smart-qty]').value)||0,price:Number(card.dataset.smartPrice)})).filter(r=>r.boxes>0);
+   const boxes=selected.reduce((sum,r)=>sum+r.boxes,0),usd=selected.reduce((sum,r)=>sum+r.boxes*r.price,0);
+   document.querySelector('#sc-smart-selected-boxes').textContent=String(boxes);
+   document.querySelector('#sc-smart-selected-usd').textContent=dollar(usd);
+   document.querySelector('#sc-smart-selected-gbp').textContent=fx?pound(Math.round(usd*fx+boxes*shipping)):'Set FX rate';
+   submit.disabled=boxes===0;
+  }
+  function applyBudget(limit){
+   cards.forEach(card=>quantity(card,0));
+   let cost=0,boxes=0;
+   for(const card of cards){
+    const suggested=Number(card.dataset.smartBoxes)||0,price=Number(card.dataset.smartPrice)||0;
+    if(suggested<1)continue;
+    const perBox=fx?Math.ceil(price*fx)+shipping:0;
+    const count=limit===null?suggested:(perBox>0?Math.min(suggested,Math.max(0,Math.floor((limit-cost)/perBox))):0);
+    if(count<1)continue;
+    quantity(card,count);cost+=count*perBox;boxes+=count;
+   }
+   explain.textContent=limit===null?boxes+' suggested boxes selected. Review before saving.':boxes+' boxes selected for about '+pound(cost)+' against a '+pound(limit)+' estimated budget. Review before saving.';
+   update();
+  }
+  cards.forEach(card=>{
+   const input=card.querySelector('[data-sc-smart-qty]'),check=card.querySelector('[data-sc-smart-check]');
+   check.addEventListener('change',()=>{quantity(card,check.checked?(Number(card.dataset.smartBoxes)||1):0);update()});
+   input.addEventListener('input',()=>{quantity(card,Number(input.value));update()});
+   card.querySelectorAll('[data-sc-step]').forEach(button=>button.addEventListener('click',()=>{quantity(card,Number(input.value)+Number(button.dataset.scStep));update()}));
+  });
+  document.querySelectorAll('[data-sc-budget]').forEach(button=>button.addEventListener('click',()=>applyBudget(button.dataset.scBudget==='all'?null:Math.round(Number(button.dataset.scBudget)*100))));
+  document.querySelector('#sc-smart-apply-budget').addEventListener('click',()=>{const value=Number(selector.value);if(value>0&&fx)applyBudget(Math.round(value*100))});
+  update();
+ })();
+ </script>
+ <?php endif;?>
+</section>
 <?php elseif($tab==='order'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
 <?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
