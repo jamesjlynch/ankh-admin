@@ -753,21 +753,22 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">ONE COMBINED BASKET</p><h2>Build an MJT order</h2><p>Choose whole boxes. James and Tony split received vials later using existing Incoming Stock.</p></div></div>
 <?php if(!$rows):?><p class="sc-notice">Import the August supplier CSV first in Prices &amp; matching.</p><?php else:?>
 <p class="sc-notice">Only products matched to your ANKH catalogue can be saved as Incoming Stock. You can still prepare and copy a supplier message for any SKU. A few specialty products have different supplier box sizes; these are shown explicitly.</p>
-<div class="sc-filters"><input type="search" id="sc-order-search" placeholder="Find a product or SKU across all groups…" aria-label="Search all supplier products"></div><p class="sc-find-help">Products you’ve bought before appear first. Supplier-only products are collapsed below. Search opens matching groups automatically.</p>
+<div class="sc-filters sc-order-filters"><input type="search" id="sc-order-search" placeholder="Search all supplier products…" aria-label="Search all supplier products"></div><p class="sc-find-help">Previously purchased and currently stocked products appear first. Unstocked products stay closed until you open them. Search finds items in every section.</p>
 <form method="post" id="sc-order-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_place"><input type="hidden" name="return" value="supplier">
+<div class="sc-order-quick" id="sc-order-quick" role="status" aria-live="polite"><div><small>YOUR SUPPLIER BASKET</small><strong><span id="sc-quick-boxes">0</span> boxes · <span id="sc-quick-usd">$0.00</span></strong><small id="sc-quick-gbp">Add boxes to see estimated GBP total</small></div><button type="button" id="sc-quick-review" aria-controls="sc-order-checkout">Review basket <span aria-hidden="true">→</span></button></div>
 <div class="sc-order-groups" id="sc-order-items">
 <?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedRows[$groupKey];if(!$groupItems)continue;
 $groupHasDraft=false;foreach($groupItems as $groupEntry){if((int)($draft[$groupEntry['sku']]??0)>0){$groupHasDraft=true;break;}}
-$groupOpen=$groupKey!=='other'||$groupHasDraft;?>
+$groupOpen=in_array($groupKey,['purchased','stocked'],true)||$groupHasDraft;?>
 <details class="sc-catalogue-group" data-sc-group="<?=e($groupKey)?>" data-default-open="<?=$groupOpen?'1':'0'?>" <?=$groupOpen?'open':''?>>
 <summary class="sc-catalogue-heading"><span><strong><?=e($groupDescription[0])?></strong><small><?=e($groupDescription[1])?></small></span><b><?=count($groupItems)?></b></summary>
 <div class="sc-order-items">
 <?php foreach($groupItems as $item):?><div class="sc-order-item" data-search="<?=e(strtolower($item['sku'].' '.$item['name'].' '.$item['strength']))?>">
- <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=e($item['product_id']===null?'Match needed':'ANKH matched')?></small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span><?=sc_money_usd($item['usd'])?> / box · <?=$item['pack']?> vials</span><em>James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?> available<?= $item['incoming']>0?' · '.$item['incoming'].' incoming':''?></em></div>
- <div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div>
+ <div class="sc-order-name"><small><?=e($item['sku'])?> · <?=$item['pack']?> vials/box</small><strong><?=e($item['name'].' '.$item['strength'])?></strong><span class="sc-order-unit-price"><?=sc_money_usd($item['usd'])?> / box<?=$item['box_gbp']===null?'':' · '.money($item['box_gbp'])?></span><em><?=$item['product_id']===null?'Supplier-only · match to receive stock':'James '.$item['jay_available'].' · Tony '.$item['tony_available'].' in stock'?></em></div>
+ <div class="sc-order-pick"><div class="sc-stepper"><button type="button" data-step="-1" aria-label="Remove one box of <?=e($item['sku'])?>">−</button><input type="number" min="0" max="100" step="1" inputmode="numeric" name="boxes[<?=e($item['sku'])?>]" value="<?=max(0,min(100,(int)($draft[$item['sku']]??0)))?>" aria-label="Boxes of <?=e($item['sku'])?>" data-box-sku="<?=e($item['sku'])?>"><button type="button" data-step="1" aria-label="Add one box of <?=e($item['sku'])?>">+</button></div><small class="sc-order-line-total" data-sc-line-total aria-live="polite"></small></div>
 </div><?php endforeach;?></div></details>
 <?php endforeach;?></div>
-<div class="sc-order-checkout"><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
+<div class="sc-order-checkout" id="sc-order-checkout"><h3 class="sc-checkout-title">Review your basket</h3><div class="sc-basket-selected" id="sc-basket-selected" aria-live="polite"><p>No boxes selected yet. Add products above to prepare an order.</p></div><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
 <label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Supplier shipping per entire order (USD $)<input type="number" min="0" max="100000" step=".01" name="shipping_usd" value="<?=e(number_format($draftShippingUsdCents/100,2,'.',''))?>" id="sc-basket-shipping"><small>Flat $70.00 USD by default. Change here only if this order has a different quoted shipping fee.</small></label>
 <div class="sc-order-cost"><span>Estimated landed cost in GBP including order shipping</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small id="sc-shipping-breakdown">Fixed shipping applies once per order and is allocated proportionally by supplier value across purchased vials. Rates and actual invoices may differ.</small></div>
 <label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="10" aria-label="Generated supplier message"></textarea><small class="muted">The message lists full boxes and supplier codes. Costs and shipping are calculated above for your ANKH records, not included in Jessica’s message.</small>
@@ -785,6 +786,24 @@ $groupOpen=$groupKey!=='other'||$groupHasDraft;?>
   document.querySelector('#sc-total-boxes').textContent=String(boxCount);
   document.querySelector('#sc-total-vials').textContent=String(vials);
   document.querySelector('#sc-total-usd').textContent=dollar(usd);
+  document.querySelector('#sc-quick-boxes').textContent=String(boxCount);
+  document.querySelector('#sc-quick-usd').textContent=dollar(usd);
+  document.querySelector('#sc-quick-gbp').textContent=fx&&boxCount>0?'Approx. '+gbp(Math.round((usd+Math.round(Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0)*100))*fx))+' incl. shipping':(boxCount>0?'Set exchange rate for GBP cost':'Add boxes to see estimated GBP total');
+  document.querySelector('#sc-order-quick').classList.toggle('has-items',boxCount>0);
+  const selectedList=document.querySelector('#sc-basket-selected');
+  selectedList.replaceChildren();
+  if(selected.length===0){const empty=document.createElement('p');empty.textContent='No boxes selected yet. Add products above to prepare an order.';selectedList.append(empty);}
+  selected.forEach(r=>{
+   const entry=document.createElement('div'),name=document.createElement('span'),cost=document.createElement('strong');
+   name.textContent='X'+r.boxes+' '+r.name+' '+r.strength+' ('+r.sku+')';
+   cost.textContent=dollar(r.boxes*r.usd);entry.append(name,cost);selectedList.append(entry);
+  });
+  inputs.forEach(i=>{
+   const qty=Math.max(0,Math.min(100,Math.trunc(Number(i.value)||0)));
+   const row=i.closest('.sc-order-item'),subtotal=row.querySelector('[data-sc-line-total]');
+   row.classList.toggle('is-selected',qty>0);
+   subtotal.textContent=qty>0?'Line: '+dollar(qty*lookup[i.dataset.boxSku].usd):'';
+  });
   const shippingUsd=Math.round(Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0)*100);
   document.querySelector('#sc-total-gbp').textContent=fx?gbp(Math.round((usd+(boxCount>0?shippingUsd:0))*fx)):'Set exchange rate';
   document.querySelector('#sc-shipping-breakdown').textContent='Shipping once per order: '+dollar(boxCount>0?shippingUsd:0)+(fx?' ≈ '+gbp(Math.round((boxCount>0?shippingUsd:0)*fx)):'')+'. Allocated across the ordered products by supplier value. Final invoice may differ.';
@@ -798,6 +817,9 @@ $groupOpen=$groupKey!=='other'||$groupHasDraft;?>
  copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(preview.value);copy.textContent='Copied ✓';setTimeout(()=>copy.textContent='Copy supplier message',1600)}catch(err){preview.select();document.execCommand('copy');copy.textContent='Message selected — copy it'}})
  const search=document.querySelector('#sc-order-search');
  search.addEventListener('input',()=>window.scFilterSupplierGroups&&window.scFilterSupplierGroups('sc-order-items','.sc-order-item',search.value));
+ document.querySelector('#sc-quick-review').addEventListener('click',()=>{
+  document.querySelector('#sc-order-checkout').scrollIntoView({behavior:'smooth',block:'start'});
+ });
  form.addEventListener('submit',e=>{update();if(e.submitter&&e.submitter.value==='draft')return;if(save.disabled)e.preventDefault();else if(!confirm('Record this combined MJT supplier order in Incoming Stock? This does not add physical stock yet.'))e.preventDefault()});
  update();
 })();

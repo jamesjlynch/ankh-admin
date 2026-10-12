@@ -5223,3 +5223,50 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .sc-catalogue-group>.sc-product-list,.sc-catalogue-group>.sc-order-items,.sc-catalogue-group>.sc-map-list,.sc-catalogue-group>.sc-smart-list{padding:0 8px 8px}
  .sc-profit-head .sc-margin-label{font-size:10px}
 }
+
+
+/* iPhone-first supplier ordering: product tiles, collapsed unused range, live basket cost. */
+.sc-order-filters{grid-template-columns:1fr}
+.sc-order-groups{min-width:0}
+.sc-order-groups .sc-order-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;padding:0 10px 11px;max-height:none;overflow:visible}
+.sc-order-groups .sc-order-item{display:flex;flex-direction:column;align-items:stretch;justify-content:space-between;gap:8px;padding:12px;min-height:142px;min-width:0;border-radius:12px}
+.sc-order-groups .sc-order-item.is-selected{background:#dfb66610;border-color:#dfb66688;box-shadow:0 0 0 1px #dfb66625}
+.sc-order-groups .sc-order-name{width:100%;gap:4px}
+.sc-order-groups .sc-order-name strong{font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.sc-order-groups .sc-order-name small{font-size:10px}
+.sc-order-groups .sc-order-unit-price{font-size:12px;color:#e5c78d;font-weight:650;line-height:1.4}
+.sc-order-groups .sc-order-name em{font-size:10px}
+.sc-order-pick{display:flex;align-items:center;justify-content:space-between;gap:7px;flex-wrap:wrap;padding-top:8px;border-top:1px solid #323535}
+.sc-order-pick .sc-stepper{margin-left:0;flex:0 0 auto}
+.sc-order-pick .sc-stepper button{min-width:35px;min-height:37px;width:35px;height:37px}
+.sc-order-pick .sc-stepper input{height:37px;width:43px;min-height:37px;font-size:14px;text-align:center}
+.sc-order-line-total{font-size:10px;color:var(--gold);font-weight:750;line-height:1.2;text-align:right}
+.sc-checkout-title{font-size:17px;color:var(--gold);margin:0 0 12px}
+.sc-basket-selected{display:grid;gap:7px;margin-bottom:12px}
+.sc-basket-selected>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;min-width:0;padding:9px 11px;border:1px solid #343638;border-radius:9px;background:#131617}
+.sc-basket-selected span{font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.sc-basket-selected strong{font-size:12px;white-space:nowrap;color:var(--gold)}
+.sc-basket-selected p{font-size:12px;color:var(--muted);margin:0}
+.sc-order-checkout{scroll-margin-top:18px}
+.sc-order-quick{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 13px;padding:12px;border:1px solid #dfb66661;border-radius:12px;background:#242016}
+.sc-order-quick>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sc-order-quick small{font-size:10px;line-height:1.35;color:#d9c9a8}
+.sc-order-quick strong{font-size:16px;color:#f2e3ba;font-variant-numeric:tabular-nums}
+.sc-order-quick button{font-size:12px;font-weight:750;white-space:nowrap;min-height:42px;border-radius:10px;border:1px solid #dfb66666;padding:9px 12px;background:var(--gold);color:#15120b}
+.sc-order-quick button:active{transform:scale(.985)}
+.sc-order-quick.has-items{border-color:#dfb666a0}
+@media(max-width:760px){
+ .sc-order-groups .sc-order-items{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:0 8px 8px}
+ .sc-order-groups .sc-order-item{padding:10px;min-height:155px}
+ .sc-order-quick{position:fixed;left:calc(9px + env(safe-area-inset-left));right:calc(9px + env(safe-area-inset-right));bottom:calc(87px + env(safe-area-inset-bottom));z-index:22;margin:0;padding:10px 12px;background:#252016f6;backdrop-filter:blur(14px);box-shadow:0 8px 24px #0008;border-radius:13px}
+ .sc-order-quick strong{font-size:14px}
+ .sc-order-quick button{font-size:11px;min-height:44px}
+ #sc-order-form{padding-bottom:105px}
+ .sc-order-checkout{scroll-margin-top:18px}
+}
+@media(max-width:365px){
+ .sc-order-groups .sc-order-items{grid-template-columns:1fr}
+ .sc-order-groups .sc-order-item{min-height:0}
+ .sc-order-quick{gap:6px}
+ .sc-order-quick button{padding:8px;font-size:10px}
+}
