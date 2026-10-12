@@ -5082,3 +5082,8 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .sc-visually-hidden{display:none}
 @media(max-width:760px){.sc-heading h1{font-size:27px}.sc-panel{padding:12px}.sc-panel-heading h2{font-size:18px}.sc-profit-card{padding:11px}.sc-product-list{grid-template-columns:1fr}.sc-filters{grid-template-columns:1fr 155px}.sc-tabs a{font-size:10px;line-height:1.2}.sc-order-actions{grid-template-columns:1fr}.sc-order-summary strong{font-size:15px}.sc-config-grid,.sc-map-edit{grid-template-columns:1fr}}
 @media(max-width:365px){.sc-tabs{gap:4px}.sc-tabs a{font-size:9px;padding:6px 2px}.sc-stepper button{width:29px;height:32px;min-height:32px}.sc-stepper input{width:37px;height:32px;min-height:32px}.sc-order-item{padding:8px;gap:6px}}
+
+
+.sc-order-actions{grid-template-columns:repeat(3,minmax(0,1fr))}
+.sc-draft-button{background:#252728;border:1px solid #3c413c;color:#e7d4aa}
+@media(max-width:760px){.sc-order-actions{grid-template-columns:1fr}}
