@@ -52,8 +52,11 @@ function sc_setup(PDO $db):void{
  // Idempotent optional columns; older drafts and completed purchases remain intact.
  $draftColumns=array_column($db->query('PRAGMA table_info(supplier_basket_drafts)')->fetchAll(PDO::FETCH_ASSOC),'name');
  if(!in_array('shipping_usd_cents',$draftColumns,true))$db->exec('ALTER TABLE supplier_basket_drafts ADD COLUMN shipping_usd_cents INTEGER DEFAULT NULL');
+ if(!in_array('discount_usd_cents',$draftColumns,true))$db->exec('ALTER TABLE supplier_basket_drafts ADD COLUMN discount_usd_cents INTEGER NOT NULL DEFAULT 0');
  $snapshotColumns=array_column($db->query('PRAGMA table_info(supplier_purchase_snapshots)')->fetchAll(PDO::FETCH_ASSOC),'name');
  if(!in_array('shipping_usd_cents',$snapshotColumns,true))$db->exec('ALTER TABLE supplier_purchase_snapshots ADD COLUMN shipping_usd_cents INTEGER DEFAULT NULL');
+ if(!in_array('discount_usd_cents',$snapshotColumns,true))$db->exec('ALTER TABLE supplier_purchase_snapshots ADD COLUMN discount_usd_cents INTEGER NOT NULL DEFAULT 0');
+ if(!in_array('discount_gbp_pence',$snapshotColumns,true))$db->exec('ALTER TABLE supplier_purchase_snapshots ADD COLUMN discount_gbp_pence INTEGER NOT NULL DEFAULT 0');
 }
 function sc_money_usd(int $cents):string{return '$'.number_format($cents/100,2);}
 function sc_normal_name(string $name):string{return preg_replace('/[^a-z0-9]/','',strtolower($name));}
@@ -101,6 +104,13 @@ function sc_shipping_draft_usd_cents(array $draft,?float $fx,int $default):int{
 function sc_valid_shipping_usd(string $input):int{
  if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$input)||(float)$input>100000)throw new Exception('Enter valid supplier order shipping in USD.');
  return (int)round((float)$input*100);
+}
+function sc_valid_discount_usd(string $value):int{
+ if(!preg_match('/^\d+(?:\.\d{1,2})?$/',$value)||(float)$value>100000)throw new Exception('Enter a valid supplier discount in USD.');
+ return (int)round((float)$value*100);
+}
+function sc_discount_within_products(int $discountCents,int $productUsdCents):void{
+ if($discountCents>$productUsdCents)throw new Exception('Supplier discount cannot exceed the selected products total.');
 }
 function sc_save_setting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')->execute([$key,$value]);
@@ -192,13 +202,13 @@ function sc_post(PDO $db,string $action):void{
   }
   $db->beginTransaction();
   try{
-   $row=$db->query('SELECT boxes_json,shipping_gbp,shipping_usd_cents,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+   $row=$db->query('SELECT boxes_json,shipping_gbp,shipping_usd_cents,discount_usd_cents,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
    $draft=json_decode((string)($row['boxes_json']??'{}'),true);if(!is_array($draft))$draft=[];
    foreach($chosen as $sku=>$n)$draft[$sku]=max((int)($draft[$sku]??0),$n);
    $draft=array_filter($draft,static fn($n)=>(int)$n>0);
-   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,expected_date,updated)
-    VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,updated=excluded.updated")
-    ->execute([json_encode($draft,JSON_THROW_ON_ERROR),(string)($row['shipping_gbp']??'0'),$row['shipping_usd_cents']===null?null:(int)$row['shipping_usd_cents'],(string)($row['expected_date']??''),gmdate('c')]);
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,discount_usd_cents,expected_date,updated)
+    VALUES (1,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,updated=excluded.updated")
+    ->execute([json_encode($draft,JSON_THROW_ON_ERROR),(string)($row['shipping_gbp']??'0'),$row['shipping_usd_cents']===null?null:(int)$row['shipping_usd_cents'],(int)($row['discount_usd_cents']??0),(string)($row['expected_date']??''),gmdate('c')]);
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='Selected boxes added to your shared supplier basket for review. Nothing has been ordered.';
@@ -299,10 +309,17 @@ function sc_post(PDO $db,string $action):void{
    $shipDraft=trim((string)($_POST['shipping_usd']??number_format(sc_shipping_order_usd_cents($db)/100,2,'.','')));
    $expectedDraft=trim((string)($_POST['expected_date']??''));
    $shipDraftCents=sc_valid_shipping_usd($shipDraft);
+   $discountDraftCents=sc_valid_discount_usd(trim((string)($_POST['discount_usd']??'0')));
    if($expectedDraft!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expectedDraft)||!checkdate((int)substr($expectedDraft,5,2),(int)substr($expectedDraft,8,2),(int)substr($expectedDraft,0,4))))throw new Exception('Enter a valid expected date.');
    $draftFx=sc_fx($db);
    $legacyGbp=$draftFx===null?'0':number_format($shipDraftCents*$draftFx/100,2,'.','');
-   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,expected_date,updated) VALUES (1,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,shipping_usd_cents=excluded.shipping_usd_cents,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$legacyGbp,$shipDraftCents,$expectedDraft,gmdate('c')]);
+   $draftUsd=0;
+   if($requested){
+    $prices=$db->prepare('SELECT box_usd_cents FROM supplier_catalogue WHERE sku=?');
+    foreach($requested as $sku=>$count){$prices->execute([$sku]);$price=$prices->fetchColumn();if($price===false)throw new Exception('Unknown supplier code '.$sku.'.');$draftUsd+=(int)$price*$count;}
+   }
+   sc_discount_within_products($discountDraftCents,$draftUsd);
+   $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,discount_usd_cents,expected_date,updated) VALUES (1,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,shipping_usd_cents=excluded.shipping_usd_cents,discount_usd_cents=excluded.discount_usd_cents,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$legacyGbp,$shipDraftCents,$discountDraftCents,$expectedDraft,gmdate('c')]);
    $_SESSION['flash']='Shared supplier basket draft saved for James and Tony.';
    header('Location: ./?view=supplier&tab=order');exit;
   }
@@ -312,6 +329,7 @@ function sc_post(PDO $db,string $action):void{
   $ship=trim((string)($_POST['shipping_usd']??number_format(sc_shipping_order_usd_cents($db)/100,2,'.','')));
   $shippingUsdCents=sc_valid_shipping_usd($ship);
   $shippingPence=(int)round($shippingUsdCents*$fx);
+  $discountUsdCents=sc_valid_discount_usd(trim((string)($_POST['discount_usd']??'0')));
   $expected=trim((string)($_POST['expected_date']??''));
   if($expected!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expected)||!checkdate((int)substr($expected,5,2),(int)substr($expected,8,2),(int)substr($expected,0,4))))throw new Exception('Enter a valid expected delivery date.');
   $fetch=$db->prepare('SELECT s.*,p.id AS mapped_id,p.name AS mapped_name FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id WHERE s.sku=?');
@@ -323,6 +341,8 @@ function sc_post(PDO $db,string $action):void{
    $totalUsd+=$cost;$totalUnits+=(int)$item['pack_size']*$qty;
    $lines[]=['sku'=>$sku,'name'=>$item['name'],'strength'=>$item['strength'],'product_id'=>(int)$item['mapped_id'],'packs'=>$qty,'pack_size'=>(int)$item['pack_size'],'box_usd_cents'=>(int)$item['box_usd_cents'],'usd_total'=>$cost];
   }
+  sc_discount_within_products($discountUsdCents,$totalUsd);
+  $discountGbpPence=(int)round($discountUsdCents*$fx);
   $message=sc_supplier_message($lines);
   $db->beginTransaction();
   try{
@@ -332,14 +352,15 @@ function sc_post(PDO $db,string $action):void{
    $snap=$db->prepare('INSERT INTO supplier_purchase_lines(supplier_order_id,sku,product_name,strength,packs,units_per_pack,box_usd_cents) VALUES (?,?,?,?,?,?,?)');
    foreach($lines as $line){
     $units=$line['packs']*$line['pack_size'];
-    // Shipping is allocated in proportion to the supplier value on each line.
+    // Allocate the one-off shipping and supplier discount by the wholesale value of each line.
     $lineShipping=$totalUsd>0?(int)round($shippingPence*$line['usd_total']/$totalUsd):(int)round($shippingPence*$units/$totalUnits);
-    $unitCost=(int)round(($line['usd_total']*$fx+$lineShipping)/$units);
+    $lineDiscount=$totalUsd>0?(int)round($discountGbpPence*$line['usd_total']/$totalUsd):0;
+    $unitCost=max(0,(int)round(($line['usd_total']*$fx+$lineShipping-$lineDiscount)/$units));
     $lineInsert->execute([$orderId,$line['product_id'],$line['packs'],$line['pack_size'],$units,$unitCost]);
     $snap->execute([$orderId,$line['sku'],$line['name'],$line['strength'],$line['packs'],$line['pack_size'],$line['box_usd_cents']]);
    }
-   $estimate=(int)round($totalUsd*$fx)+$shippingPence;
-   $db->prepare('INSERT INTO supplier_purchase_snapshots(supplier_order_id,usd_total_cents,fx_rate,shipping_gbp_pence,shipping_usd_cents,estimated_gbp_pence,order_message,created) VALUES (?,?,?,?,?,?,?,?)')->execute([$orderId,$totalUsd,$fx,$shippingPence,$shippingUsdCents,$estimate,$message,gmdate('c')]);
+   $estimate=(int)round(($totalUsd-$discountUsdCents+$shippingUsdCents)*$fx);
+   $db->prepare('INSERT INTO supplier_purchase_snapshots(supplier_order_id,usd_total_cents,fx_rate,shipping_gbp_pence,shipping_usd_cents,discount_usd_cents,discount_gbp_pence,estimated_gbp_pence,order_message,created) VALUES (?,?,?,?,?,?,?,?,?,?)')->execute([$orderId,$totalUsd,$fx,$shippingPence,$shippingUsdCents,$discountUsdCents,$discountGbpPence,$estimate,$message,gmdate('c')]);
    $db->prepare('DELETE FROM supplier_basket_drafts WHERE id=1')->execute();
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
