@@ -5443,3 +5443,54 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .ux-mobile-actions,.ux-mobile-scopes,.report-tabs{scroll-behavior:auto}
  .ux-report-options>summary span:last-child{transition:none}
 }
+
+
+/* Stage 2: mobile incoming purchasing disclosures and keyboard navigation.
+   All receiving fields and stock arithmetic remain server-owned and unchanged. */
+.ux-skip-link{position:absolute;top:-100px;left:12px;z-index:1001;padding:11px 14px;border:2px solid #e1bc6c;border-radius:10px;background:#101112;color:#f4d999;text-decoration:none;font-size:14px;font-weight:800}
+.ux-skip-link:focus{top:calc(10px + env(safe-area-inset-top))}
+#ankh-main{scroll-margin-top:16px}
+.ux-incoming-products{display:block;padding:0;overflow:hidden}
+.ux-incoming-products>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:68px;padding:13px;list-style:none;cursor:pointer}
+.ux-incoming-products>summary::-webkit-details-marker,.ux-incoming-order>summary::-webkit-details-marker{display:none}
+.ux-incoming-products>summary>span{display:grid;gap:4px;min-width:0;flex:1}
+.ux-incoming-products>summary strong{font-size:16px;line-height:1.3;color:#f1e0bc}
+.ux-incoming-products>summary small{display:block;font-size:11px;line-height:1.35;color:#b8b2a4}
+.ux-incoming-products>summary .eyebrow{font-size:9px;color:#d9b86e}
+.ux-incoming-product-content{padding:0 12px 12px}
+.ux-incoming-product-content .incoming-by-product-note{margin-top:10px}
+.ux-incoming-disclosure-icon{font-size:20px;color:#dfb666;flex:0 0 20px;display:grid;place-items:center;transition:transform .2s ease}
+.ux-incoming-products[open]>summary .ux-incoming-disclosure-icon,.ux-incoming-order[open]>summary .ux-incoming-disclosure-icon{transform:rotate(180deg)}
+.ux-incoming-order{overflow:hidden;padding:0}
+.ux-incoming-order>summary{display:flex;align-items:center;gap:8px;min-height:70px;padding:12px 13px;list-style:none;cursor:pointer}
+.ux-incoming-order>summary header{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;flex:1}
+.ux-incoming-order>summary header>div:first-child{display:grid;gap:4px;min-width:0}
+.ux-incoming-order>summary header>div:last-child{display:grid;gap:3px;justify-items:end;min-width:65px}
+.ux-incoming-order>summary header span{font-size:10px;color:#bbab84;line-height:1.3}
+.ux-incoming-order>summary header h3{font-size:15px;line-height:1.3;overflow-wrap:anywhere}
+.ux-incoming-order>summary header small{font-size:11px;color:#aaa89f;line-height:1.4}
+.ux-incoming-order>summary header>div:last-child strong{font-size:22px;line-height:1.1;font-variant-numeric:tabular-nums}
+.ux-incoming-order-content{padding:0 13px 13px;border-top:1px solid #343638}
+.ux-incoming-order-content .supplier-order-products{margin-top:0;border-top:0;padding-top:12px;gap:11px}
+.ux-incoming-order-content .supplier-product-row{gap:12px;padding:10px;border:1px solid #343737;border-radius:9px;background:#181b1b}
+.ux-incoming-order-content .supplier-product-row strong{font-size:13px;overflow-wrap:anywhere;line-height:1.35}
+.ux-incoming-order-content .supplier-product-row small{font-size:11px;line-height:1.45;color:#aaa9a2}
+.ux-incoming-order-content .supplier-product-row>b{font-size:12px;white-space:nowrap;color:#dfba6b}
+.ux-incoming-order-content .supplier-receive>summary{min-height:44px;padding:12px;font-size:12px;line-height:1.3}
+.ux-incoming-order-content .supplier-receive form{gap:10px;padding:12px}
+.ux-incoming-order-content .supplier-receive label{font-size:11px}
+.ux-incoming-order-content .supplier-receive input{min-height:44px;font-size:16px}
+.ux-incoming-order-content .supplier-receive p{font-size:12px;line-height:1.5}
+.ux-incoming-order-content .supplier-cancel-form button{min-height:44px;padding:9px 13px;font-size:12px}
+.ux-incoming-products>summary:focus-visible,.ux-incoming-order>summary:focus-visible,.ux-incoming-order-content .supplier-receive>summary:focus-visible{outline:2px solid #e1bc6c;outline-offset:-3px}
+@media(max-width:760px){
+ .ux-incoming-products>summary{min-height:72px}
+ .ux-incoming-order>summary{min-height:78px}
+ .ux-incoming-order-content{padding:0 10px 11px}
+ .ux-incoming-product-content{padding:0 10px 11px}
+ .ux-incoming-order-content .supplier-allocation-grid{gap:5px}
+ .ux-incoming-order-content .supplier-allocation-grid input{min-width:0;padding:8px 5px}
+}
+@media(prefers-reduced-motion:reduce){
+ .ux-incoming-disclosure-icon{transition:none}
+}

@@ -3336,6 +3336,7 @@ if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRange
 }
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
+<a class="ux-skip-link" href="#ankh-main">Skip to main content</a>
 <aside><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a>
 <nav class="desktop-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
@@ -3354,7 +3355,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['more','products','reports','reorder','sheets','supplier'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
+<main id="ankh-main" tabindex="-1"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><div class="flash-confirmation"><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><?php unset($_SESSION['flash']);?></div><?php endif;?>
 <?php if($view==='dashboard'): ?>
@@ -3817,8 +3818,8 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 <section class="incoming-stock-section">
  <div class="incoming-stock-head"><div><p class="eyebrow">INCOMING STOCK</p><h2>Supplier orders</h2><p class="muted">Orders are entered in packs. One pack = 10 units.</p></div><div class="incoming-stock-total"><strong><?=$totalIncomingUnits?></strong><span>units incoming</span></div></div>
 <?php if($incomingProductBreakdown):?>
-<section class="incoming-by-product" id="incoming-by-product" aria-labelledby="incoming-by-product-title">
- <div class="incoming-by-product-head"><div><p class="eyebrow">WHAT'S ON THE WAY</p><h3 id="incoming-by-product-title">Incoming by product</h3><p><?=count($incomingProductBreakdown)?> products with outstanding deliveries · <?=$totalIncomingUnits?> vials to receive</p></div></div>
+<details class="incoming-by-product ux-incoming-products" id="incoming-by-product" aria-labelledby="incoming-by-product-title">
+ <summary class="incoming-by-product-head"><span><small class="eyebrow">WHAT'S ON THE WAY</small><strong id="incoming-by-product-title">Incoming by product</strong><small><?=count($incomingProductBreakdown)?> products with outstanding deliveries · <?=$totalIncomingUnits?> vials to receive</small></span><b class="ux-incoming-disclosure-icon" aria-hidden="true">⌄</b></summary><div class="ux-incoming-product-content">
  <div class="incoming-by-product-list">
  <?php foreach($incomingProductBreakdown as $dueItem):?>
  <article class="incoming-by-product-row">
@@ -3827,8 +3828,8 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
  </article>
  <?php endforeach;?>
  </div>
- <p class="incoming-by-product-note">Only outstanding quantities are shown. Stock already received, including partial deliveries, is excluded. Use the supplier orders below to receive and allocate each delivery.</p>
-</section>
+ <p class="incoming-by-product-note">Only outstanding quantities are shown. Stock already received, including partial deliveries, is excluded. Use the supplier orders below to receive and allocate each delivery.</p></div>
+</details>
 <?php endif;?>
  <details class="supplier-order-create"><summary>+ Add supplier order</summary>
   <form method="post" class="supplier-order-form" data-supplier-order-form><?php csrf();?><input type="hidden" name="action" value="supplier_order_create"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_section" value="incoming">
@@ -3846,14 +3847,14 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
   </form>
  </details>
  <?php $openSupplierOrders=array_values(array_filter($supplierOrders,fn($so)=>!in_array((string)$so['status'],['Received','Cancelled'],true)));if($openSupplierOrders):?><div class="supplier-order-list">
- <?php foreach($openSupplierOrders as $supplierOrder):?><article class="supplier-order-card">
-  <header><div><span>SUPPLIER #<?=$supplierOrder['id']?> · <?=e(strtoupper($supplierOrder['status']))?></span><h3><?=e($supplierOrder['supplier'])?></h3><small><?=$supplierOrder['expected_date']!==''?'Expected '.e(date('d M Y',strtotime($supplierOrder['expected_date']))):'No expected date'?></small></div><div><strong><?=max(0,(int)$supplierOrder['total_qty']-(int)$supplierOrder['received_qty'])?></strong><span>remaining</span></div></header>
+ <?php foreach($openSupplierOrders as $supplierOrder):?><details class="supplier-order-card ux-incoming-order">
+  <summary class="ux-incoming-order-summary"><header><div><span>SUPPLIER #<?=$supplierOrder['id']?> · <?=e(strtoupper($supplierOrder['status']))?></span><h3><?=e($supplierOrder['supplier'])?></h3><small><?=$supplierOrder['expected_date']!==''?'Expected '.e(date('d M Y',strtotime($supplierOrder['expected_date']))):'No expected date'?></small></div><div><strong><?=max(0,(int)$supplierOrder['total_qty']-(int)$supplierOrder['received_qty'])?></strong><span>remaining</span></div></header><b class="ux-incoming-disclosure-icon" aria-hidden="true">⌄</b></summary><div class="ux-incoming-order-content">
   <div class="supplier-order-products"><?php foreach(($supplierOrderItems[(int)$supplierOrder['id']]??[]) as $incomingItem):$remaining=max(0,(int)$incomingItem['quantity']-(int)$incomingItem['received_qty']);?>
    <div class="supplier-product-row"><div><strong><?=e($incomingItem['product_name'])?></strong><small><?=$incomingItem['packs']?> pack<?=$incomingItem['packs']==1?'':'s'?> × <?=$incomingItem['pack_size']?> = <?=$incomingItem['quantity']?> units<?=(int)$incomingItem['received_qty']>0?' · '.(int)$incomingItem['received_qty'].' received':''?></small></div><b><?=$remaining?> due</b></div>
    <?php if($remaining>0):?><details class="supplier-receive"><summary>Receive / allocate</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_stock_receive"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_section" value="incoming"><input type="hidden" name="supplier_item_id" value="<?=$incomingItem['id']?>"><p>Allocate up to <strong><?=$remaining?></strong> units received.</p><div class="supplier-allocation-grid"><label>Jay<input name="jay_qty" type="number" min="0" max="<?=$remaining?>" value="0"></label><label>Tony<input name="tony_qty" type="number" min="0" max="<?=$remaining?>" value="0"></label><label>Holding<input name="unallocated_qty" type="number" min="0" max="<?=$remaining?>" value="<?=$remaining?>"></label></div><button>Receive stock</button></form></details><?php endif;?>
   <?php endforeach;?></div>
   <?php if((int)$supplierOrder['received_qty']===0):?><form method="post" class="supplier-cancel-form" onsubmit="return confirm('Cancel this incoming supplier order?');"><?php csrf();?><input type="hidden" name="action" value="supplier_order_cancel"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_section" value="incoming"><input type="hidden" name="supplier_order_id" value="<?=$supplierOrder['id']?>"><button class="quiet">Cancel order</button></form><?php endif;?>
- </article><?php endforeach;?></div>
+ </div></details><?php endforeach;?></div>
  <?php else:?><div class="incoming-empty"><span>✓</span><div><strong>No supplier stock currently incoming</strong><small>Add an order when you place it with the supplier.</small></div></div><?php endif;?>
 </section>
 <script>(()=>{document.querySelectorAll('[data-pack-form]').forEach(form=>form.querySelectorAll('[data-pack-qty]').forEach(button=>button.addEventListener('click',()=>{const input=form.querySelector('[data-pack-quantity]');if(input)input.value=button.dataset.packQty})));const form=document.querySelector('[data-supplier-order-form]'),lines=form?.querySelector('[data-supplier-lines]'),add=form?.querySelector('[data-add-supplier-line]');if(form&&lines&&add){const bind=line=>{const remove=line.querySelector('[data-remove-supplier-line]'),select=line.querySelector('select'),cost=line.querySelector('input[name="unit_cost[]"]');remove?.addEventListener('click',()=>{if(lines.children.length>1)line.remove()});select?.addEventListener('change',()=>{const option=select.selectedOptions[0];if(cost&&option?.dataset.cost&&cost.value==='')cost.value=option.dataset.cost})};[...lines.children].forEach(bind);add.addEventListener('click',()=>{const clone=lines.firstElementChild.cloneNode(true);clone.querySelectorAll('input').forEach(input=>{if(input.name==='packs[]')input.value='1';else input.value=''});clone.querySelector('select').value='';lines.appendChild(clone);bind(clone)})}})();</script>
