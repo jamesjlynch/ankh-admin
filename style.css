@@ -47,7 +47,7 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
     align-items:center;
     justify-content:center;
     gap:4px;
-    color:#898b8d;
+    color:#9b9c9e;
     font-size:10px;
     line-height:1.05;
     text-align:center;
@@ -158,8 +158,8 @@ input,select,textarea{font-size:16px}button,.button{min-height:48px}summary{min-
 .wizard-step-head h2{font-size:28px;margin:4px 0 6px}
 .wizard-kicker{font-size:11px;letter-spacing:1.7px;color:var(--gold);font-weight:700}
 .wizard-progress{display:flex;align-items:center;gap:8px;min-width:310px;justify-content:flex-end}
-.wizard-progress>span{width:34px;height:34px;border:1px solid #3d3f41;border-radius:50%;display:grid;place-items:center;color:#777a7d;font-size:13px;font-weight:700;position:relative}
-.wizard-progress>span>span{position:absolute;top:39px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:500;white-space:nowrap;color:#777a7d}
+.wizard-progress>span{width:34px;height:34px;border:1px solid #3d3f41;border-radius:50%;display:grid;place-items:center;color:#9a9d9f;font-size:13px;font-weight:700;position:relative}
+.wizard-progress>span>span{position:absolute;top:39px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:500;white-space:nowrap;color:#9a9d9f}
 .wizard-progress>span.active{border-color:var(--gold);background:#dfb66618;color:var(--gold)}
 .wizard-progress>span.active>span,.wizard-progress>span.done>span{color:#c6ad78}
 .wizard-progress>span.done{border-color:#6f5b35;color:#c6ad78}
@@ -1291,7 +1291,7 @@ body.voice-overlay-open{overflow:hidden}
 }
 .voice-order-overlay-card>small{
   margin-top:10px;
-  color:#7f7d78;
+  color:#9e9c98;
   font-size:10px;
 }
 .voice-order-overlay.working .voice-order-orb{
@@ -2069,10 +2069,10 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
 .dashboard-reta-panel{margin:14px 0}
 .reta-dashboard-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
 .reta-dashboard-stats>div{padding:11px;border:1px solid #313233;border-radius:12px;background:#121314}
-.reta-dashboard-stats span,.reta-dashboard-stats small{display:block;color:#8f8b82;font-size:9px}
+.reta-dashboard-stats span,.reta-dashboard-stats small{display:block;color:#9f9b94;font-size:9px}
 .reta-dashboard-stats span{text-transform:uppercase;letter-spacing:.6px;font-weight:800}
 .reta-dashboard-stats strong{display:block;margin:4px 0;color:#eee6d6;font-size:18px}
-.reta-dashboard-row span small{display:block;margin-top:2px;color:#89857c;font-size:9px;font-weight:500}
+.reta-dashboard-row span small{display:block;margin-top:2px;color:#9e9b94;font-size:9px;font-weight:500}
 .reta-forecast-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
 .reta-forecast-grid article{padding:14px;border:1px solid #353536;border-radius:15px;background:#141516}
 .reta-forecast-grid span,.reta-forecast-grid small{display:block;color:#8f8b82}
@@ -2221,10 +2221,10 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
 }
 .cycle-stock-row.short{border-color:#67482f;background:#1b1611}
 .cycle-stock-row strong{display:block;color:#e8e2d7;font-size:11px}
-.cycle-stock-row small{display:block;margin-top:2px;color:#85827a;font-size:9px}
+.cycle-stock-row small{display:block;margin-top:2px;color:#9f9c96;font-size:9px}
 .cycle-stock-row>div:last-child{text-align:right}
 .cycle-stock-row span{display:block;color:#d4cbb9;font-size:10px}
-.cycle-stock-row b{display:block;margin-top:2px;color:#8f8b82;font-size:9px}
+.cycle-stock-row b{display:block;margin-top:2px;color:#9f9b94;font-size:9px}
 .cycle-stock-row.short b{color:#e0ae68}
 
 @media(max-width:760px){
@@ -2659,7 +2659,7 @@ body{padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left)
 .stock-movement-row:last-child{border-bottom:0}
 .stock-movement-row strong,.stock-movement-row small{display:block}
 .stock-movement-row strong{color:#eee9df;font-size:11px}
-.stock-movement-row small{margin-top:4px;color:#858179;font-size:9px;line-height:1.45}
+.stock-movement-row small{margin-top:4px;color:#9f9b95;font-size:9px;line-height:1.45}
 .stock-movement-row b{flex:0 0 auto;font-size:15px}
 .stock-positive{color:#91d5a0}
 .stock-negative{color:#e5a28d}
@@ -3308,7 +3308,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-count-head strong{flex:none}
 .stock-value-lines{display:grid;gap:4px;padding-top:7px;border-top:1px solid rgba(255,255,255,.07)}
 .stock-value-lines small{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0;color:#e9e5dd;font-size:10px;font-weight:700;white-space:nowrap}
-.stock-value-lines small b{color:#8f918f;font-size:9px;font-weight:700}
+.stock-value-lines small b{color:#9a9c9a;font-size:9px;font-weight:700}
 .stock-product-combined .stock-value-lines small{color:#e9c978}
 @media(max-width:760px){
  .fridge-overview-card{min-height:0}
@@ -3332,7 +3332,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .todo-balance-summary small{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.45px}
 .todo-balance-summary .todo-paid-line{color:#aaa9a4}
 .todo-balance-summary .todo-paid-line b{font-size:11px}
-.todo-balance-summary .todo-paid-line small{color:#777a77}
+.todo-balance-summary .todo-paid-line small{color:#9a9d9a}
 .todo-balance-summary .todo-due-line{color:#f0ede6}
 .todo-balance-summary .todo-due-line b{font-size:15px}
 .todo-balance-summary .todo-due-line small{color:var(--gold)}
@@ -3360,7 +3360,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  background:#191a1b;color:#d8d5ce;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease;
 }
 .dashboard-payment-choice b{font-size:13px;line-height:1.2}
-.dashboard-payment-choice small{color:#8f918f;font-size:10px;font-weight:600;line-height:1.25}
+.dashboard-payment-choice small{color:#9a9c9a;font-size:10px;font-weight:600;line-height:1.25}
 .dashboard-payment-choice input:checked+span{
  border-color:var(--gold);background:#272217;color:var(--gold);
  box-shadow:inset 0 0 0 1px #dfb66644;
@@ -3369,7 +3369,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 .dashboard-payment-field{display:grid;gap:7px;margin:0;min-width:0;color:#aaa79f}
 .dashboard-payment-field>span{font-size:11px;font-weight:700}
-.dashboard-payment-field>small{font-size:9px;color:#7f817d}
+.dashboard-payment-field>small{font-size:9px;color:#9b9d9a}
 .dashboard-payment-field input,.dashboard-payment-field select{
  width:100%;min-width:0;min-height:48px;margin:0;padding:10px 12px;
  border-radius:10px;box-sizing:border-box;
@@ -3417,13 +3417,13 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .balances-hero span{color:#9b9c98;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.55px}
 .balances-hero strong{font-size:27px;line-height:1.05;color:#f0ede6}
 .balances-hero>div:first-child strong{color:var(--gold)}
-.balances-hero small{color:#858782;font-size:9px;line-height:1.35}
+.balances-hero small{color:#9b9d99;font-size:9px;line-height:1.35}
 .balance-filter-bar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:0 0 8px}
 .balance-filter-bar button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:8px 10px;border:1px solid #383a3c;border-radius:11px;background:#171819;color:#aaa9a4;font-size:11px}
 .balance-filter-bar button b{display:grid;place-items:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#242627;color:#c9c7c1;font-size:9px}
 .balance-filter-bar button.selected{border-color:#76602f;background:#292316;color:var(--gold)}
 .balance-filter-bar button.selected b{background:#3b321f;color:#e5c16e}
-.balance-filter-note{margin:0 2px 13px;color:#777a76;font-size:9px}
+.balance-filter-note{margin:0 2px 13px;color:#9a9d9a;font-size:9px}
 .balance-account-list{display:grid;gap:9px}
 .balance-account-card{overflow:hidden;border:1px solid #343638;border-radius:15px;background:#17191a}
 .balance-account-card[hidden]{display:none!important}
@@ -3432,14 +3432,14 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .balance-customer-main{min-width:0}
 .balance-customer-main h2{margin:0 0 4px;font-size:16px;color:#f0ede6}
 .balance-customer-main>span{display:block;color:#aaa8a1;font-size:10px}
-.balance-customer-main>small{display:block;margin-top:4px;color:#777a76;font-size:9px}
+.balance-customer-main>small{display:block;margin-top:4px;color:#9a9d9a;font-size:9px}
 .balance-customer-money{display:flex;align-items:center;gap:13px;flex:none}
 .balance-customer-money>span,.balance-customer-money>strong{display:grid;gap:2px;text-align:right}
 .balance-customer-money>span b{font-size:11px;color:#aaa9a4}
 .balance-customer-money>strong{font-size:18px;color:var(--gold)}
-.balance-customer-money small{font-size:7px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#777a76}
+.balance-customer-money small{font-size:7px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:#9a9d9a}
 .balance-customer-money>strong small{color:#b99a54}
-.balance-customer-money i{font-style:normal;font-size:18px;color:#7f817d;transition:transform .18s ease}
+.balance-customer-money i{font-style:normal;font-size:18px;color:#9b9d9a;transition:transform .18s ease}
 .balance-account-card[open] .balance-customer-money i{transform:rotate(180deg)}
 .balance-account-body{padding:0 16px 16px;border-top:1px solid #2f3132}
 .balance-account-actions{display:flex;gap:7px;flex-wrap:wrap;padding:12px 0}
@@ -3449,23 +3449,23 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .balance-order header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:11px}
 .balance-order header>div{display:grid;gap:2px}
 .balance-order header span{font-size:11px;font-weight:800;color:#dedbd4}
-.balance-order header small{font-size:9px;color:#7f817d}
+.balance-order header small{font-size:9px;color:#9b9d9a}
 .balance-overdue-pill{padding:4px 7px;border:1px solid #765136;border-radius:999px;background:#261a13;color:#dda16f;font-size:8px;letter-spacing:.5px}
 .balance-order-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:8px;padding:10px;border-radius:10px;background:#181a1b}
 .balance-order-flow>span{display:grid;gap:4px}
 .balance-order-flow>span:nth-of-type(2){text-align:center}
 .balance-order-flow>span:last-child{text-align:right}
-.balance-order-flow small{color:#858782;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.balance-order-flow small{color:#9b9d99;font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
 .balance-order-flow b{font-size:13px;color:#ddd9d0}
-.balance-order-flow i{font-style:normal;color:#555854}
+.balance-order-flow i{font-style:normal;color:#9b9c9a}
 .balance-order-flow .balance-order-due b{color:var(--gold)}
 .balance-payment-history{display:grid;gap:6px;margin-top:9px}
 .balance-payment-history>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 9px;border-top:1px solid #292b2c}
 .balance-payment-history span{display:grid;gap:2px}
 .balance-payment-history b{font-size:11px;color:#b9d6c2}
-.balance-payment-history small{font-size:8px;color:#777a76}
-.balance-payment-history em{font-size:8px;font-style:normal;color:#8c8e89;text-align:right}
-.balance-no-payments{margin:9px 0 0;color:#777a76;font-size:9px}
+.balance-payment-history small{font-size:8px;color:#9a9d9a}
+.balance-payment-history em{font-size:8px;font-style:normal;color:#9a9c97;text-align:right}
+.balance-no-payments{margin:9px 0 0;color:#9a9d9a;font-size:9px}
 
 @media(max-width:760px){
  .customer-heading-actions{gap:6px}
@@ -3503,21 +3503,21 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 /* Physical / reserved / available stock */
 .stock-overview-breakdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:5px;padding:9px 0;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08)}
-.stock-overview-breakdown small{display:grid;gap:2px;min-width:0;color:#858782!important;font-size:8px!important;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.stock-overview-breakdown small{display:grid;gap:2px;min-width:0;color:#9b9d99!important;font-size:8px!important;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
 .stock-overview-breakdown small b{color:#e7e3da;font-size:15px;line-height:1.1}
 .stock-overview-breakdown small.available b{color:#e5bf69}
 .fridge-overview-card>.fridge-value-summary{border-top:0;margin-top:0;padding-top:7px}
 .stock-availability-panel{width:100%;min-width:0}
 .stock-availability-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 .stock-availability-three>span{display:grid!important;gap:3px;min-width:0;padding:7px 6px;border:1px solid #303233;border-radius:9px;background:#141516;text-align:center}
-.stock-availability-three small{color:#7f817d;font-size:7px!important;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.stock-availability-three small{color:#9b9d9a;font-size:7px!important;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 .stock-availability-three b{font-size:17px!important;line-height:1;color:#e3dfd7}
 .stock-availability-three b.has-reserved{color:#d8a46b}
 .stock-availability-three .available{border-color:#574a2d;background:#1c1912}
 .stock-availability-three .available b{color:#e5bf69}
 .stock-availability-panel .stock-value-lines{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .stock-availability-panel .stock-value-lines small{display:grid;gap:2px;white-space:normal}
-.product-stock-breakdown{display:block;margin:-3px 0 3px;color:#8d8f8b;font-size:9px;line-height:1.25}
+.product-stock-breakdown{display:block;margin:-3px 0 3px;color:#9b9c99;font-size:9px;line-height:1.25}
 .product-stock-count-form .product-stock-breakdown+label{margin-top:2px}
 @media(max-width:760px){
  .fridge-overview-card strong{font-size:24px}
@@ -3599,17 +3599,17 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-demand-risk.clear{background:#1d3023;color:#8fc49c}
 .stock-demand-risk.warning{background:#352317;color:#e0a36f}
 .stock-demand-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:12px 0 9px;padding:4px;border-radius:11px;background:#121314}
-.stock-demand-tabs a{padding:8px;border-radius:8px;color:#858782;font-size:9px;font-weight:800;text-align:center;text-decoration:none}
+.stock-demand-tabs a{padding:8px;border-radius:8px;color:#9b9d99;font-size:9px;font-weight:800;text-align:center;text-decoration:none}
 .stock-demand-tabs a.selected{background:#292316;color:var(--gold)}
 .stock-demand-list{display:grid;gap:6px}
 .stock-demand-list>article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 11px;border:1px solid #303234;border-radius:11px;background:#151718}
 .stock-demand-list>article.risk{border-color:#65482f;background:#1d1814}
 .stock-demand-list>article>div:first-child{display:grid;gap:2px}
 .stock-demand-list>article>div:first-child strong{font-size:11px;color:#ddd9d1}
-.stock-demand-list>article>div:first-child small{font-size:8px;color:#777a76}
+.stock-demand-list>article>div:first-child small{font-size:8px;color:#9a9d9a}
 .stock-demand-numbers{display:grid;grid-template-columns:repeat(3,minmax(55px,1fr));gap:5px}
 .stock-demand-numbers span{display:grid;gap:2px;text-align:right}
-.stock-demand-numbers small{font-size:7px;color:#747672;text-transform:uppercase;font-weight:800}
+.stock-demand-numbers small{font-size:7px;color:#9b9c99;text-transform:uppercase;font-weight:800}
 .stock-demand-numbers b{font-size:13px;color:#d8d4cc}
 .stock-demand-numbers .spare b{color:#8fc49c}
 .stock-demand-numbers .shortage b{color:#e0a36f}
@@ -3617,9 +3617,9 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-demand-empty>span{color:#8fc49c}
 .stock-demand-empty div{display:grid;gap:2px}
 .stock-demand-empty strong{font-size:10px}
-.stock-demand-empty small{font-size:8px;color:#777a76}
+.stock-demand-empty small{font-size:8px;color:#9a9d9a}
 .stock-demand-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:9px;padding-top:9px;border-top:1px solid #292b2c}
-.stock-demand-footer span{font-size:8px;color:#70726e}
+.stock-demand-footer span{font-size:8px;color:#9b9c9a}
 .stock-demand-footer a{font-size:9px;color:var(--gold);text-decoration:none}
 
 @media(max-width:760px){
@@ -3657,17 +3657,17 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .recurring-range-tabs a.selected,.recurring-range-tabs button.selected{background:#292316;color:var(--gold);box-shadow:inset 0 0 0 1px #544626}
 .recurring-custom-range,.stock-custom-range{display:none;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:7px;padding:9px;border:1px solid #323435;border-radius:10px;background:#121415}
 .recurring-custom-range.open,.stock-custom-range.open{display:grid}
-.recurring-custom-range label,.stock-custom-range label{display:grid;gap:4px;color:#858782;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.recurring-custom-range label,.stock-custom-range label{display:grid;gap:4px;color:#9b9d99;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 .recurring-custom-range input,.stock-custom-range input{min-width:0;height:36px;margin:0;padding:7px 8px;font-size:10px}
 .recurring-custom-range button,.stock-custom-range button{min-height:36px;padding:7px 11px;font-size:9px;white-space:nowrap}
 .recurring-forecast-only{display:inline-flex;align-items:center;min-height:31px;padding:6px 9px;border:1px solid #333638;border-radius:8px;color:#777a76;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.25px}
 .stock-demand-tabs.stock-demand-tabs-flexible{grid-template-columns:repeat(6,minmax(0,1fr))}
-.stock-demand-tabs button{padding:8px;border:0;border-radius:8px;background:transparent;color:#858782;font:inherit;font-size:9px;font-weight:800;text-align:center;cursor:pointer}
+.stock-demand-tabs button{padding:8px;border:0;border-radius:8px;background:transparent;color:#9b9d99;font:inherit;font-size:9px;font-weight:800;text-align:center;cursor:pointer}
 .stock-demand-tabs button.selected{background:#292316;color:var(--gold)}
 .stock-custom-range{margin:-2px 0 10px}
 .stock-demand-selected-range{display:flex;align-items:center;gap:7px;margin:0 0 9px;padding:7px 9px;border-radius:9px;background:#121415;color:#a6a59f;font-size:9px}
-.stock-demand-selected-range b{color:#65583a;font-weight:500}
-.stock-demand-selected-range small{margin-left:auto;color:#747672;font-size:8px}
+.stock-demand-selected-range b{color:#a39b89;font-weight:500}
+.stock-demand-selected-range small{margin-left:auto;color:#9b9c99;font-size:8px}
 @media(max-width:760px){
  .recurring-range-head{align-items:flex-start;flex-direction:column;gap:3px}
  .recurring-range-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -3682,23 +3682,23 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 /* Stock transaction centre, supplier incoming stock and fridge audit */
 .stock-transaction-centre,.incoming-stock-section{display:grid;gap:10px;margin:0 0 14px;padding:13px;border:1px solid #343638;border-radius:15px;background:#151718}
 .stock-transaction-head h2,.incoming-stock-head h2{margin:2px 0 3px;font-size:15px}
-.stock-transaction-head p,.incoming-stock-head p{margin:0;color:#858782;font-size:9px}
+.stock-transaction-head p,.incoming-stock-head p{margin:0;color:#9b9d99;font-size:9px}
 .stock-transaction-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .stock-action-card{border:1px solid #333638;border-radius:12px;background:#121415;overflow:hidden}
 .stock-action-card>summary{display:flex;align-items:center;gap:9px;padding:11px;cursor:pointer;list-style:none}
 .stock-action-card>summary::-webkit-details-marker{display:none}
 .stock-action-card>summary div{display:grid;gap:2px}
 .stock-action-card>summary strong{font-size:11px;color:#dedad2}
-.stock-action-card>summary small{font-size:8px;color:#777a76}
+.stock-action-card>summary small{font-size:8px;color:#9a9d9a}
 .stock-action-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:#292316;color:var(--gold);font-size:17px}
 .stock-central-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:11px;border-top:1px solid #292b2c}
-.stock-central-form label,.supplier-order-form label,.supplier-receive label,.fridge-mini-form label{display:grid;gap:4px;color:#858782;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.stock-central-form label,.supplier-order-form label,.supplier-receive label,.fridge-mini-form label{display:grid;gap:4px;color:#9b9d99;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 .stock-central-form label span,.supplier-order-form label span{font-weight:500;text-transform:none}
 .stock-central-form input,.stock-central-form select,.supplier-order-form input,.supplier-order-form select,.supplier-receive input,.fridge-mini-form input,.fridge-mini-form select{min-width:0;margin:0}
 .stock-form-wide{grid-column:1/-1}
 .stock-primary-action{grid-column:1/-1;min-height:38px}
 .stock-pack-picker{display:grid;gap:5px;align-content:end}
-.stock-pack-picker>span{color:#777a76;font-size:8px;font-weight:800;text-transform:uppercase}
+.stock-pack-picker>span{color:#9a9d9a;font-size:8px;font-weight:800;text-transform:uppercase}
 .stock-pack-picker>div{display:flex;gap:4px}
 .stock-pack-picker button{min-width:42px;min-height:35px;padding:5px 8px;border:1px solid #3a3c3e;border-radius:8px;background:#1c1e1f;color:#c8c5bd;font-size:9px;font-weight:800}
 .stock-pack-picker button:hover{border-color:#67562f;color:var(--gold)}
@@ -3706,11 +3706,11 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .fridge-direct-links>a,.fridge-direct-links>div{display:flex;align-items:center;justify-content:space-between;min-height:38px;padding:8px 10px;border:1px solid #303234;border-radius:10px;background:#151718;color:#aaa;font-size:9px;text-decoration:none}
 .fridge-direct-links>a span{color:var(--gold)}
 .fridge-direct-links>div strong{color:#d9b85f;font-size:14px}
-.fridge-direct-links>div span{color:#777a76}
+.fridge-direct-links>div span{color:#9a9d9a}
 .incoming-stock-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .incoming-stock-total{display:grid;text-align:right}
 .incoming-stock-total strong{font-size:22px;color:#e0bd64}
-.incoming-stock-total span{font-size:8px;color:#777a76;text-transform:uppercase}
+.incoming-stock-total span{font-size:8px;color:#9a9d9a;text-transform:uppercase}
 .supplier-order-create{border:1px solid #3a3528;border-radius:11px;background:#18160f}
 .supplier-order-create>summary{padding:10px 11px;color:var(--gold);font-size:10px;font-weight:800;cursor:pointer;list-style:none}
 .supplier-order-create>summary::-webkit-details-marker{display:none}
@@ -3752,14 +3752,14 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-demand-numbers .incoming b{color:#d8b75f}
 .fridge-hero-main{display:grid}
 .fridge-hero-breakdown{display:flex;gap:16px}
-.fridge-hero-breakdown span{display:grid;gap:2px;color:#7e807b;font-size:8px;text-transform:uppercase}
+.fridge-hero-breakdown span{display:grid;gap:2px;color:#9a9c98;font-size:8px;text-transform:uppercase}
 .fridge-hero-breakdown b{font-size:15px;color:#d7d3cb}
 .fridge-page-actions{display:flex;gap:7px;margin:-5px 0 10px}
 .fridge-balance-list{display:grid;gap:8px}
 .fridge-balance-card .fridge-item-head{margin-bottom:9px}
 .fridge-balance-three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
 .fridge-balance-three span{display:grid;gap:2px;padding:7px;border-radius:8px;background:#121415}
-.fridge-balance-three small{font-size:7px;color:#777a76;text-transform:uppercase}
+.fridge-balance-three small{font-size:7px;color:#9a9d9a;text-transform:uppercase}
 .fridge-balance-three b{font-size:14px}
 .fridge-balance-three .available b{color:var(--gold)}
 .fridge-compact-actions{margin-top:8px;border-top:1px solid #292b2c}
@@ -3768,7 +3768,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .fridge-compact-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:8px}
 .fridge-mini-form{display:grid;gap:7px;padding:9px;border-radius:9px;background:#121415}
 .fridge-mini-form h3{margin:0;font-size:10px}
-.fridge-mini-form p{margin:0;color:#777a76;font-size:8px}
+.fridge-mini-form p{margin:0;color:#9a9d9a;font-size:8px}
 .stock-pack-picker.compact{align-content:initial}
 .stock-pack-picker.compact button{min-height:31px}
 .fridge-audit{margin-top:13px}
@@ -3794,16 +3794,16 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 
 /* Stock workspace navigation + compact mobile overview */
 .stock-workspace-nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:0 0 12px;padding:5px;border:1px solid #303335;border-radius:13px;background:#111314}
-.stock-workspace-nav a{display:grid;gap:2px;min-width:0;padding:8px 7px;border:1px solid transparent;border-radius:9px;color:#858782;text-align:center;text-decoration:none}
+.stock-workspace-nav a{display:grid;gap:2px;min-width:0;padding:8px 7px;border:1px solid transparent;border-radius:9px;color:#9b9d99;text-align:center;text-decoration:none}
 .stock-workspace-nav a span{font-size:9px;font-weight:850}
-.stock-workspace-nav a small{overflow:hidden;color:#5f625f;font-size:6.5px;white-space:nowrap;text-overflow:ellipsis}
+.stock-workspace-nav a small{overflow:hidden;color:#9a9c9a;font-size:6.5px;white-space:nowrap;text-overflow:ellipsis}
 .stock-workspace-nav a.selected{border-color:#594b29;background:#282316;color:#e0bd64;box-shadow:inset 0 0 0 1px #332b19}
-.stock-workspace-nav a.selected small{color:#a18b55}
+.stock-workspace-nav a.selected small{color:#ad9a6b}
 .stock-subpage-heading{display:flex;align-items:flex-start;gap:12px;margin:2px 0 10px;padding:10px 2px}
-.stock-subpage-heading>a{flex:0 0 auto;padding-top:2px;color:#a78f52;font-size:8px;font-weight:800;text-decoration:none}
+.stock-subpage-heading>a{flex:0 0 auto;padding-top:2px;color:#b09a63;font-size:8px;font-weight:800;text-decoration:none}
 .stock-subpage-heading>div{display:grid;gap:2px}
 .stock-subpage-heading h2{margin:0;font-size:18px}
-.stock-subpage-heading p{margin:0;color:#777a76;font-size:8px}
+.stock-subpage-heading p{margin:0;color:#9a9d9a;font-size:8px}
 .stock-transaction-centre{padding:10px;background:#131516}
 .stock-transaction-head{padding:2px 2px 5px}
 .stock-transaction-head h2{font-size:13px}
@@ -3812,7 +3812,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-action-card>summary>div{min-width:0}
 .stock-action-card>summary>div strong{font-size:10px}
 .stock-action-card>summary>div small{font-size:7.5px}
-.stock-action-card>summary:after{content:'›';margin-left:auto;color:#666963;font-size:17px;line-height:1;transform:rotate(90deg);transition:transform .15s ease}
+.stock-action-card>summary:after{content:'›';margin-left:auto;color:#9a9c98;font-size:17px;line-height:1;transform:rotate(90deg);transition:transform .15s ease}
 .stock-action-card[open]>summary:after{transform:rotate(-90deg)}
 .stock-action-card[open]{grid-column:1/-1;border-color:#4b432e}
 .stock-action-icon{width:28px;height:28px;border-radius:8px;font-size:15px}
@@ -3823,8 +3823,8 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-overview-links>a{display:flex;align-items:center;gap:8px;min-width:0;padding:9px;border:1px solid #303335;border-radius:11px;background:#151718;color:#c7c4bc;text-decoration:none}
 .stock-overview-links>a>div{display:grid;gap:2px;min-width:0}
 .stock-overview-links strong{overflow:hidden;font-size:9px;white-space:nowrap;text-overflow:ellipsis}
-.stock-overview-links small{overflow:hidden;color:#727570;font-size:7px;white-space:nowrap;text-overflow:ellipsis}
-.stock-overview-links>a>b{margin-left:auto;color:#9d8750;font-size:12px}
+.stock-overview-links small{overflow:hidden;color:#9b9d99;font-size:7px;white-space:nowrap;text-overflow:ellipsis}
+.stock-overview-links>a>b{margin-left:auto;color:#ad9a6c;font-size:12px}
 .stock-tool-icon{display:grid;place-items:center;flex:0 0 27px;width:27px;height:27px;border-radius:8px;background:#252116;color:#d3b45d;font-size:12px}
 .stock-products-section{margin-top:0}
 .stock-demand-forecast,.stock-history,.incoming-stock-section{margin-top:0}
@@ -3957,16 +3957,16 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .stock-workspace-dock{position:relative;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:6px;border-color:#2d3132;background:linear-gradient(180deg,#121515,#0f1212);box-shadow:0 8px 24px rgba(0,0,0,.12)}
 .stock-workspace-dock>a{position:relative;display:flex;align-items:center;justify-content:center;gap:7px;min-height:54px;padding:7px 8px;border-radius:10px;text-align:left;transition:background .18s ease,border-color .18s ease,transform .18s ease}
 .stock-workspace-dock>a:active{transform:scale(.97)}
-.stock-workspace-dock .stock-nav-icon{position:relative;display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;border-radius:9px;background:#191c1c;color:#747874;transition:background .18s ease,color .18s ease,box-shadow .18s ease}
+.stock-workspace-dock .stock-nav-icon{position:relative;display:grid;place-items:center;flex:0 0 29px;width:29px;height:29px;border-radius:9px;background:#191c1c;color:#9a9c9a;transition:background .18s ease,color .18s ease,box-shadow .18s ease}
 .stock-workspace-dock svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .stock-workspace-dock .stock-nav-icon i{position:absolute;top:-5px;right:-6px;display:grid;place-items:center;min-width:15px;height:15px;padding:0 4px;border:2px solid #111414;border-radius:999px;background:#d5b45b;color:#171510;font-size:6px;font-style:normal;font-weight:900}
 .stock-workspace-dock .stock-nav-copy{display:grid;gap:2px;min-width:0}
-.stock-workspace-dock .stock-nav-copy strong{color:#8d908b;font-size:8.5px;line-height:1.1}
-.stock-workspace-dock .stock-nav-copy small{overflow:hidden;color:#565a57;font-size:6.5px;line-height:1.1;white-space:nowrap;text-overflow:ellipsis}
+.stock-workspace-dock .stock-nav-copy strong{color:#9a9c98;font-size:8.5px;line-height:1.1}
+.stock-workspace-dock .stock-nav-copy small{overflow:hidden;color:#9a9c9a;font-size:6.5px;line-height:1.1;white-space:nowrap;text-overflow:ellipsis}
 .stock-workspace-dock>a.selected{border-color:#574925;background:linear-gradient(145deg,#2d281a,#242116);box-shadow:inset 0 0 0 1px rgba(211,178,87,.08),0 6px 16px rgba(0,0,0,.16)}
 .stock-workspace-dock>a.selected .stock-nav-icon{background:#3b321c;color:#e2bd5c;box-shadow:0 0 0 1px rgba(218,181,88,.12)}
 .stock-workspace-dock>a.selected .stock-nav-copy strong{color:#e1bd60}
-.stock-workspace-dock>a.selected .stock-nav-copy small{color:#907b48}
+.stock-workspace-dock>a.selected .stock-nav-copy small{color:#ab9b74}
 @media(max-width:760px){
  .stock-heading{display:flex;align-items:flex-end;gap:10px;margin-bottom:10px}
  .stock-heading>div{min-width:0}
@@ -4008,8 +4008,8 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .fridge-item-card.fridge-balance-card>.fridge-balance-three small{font-size:6px}
 .fridge-item-card.fridge-balance-card>.fridge-balance-three b{font-size:11px}
 .fridge-item-card.fridge-balance-card>.fridge-compact-actions{display:block;width:100%;margin:0;border-top:1px solid #292d2e}
-.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{position:relative;display:flex;align-items:center;justify-content:space-between;width:100%;min-height:35px;padding:8px 12px;color:#858984;font-size:7.5px;list-style:none}
-.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary:after{content:'›';color:#8d7741;font-size:14px;line-height:1;transform:rotate(90deg);transition:transform .16s ease}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{position:relative;display:flex;align-items:center;justify-content:space-between;width:100%;min-height:35px;padding:8px 12px;color:#9a9d99;font-size:7.5px;list-style:none}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary:after{content:'›';color:#ab9a72;font-size:14px;line-height:1;transform:rotate(90deg);transition:transform .16s ease}
 .fridge-item-card.fridge-balance-card>.fridge-compact-actions[open]>summary{color:#d2b159;background:#151817}
 .fridge-item-card.fridge-balance-card>.fridge-compact-actions[open]>summary:after{transform:rotate(-90deg)}
 .fridge-item-card.fridge-balance-card .fridge-compact-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;gap:7px;margin:0;padding:9px 10px 10px;border-top:1px solid #262a2a;background:#101313}
@@ -4115,7 +4115,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  }
  .fridge-overview-card>.fridge-value-summary small b{
    overflow:hidden;width:100%;
-   color:#777b77;font-size:6px!important;
+   color:#999c99;font-size:6px!important;
    text-transform:uppercase;letter-spacing:.25px;
    white-space:nowrap;text-overflow:ellipsis;
  }
@@ -4191,7 +4191,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  }
  .stock-availability-panel .stock-value-lines small b{
    width:100%;overflow:hidden;
-   color:#7d807c!important;
+   color:#9a9c99!important;
    font-size:6px!important;
    text-transform:uppercase;letter-spacing:.25px;
    white-space:nowrap;text-overflow:ellipsis;
@@ -4230,7 +4230,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  width:100%;margin:0;padding:8px 11px;border-top:1px solid #292d2e;
  background:linear-gradient(180deg,#121515,#101313);
 }
-.fridge-quick-adjust>span{color:#777b77;font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.65px}
+.fridge-quick-adjust>span{color:#999c99;font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.65px}
 .fridge-quick-adjust>div{display:flex;align-items:center;gap:5px}
 .fridge-quick-adjust button{
  display:grid;place-items:center;min-width:38px;min-height:31px;margin:0;padding:5px 9px;
@@ -4251,8 +4251,8 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 }
 .fridge-stock-shortfall>div{display:grid;gap:2px;min-width:0}
 .fridge-stock-shortfall strong{font-size:8px}
-.fridge-stock-shortfall small{color:#a3887a;font-size:6.5px;line-height:1.35}
-.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{color:#777b77}
+.fridge-stock-shortfall small{color:#af978b;font-size:6.5px;line-height:1.35}
+.fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{color:#999c99}
 @media(max-width:760px){
  .fridge-quick-adjust{min-height:45px;padding:7px 10px}
  .fridge-quick-adjust>span{font-size:7px}
@@ -4298,16 +4298,16 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .combined-stock-head>.combined-stock-icon{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;border-radius:10px;background:rgba(218,181,88,.12);color:#e1bd62}
 .combined-stock-head>span:nth-child(2){display:grid;gap:1px;min-width:0;text-align:left}
 .combined-stock-head>span:nth-child(2)>b{color:#d9d6cd;font-size:9px}
-.combined-stock-head>span:nth-child(2)>small{color:#77756c;font-size:6.5px}
-.combined-stock-head>i{margin-left:auto;padding:4px 7px;border:1px solid rgba(218,181,88,.15);border-radius:999px;background:rgba(218,181,88,.06);color:#9f884d;font-size:6px;font-style:normal;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.combined-stock-head>span:nth-child(2)>small{color:#9d9c95;font-size:6.5px}
+.combined-stock-head>i{margin-left:auto;padding:4px 7px;border:1px solid rgba(218,181,88,.15);border-radius:999px;background:rgba(218,181,88,.06);color:#ad9a68;font-size:6px;font-style:normal;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
 .combined-stock-hero{display:flex;align-items:baseline;justify-content:center;gap:7px;width:100%;padding:8px 0 4px}
 .combined-stock-hero>strong{color:#efcb74;font-size:38px;line-height:1;letter-spacing:-1.5px}
-.combined-stock-hero>span{color:#96958e;font-size:8px;font-weight:750}
+.combined-stock-hero>span{color:#9d9c96;font-size:8px;font-weight:750}
 .combined-stock-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%}
 .combined-stock-stats>span{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;gap:1px 6px;min-width:0;padding:8px;border:1px solid rgba(255,255,255,.065);border-radius:10px;background:rgba(8,10,10,.2);text-align:left}
-.combined-stock-stats .stat-icon{grid-row:1/3;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#20211d;color:#8d8d84}
+.combined-stock-stats .stat-icon{grid-row:1/3;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#20211d;color:#9c9c94}
 .combined-stock-stats .stat-icon svg{width:13px;height:13px}
-.combined-stock-stats small{align-self:end;color:#74756e;font-size:5.8px;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.combined-stock-stats small{align-self:end;color:#9b9c97;font-size:5.8px;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
 .combined-stock-stats b{align-self:start;color:#e4e1d8;font-size:13px;line-height:1.1}
 .combined-stock-stats>span.available{border-color:rgba(218,181,88,.22);background:rgba(218,181,88,.07)}
 .combined-stock-stats>span.available .stat-icon{background:#352e1c;color:#e0bb5e}
@@ -4317,7 +4317,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .combined-stock-money .money-icon{display:grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:9px;background:rgba(218,181,88,.09);color:#c7a856}
 .combined-stock-money .money-icon svg{width:14px;height:14px}
 .combined-stock-money>span>span{display:grid;gap:2px;min-width:0}
-.combined-stock-money small{color:#74756e;font-size:5.8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
+.combined-stock-money small{color:#9b9c97;font-size:5.8px;font-weight:800;text-transform:uppercase;letter-spacing:.3px}
 .combined-stock-money b{overflow:hidden;color:#e7e3d9;font-size:10px;white-space:nowrap;text-overflow:ellipsis}
 @media(max-width:760px){
  .fridge-overview-card.fridge-combined.combined-stock-v2{
@@ -4526,9 +4526,9 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  color:inherit;font:inherit;text-align:center;box-shadow:inset 0 0 0 1px rgba(218,181,88,.06);
  cursor:pointer;
 }
-.stock-reserved-trigger small{color:#8c8061!important;font-size:6px!important;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
+.stock-reserved-trigger small{color:#a49b82!important;font-size:6px!important;font-weight:800;text-transform:uppercase;letter-spacing:.35px}
 .stock-reserved-trigger b{color:#e0bd64!important;font-size:18px!important;line-height:1}
-.stock-reserved-trigger em{color:#9d874e;font-size:5.5px;font-style:normal;font-weight:750}
+.stock-reserved-trigger em{color:#ad9a6a;font-size:5.5px;font-style:normal;font-weight:750}
 .stock-reserved-trigger:active{transform:scale(.97)}
 .stock-reservation-dialog{
  width:min(520px,calc(100vw - 24px));max-width:520px;margin:auto;padding:0;
@@ -4625,7 +4625,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .reorder-card-v2 .reorder-status{max-width:none;padding:5px 7px;font-size:6.5px;text-transform:uppercase;letter-spacing:.25px}
 .reorder-stock-strip{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;margin:0!important;padding:9px 10px!important}
 .reorder-stock-strip>div{display:grid!important;grid-template-columns:auto 1fr!important;grid-template-rows:auto auto!important;align-items:center;column-gap:6px!important;min-width:0!important;padding:7px 8px!important;border-radius:10px!important}
-.reorder-stock-strip .reorder-mini-icon{grid-row:1/3;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#1b1e1e;color:#777b77;font-size:7px;font-weight:900}
+.reorder-stock-strip .reorder-mini-icon{grid-row:1/3;display:grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#1b1e1e;color:#999c99;font-size:7px;font-weight:900}
 .reorder-stock-strip .reorder-mini-icon.total{background:#332b18;color:#dfba5e}
 .reorder-stock-strip small{margin:0!important;font-size:6px!important;line-height:1!important}.reorder-stock-strip strong{margin:2px 0 0!important;font-size:15px!important;line-height:1!important}
 .reorder-plan-flow{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr) 12px minmax(0,1.2fr);align-items:center;gap:3px;margin:0 10px 9px;padding:8px;border:1px solid #292d2d;border-radius:11px;background:#101313}
@@ -4702,7 +4702,7 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .ios-fridge-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 9px 7px}
 .ios-fridge-row>div{display:grid;grid-template-columns:23px minmax(0,1fr);grid-template-rows:auto auto;align-items:center;column-gap:6px;padding:7px;border:1px solid #292d2d;border-radius:10px;background:#111414}
 .ios-person-dot{grid-row:1/3;display:grid;place-items:center;width:23px;height:23px;border-radius:8px;background:#1d2020;color:#818580;font-size:7px;font-weight:900}
-.ios-person-dot.all{background:#332b18;color:#dfba5e}.ios-fridge-row small{color:#6d716d;font-size:6px}.ios-fridge-row strong{font-size:14px;line-height:1}.ios-fridge-row .total{border-color:#514526}
+.ios-person-dot.all{background:#332b18;color:#dfba5e}.ios-fridge-row small{color:#999c99;font-size:6px}.ios-fridge-row strong{font-size:14px;line-height:1}.ios-fridge-row .total{border-color:#514526}
 .ios-plan-row{display:grid;grid-template-columns:minmax(0,1fr) 12px minmax(0,1fr) 12px minmax(0,1.15fr);align-items:center;gap:3px;margin:0 9px 7px;padding:7px;border:1px solid #292d2d;border-radius:10px;background:#101313}
 .ios-plan-row>div{display:grid;gap:2px;min-width:0}.ios-plan-row small{color:#696d69;font-size:6px}.ios-plan-row strong{font-size:12px;line-height:1.15}.ios-plan-row>span{color:#555a56;font-size:9px;text-align:center}
 .ios-plan-row .gap{padding:5px;border-radius:7px;background:#302817}.ios-plan-row .gap small{color:#9d8448}.ios-plan-row .gap strong{color:#e3bd61}

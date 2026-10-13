@@ -47,6 +47,15 @@ The app can mirror orders into the `ANKH Admin Orders` spreadsheet while keeping
 New orders and later status changes are then mirrored automatically. Google sync failures are recorded separately and do not roll back or block the SQLite order save.
 
 ## Validation
+### Stylesheets
+
+Edit `style.css`, then run `npm ci` and `npm run build:css`. Commit the generated
+`style.min.css` and `style.core.min.css` alongside the source. Supplier Centre
+uses the full minified stylesheet; other screens omit rules scoped exclusively
+to Supplier Centre. Shared selectors and cascade order are preserved. Both
+Krystal deployment paths copy the generated assets; older deployment hooks can
+fall back to `style.css` until those assets are available.
+
 Source was reviewed for escaping, prepared queries, server-side validation and authorization checks. This authoring environment did not have a PHP runtime, so PHP lint and browser/database end-to-end testing still need to be run before real customer use:
 - php -l index.php
 - php -l setup.php
