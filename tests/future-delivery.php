@@ -176,7 +176,7 @@ check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>0,'status'=>'New'
 check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>2000])==='Part paid','A deposit should display Part paid.');
 check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>7000])==='Paid','Overpayments should not display unpaid.');
 $futureUiStart=strpos($source,'<div class="focus-worklist layout-');
-$futureUiEnd=strpos($source,'<details class="dashboard-insight dashboard-secondary focus-business-insights"',$futureUiStart);
+$futureUiEnd=strpos($source,'<!-- dashboard-worklist-end -->',$futureUiStart);
 check($futureUiStart!==false && $futureUiEnd!==false,'Unified worklist must render future deliveries.');
 $futureUi=substr($source,$futureUiStart,$futureUiEnd-$futureUiStart);
 check(str_contains($futureUi,'<details class="todo-card todo-accordion focus-order"') && str_contains($futureUi,'<summary class="todo-accordion-summary"'),'All worklist cards must expand when tapped.');

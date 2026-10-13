@@ -3425,10 +3425,13 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
  <a href="?view=supplier&amp;tab=order"><span aria-hidden="true">◎</span><strong>Buy stock</strong></a>
  <a href="?view=reports"><span aria-hidden="true">↗</span><strong>Reports</strong></a>
 </nav>
-<div class="dashboard-stats focus-summary">
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($dashboardDeliveries)?></strong><small>Includes future orders</small></a>
+<div class="dashboard-stats">
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=today_sales"><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
+<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>All-time gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
+<a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
 <section class="todo-board dashboard-action-queue" id="dashboard-actions">
 <div class="todo-board-head"><div><h2>Your worklist</h2><p class="muted focus-work-count"><?=count($dashboardWork)?> order<?=count($dashboardWork)===1?'':'s'?></p></div><?php if($stockShortages):?><a class="queue-stock-warning" href="#dashboard-stock-shortage"><?=$stockShortageUnits?> stock short ↓</a><?php endif;?></div>
@@ -3467,11 +3470,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php endforeach;?>
 <?php if(!$dashboardWork):?><p class="queue-empty" role="status">No orders need action in this view.</p><?php endif;?>
 </div></section>
-<details class="dashboard-insight dashboard-secondary focus-business-insights"><summary>Business insights <span>Sales · Profit · Stock ⌄</span></summary><div class="dashboard-stats">
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
-<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>All-time gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
-<a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
-</div></details>
+<!-- dashboard-worklist-end -->
 <?php if($stockShortages):?>
 <details class="dashboard-stock-shortage dashboard-secondary" id="dashboard-stock-shortage">
  <summary class="stock-shortage-header">
