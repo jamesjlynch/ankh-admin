@@ -5273,7 +5273,12 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
 <script>
 (()=>{const report=document.querySelector('.ux-report-options');if(report&&window.matchMedia&&window.matchMedia('(max-width: 760px)').matches)report.open=false;
  const active=document.querySelector('.ux-mobile-scopes a[aria-current="page"],.report-tabs a.selected,.sc-tabs a[aria-current="page"]');
- if(active&&active.closest('nav')&&window.innerWidth<=760){active.scrollIntoView({block:'nearest',inline:'nearest'});}
+ const strip=active?.closest('nav');
+ if(strip&&window.innerWidth<=760){
+  // Scroll only the horizontal chip strip, never jump the full iPhone page.
+  const offset=active.getBoundingClientRect().left-strip.getBoundingClientRect().left;
+  strip.scrollLeft+=offset-(strip.clientWidth-active.offsetWidth)/2;
+ }
 })();
 </script>
 </body></html>
