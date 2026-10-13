@@ -3359,6 +3359,13 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <?php if(!empty($_SESSION['flash'])):?><div class="flash-confirmation"><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><?php unset($_SESSION['flash']);?></div><?php endif;?>
 <?php if($view==='dashboard'): ?>
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted page-description">What needs attention and how the business is doing.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<nav class="ux-mobile-actions" aria-label="Quick actions">
+ <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
+ <a href="?view=orders&amp;scope=to_deliver"><span aria-hidden="true">↗</span><strong>Deliveries</strong></a>
+ <a href="?view=stock"><span aria-hidden="true">▣</span><strong>Stock</strong></a>
+ <a href="?view=supplier&amp;tab=order"><span aria-hidden="true">◎</span><strong>Buy stock</strong></a>
+ <a href="?view=reports"><span aria-hidden="true">↗</span><strong>Reports</strong></a>
+</nav>
 <div class="dashboard-stats">
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=today_sales"><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></a>
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
@@ -3518,6 +3525,13 @@ $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['t
 ?>
 <div class="heading"><div><h1>Orders</h1><p class="muted page-description">Search, update or repeat any order.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <div class="orders-section-tabs"><a href="?view=orders" class="<?=$ordersSection==='all'?'selected':''?>">All orders <b><?=count($orders)?></b></a><a href="?view=orders&amp;section=recurring" class="<?=$ordersSection==='recurring'?'selected':''?>">Recurring <b><?=count($retaCyclesActive)?></b></a></div>
+<nav class="ux-mobile-scopes" aria-label="Find orders quickly">
+ <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
+ <a href="?view=orders&amp;scope=unpaid" <?=$orderScope==='unpaid'?'aria-current="page"':''?>>Unpaid</a>
+ <a href="?view=orders&amp;scope=to_deliver" <?=$orderScope==='to_deliver'?'aria-current="page"':''?>>To deliver</a>
+ <a href="?view=orders&amp;section=recurring" <?=$ordersSection==='recurring'?'aria-current="page"':''?>>Recurring</a>
+ <a href="?view=orders&amp;scope=today_sales" <?=$orderScope==='today_sales'?'aria-current="page"':''?>>Today</a>
+</nav>
 <?php if($ordersSection==='recurring'):?>
 <?php
 $recurringRange=forecastDateRange($retaToday,(string)($_GET['range']??'30'),(string)($_GET['from']??''),(string)($_GET['to']??''),[7,14,30]);
@@ -3583,7 +3597,8 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php else:?>
 <?php if($orderScope!==''):?><div class="order-scope-banner"><div><strong><?=e($orderScopes[$orderScope])?></strong><small><?=count($listedOrders)?> orders · <?=money($listedValue)?><?=$orderScope==='unpaid'?' outstanding':''?></small></div><a class="quick-action quiet" href="?view=orders">All orders →</a></div><?php endif;?>
 <div class="stats compact-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div>
-<div class="filters"><label>Search orders<input id="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
+<div class="filters ux-order-filters"><label>Search orders<input id="search" type="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
+<p class="ux-result-count" id="ux-order-visible" role="status" aria-live="polite"><?=count($listedOrders)?> orders</p>
 <div class="order-list">
 <?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderPreparationBadge($o);?><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div>
@@ -4015,6 +4030,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php elseif($view==='customers'):?>
 <div class="heading customer-heading"><div><h1>Customers</h1><p class="muted page-description">Search, contact or start another order.</p></div><div class="customer-heading-actions"><a class="quick-action customer-balances-link" href="?view=balances">Balances<?php if($balancesTotalOutstanding>0):?> · <?=money($balancesTotalOutstanding)?><?php endif;?></a><button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button></div></div>
 <div class="customer-page-filters"><label>Search customers<input id="customer-page-search" type="search" placeholder="Name, phone, address or product"></label><label>Show<select id="customer-status-filter"><option value="active">Active</option><option value="archived">Archived</option><option value="all">All</option></select></label></div>
+<p class="ux-result-count" id="ux-customer-visible" role="status" aria-live="polite"></p>
 <form method="post" class="panel customer-form" id="add-customer-panel" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><div class="customer-form-title"><h2>Add customer</h2><button type="button" class="quiet customer-form-close" data-close-customer-form>Cancel</button></div><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><button>Save customer</button></form>
 <div id="customer-list">
 <?php foreach($storedCustomers as $c):
@@ -4202,7 +4218,9 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <a class="<?=$reportType===$tabKey?'selected':''?>" href="?<?=e(http_build_query($tabParams))?>"><?=$tabTitle?></a><?php endforeach;?>
 </nav>
 <?php endif;?>
-<?php if(!in_array($reportType,['profit','reorder'],true)):?><form class="report-filter-bar" method="get">
+<?php if(!in_array($reportType,['profit','reorder'],true)):?>
+<details class="ux-report-options" open><summary><span>Dates, filters &amp; exports</span><span aria-hidden="true">⌄</span></summary>
+<form class="report-filter-bar" method="get">
 <input type="hidden" name="view" value="reports"><input type="hidden" name="type" value="<?=e($reportType)?>">
 <label>Period<select name="range" id="report-range">
 <?php if($reportType==='recurring'):?>
@@ -4213,7 +4231,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 </select></label>
 <label>From<input type="date" name="from" value="<?=e($reportFrom)?>" onchange="document.getElementById('report-range').value='custom'"></label><label>To<input type="date" name="to" value="<?=e($reportTo)?>" onchange="document.getElementById('report-range').value='custom'"></label><button>Apply</button>
 <?php if(!$reportRangeError):?><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><?php endif;?><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button>
-</form>
+</form></details>
 <?php if($reportRangeError):?><p class="error report-warning">Choose both dates to run a custom report.</p><?php else:?><p class="report-range-note">Showing <strong><?=e($reportWindowLabel)?></strong><?php if($reportFrom!==''||$reportTo!==''):?> · <?=e($reportFrom?:'Start')?> to <?=e($reportTo?:'Today')?><?php endif;?>. Order value is based on order date; cash received is based on payment date.</p><?php endif;?>
 <?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">The target includes your low-stock alert, estimated non-recurring demand during the 7-day supplier wait, and potential repeat orders due in the next 30 days. Current open orders are already reserved out of available stock. Suggested quantities are rounded up to full supplier packs.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
 <div class="report-infographic-actions"><button type="button" id="report-infographic-download">☥&nbsp; Create square infographic</button><span id="report-infographic-status" aria-live="polite"></span></div>
@@ -4859,7 +4877,7 @@ document.querySelectorAll('[data-close-customer-form]').forEach(b=>b.addEventLis
 document.querySelectorAll('[data-edit-customer]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.editCustomer,form=document.querySelector('[data-customer-form="'+id+'"]');if(!form)return;const open=form.hidden;form.hidden=!open;b.setAttribute('aria-expanded',open?'true':'false');b.textContent=open?'Hide edit':'Edit customer';if(open)form.querySelector('input[name="name"]')?.focus()}));
 document.querySelectorAll('[data-cancel-customer-edit]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.cancelCustomerEdit,form=document.querySelector('[data-customer-form="'+id+'"]'),toggle=document.querySelector('[data-edit-customer="'+id+'"]');if(form)form.hidden=true;if(toggle){toggle.setAttribute('aria-expanded','false');toggle.textContent='Edit customer'}}));
 const customerPageSearch=document.querySelector('#customer-page-search'),customerStatusFilter=document.querySelector('#customer-status-filter'),customerCards=[...document.querySelectorAll('[data-customer-search]')],customerPageEmpty=document.querySelector('#customer-page-empty');
-function filterCustomerPage(){if(!customerCards.length)return;const term=(customerPageSearch?.value||'').toLowerCase().trim(),mode=customerStatusFilter?.value||'active';let visible=0;customerCards.forEach(card=>{const archived=card.dataset.customerArchived==='1',statusOk=mode==='all'||(mode==='archived'?archived:!archived),searchOk=!term||card.dataset.customerSearch.includes(term);card.hidden=!(statusOk&&searchOk);if(!card.hidden)visible++});if(customerPageEmpty)customerPageEmpty.hidden=visible>0}
+function filterCustomerPage(){const term=(customerPageSearch?.value||'').toLowerCase().trim(),mode=customerStatusFilter?.value||'active';let visible=0;customerCards.forEach(card=>{const archived=card.dataset.customerArchived==='1',statusOk=mode==='all'||(mode==='archived'?archived:!archived),searchOk=!term||card.dataset.customerSearch.includes(term);card.hidden=!(statusOk&&searchOk);if(!card.hidden)visible++});if(customerPageEmpty)customerPageEmpty.hidden=visible>0;const label=document.querySelector('#ux-customer-visible');if(label)label.textContent=visible+' customer'+(visible===1?'':'s')+' shown'}
 customerPageSearch?.addEventListener('input',filterCustomerPage);customerStatusFilter?.addEventListener('change',filterCustomerPage);filterCustomerPage();
 
 const wizard=document.querySelector('#order-wizard'),wizardSteps=[...document.querySelectorAll('[data-wizard-step]')],wizardProgress=[...document.querySelectorAll('[data-progress-step]')],clearDraftButton=document.querySelector('#clear-draft');
@@ -5072,8 +5090,8 @@ document.querySelectorAll('[data-recent-customer]').forEach(button=>button.addEv
 document.addEventListener('click',e=>{if(customerResults&&!e.target.closest('.customer-search-wrap'))customerResults.hidden=true});
 
 const search=document.querySelector('#search'),filter=document.querySelector('#filter');
-function applyFilters(){if(!search||!filter)return;let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});const empty=document.querySelector('#empty');if(empty)empty.hidden=visible>0}
-search?.addEventListener('input',applyFilters);filter?.addEventListener('change',applyFilters);
+function applyFilters(){if(!search||!filter)return;let visible=0;document.querySelectorAll('.order-list .order').forEach(o=>{o.hidden=!(o.dataset.search.includes(search.value.toLowerCase().trim())&&(!filter.value||o.dataset.status===filter.value));if(!o.hidden)visible++});const empty=document.querySelector('#empty');if(empty)empty.hidden=visible>0;const label=document.querySelector('#ux-order-visible');if(label)label.textContent=visible+' order'+(visible===1?'':'s')+' shown'}
+search?.addEventListener('input',applyFilters);filter?.addEventListener('change',applyFilters);applyFilters();
 
 function productGroups(){
  const groups=new Map();productCatalog.filter(p=>p.active).forEach(product=>{const key=(product.base||product.name).toLowerCase();if(!groups.has(key))groups.set(key,{base:product.base||product.name,products:[]});groups.get(key).products.push(product)});return [...groups.values()];
@@ -5251,5 +5269,11 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
  checkbox.addEventListener('change',()=>{save.hidden=false;form.requestSubmit();});
  form.addEventListener('submit',()=>{save.disabled=true;form.setAttribute('aria-busy','true');});
 });
+</script>
+<script>
+(()=>{const report=document.querySelector('.ux-report-options');if(report&&window.matchMedia&&window.matchMedia('(max-width: 760px)').matches)report.open=false;
+ const active=document.querySelector('.ux-mobile-scopes a[aria-current="page"],.report-tabs a.selected,.sc-tabs a[aria-current="page"]');
+ if(active&&active.closest('nav')&&window.innerWidth<=760){active.scrollIntoView({block:'nearest',inline:'nearest'});}
+})();
 </script>
 </body></html>
