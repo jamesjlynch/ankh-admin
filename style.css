@@ -5370,3 +5370,73 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .incoming-by-product{padding:10px}
  .incoming-by-product-row{padding:10px}
 }
+
+
+/* ANKH iPhone usability pass: compact tiles, one-tap actions and progressive disclosure.
+   Desktop remains unchanged. Avoid persistent extra fixed bars over the existing app nav. */
+.ux-mobile-actions,.ux-mobile-scopes{display:none}
+.ux-result-count{margin:-4px 0 11px;color:#999c95;font-size:12px;font-weight:600}
+.ux-report-options{margin:0}
+.ux-report-options>summary{display:none}
+.ux-mobile-actions a:focus-visible,.ux-mobile-scopes a:focus-visible,.ux-report-options>summary:focus-visible,.more-card:focus-visible{
+ outline:2px solid #e1bc6c;outline-offset:3px
+}
+@media(max-width:760px){
+ .ux-mobile-actions{display:flex;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:8px -6px 11px;padding:2px 6px 6px}
+ .ux-mobile-actions::-webkit-scrollbar,.ux-mobile-scopes::-webkit-scrollbar{display:none}
+ .ux-mobile-actions a{display:flex;flex:0 0 auto;align-items:center;gap:7px;min-width:118px;min-height:50px;padding:10px 12px;border:1px solid #383a3b;border-radius:13px;background:#1b1d1d;color:#e9e7de;text-decoration:none;scroll-snap-align:start}
+ .ux-mobile-actions a span{display:grid;place-items:center;flex:none;width:25px;height:25px;border-radius:8px;background:#322a19;color:#e1b965;font-size:17px;font-weight:700}
+ .ux-mobile-actions a strong{font-size:12px;white-space:nowrap}
+ .ux-mobile-actions .ux-action-primary{background:#302718;border-color:#7c6334;color:#f0d99c}
+ .dashboard-stats{gap:7px;margin:10px 0 14px}
+ .dashboard-stat-card{padding:11px 10px;border-radius:12px}
+ .dashboard-stat-card span{font-size:11px}
+ .dashboard-stat-card strong{overflow-wrap:anywhere}
+ .dashboard-heading{margin-bottom:4px}
+ .ux-mobile-scopes{display:flex;gap:7px;overflow-x:auto;scroll-snap-type:x proximity;overscroll-behavior-x:contain;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:3px 2px 9px;margin:2px 0 7px}
+ .ux-mobile-scopes a{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;min-height:43px;padding:9px 13px;border:1px solid #353839;border-radius:999px;color:#c6c7be;background:#191b1c;text-decoration:none;font-size:11px;font-weight:750;white-space:nowrap;scroll-snap-align:start}
+ .ux-mobile-scopes a[aria-current=page]{border-color:#b18c44;background:#352a16;color:#f3d68e}
+ .orders-section-tabs{margin-bottom:5px}
+ .ux-order-filters{display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,35%);gap:7px;margin-bottom:10px}
+ .ux-order-filters label{min-width:0;font-size:11px;margin:0}
+ .ux-order-filters input,.ux-order-filters select{min-height:45px;height:45px;margin-top:5px;padding:9px 8px;font-size:16px}
+ .ux-result-count{font-size:11px;margin:-1px 1px 10px}
+ .customer-page-filters{display:grid;grid-template-columns:minmax(0,1fr) 118px;align-items:end;gap:8px;margin:9px 0 6px}
+ .customer-page-filters label{min-width:0;margin:0;font-size:11px}
+ .customer-page-filters input,.customer-page-filters select{width:100%;min-height:45px;height:45px;padding:9px 10px;margin-top:5px;font-size:16px}
+ .customer-heading .page-description{display:none}
+ .customer-card>summary{padding:12px 10px;min-height:67px}
+ .customer-card>summary h2{font-size:15px}
+ .customer-card-summary{gap:1px}
+ .customer-card-summary strong{font-size:15px}
+ .ux-report-options{border:1px solid #393b3c;border-radius:13px;background:#17191a;margin:4px 0 10px}
+ .ux-report-options>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:47px;padding:11px 13px;font-size:12px;font-weight:750;color:#e4c47d;cursor:pointer;list-style:none}
+ .ux-report-options>summary::-webkit-details-marker{display:none}
+ .ux-report-options>summary span:last-child{font-size:17px;transition:transform .2s}
+ .ux-report-options[open]>summary span:last-child{transform:rotate(180deg)}
+ .ux-report-options[open]>summary{border-bottom:1px solid #363838}
+ .ux-report-options .report-filter-bar{margin:0;padding:12px 10px;background:transparent;border:0;border-radius:0}
+ .report-tabs{scroll-snap-type:x proximity;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ .report-tabs a{flex:none;scroll-snap-align:start;white-space:nowrap}
+ .more-grid:not(.utility-grid){grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+ .more-grid:not(.utility-grid) .more-card{position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;min-width:0;min-height:121px;gap:7px;padding:12px 10px;border-radius:13px}
+ .more-grid:not(.utility-grid) .more-icon{display:grid;place-items:center;margin:0;width:31px;height:31px;min-width:31px;border-radius:10px;font-size:17px}
+ .more-grid:not(.utility-grid) .more-card>div{min-width:0;width:100%}
+ .more-grid:not(.utility-grid) .more-card h2{font-size:12px;line-height:1.2;margin:0 0 2px}
+ .more-grid:not(.utility-grid) .more-card p{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;font-size:10px;line-height:1.3;margin:0;color:#9fa09b}
+ .more-grid:not(.utility-grid) .more-card>b{position:absolute;right:10px;top:13px;font-size:16px}
+ .sc-catalogue-heading>span{min-width:0;overflow-wrap:anywhere}
+ .sc-catalogue-heading>span small{overflow-wrap:anywhere}
+ .sc-catalogue-heading{gap:7px}
+ .sc-catalogue-heading>b{flex:0 0 auto}
+}
+@media(max-width:370px){
+ .ux-order-filters{grid-template-columns:minmax(0,1fr) 108px}
+ .more-grid:not(.utility-grid) .more-card{min-height:130px}
+ .more-grid:not(.utility-grid) .more-card h2{font-size:11px}
+ .customer-page-filters{grid-template-columns:minmax(0,1fr) 105px}
+}
+@media(prefers-reduced-motion:reduce){
+ .ux-mobile-actions,.ux-mobile-scopes,.report-tabs{scroll-behavior:auto}
+ .ux-report-options>summary span:last-child{transition:none}
+}
