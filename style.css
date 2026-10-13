@@ -5494,3 +5494,84 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 @media(prefers-reduced-motion:reduce){
  .ux-incoming-disclosure-icon{transition:none}
 }
+
+/* iPhone recording review: compact work queues and unobstructed controls. */
+.ios-status-bar{display:none}
+.app-brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.order-buyer-caption{margin:3px 0 6px;color:#b7b8b1;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.dashboard-action-queue{scroll-margin-top:calc(14px + env(safe-area-inset-top))}
+.dashboard-action-queue .todo-board-head{align-items:center}
+.dashboard-action-queue .todo-columns{grid-template-columns:minmax(0,1fr)}
+.dashboard-queue-tabs{position:static;inset:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px;padding:0;border:0;background:transparent;backdrop-filter:none}
+.dashboard-queue-tabs a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:10px 8px;border:1px solid #393c3d;border-radius:12px;color:#d8d9d2;background:#181b1c;font-size:13px;font-weight:700;line-height:1.3;text-decoration:none}
+.dashboard-queue-tabs a b{display:grid;place-items:center;min-width:23px;min-height:23px;padding:2px 5px;border-radius:999px;background:#292d2d;color:#dedfd8;font-size:11px}
+.dashboard-queue-tabs a[aria-current=page]{border-color:#aa8643;background:#32291a;color:#f2d692}
+.dashboard-queue-tabs a[aria-current=page] b{background:#574323;color:#f8dfa7}
+.queue-stock-warning{flex-shrink:0;padding:8px 10px;border:1px solid #7e6236;border-radius:10px;background:#30271a;color:#f0cd85;font-size:12px;text-decoration:none;min-height:44px;display:flex;align-items:center}
+.queue-empty{padding:24px 14px;margin:0;border:1px dashed #414544;border-radius:13px;color:#b8bcb5;font-size:14px;line-height:1.5;text-align:center}
+.dashboard-secondary{scroll-margin-top:calc(14px + env(safe-area-inset-top))}
+.dashboard-secondary>summary{min-height:64px;padding:14px;cursor:pointer;list-style:none}
+.dashboard-secondary>summary::-webkit-details-marker{display:none}
+.dashboard-secondary>summary:focus-visible,.dashboard-queue-tabs a:focus-visible,.order-disclosure>summary:focus-visible{outline:2px solid #dfb666;outline-offset:3px}
+.dashboard-stock-shortage>summary{min-height:72px;padding:0;margin-bottom:0}
+.dashboard-stock-shortage>summary:after{content:'⌄';font-size:20px;color:#e5c174;align-self:center}
+.dashboard-stock-shortage[open]>summary:after{content:'⌃'}
+.dashboard-stock-shortage .stock-shortage-list{margin-top:14px}
+.dashboard-insight{border:1px solid #323536;border-radius:14px;background:#17191a;margin:12px 0;overflow:hidden}
+.dashboard-insight>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:15px;color:#ece9de}
+.dashboard-insight>summary>span{font-size:11px;color:#c9b98f;white-space:nowrap}
+.dashboard-insight .dashboard-primary-panel{margin:0}
+.dashboard-insight .panel{border:0;margin:0}
+.order-disclosure{margin:12px 0;border:1px solid #343737;border-radius:12px;background:#151818;overflow:hidden}
+.order-disclosure>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px;min-height:48px;color:#e4c781;font-size:14px;font-weight:650;list-style:none}
+.order-disclosure>summary::-webkit-details-marker{display:none}
+.order-disclosure[open]>summary{border-bottom:1px solid #343737}
+.order-disclosure>.order-quick-actions,.order-disclosure>.order-meta,.order-disclosure>.status-form,.order-disclosure>.delete-order-form,.order-disclosure>.order-date-editor{margin:12px}
+.order-information>.line,.order-information>.address,.order-information>.note{margin:0 12px}
+.order-information>.order-meta{padding:0}
+.order-secondary-actions>.delete-order-form{padding-bottom:12px}
+@media(max-width:760px){
+ .ios-status-bar{display:block;position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#101112;z-index:900;pointer-events:none}
+ aside{padding:12px 16px!important}
+ .app-brand-row{min-height:44px}
+ aside:has(>form) .app-brand-row{padding-right:82px}
+ .app-brand-row .ankh-assistant-button{position:static!important;inset:auto!important;flex:0 0 44px;width:44px!important;min-width:44px!important;height:44px!important;min-height:44px;z-index:auto!important;margin:0;padding:0!important;border:1px solid #7b6337;border-radius:12px;box-shadow:none;transform:none;display:grid;place-items:center;background:#282219}
+ .app-brand-row .assistant-button-ring,.app-brand-row .assistant-button-label{display:none}
+ .app-brand-row .assistant-button-icon{font-size:21px}
+ .dashboard-stats{gap:7px;margin:10px 0 14px}
+ .dashboard-stat-card{padding:10px 11px;min-height:84px}
+ .dashboard-stat-card>span{font-size:11px;line-height:1.3;min-height:0}
+ .dashboard-stat-card>strong{font-size:24px;margin:7px 0 5px;line-height:1.1}
+ .dashboard-stat-card>small{font-size:10px;line-height:1.35;min-height:0}
+ .dashboard-action-queue .todo-board-head h2{font-size:21px}
+ .dashboard-action-queue .todo-column{padding:0;border:0;background:transparent}
+ .dashboard-action-queue .todo-column-title{margin:0 0 10px;padding:4px 2px}
+ .dashboard-action-queue .todo-column-title h3{font-size:15px}
+ .dashboard-action-queue .todo-column-title small{font-size:11px}
+ .dashboard-action-queue .todo-icon,.dashboard-action-queue .todo-column-title>strong{display:none}
+ .dashboard-action-queue .todo-accordion-summary{gap:10px;padding:12px}
+ .dashboard-action-queue .todo-accordion-main h3,.dashboard-action-queue .future-order-copy h3{font-size:16px;line-height:1.3}
+ .dashboard-action-queue .todo-accordion-products span{font-size:12px;line-height:1.4}
+ .dashboard-action-queue .order-buyer-caption{font-size:11px;margin:2px 0 6px}
+ .dashboard-action-queue .delivery-plan-date{font-size:11px;line-height:1.4;white-space:normal;padding:5px 8px}
+ .dashboard-action-queue .future-order-card{padding:12px}
+ .dashboard-action-queue .future-order-copy{flex:1}
+ .dashboard-action-queue .future-order-side{max-width:92px}
+ .dashboard-stock-shortage .stock-shortage-header{gap:9px}
+ .dashboard-stock-shortage .stock-shortage-heading-copy p:not(.eyebrow){display:none}
+ .dashboard-stock-shortage .stock-shortage-header h2{font-size:16px}
+ .dashboard-stock-shortage .stock-shortage-header .eyebrow{font-size:9px}
+ .dashboard-stock-shortage .stock-shortage-total{min-width:48px}
+ .order-disclosure>summary{font-size:13px;min-height:48px}
+ .compact-order>summary h2{font-size:16px}
+ .compact-order>summary .order-buyer-caption{font-size:11px}
+}
+@media(max-width:360px){
+ .dashboard-action-queue .todo-board-head{align-items:flex-start;gap:8px}
+ .dashboard-action-queue .todo-board-head h2{font-size:19px}
+ .queue-stock-warning{font-size:10px;padding:7px}
+ .dashboard-queue-tabs a{font-size:12px;gap:5px}
+ .dashboard-insight>summary{font-size:13px;gap:8px}
+ .dashboard-insight>summary>span{font-size:10px}
+}
+@media print{.ios-status-bar,.app-brand-row .ankh-assistant-button{display:none!important}}

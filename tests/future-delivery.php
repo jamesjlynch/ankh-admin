@@ -42,7 +42,7 @@ check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-1
 $ordersSection='all';$_GET=['scope'=>'to_deliver'];$paidStatuses=['Paid','Packed','Dispatched','Delivered'];$todayStart=$today->getTimestamp();$monthStart=$today->modify('first day of this month')->getTimestamp();
 $start=strpos($source,"$"."orderScopes=['today_sales'");$end=strpos($source,'?>',$start);
 check($start!==false&&$end!==false,'Order drill-down must exist.');eval(substr($source,$start,$end-$start));
-check(array_column($listedOrders,'id')===[2,3,4,5],'To-deliver drill-down must match Awaiting delivery.');
+check(array_column($listedOrders,'id')===[1,2,3,4,5],'To-deliver drill-down must include near-term and future deliveries until manually delivered.');
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 preg_match("/INSERT INTO orders\\(customer,recipient_name,[^']+\\)/",$source,$insertMatch);
 check(!empty($insertMatch),'Order insert must exist.');

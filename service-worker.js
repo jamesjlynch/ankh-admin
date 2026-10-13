@@ -1,4 +1,4 @@
-const CACHE='ankh-shell-v20-mobile-audit';
+const CACHE='ankh-shell-v22-iphone-recording';
 const SHELL=['./style.css','./style.min.css','./style.core.min.css','./manifest.webmanifest','./icon.svg','./splash.svg','./offline.html'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});

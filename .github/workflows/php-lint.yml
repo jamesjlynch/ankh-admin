@@ -46,6 +46,7 @@ jobs:
           php -l tests/incoming-product-breakdown.php
           php -l tests/mobile-app-ux.php
           php -l tests/mobile-incoming-ux.php
+          php -l tests/iphone-recording-ux.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
@@ -78,5 +79,7 @@ jobs:
         run: php tests/mobile-app-ux.php
       - name: Validate Stage 2 mobile Incoming Stock disclosures
         run: php tests/mobile-incoming-ux.php
+      - name: Validate iPhone recording queue and presentation changes
+        run: php tests/iphone-recording-ux.php
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
