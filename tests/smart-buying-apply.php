@@ -13,6 +13,7 @@ $db->exec("INSERT INTO supplier_catalogue(sku,name,strength,pack_size,box_usd_ce
  ('XX10','Sample','10mg',10,7000,1,''),('YY5','Second','5mg',10,4000,2,''),('375','LL37','5mg',10,3300,3,'')");
 $db->exec("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,expected_date,updated) VALUES
  (1,'{\"XX10\":3}','17.50','2026-11-25','2026-10-12')");
+$db->exec('UPDATE supplier_basket_drafts SET discount_usd_cents=6000 WHERE id=1');
 $_SESSION=[];
 $_POST=['boxes'=>['XX10'=>'2','YY5'=>'1',375=>'1'],'return'=>'supplier'];
 register_shutdown_function(static function()use($db):void{
@@ -20,7 +21,7 @@ register_shutdown_function(static function()use($db):void{
  if(!$row)throw new RuntimeException('Smart suggestions must be saved into the shared basket.');
  $chosen=json_decode((string)$row['boxes_json'],true);
  if(($chosen['XX10']??0)!==3||($chosen['YY5']??0)!==1||($chosen['375']??0)!==1)throw new RuntimeException('Existing basket quantities must not multiply or be overwritten by smaller suggestions.');
- if($row['shipping_gbp']!=='17.50'||$row['expected_date']!=='2026-11-25')throw new RuntimeException('Adding suggestions must not erase the current shipping or expected delivery date.');
+ if($row['shipping_gbp']!=='17.50'||$row['expected_date']!=='2026-11-25'||(int)$row['discount_usd_cents']!==6000)throw new RuntimeException('Adding suggestions must not erase the current shipping or expected delivery date.');
  if((int)$db->query('SELECT count(*) FROM supplier_orders')->fetchColumn()!==0)throw new RuntimeException('Buying assistant cannot place orders.');
  if((int)$db->query('SELECT count(*) FROM supplier_order_items')->fetchColumn()!==0)throw new RuntimeException('Buying assistant cannot create incoming receipts.');
  if((int)$db->query('SELECT stock_jay_qty FROM products WHERE id=1')->fetchColumn()!==1)throw new RuntimeException('Buying assistant must not change physical stock.');

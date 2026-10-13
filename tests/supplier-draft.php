@@ -12,12 +12,12 @@ sc_setup($db);
 $db->exec("INSERT INTO supplier_catalogue(sku,name,strength,pack_size,box_usd_cents,updated) VALUES ('XX10','Sample','10mg',10,7000,''),('375','LL37','5mg',10,3300,'')");
 $_SESSION=[];
 // HTML input boxes[375] is converted to an integer array key by PHP, not a string.
-$_POST=['boxes'=>['XX10'=>'3',375=>'2'],'supplier_intent'=>'draft','shipping_usd'=>'70.00','expected_date'=>'2026-11-15'];
+$_POST=['boxes'=>['XX10'=>'3',375=>'2'],'supplier_intent'=>'draft','shipping_usd'=>'70.00','discount_usd'=>'60.00','expected_date'=>'2026-11-15'];
 register_shutdown_function(static function()use($db):void{
  $draft=$db->query('SELECT * FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC);
  if(!$draft)throw new RuntimeException('Shared supplier draft not saved.');
  $saved=json_decode($draft['boxes_json'],true);
- if(($saved['XX10']??0)!==3||($saved['375']??0)!==2||(int)$draft['shipping_usd_cents']!==7000||$draft['expected_date']!=='2026-11-15')throw new RuntimeException('Saved basket quantities, estimated shipping, or expected date are wrong.');
+ if(($saved['XX10']??0)!==3||($saved['375']??0)!==2||(int)$draft['shipping_usd_cents']!==7000||(int)$draft['discount_usd_cents']!==6000||$draft['expected_date']!=='2026-11-15')throw new RuntimeException('Saved basket quantities, estimated shipping, or expected date are wrong.');
  if((int)$db->query('SELECT COUNT(*) FROM supplier_orders')->fetchColumn()!==0)throw new RuntimeException('Saving a draft must not place an incoming supplier order.');
  $stock=(int)$db->query('SELECT stock_jay_qty FROM products WHERE id=1')->fetchColumn();
  if($stock!==2)throw new RuntimeException('Saving a draft must not alter fridge stock.');
