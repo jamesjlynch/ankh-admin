@@ -5294,3 +5294,24 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .sc-order-quick{gap:6px}
  .sc-order-quick button{padding:8px;font-size:10px}
 }
+
+
+/* Supplier basket — projected full-retail profit (not realised profit) */
+.sc-basket-profit{margin:13px 0 15px;padding:14px;border-radius:13px;border:1px solid #c7a76370;background:linear-gradient(145deg,#282419,#181c1b 85%)}
+.sc-basket-profit-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.sc-basket-profit-heading small{display:block;color:#c8ad76;font-size:10px;font-weight:700;letter-spacing:.045em;line-height:1.5}
+.sc-basket-profit-heading h4{margin:5px 0 0;font-size:15px;line-height:1.35;color:#f0e5ca}
+.sc-profit-spark{display:grid;place-items:center;flex:0 0 32px;height:32px;border-radius:9px;border:1px solid #dab66a55;color:var(--gold);font-size:22px}
+.sc-basket-profit-value{display:block;color:#e9c47d;font-size:30px;line-height:1.25;letter-spacing:-.035em;font-weight:800;margin:10px 0 12px;overflow-wrap:anywhere}
+.sc-basket-profit-breakdown{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.sc-basket-profit-breakdown>div{min-width:0;background:#101413dd;border:1px solid #3b3931;border-radius:9px;padding:9px 6px;text-align:center}
+.sc-basket-profit-breakdown span{font-size:10px;color:#b7b5aa;line-height:1.35;display:block}
+.sc-basket-profit-breakdown b{display:block;margin-top:5px;color:#f0e4c7;font-size:14px;overflow-wrap:anywhere}
+.sc-basket-profit-note{font-size:11px;line-height:1.5;color:#c2b9a6;margin:12px 0 0}
+.sc-order-quick .sc-quick-profit{color:#d2bd87;line-height:1.4;font-size:11px}
+@media(max-width:390px){
+ .sc-basket-profit{padding:11px}
+ .sc-basket-profit-value{font-size:26px}
+ .sc-basket-profit-breakdown b{font-size:12px}
+ .sc-basket-profit-breakdown span{font-size:9px}
+}

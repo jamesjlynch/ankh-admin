@@ -28,6 +28,7 @@ jobs:
           php -l tests/smart-buying.php
           php -l tests/smart-buying-apply.php
           php -l tests/supplier-flat-shipping.php
+          php -l tests/supplier-basket-profit.php
           php -l tests/supplier-mobile-ux.php
           php -l tests/supplier-stock-circles.php
           php -l tests/deploy-smoke.php
@@ -54,5 +55,7 @@ jobs:
         run: php tests/supplier-mobile-ux.php
       - name: Test combined available-vial stock circles
         run: php tests/supplier-stock-circles.php
+      - name: Test projected supplier basket gross profit including shipping
+        run: php tests/supplier-basket-profit.php
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
