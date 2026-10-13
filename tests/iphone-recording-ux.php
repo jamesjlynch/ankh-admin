@@ -24,7 +24,7 @@ recordingCheck(dashboardQueueView(['payment'=>0,'delivery'=>2,'future'=>1])==='a
 recordingCheck(dashboardQueueView(['payment'=>2],'bogus','future')==='future','Remembered valid empty filters must remain selectable.');
 recordingCheck(dashboardQueueView(['payment'=>2],'../settings','invalid')==='all','Unknown queue input must be rejected.');
 $start=strpos($source,'<section class="todo-board dashboard-action-queue"');
-$end=strpos($source,'<details class="dashboard-insight dashboard-secondary focus-business-insights"',$start);
+$end=strpos($source,'<!-- dashboard-worklist-end -->',$start);
 recordingCheck($start!==false&&$end!==false,'Queue must precede stock detail.');
 $template=substr($source,$start,$end-$start);
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('2026-10-13 12:00:00',$tz);
