@@ -2950,16 +2950,20 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
  .ankh-notification-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 12px}.ankh-notification-head h2{margin:0;font-size:18px}.ankh-notification-head small{color:#96988f}
  .ankh-notification-item{padding:13px;border:1px solid #30322e;border-radius:14px;background:#1b1d1a;margin-top:9px}.ankh-notification-item>a{display:block;color:inherit;text-decoration:none}.ankh-notification-item strong{display:block;font-size:14px;margin-bottom:4px}.ankh-notification-item p{margin:0;color:#a8aaa0;font-size:12px;line-height:1.4}
  .ankh-notification-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.ankh-notification-actions form{margin:0}.ankh-notification-actions button{padding:6px 9px;min-height:30px;border-radius:9px;font-size:10px}.ankh-notification-empty{padding:22px 10px;text-align:center;color:#9a9d95}
- .desktop-today-panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 20px}.desktop-today-panel>a{padding:14px;border:1px solid #34352f;border-radius:14px;background:#181a17;color:inherit;text-decoration:none}.desktop-today-panel span{display:block;color:#aaa99d;font-size:11px}.desktop-today-panel strong{display:block;margin-top:7px;font-size:19px}.desktop-today-panel small{display:block;margin-top:4px;color:#81847e;font-size:10px}
+ .desktop-dashboard-workspace{display:flex;flex-direction:column;gap:16px}
+ .desktop-today-panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0;order:-1}.desktop-today-panel>a{padding:14px;border:1px solid #34352f;border-radius:14px;background:#181a17;color:inherit;text-decoration:none}.desktop-today-panel span{display:block;color:#aaa99d;font-size:11px}.desktop-today-panel strong{display:block;margin-top:7px;font-size:19px}.desktop-today-panel small{display:block;margin-top:4px;color:#81847e;font-size:10px}
  .customer-intelligence-filters{display:flex;gap:7px;overflow:auto;padding:2px 0 12px}.customer-intelligence-filters button{white-space:nowrap;min-height:36px;padding:0 11px;border-radius:999px}.customer-intelligence-filters button.selected{background:#d8b65c;color:#111;border-color:#d8b65c}
- #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
  .customer-account-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
  .customer-account-grid{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}
  .profit-table thead th,.report-table thead th{position:sticky;top:0;z-index:2}
  .profit-table tbody tr:hover,.report-table tbody tr:hover{background:rgba(218,185,91,.045)}
 }
-@media (min-width:1100px){
- .desktop-today-panel{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (min-width:1000px){
+ #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
+}
+@media (min-width:1180px){
+ .desktop-dashboard-workspace{display:grid;grid-template-columns:minmax(0,1fr) 245px;gap:18px;align-items:start}
+ .desktop-today-panel{grid-template-columns:1fr;order:0;position:sticky;top:18px}
 }
 </style><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
@@ -3488,12 +3492,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
-<aside class="desktop-today-panel" aria-label="Today at a glance">
- <a href="?view=orders&amp;scope=to_deliver"><span>Tomorrow</span><strong><?=count($tomorrowDeliveries)?> deliver<?=count($tomorrowDeliveries)===1?'y':'ies'?></strong><small>planned for <?=e($retaToday->modify('+1 day')->format('D j M'))?></small></a>
- <a href="?view=balances"><span>Delivered &amp; unpaid</span><strong><?=count($deliveredUnpaid)?></strong><small><?=money(array_sum(array_map(fn($o)=>max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$deliveredUnpaid)))?> outstanding</small></a>
- <a href="?view=reorder"><span>Stock attention</span><strong><?=count($lowStock)?></strong><small>at or below alert level</small></a>
- <a href="?view=reta&amp;weeks=4"><span>Recurring · 7 days</span><strong><?=count($retaDue7)?></strong><small>customers approaching repeat date</small></a>
-</aside>
+<div class="desktop-dashboard-workspace">
 <section class="todo-board dashboard-action-queue" id="dashboard-actions">
 <div class="todo-board-head"><div><h2>Your worklist</h2><p class="muted focus-work-count"><?=count($dashboardWork)?> order<?=count($dashboardWork)===1?'':'s'?></p></div><?php if($stockShortages):?><a class="queue-stock-warning" href="#dashboard-stock-shortage"><?=$stockShortageUnits?> stock short ↓</a><?php endif;?></div>
 <div class="focus-work-toolbar"><div class="dashboard-queue-tabs" role="navigation" aria-label="Orders needing action">
@@ -3531,6 +3530,13 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php endforeach;?>
 <?php if(!$dashboardWork):?><p class="queue-empty" role="status">No orders need action in this view.</p><?php endif;?>
 </div></section>
+<aside class="desktop-today-panel" aria-label="Today at a glance">
+ <a href="?view=orders&amp;scope=to_deliver"><span>Tomorrow</span><strong><?=count($tomorrowDeliveries)?> deliver<?=count($tomorrowDeliveries)===1?'y':'ies'?></strong><small>planned for <?=e($retaToday->modify('+1 day')->format('D j M'))?></small></a>
+ <a href="?view=balances"><span>Delivered &amp; unpaid</span><strong><?=count($deliveredUnpaid)?></strong><small><?=money(array_sum(array_map(fn($o)=>max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$deliveredUnpaid)))?> outstanding</small></a>
+ <a href="?view=reorder"><span>Stock attention</span><strong><?=count($lowStock)?></strong><small>at or below alert level</small></a>
+ <a href="?view=reta&amp;weeks=4"><span>Recurring · 7 days</span><strong><?=count($retaDue7)?></strong><small>customers approaching repeat date</small></a>
+</aside>
+</div>
 <!-- dashboard-worklist-end -->
 <?php if($stockShortages):?>
 <details class="dashboard-stock-shortage dashboard-secondary" id="dashboard-stock-shortage">
