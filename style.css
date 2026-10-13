@@ -5333,3 +5333,40 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .sc-order-adjustments input{min-height:46px}
  .sc-discount-summary{font-size:11px}
 }
+
+
+/* Incoming supplier quantities by peptide: compact overview and detail list (iPhone-first). */
+.stock-on-way{margin:0 0 13px;border:1px solid #564a2c;border-radius:15px;background:linear-gradient(125deg,#27241b,#151819 76%);overflow:hidden}
+.stock-on-way>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;cursor:pointer;min-height:60px}
+.stock-on-way>summary::-webkit-details-marker{display:none}
+.stock-on-way-heading{min-width:0;display:grid;gap:4px}
+.stock-on-way-heading b{font-size:14px;color:#e9d19a}
+.stock-on-way-heading small{font-size:11px;color:#aeaaa0;line-height:1.35}
+.stock-on-way-total{display:grid;min-width:80px;text-align:right;font-size:20px;font-weight:800;color:#e6bd61;line-height:1.1}
+.stock-on-way-total small{font-size:9px;font-weight:500;color:#b8a87d;margin-top:4px}
+.stock-on-way-rows{display:grid;gap:6px;padding:0 12px 12px}
+.stock-on-way-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;padding:10px 11px;background:#111616;border:1px solid #393c3a;border-radius:10px}
+.stock-on-way-row>span{font-size:12px;font-weight:600;min-width:0;overflow-wrap:anywhere;color:#e9e5da}
+.stock-on-way-row>strong{font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;color:#e5c275}
+.stock-on-way-row>strong small{font-size:10px;font-weight:500;color:#b4a582}
+.stock-on-way-more{display:flex;align-items:center;justify-content:center;min-height:39px;border-radius:9px;color:#e2bd64;border:1px solid #665636;font-size:12px;font-weight:700;text-decoration:none}
+.incoming-by-product{display:grid;gap:12px;margin:0 0 6px;padding:13px;border:1px solid #51472e;border-radius:13px;background:#201f1b}
+.incoming-by-product-head h3{font-size:18px;line-height:1.3;margin:3px 0;color:#efdebb}
+.incoming-by-product-head p:last-child{color:#b4ada0;font-size:11px;line-height:1.5;margin:4px 0 0}
+.incoming-by-product-list{display:grid;gap:7px}
+.incoming-by-product-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border-radius:10px;border:1px solid #373a38;background:#131717;min-width:0}
+.incoming-by-product-row>div{min-width:0;display:grid;gap:5px}
+.incoming-by-product-row strong{font-size:13px;line-height:1.35;color:#eee8dc;overflow-wrap:anywhere}
+.incoming-by-product-row small{font-size:10px;line-height:1.45;color:#a0a39b}
+.incoming-by-product-due{display:grid;justify-items:end;min-width:65px;flex-shrink:0}
+.incoming-by-product-due b{font-size:19px;line-height:1.1;color:#e2bd62;font-variant-numeric:tabular-nums}
+.incoming-by-product-due small{font-size:10px;color:#beab7e;white-space:nowrap}
+.incoming-by-product-note{font-size:11px;line-height:1.55;color:#a9a69e;margin:0}
+@media(max-width:390px){
+ .stock-on-way>summary{padding:11px}
+ .stock-on-way-rows{padding:0 9px 9px}
+ .stock-on-way-heading b{font-size:13px}
+ .stock-on-way-heading small{font-size:10px}
+ .incoming-by-product{padding:10px}
+ .incoming-by-product-row{padding:10px}
+}
