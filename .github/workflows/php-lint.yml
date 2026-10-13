@@ -35,6 +35,7 @@ jobs:
           php -l tests/deploy-smoke.php
           php -l tests/supplier-mobile-catalogue.php
           php -l tests/incoming-product-breakdown.php
+          php -l tests/mobile-app-ux.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
@@ -63,5 +64,7 @@ jobs:
         run: php tests/supplier-basket-profit.php
       - name: Test outstanding supplier quantities by incoming product
         run: php tests/incoming-product-breakdown.php
+      - name: Verify mobile fast actions and compact navigation
+        run: php tests/mobile-app-ux.php
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
