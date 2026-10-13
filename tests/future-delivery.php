@@ -235,11 +235,11 @@ foreach(['', '2026-02-30', 'invalid'] as $emptyOrInvalid){
  ob_start();dashboardPlannedDateTile(['scheduled_delivery_date'=>$emptyOrInvalid]);$noTile=ob_get_clean();
  check($noTile==='','Awaiting cards must not show a tile without a valid planned delivery date.');
 }
-$paymentBlockStart=strpos($source,'<?php if($awaitingPayment):?><div class="todo-column">');
-$deliveryBlockStart=strpos($source,'<?php if($awaitingDelivery):?><div class="todo-column">');
-$futureBlockStart=strpos($source,'<?php if($futureDeliveries):?><div class="todo-column future-orders-column">');
+$paymentBlockStart=strpos($source,'<?php if($dashboardQueue===\'payment\'&&$awaitingPayment):?><div class="todo-column">');
+$deliveryBlockStart=strpos($source,'<?php if($dashboardQueue===\'delivery\'&&$awaitingDelivery):?><div class="todo-column">');
+$futureBlockStart=strpos($source,'<?php if($dashboardQueue===\'future\'&&$futureDeliveries):?><div class="todo-column future-orders-column">');
 check($paymentBlockStart!==false&&$deliveryBlockStart!==false&&$futureBlockStart!==false,'Dashboard payment and delivery sections must exist.');
 foreach([substr($source,$paymentBlockStart,$deliveryBlockStart-$paymentBlockStart),substr($source,$deliveryBlockStart,$futureBlockStart-$deliveryBlockStart)] as $block){
- check(str_contains($block,'<summary class="todo-accordion-summary">'.PHP_EOL.'<?php dashboardPlannedDateTile($todo);?>'),'Date tile must be on the left of each expandable awaiting card.');
+ check(str_contains($block,'deliveryScheduleTags($todo,$now)')&&!str_contains($block,'dashboardPlannedDateTile($todo)'),'Each expandable card must use the combined date/countdown without a duplicate calendar tile.');
 }
-echo "PASS: Awaiting payment/delivery display identical date tiles only when a valid planned date is present.\\n";
+echo "PASS: Payment and delivery queues use one combined planned-date/countdown badge.\\n";
