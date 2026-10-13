@@ -42,3 +42,14 @@ Acceptance: lint and existing order/stock/supplier tests pass; new static Incomi
 ## Safe deployment
 
 Keep each PR independently testable and reversible. Never run setup.php or overwrite live SQLite for mobile design changes. GitHub merging is not proof the Krystal site has updated, and database backup remains a separate hosting responsibility.
+
+## iPhone recording review — 13 October 2026
+
+- Opaque top safe area with viewport-fit=cover; header assistant replaces the mobile floating button.
+- Compact dashboard metrics precede a single Payment / Delivery / Future queue. Queue links work without JavaScript, and actions retain the selected queue.
+- Recipient names lead order cards, with purchaser captions and one planned-date/countdown badge.
+- Stock warning details, best sellers and recurring insights collapse by default; the stock-shortage count stays beside the work queue.
+- Expanded orders retain Edit/Call and product/payment information, while documents, metadata and secondary changes use disclosures.
+- All-time gross profit labels its period. To deliver includes both near-term and future deliveries, matching the all-pending filter.
+
+Verification: fixture-rendered queue checks and existing financial/stock regressions run in CI. The uploaded recording supplies the before-state; the updated physical iPhone safe area and keyboard behaviour still need device verification.

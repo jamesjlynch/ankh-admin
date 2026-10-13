@@ -2799,6 +2799,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   header('Location: ./?view=stock'.$returnFilter.'&fridge='.urlencode($returnFridge).'#stock-product-'.(int)($_POST['product_id']??0));exit;
  }
  if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
+ else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).'#dashboard-actions');
  else if($returnView==='recurring')header('Location: ./?view=orders&section=recurring');
  else if($returnView==='stock' && in_array($returnSection,['incoming','forecast','history'],true))header('Location: ./?view=stock&section='.urlencode($returnSection));
  else header('Location: ./?view='.urlencode($returnView));
@@ -2819,7 +2820,7 @@ function orderPreparationBadge(array $order):void{
 function dashboardPreparationControls(array $order):void{
  $state=orderPreparationState($order);if($state==='closed')return;
  ?><div class="preparation-stage-controls"><?php foreach(['reconstituted'=>'Reconstituted','packaged'=>'Packaged'] as $stage=>$label):$checked=$state===$stage;$disabled=$stage==='packaged'&&$state==='pending';?>
- <form method="post" class="order-preparation-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="stage" value="<?=e($stage)?>">
+ <form method="post" class="order-preparation-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>"><input type="hidden" name="stage" value="<?=e($stage)?>">
  <label class="order-preparation-toggle"><input type="checkbox" name="complete" value="1" <?=$checked?'checked':''?> <?=$disabled?'disabled':''?>><span><strong><?=e($label)?></strong><small><?=$stage==='packaged'?'Ready for delivery':'Ready to package'?></small></span></label><button type="submit" class="order-preparation-save" <?=$disabled?'disabled':''?>>Save</button></form>
  <?php endforeach;?></div><?php
 }
@@ -2827,10 +2828,23 @@ function futureDeliveryPaymentLabel(array $order):string{
  $total=max(0,(int)($order['total']??0));$paid=max(0,(int)($order['paid_amount']??0));
  return $paid>=$total?'Paid':($paid>0?'Part paid':'Unpaid');
 }
+function orderDisplayName(array $order):string{
+ $recipient=trim((string)($order['recipient_name']??''));
+ return $recipient!==''?$recipient:trim((string)($order['customer']??''));
+}
+function orderBuyerCaption(array $order):void{
+ $buyer=trim((string)($order['customer']??''));
+ if($buyer!==''&&strcasecmp(orderDisplayName($order),$buyer)!==0){?><p class="order-buyer-caption">Ordered by <?=e($buyer)?></p><?php }
+}
+function dashboardQueueView(array $counts,string $requested='',string $remembered=''):string{
+ foreach([$requested,$remembered] as $queue)if(in_array($queue,['payment','delivery','future'],true))return $queue;
+ foreach(['payment','delivery','future'] as $queue)if(($counts[$queue]??0)>0)return $queue;
+ return 'payment';
+}
 function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
  $date=trim((string)($order['scheduled_delivery_date']??''));
  $active=!in_array((string)($order['status']??''),['Cancelled','Delivered'],true)&&trim((string)($order['delivery_date']??''))==='';
- ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span><?php if($active&&$date!==''):?><span class="delivery-plan-date" title="<?=e($date)?>">▦ <?=e((new DateTimeImmutable($date))->format('d M'))?></span><span class="delivery-plan-countdown"><?=e(deliveryCountdown($date,$today))?></span><?php endif;?></div><?php
+ ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span><?php if($active&&$date!==''):?><span class="delivery-plan-date" title="Planned delivery <?=e($date)?>">▦ <?=e((new DateTimeImmutable($date))->format('D d M'))?> · <?=e(deliveryCountdown($date,$today))?></span><?php endif;?></div><?php
 }
 function dashboardPlannedDateTile(array $order):void{
  $scheduled=trim((string)($order['scheduled_delivery_date']??''));
@@ -2844,7 +2858,7 @@ function dashboardDeliveryScheduleForm(array $order):void{
  if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true)||trim((string)($order['delivery_date']??''))!=='')return;
  $date=(string)($order['scheduled_delivery_date']??'');$today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
  ?><details class="delivery-arrange"><summary><?= $date!==''?'Change delivery date':'Arrange delivery'?> <span aria-hidden="true">▦</span></summary>
- <form method="post" class="delivery-arrange-form"><?php csrf();?><input type="hidden" name="action" value="order_schedule"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard">
+ <form method="post" class="delivery-arrange-form"><?php csrf();?><input type="hidden" name="action" value="order_schedule"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>">
  <label>Planned delivery date<input type="date" name="scheduled_delivery_date" min="<?=e($today)?>" value="<?=e($date>=$today?$date:'')?>" required></label>
  <small>Arranges delivery only — does not mark the order delivered.</small><div class="delivery-arrange-actions"><button type="submit">Save date</button><?php if($date!==''):?><button type="submit" name="schedule_clear" value="1" formnovalidate class="secondary">Clear date</button><?php endif;?></div></form></details><?php
 }
@@ -2855,10 +2869,10 @@ function dashboardDeliveryMoveControls(array $order,string $destination):void{
  if($destination==='future' && $scheduled<=$today){
   ?><p class="delivery-move-hint">Set a future delivery date before moving this order to Future deliveries.</p><?php
  }else{
-  ?><form method="post" class="delivery-move-form"><?php csrf();?><input type="hidden" name="action" value="order_delivery_section"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="delivery_section" value="<?=e($destination)?>"><button type="submit" class="delivery-move-button">⇄ Move to <?=$destination==='future'?'Future deliveries':'Awaiting delivery'?></button></form><?php
+  ?><form method="post" class="delivery-move-form"><?php csrf();?><input type="hidden" name="action" value="order_delivery_section"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>"><input type="hidden" name="delivery_section" value="<?=e($destination)?>"><button type="submit" class="delivery-move-button">⇄ Move to <?=$destination==='future'?'Future deliveries':'Awaiting delivery'?></button></form><?php
  }
  if($override!==''){
-  ?><form method="post" class="delivery-move-form delivery-move-auto"><?php csrf();?><input type="hidden" name="action" value="order_delivery_section"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="delivery_section" value="auto"><button type="submit" class="delivery-move-button">Use automatic timing</button></form><?php
+  ?><form method="post" class="delivery-move-form delivery-move-auto"><?php csrf();?><input type="hidden" name="action" value="order_delivery_section"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>"><input type="hidden" name="delivery_section" value="auto"><button type="submit" class="delivery-move-button">Use automatic timing</button></form><?php
  }
 }
 function futureDeliveryFields(array $order=[]):void{
@@ -2884,7 +2898,7 @@ $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
 if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
 $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__DIR__.'/style.css') ?: 0);
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="<?=e($stylesheet)?>?v=<?=e($stylesheetVersion)?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="<?=e($stylesheet)?>?v=<?=e($stylesheetVersion)?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -3341,7 +3355,10 @@ if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRange
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
 ?>
 <a class="ux-skip-link" href="#ankh-main">Skip to main content</a>
-<aside><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a>
+<div class="ios-status-bar" aria-hidden="true"></div>
+<aside><div class="app-brand-row"><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a><button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
+ <span class="assistant-button-ring" aria-hidden="true"></span><span class="assistant-button-icon" aria-hidden="true">🎙</span><span class="assistant-button-label">Talk to ANKH</span>
+</button></div>
 <nav class="desktop-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
@@ -3362,7 +3379,11 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <main id="ankh-main" tabindex="-1"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><span class="muted"><?=date('d M Y')?></span></header>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><div class="flash-confirmation"><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><?php unset($_SESSION['flash']);?></div><?php endif;?>
-<?php if($view==='dashboard'): ?>
+<?php if($view==='dashboard'):
+$dashboardQueueCounts=['payment'=>count($awaitingPayment),'delivery'=>count($awaitingDelivery),'future'=>count($futureDeliveries)];
+$dashboardQueue=dashboardQueueView($dashboardQueueCounts,is_string($_GET['queue']??null)?$_GET['queue']:'',(string)($_SESSION['dashboard_queue']??''));
+$_SESSION['dashboard_queue']=$dashboardQueue;
+?>
 <div class="heading dashboard-heading"><div><h1>Dashboard</h1><p class="muted page-description">What needs attention and how the business is doing.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <nav class="ux-mobile-actions" aria-label="Quick actions">
  <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
@@ -3374,18 +3395,88 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="dashboard-stats">
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=today_sales"><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></a>
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
-<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>Gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
+<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>All-time gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)?></strong><small>Due soon / unscheduled</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
+<section class="todo-board dashboard-action-queue" id="dashboard-actions">
+<div class="todo-board-head"><div><p class="eyebrow">TO-DO</p><h2>Orders needing action</h2></div><?php if($stockShortages):?><a class="queue-stock-warning" href="#dashboard-stock-shortage"><?=$stockShortageUnits?> stock short ↓</a><?php endif;?></div>
+<nav class="dashboard-queue-tabs" aria-label="Orders needing action">
+<?php foreach(['payment'=>'Payment','delivery'=>'Delivery','future'=>'Future'] as $queueKey=>$queueLabel):?><a href="?view=dashboard&amp;queue=<?=e($queueKey)?>#dashboard-actions" <?=$dashboardQueue===$queueKey?'aria-current="page"':''?>><span><?=e($queueLabel)?></span><b><?=$dashboardQueueCounts[$queueKey]?></b></a><?php endforeach;?>
+</nav>
+<div class="todo-columns single">
+
+<?php if($dashboardQueue==='payment'&&$awaitingPayment):?><div class="todo-column">
+<div class="todo-column-title"><div><span class="todo-icon">£</span><div><h3>Awaiting payment</h3><small><?=money($unpaidBalance)?> outstanding</small></div></div><strong><?=count($awaitingPayment)?></strong></div>
+<?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
+<details class="todo-card todo-accordion">
+<summary class="todo-accordion-summary">
+<div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php orderPreparationBadge($todo);?></div>
+<?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
+<div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
+</summary>
+<div class="todo-accordion-body">
+<?php dashboardDeliveryScheduleForm($todo);?>
+<?php dashboardPreparationControls($todo);?>
+<div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><span>Total <?=money($todo['total'])?></span><?php if($todoPaid>0):?><span class="todo-paid-chip">Paid <?=money($todoPaid)?></span><?php endif;?><span class="todo-due-chip">Due <?=money($todoBalance)?></span></div>
+<form method="post" class="todo-action dashboard-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>">
+<div class="dashboard-payment-heading"><strong>Record payment</strong><small><?=money($todoBalance)?> outstanding</small></div>
+<div class="dashboard-payment-choice" role="group" aria-label="Payment amount type"><label><input type="radio" name="payment_type" value="full" checked><span><b>Paid in full</b><small>Record <?=money($todoBalance)?></small></span></label><label><input type="radio" name="payment_type" value="partial"><span><b>Part payment</b><small>Enter amount received</small></span></label></div>
+<label class="dashboard-payment-field dashboard-partial-amount"><span>Amount received</span><div class="money-input"><i>£</i><input name="amount" type="number" min=".01" max="<?=e(number_format($todoBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($todoBalance/100,2,'.',''))?>"></div><small>Remaining balance updates automatically.</small></label>
+<div class="dashboard-payment-meta"><label class="dashboard-payment-field"><span>Payment method</span><select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="dashboard-payment-field"><span>Payment date</span><input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label></div><button class="dashboard-payment-save">✓ Save payment</button></form>
+<?php if(empty($todo['delivery_date'])):?><form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><button class="quiet">✓ Mark delivered</button></form><?php endif;?>
+</div>
+</details>
+<?php endforeach;?></div><?php endif;?>
+
+<?php if($dashboardQueue==='delivery'&&$awaitingDelivery):?><div class="todo-column">
+<div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Due in under 5 days · or moved here</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
+<?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
+<details class="todo-card todo-accordion">
+<summary class="todo-accordion-summary">
+<div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if(futureDeliveryPaymentLabel($todo)!=='Paid'):?><span class="future-order-meta <?=futureDeliveryPaymentLabel($todo)==='Part paid'?'is-part-paid':'is-unpaid'?>"><?=e(futureDeliveryPaymentLabel($todo))?></span><?php endif;?><?php orderPreparationBadge($todo);?></div>
+<div class="todo-accordion-side"><span class="todo-chevron" aria-hidden="true">⌄</span></div>
+</summary>
+<div class="todo-accordion-body">
+<?php dashboardDeliveryScheduleForm($todo);?>
+<?php dashboardPreparationControls($todo);?>
+<?php dashboardDeliveryMoveControls($todo,'future');?>
+<div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><?php if(!empty($todo['delivery_method'])):?><span><?=e($todo['delivery_method'])?></span><?php endif;?></div>
+
+<?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
+<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'payment')?>"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form>
+</div>
+</details>
+<?php endforeach;?></div><?php endif;?>
+
+<?php if($dashboardQueue==='future'&&$futureDeliveries):?><div class="todo-column future-orders-column">
+<div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>5+ days away · or moved here</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
+<div class="future-delivery-list">
+<?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));$futurePaymentLabel=futureDeliveryPaymentLabel($futureOrder);$futurePaymentTone=$futurePaymentLabel==='Paid'?'is-paid':($futurePaymentLabel==='Part paid'?'is-part-paid':'is-unpaid');?>
+<details class="future-order-entry" id="future-order-<?=(int)$futureOrder['id']?>">
+ <summary class="future-order-card">
+  <div class="future-order-copy"><h3><?=e(orderDisplayName($futureOrder))?></h3><?php orderBuyerCaption($futureOrder);?>
+   <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
+   <div class="future-order-badges"><span class="future-order-meta <?=$futurePaymentTone?>"><?=e($futurePaymentLabel)?></span><?php deliveryScheduleTags($futureOrder,$now);?><?php orderPreparationBadge($futureOrder);?></div>
+  </div>
+  <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><?php if($futureBalance>0):?><small><?=money($futureBalance)?> due</small><?php endif;?><span class="future-order-chevron" aria-hidden="true">⌄</span></div>
+ </summary>
+ <div class="future-order-details">
+  <?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);dashboardDeliveryMoveControls($futureOrder,'awaiting');?>
+  <a class="future-order-edit-link" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">View / edit order <span aria-hidden="true">↗</span></a>
+ </div>
+</details>
+<?php endforeach;?></div></div><?php endif;?>
+<?php if($dashboardQueueCounts[$dashboardQueue]===0):?><p class="queue-empty" role="status">No orders <?=$dashboardQueue==='payment'?'awaiting payment':($dashboardQueue==='delivery'?'awaiting near-term delivery':'in future deliveries')?>.</p><?php endif;?>
+</div></section>
 <?php if($stockShortages):?>
-<section class="dashboard-stock-shortage" role="alert" aria-labelledby="stock-shortage-title">
- <div class="stock-shortage-header">
+<details class="dashboard-stock-shortage dashboard-secondary" id="dashboard-stock-shortage">
+ <summary class="stock-shortage-header">
   <span class="stock-shortage-alert-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 2.5 20h19L12 3.5Z"/><path d="M12 9v4.8M12 17h.01"/></svg></span>
   <div class="stock-shortage-heading-copy"><p class="eyebrow">STOCK ALERT</p><h2 id="stock-shortage-title">Orders need stock</h2><p>Reserved orders exceed the stock available in their assigned fridge.</p></div>
   <span class="stock-shortage-total"><b><?=$stockShortageUnits?></b><small>unit<?=$stockShortageUnits===1?'':'s'?> short</small></span>
- </div>
+ </summary>
  <div class="stock-shortage-list">
  <?php foreach($stockShortages as $shortage):$owner=$shortage['location_owner'];$otherOwner=$shortage['other_owner'];$otherAvailable=$shortage['other_available'];$transferable=$shortage['transferable'];$remaining=$shortage['remaining_after_transfer'];?>
  <article class="stock-shortage-row">
@@ -3416,14 +3507,14 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
  <?php endforeach;?>
  </div>
  <p class="stock-shortage-footnote">Nothing has been moved automatically. Reservations stay in place until stock is added, transferred or the orders are changed.</p>
-</section>
+</details>
 <?php endif;?>
 
-<?php if($topSelling):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
+<?php if($topSelling):?><details class="dashboard-secondary dashboard-insight"><summary><strong>Best-selling products</strong><span>View ranking ⌄</span></summary><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP SELLERS</p><h2>Best-selling products</h2></div></div>
 <?php $rank=0;foreach($topSelling as $productName=>$seller):$rank++;?><div class="dashboard-row"><span><b><?=$rank?></b><?=e($productName)?></span><strong><?=$seller['qty']?> sold</strong></div><?php endforeach;?>
-</section></div><?php endif;?>
+</section></div></details><?php endif;?>
 
-<section class="panel dashboard-reta-panel cycle-preview-card">
+<details class="dashboard-secondary dashboard-insight"><summary><strong>Recurring orders</strong><span><?=count($retaDue7)?> due in 7 days ⌄</span></summary><section class="panel dashboard-reta-panel cycle-preview-card">
 <div class="cycle-preview-head"><div><p class="eyebrow">UPCOMING CYCLES</p><h2>Next 7 days</h2></div><a class="cycle-preview-link" href="?view=orders&amp;section=recurring">Recurring <span>→</span></a></div>
 <?php if($retaDue7):?><div class="cycle-preview-list">
 <?php foreach(array_slice($retaDue7,0,4) as $cycle):
@@ -3434,77 +3525,9 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 </a>
 <?php endforeach;?></div><?php if(count($retaDue7)>4):?><a class="cycle-preview-more" href="?view=orders&amp;section=recurring">+ <?=count($retaDue7)-4?> more due soon</a><?php endif;?>
 <?php else:?><div class="cycle-preview-clear"><span>✓</span><div><strong>Nothing due in the next 7 days</strong><small><?=count($retaCyclesActive)?> active recurring cycle<?=count($retaCyclesActive)===1?'':'s'?></small></div></div><?php endif;?>
-</section>
+</section></details>
 
-<?php if($awaitingPayment||$awaitingDelivery||$futureDeliveries):?><section class="todo-board">
-<div class="todo-board-head"><div><p class="eyebrow">TO-DO</p><h2>Orders needing action</h2></div><div class="todo-counts"><?php if($awaitingPayment):?><span><?=count($awaitingPayment)?> payment</span><?php endif;?><?php if($awaitingDelivery):?><span><?=count($awaitingDelivery)?> delivery</span><?php endif;?><?php if($futureDeliveries):?><span><?=count($futureDeliveries)?> future</span><?php endif;?></div></div>
-<div class="todo-columns<?=(!$awaitingPayment||!$awaitingDelivery)?' single':''?>">
 
-<?php if($awaitingPayment):?><div class="todo-column">
-<div class="todo-column-title"><div><span class="todo-icon">£</span><div><h3>Awaiting payment</h3><small><?=money($unpaidBalance)?> outstanding</small></div></div><strong><?=count($awaitingPayment)?></strong></div>
-<?php foreach($awaitingPayment as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
-<details class="todo-card todo-accordion">
-<summary class="todo-accordion-summary">
-<?php dashboardPlannedDateTile($todo);?>
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php orderPreparationBadge($todo);?></div>
-<?php $todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);?>
-<div class="todo-accordion-side"><?php if(!empty($todo['delivery_date'])):?><span class="badge status-delivered">Delivered</span><?php endif;?><span class="todo-balance-summary"><?php if($todoPaid>0):?><span class="todo-paid-line"><b><?=money($todoPaid)?></b><small>paid</small></span><?php endif;?><span class="todo-due-line"><b><?=money($todoBalance)?></b><small>due</small></span></span><span class="todo-chevron" aria-hidden="true">⌄</span></div>
-</summary>
-<div class="todo-accordion-body">
-<?php dashboardDeliveryScheduleForm($todo);?>
-<?php dashboardPreparationControls($todo);?>
-<div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><span>Total <?=money($todo['total'])?></span><?php if($todoPaid>0):?><span class="todo-paid-chip">Paid <?=money($todoPaid)?></span><?php endif;?><span class="todo-due-chip">Due <?=money($todoBalance)?></span></div>
-<form method="post" class="todo-action dashboard-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard">
-<div class="dashboard-payment-heading"><strong>Record payment</strong><small><?=money($todoBalance)?> outstanding</small></div>
-<div class="dashboard-payment-choice" role="group" aria-label="Payment amount type"><label><input type="radio" name="payment_type" value="full" checked><span><b>Paid in full</b><small>Record <?=money($todoBalance)?></small></span></label><label><input type="radio" name="payment_type" value="partial"><span><b>Part payment</b><small>Enter amount received</small></span></label></div>
-<label class="dashboard-payment-field dashboard-partial-amount"><span>Amount received</span><div class="money-input"><i>£</i><input name="amount" type="number" min=".01" max="<?=e(number_format($todoBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($todoBalance/100,2,'.',''))?>"></div><small>Remaining balance updates automatically.</small></label>
-<div class="dashboard-payment-meta"><label class="dashboard-payment-field"><span>Payment method</span><select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="dashboard-payment-field"><span>Payment date</span><input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label></div><button class="dashboard-payment-save">✓ Save payment</button></form>
-<?php if(empty($todo['delivery_date'])):?><form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><button class="quiet">✓ Mark delivered</button></form><?php endif;?>
-</div>
-</details>
-<?php endforeach;?></div><?php endif;?>
-
-<?php if($awaitingDelivery):?><div class="todo-column">
-<div class="todo-column-title"><div><span class="todo-icon">✓</span><div><h3>Awaiting delivery</h3><small>Due in under 5 days · or moved here</small></div></div><strong><?=count($awaitingDelivery)?></strong></div>
-<?php foreach($awaitingDelivery as $todo):$items=$todoItems[(int)$todo['id']]??[];?>
-<details class="todo-card todo-accordion">
-<summary class="todo-accordion-summary">
-<?php dashboardPlannedDateTile($todo);?>
-<div class="todo-accordion-main"><h3><?=e($todo['customer'])?></h3><?php if(trim((string)($todo['recipient_name']??''))!=='' && strcasecmp(trim((string)$todo['recipient_name']),trim((string)$todo['customer']))!==0):?><p class="todo-recipient-line"><?=e($todo['recipient_name'])?></p><?php endif;?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php deliveryScheduleTags($todo,$now);?><?php if(futureDeliveryPaymentLabel($todo)!=='Paid'):?><span class="future-order-meta <?=futureDeliveryPaymentLabel($todo)==='Part paid'?'is-part-paid':'is-unpaid'?>"><?=e(futureDeliveryPaymentLabel($todo))?></span><?php endif;?><?php orderPreparationBadge($todo);?></div>
-<div class="todo-accordion-side"><span class="todo-chevron" aria-hidden="true">⌄</span></div>
-</summary>
-<div class="todo-accordion-body">
-<?php dashboardDeliveryScheduleForm($todo);?>
-<?php dashboardPreparationControls($todo);?>
-<?php dashboardDeliveryMoveControls($todo,'future');?>
-<div class="todo-detail-strip"><span>ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?></span><span><?=e(date('d M Y',strtotime($todo['created'])))?></span><?php if(!empty($todo['delivery_method'])):?><span><?=e($todo['delivery_method'])?></span><?php endif;?></div>
-
-<?php if(trim((string)$todo['address'])!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="return" value="dashboard"><label class="todo-date">Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($todo['delivery_date']?:$now->format('Y-m-d'))?>" required></label><button>✓ Delivered</button></form>
-</div>
-</details>
-<?php endforeach;?></div><?php endif;?>
-
-<?php if($futureDeliveries):?><div class="todo-column future-orders-column">
-<div class="todo-column-title"><div><span class="todo-icon">↗</span><div><h3>Future deliveries</h3><small>5+ days away · or moved here</small></div></div><strong><?=count($futureDeliveries)?></strong></div>
-<div class="future-delivery-list">
-<?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));$futurePaymentLabel=futureDeliveryPaymentLabel($futureOrder);$futurePaymentTone=$futurePaymentLabel==='Paid'?'is-paid':($futurePaymentLabel==='Part paid'?'is-part-paid':'is-unpaid');?>
-<details class="future-order-entry" id="future-order-<?=(int)$futureOrder['id']?>">
- <summary class="future-order-card">
-  <div class="future-order-date"><span><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('M'))?></span><strong><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d'))?></strong><small><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('D'))?></small></div>
-  <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
-   <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
-   <div class="future-order-badges"><span class="future-order-meta <?=$futurePaymentTone?>"><?=e($futurePaymentLabel)?></span><?php deliveryScheduleTags($futureOrder,$now);?><?php orderPreparationBadge($futureOrder);?></div>
-  </div>
-  <div class="future-order-side"><strong><?=money($futureOrder['total'])?></strong><?php if($futureBalance>0):?><small><?=money($futureBalance)?> due</small><?php endif;?><span class="future-order-chevron" aria-hidden="true">⌄</span></div>
- </summary>
- <div class="future-order-details">
-  <?php dashboardDeliveryScheduleForm($futureOrder);dashboardPreparationControls($futureOrder);dashboardDeliveryMoveControls($futureOrder,'awaiting');?>
-  <a class="future-order-edit-link" href="?view=edit&amp;id=<?=(int)$futureOrder['id']?>">View / edit order <span aria-hidden="true">↗</span></a>
- </div>
-</details>
-<?php endforeach;?></div></div><?php endif;?>
-</div></section><?php endif;?>
 
 <?php if($lowStock):?><div class="dashboard-primary-panel"><section class="panel dashboard-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">STOCK</p><h2>Low-stock products</h2></div><a href="?view=stock&amp;filter=low">View all →</a></div>
 <?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><a class="dashboard-row dashboard-stock-link" href="?view=stock&amp;filter=low#stock-product-<?=(int)$stockProduct['id']?>"><span><?=e($stockProduct['name'])?></span><strong><?=max(0,$stockProduct['fridge_available'])?> left <i aria-hidden="true">›</i></strong></a><?php endforeach;?>
@@ -3519,7 +3542,7 @@ $listedOrders=$orders;
 if($ordersSection==='all' && $orderScope!==''){
  $listedOrders=array_values(array_filter($orders,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart,$now){
   if($orderScope==='unpaid')return $o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0;
-  if($orderScope==='to_deliver')return deliveryBoardSection($o,$now->format('Y-m-d'))==='awaiting';
+  if($orderScope==='to_deliver')return in_array(deliveryBoardSection($o,$now->format('Y-m-d')),['awaiting','future'],true);
   $salesTs=strtotime((string)($o['payment_date']?:$o['created']))?:0;
   return in_array($o['status'],$paidStatuses,true) && $salesTs>=($orderScope==='today_sales'?$todayStart:$monthStart);
  }));
@@ -3605,10 +3628,13 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="filters ux-order-filters"><label>Search orders<input id="search" type="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <p class="ux-result-count" id="ux-order-visible" role="status" aria-live="polite"><?=count($listedOrders)?> orders</p>
 <div class="order-list">
-<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e($o['customer'])?></h2><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderPreparationBadge($o);?><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
-<div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div>
+<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderPreparationBadge($o);?><span class="badge status-<?=e(statusClass($o['status']))?>"><?=e($o['status'])?></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?><?php if(!empty($o['delivery_date']) && $o['status']!=='Delivered'):?><span class="badge status-delivered">Delivered</span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):'Paid in full'?></small></div></summary><div class="detail">
+<div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?></div>
+<details class="order-disclosure order-documents"><summary>Documents &amp; sharing <span aria-hidden="true">⌄</span></summary><div class="order-quick-actions"><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div></details>
+<details class="order-disclosure order-information"><summary>Order details <span aria-hidden="true">⌄</span></summary>
 <div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!==''):?><span><b>Planned delivery</b><em><?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M Y'))?></em></span><?php endif;?><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
 <?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>
+</details>
 <?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].(!empty($i['presentation'])?' · '.$i['presentation']:'').((int)($i['discount']??0)>0?' · Family & Friends':'').' @ '.money($i['price']))?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if((int)$o['delivery_charge']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($o['delivery_charge'])?></strong></div><?php endif;?><?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
 <?php $orderPaid=(int)($o['paid_amount']??0);$orderBalance=max(0,(int)$o['total']-$orderPaid);$pq=$db->prepare('SELECT * FROM payments WHERE order_id=? ORDER BY datetime(created) DESC,id DESC');$pq->execute([(int)$o['id']]);$orderPayments=$pq->fetchAll(PDO::FETCH_ASSOC);?>
@@ -3616,9 +3642,10 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php if($orderPayments):?><div class="payment-history"><?php foreach($orderPayments as $pay):?><div class="payment-history-row"><div><strong><?=money($pay['amount'])?></strong><small><?=e(date('d M Y',strtotime($pay['created'])))?> · <?=e($pay['method']?:'Not recorded')?><?php if($pay['note']):?> · <?=e($pay['note'])?><?php endif;?></small></div><form method="post" onsubmit="return confirm('Remove this payment?');"><?php csrf();?><input type="hidden" name="action" value="payment_delete"><input type="hidden" name="payment_id" value="<?=$pay['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet payment-remove" aria-label="Remove payment">×</button></form></div><?php endforeach;?></div><?php endif;?>
 <?php if($orderBalance>0 && $o['status']!=='Cancelled'):?><details class="add-payment"><summary>+ Record payment</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><div class="two"><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($orderBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($orderBalance/100,2,'.',''))?>" required></label><label>Method<select name="method" required><option value="">Choose…</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>"><?=e($method)?></option><?php endforeach;?></select></label></div><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Deposit, balance, reference…"></label></div><button>Save payment</button></form></details><?php endif;?>
 </section>
+<details class="order-disclosure order-secondary-actions"><summary>More actions <span aria-hidden="true">⌄</span></summary><div class="order-quick-actions"><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a></div>
 <details class="order-date-editor"><summary>Edit payment / delivery dates</summary><form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button>Save dates</button></form></details>
 <form method="post" class="status-form compact-status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="status-fields"><label>Status<select name="status"><?php foreach($statuses as $statusOption):?><option <?=$statusOption===$o['status']?'selected':''?>><?=e($statusOption)?></option><?php endforeach;?></select></label><label>Payment method<select name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$o['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div><button>Save</button></form>
-<form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></div></details><?php endforeach;?></div>
+<form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form></details></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($listedOrders)?'hidden':''?>>No orders to show.</p>
 <?php endif;?>
 <?php elseif($view==='new'):?>
@@ -4688,9 +4715,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
 <?php endif;?>
 </main>
-<button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
- <span class="assistant-button-ring" aria-hidden="true"></span><span class="assistant-button-icon" aria-hidden="true">🎙</span><span class="assistant-button-label">Talk to ANKH</span>
-</button>
+
 <div id="ankh-assistant-overlay" class="ankh-assistant-overlay" hidden>
  <section class="ankh-assistant-card realtime-card" role="dialog" aria-modal="true" aria-labelledby="ankh-assistant-title">
   <button type="button" id="ankh-assistant-close" class="ankh-assistant-close" aria-label="End voice conversation">×</button>

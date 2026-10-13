@@ -42,7 +42,7 @@ check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-1
 $ordersSection='all';$_GET=['scope'=>'to_deliver'];$paidStatuses=['Paid','Packed','Dispatched','Delivered'];$todayStart=$today->getTimestamp();$monthStart=$today->modify('first day of this month')->getTimestamp();
 $start=strpos($source,"$"."orderScopes=['today_sales'");$end=strpos($source,'?>',$start);
 check($start!==false&&$end!==false,'Order drill-down must exist.');eval(substr($source,$start,$end-$start));
-check(array_column($listedOrders,'id')===[2,3,4,5],'To-deliver drill-down must match Awaiting delivery.');
+check(array_column($listedOrders,'id')===[1,2,3,4,5],'To-deliver drill-down must include near-term and future deliveries until manually delivered.');
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 preg_match("/INSERT INTO orders\\(customer,recipient_name,[^']+\\)/",$source,$insertMatch);
 check(!empty($insertMatch),'Order insert must exist.');
@@ -235,11 +235,11 @@ foreach(['', '2026-02-30', 'invalid'] as $emptyOrInvalid){
  ob_start();dashboardPlannedDateTile(['scheduled_delivery_date'=>$emptyOrInvalid]);$noTile=ob_get_clean();
  check($noTile==='','Awaiting cards must not show a tile without a valid planned delivery date.');
 }
-$paymentBlockStart=strpos($source,'<?php if($awaitingPayment):?><div class="todo-column">');
-$deliveryBlockStart=strpos($source,'<?php if($awaitingDelivery):?><div class="todo-column">');
-$futureBlockStart=strpos($source,'<?php if($futureDeliveries):?><div class="todo-column future-orders-column">');
+$paymentBlockStart=strpos($source,'<?php if($dashboardQueue===\'payment\'&&$awaitingPayment):?><div class="todo-column">');
+$deliveryBlockStart=strpos($source,'<?php if($dashboardQueue===\'delivery\'&&$awaitingDelivery):?><div class="todo-column">');
+$futureBlockStart=strpos($source,'<?php if($dashboardQueue===\'future\'&&$futureDeliveries):?><div class="todo-column future-orders-column">');
 check($paymentBlockStart!==false&&$deliveryBlockStart!==false&&$futureBlockStart!==false,'Dashboard payment and delivery sections must exist.');
 foreach([substr($source,$paymentBlockStart,$deliveryBlockStart-$paymentBlockStart),substr($source,$deliveryBlockStart,$futureBlockStart-$deliveryBlockStart)] as $block){
- check(str_contains($block,'<summary class="todo-accordion-summary">'.PHP_EOL.'<?php dashboardPlannedDateTile($todo);?>'),'Date tile must be on the left of each expandable awaiting card.');
+ check(str_contains($block,'deliveryScheduleTags($todo,$now)')&&!str_contains($block,'dashboardPlannedDateTile($todo)'),'Each expandable card must use the combined date/countdown without a duplicate calendar tile.');
 }
-echo "PASS: Awaiting payment/delivery display identical date tiles only when a valid planned date is present.\\n";
+echo "PASS: Payment and delivery queues use one combined planned-date/countdown badge.\\n";
