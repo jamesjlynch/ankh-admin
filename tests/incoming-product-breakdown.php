@@ -44,7 +44,7 @@ assertIncoming($incomingProductBreakdown[0]['name']==='Retatrutide 10mg','Larges
 $empty=stockIncomingProductBreakdown([]);
 assertIncoming($empty===[],'No incoming orders produce an empty breakdown.');
 $css=file_get_contents(dirname(__DIR__).'/style.css');
-assertIncoming(str_contains($source,'class="stock-on-way"')&&str_contains($source,'class="incoming-by-product"'),'Overview and Incoming page must both render the grouped quantities.');
+assertIncoming(str_contains($source,'class="stock-on-way"')&&str_contains($source,'class="incoming-by-product ux-incoming-products"'),'Overview and expandable Incoming page must both render the grouped quantities.');
 assertIncoming(str_contains($source,'array_slice($incomingProductBreakdown,0,4)'),'Overview must stay compact, showing the first four products only.');
 assertIncoming(str_contains($source,'View all <?=count($incomingProductBreakdown)?> incoming products'),'Overview must link to complete breakdown.');
 assertIncoming(str_contains($css,'.stock-on-way-row')&&str_contains($css,'.incoming-by-product-row'),'Incoming quantity widgets must be styled for mobile.');
