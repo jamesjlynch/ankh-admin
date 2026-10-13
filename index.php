@@ -2937,7 +2937,8 @@ if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
 $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__DIR__.'/style.css') ?: 0);
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="<?=e($stylesheet)?>?v=<?=e($stylesheetVersion)?>"><style id="ankh-desktop-intelligence-v1">
-.ankh-notification-popover,.desktop-today-panel{display:none}
+.ankh-notification-popover,.desktop-today-panel,.ankh-notification-button{display:none}
+.ankh-header-tools{display:contents}
 @media (min-width:761px){
  main.focus-app>header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px}
  .ankh-header-tools{display:flex;align-items:center;gap:12px}
