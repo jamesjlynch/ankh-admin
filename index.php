@@ -2926,9 +2926,42 @@ foreach($stockProducts as $fridgeProduct){
 }
 $recentStockMovements=$db->query('SELECT sm.*,p.name AS product_name FROM stock_movements sm JOIN products p ON p.id=sm.product_id ORDER BY datetime(sm.created) DESC,sm.id DESC LIMIT 60')->fetchAll(PDO::FETCH_ASSOC);
 $stockMovementsByLocation=['Jay'=>[],'Tony'=>[],'Unallocated'=>[]];foreach($recentStockMovements as $stockMove){$moveLocation=stockLocationName((string)$stockMove['location']);if(isset($stockMovementsByLocation[$moveLocation]))$stockMovementsByLocation[$moveLocation][]=$stockMove;}
+/**
+ * Outstanding supplier stock grouped by product across all still-open purchases.
+ * Received and cancelled deliveries must not contribute, and part-received lines
+ * contribute ONLY the remaining units. Does not change physical inventory.
+ */
+function stockIncomingProductBreakdown(array $supplierLines):array{
+ $byProduct=[];
+ foreach($supplierLines as $line){
+  if(in_array((string)$line['status'],['Received','Cancelled'],true))continue;
+  $due=max(0,(int)$line['quantity']-(int)$line['received_qty']);
+  if($due===0)continue;
+  $id=(int)$line['product_id'];if($id<1)continue;
+  if(!isset($byProduct[$id]))$byProduct[$id]=[
+   'product_id'=>$id,'name'=>(string)$line['product_name'],
+   'due'=>0,'orders'=>[],'expected_date'=>null
+  ];
+  $byProduct[$id]['due']+=$due;
+  $byProduct[$id]['orders'][(int)$line['supplier_order_id']]=true;
+  $date=(string)($line['expected_date']??'');
+  if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)){
+   if($byProduct[$id]['expected_date']===null||$date<$byProduct[$id]['expected_date'])
+    $byProduct[$id]['expected_date']=$date;
+  }
+ }
+ $result=[];
+ foreach($byProduct as $entry){
+  $entry['orders']=count($entry['orders']);
+  $result[]=$entry;
+ }
+ usort($result,static fn($a,$b)=>($b['due']<=>$a['due']) ?: strcasecmp($a['name'],$b['name']));
+ return $result;
+}
 $supplierOrders=$db->query("SELECT so.*,COALESCE(SUM(soi.quantity),0) total_qty,COALESCE(SUM(soi.received_qty),0) received_qty,COALESCE(SUM(CASE WHEN soi.unit_cost IS NULL THEN 0 ELSE soi.quantity*soi.unit_cost END),0) total_cost,SUM(CASE WHEN soi.unit_cost IS NULL THEN 1 ELSE 0 END) missing_cost FROM supplier_orders so LEFT JOIN supplier_order_items soi ON soi.supplier_order_id=so.id GROUP BY so.id ORDER BY CASE so.status WHEN 'Ordered' THEN 0 WHEN 'Part received' THEN 1 WHEN 'Received' THEN 2 ELSE 3 END,date(so.expected_date),so.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 $supplierOrderItems=[];$incomingByProduct=[];$supplierItemRows=$db->query("SELECT soi.*,p.name product_name,so.supplier,so.expected_date,so.status FROM supplier_order_items soi JOIN products p ON p.id=soi.product_id JOIN supplier_orders so ON so.id=soi.supplier_order_id ORDER BY soi.supplier_order_id DESC,p.name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);foreach($supplierItemRows as $supplierItem){$supplierOrderItems[(int)$supplierItem['supplier_order_id']][]=$supplierItem;if(!in_array((string)$supplierItem['status'],['Received','Cancelled'],true))$incomingByProduct[(int)$supplierItem['product_id']]=($incomingByProduct[(int)$supplierItem['product_id']]??0)+max(0,(int)$supplierItem['quantity']-(int)$supplierItem['received_qty']);}
 $totalIncomingUnits=array_sum($incomingByProduct);
+$incomingProductBreakdown=stockIncomingProductBreakdown($supplierItemRows);
 $orders=$db->query("SELECT o.*,COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total,COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) AS paid_amount FROM orders o LEFT JOIN items i ON i.order_id=o.id GROUP BY o.id ORDER BY datetime(o.created) DESC,o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
 $open=count(array_filter($orders,fn($o)=>!in_array($o['status'],['Dispatched','Delivered','Cancelled'],true)));
@@ -3749,6 +3782,18 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 <button class="fridge-overview-card fridge-jay stock-location-filter" type="button" data-stock-view="jay" aria-pressed="false"><span>JAY’S FRIDGE</span><strong><?=max(0,(int)($fridgeTotals['jay']??0))?> <em>available</em></strong><div class="stock-overview-breakdown"><small><b><?=max(0,(int)$fridgePhysicalTotals['jay'])?></b>Physical</small><small><b><?=e($fridgeReservedTotals['jay'])?></b>Reserved</small><small class="available"><b><?=max(0,(int)($fridgeTotals['jay']??0))?></b>Available</small></div><div class="fridge-value-summary"><small><b>Retail value available</b><?=money($fridgeValueTotals['jay']['retail'])?></small><small><b>Potential profit</b><?=$fridgeValueTotals['jay']['missing_cost']?'Known costs · ':''?><?=money($fridgeValueTotals['jay']['profit'])?></small></div></button>
 <button class="fridge-overview-card fridge-tony stock-location-filter" type="button" data-stock-view="tony" aria-pressed="false"><span>TONY’S FRIDGE</span><strong><?=max(0,(int)($fridgeTotals['tony']??0))?> <em>available</em></strong><div class="stock-overview-breakdown"><small><b><?=max(0,(int)$fridgePhysicalTotals['tony'])?></b>Physical</small><small><b><?=e($fridgeReservedTotals['tony'])?></b>Reserved</small><small class="available"><b><?=max(0,(int)($fridgeTotals['tony']??0))?></b>Available</small></div><div class="fridge-value-summary"><small><b>Retail value available</b><?=money($fridgeValueTotals['tony']['retail'])?></small><small><b>Potential profit</b><?=$fridgeValueTotals['tony']['missing_cost']?'Known costs · ':''?><?=money($fridgeValueTotals['tony']['profit'])?></small></div></button>
 </div>
+<?php if($incomingProductBreakdown):?>
+<details class="stock-on-way" open>
+ <summary><span class="stock-on-way-heading"><b>Stock on the way</b><small><?=count($incomingProductBreakdown)?> product<?=count($incomingProductBreakdown)===1?'':'s'?> across open supplier orders</small></span><span class="stock-on-way-total"><?=$totalIncomingUnits?> <small>vials due</small></span></summary>
+ <div class="stock-on-way-rows">
+ <?php foreach(array_slice($incomingProductBreakdown,0,4) as $upcoming):?>
+ <div class="stock-on-way-row"><span><?=e($upcoming['name'])?></span><strong>+<?=$upcoming['due']?> <small>vials</small></strong></div>
+ <?php endforeach;?>
+ <?php if(count($incomingProductBreakdown)>4):?><a class="stock-on-way-more" href="?view=stock&amp;section=incoming#incoming-by-product">View all <?=count($incomingProductBreakdown)?> incoming products →</a>
+ <?php else:?><a class="stock-on-way-more" href="?view=stock&amp;section=incoming#incoming-by-product">View deliveries and allocate stock →</a><?php endif;?>
+ </div>
+</details>
+<?php endif;?>
 <div class="fridge-direct-links"><a href="?view=fridge_jay">Open Jay’s fridge <span>→</span></a><a href="?view=fridge_tony">Open Tony’s fridge <span>→</span></a><div><strong><?=max(0,(int)($fridgeTotals['unallocated']??0))?></strong><span>Holding stock</span></div></div>
 <?php if((int)($fridgeTotals['unallocated']??0)>0):?><div class="panel fridge-legacy-note"><strong><?=e($fridgeTotals['unallocated'])?> units need assigning</strong><span>These existing counts aren’t assigned to a fridge yet. Use Products to assign them to Jay or Tony.</span></div><?php endif;?>
 <?php endif;?>
@@ -3756,6 +3801,20 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 <div class="stock-subpage-heading"><a href="?view=stock">← Stock overview</a><div><p class="eyebrow">SUPPLIER STOCK</p><h2>Incoming stock</h2><p>Keep supplier orders separate from the stock you already have.</p></div></div>
 <section class="incoming-stock-section">
  <div class="incoming-stock-head"><div><p class="eyebrow">INCOMING STOCK</p><h2>Supplier orders</h2><p class="muted">Orders are entered in packs. One pack = 10 units.</p></div><div class="incoming-stock-total"><strong><?=$totalIncomingUnits?></strong><span>units incoming</span></div></div>
+<?php if($incomingProductBreakdown):?>
+<section class="incoming-by-product" id="incoming-by-product" aria-labelledby="incoming-by-product-title">
+ <div class="incoming-by-product-head"><div><p class="eyebrow">WHAT'S ON THE WAY</p><h3 id="incoming-by-product-title">Incoming by product</h3><p><?=count($incomingProductBreakdown)?> products with outstanding deliveries · <?=$totalIncomingUnits?> vials to receive</p></div></div>
+ <div class="incoming-by-product-list">
+ <?php foreach($incomingProductBreakdown as $dueItem):?>
+ <article class="incoming-by-product-row">
+  <div><strong><?=e($dueItem['name'])?></strong><small><?=$dueItem['orders']?> supplier order<?=$dueItem['orders']===1?'':'s'?><?php if($dueItem['expected_date']):?> · Earliest expected <?=e(date('d M Y',strtotime($dueItem['expected_date'])))?><?php else:?> · Date not set<?php endif;?></small></div>
+  <span class="incoming-by-product-due"><b>+<?=$dueItem['due']?></b><small>vials due</small></span>
+ </article>
+ <?php endforeach;?>
+ </div>
+ <p class="incoming-by-product-note">Only outstanding quantities are shown. Stock already received, including partial deliveries, is excluded. Use the supplier orders below to receive and allocate each delivery.</p>
+</section>
+<?php endif;?>
  <details class="supplier-order-create"><summary>+ Add supplier order</summary>
   <form method="post" class="supplier-order-form" data-supplier-order-form><?php csrf();?><input type="hidden" name="action" value="supplier_order_create"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_section" value="incoming">
    <div class="supplier-order-meta"><label>Supplier<input name="supplier" maxlength="160" placeholder="Supplier name" required></label><label>Expected date<input name="expected_date" type="date"></label></div>
