@@ -2879,8 +2879,12 @@ function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
+// Use committed CSS assets, with a source fallback for older deployment hooks.
+$stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
+if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
+$stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__DIR__.'/style.css') ?: 0);
 ?>
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="style.css?v=<?=e((string)(@filemtime(__DIR__.'/style.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="<?=e($stylesheet)?>?v=<?=e($stylesheetVersion)?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -3486,7 +3490,7 @@ $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_i
 <div class="future-delivery-list">
 <?php foreach($futureDeliveries as $futureOrder):$futureItems=$todoItems[(int)$futureOrder['id']]??[];$futureBalance=max(0,(int)$futureOrder['total']-(int)($futureOrder['paid_amount']??0));$futurePaymentLabel=futureDeliveryPaymentLabel($futureOrder);$futurePaymentTone=$futurePaymentLabel==='Paid'?'is-paid':($futurePaymentLabel==='Part paid'?'is-part-paid':'is-unpaid');?>
 <details class="future-order-entry" id="future-order-<?=(int)$futureOrder['id']?>">
- <summary class="future-order-card" aria-label="<?=e($futureOrder['customer'])?>, <?=e($futurePaymentLabel)?>, planned delivery <?=e(date('j F',strtotime($futureOrder['scheduled_delivery_date'])))?>">
+ <summary class="future-order-card">
   <div class="future-order-date"><span><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('M'))?></span><strong><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('d'))?></strong><small><?=e((new DateTimeImmutable($futureOrder['scheduled_delivery_date'],$tz))->format('D'))?></small></div>
   <div class="future-order-copy"><h3><?=e($futureOrder['customer'])?></h3><?php if(trim((string)($futureOrder['recipient_name']??''))!=='' && strcasecmp(trim((string)$futureOrder['recipient_name']),trim((string)$futureOrder['customer']))!==0):?><p class="todo-recipient-line"><?=e($futureOrder['recipient_name'])?></p><?php endif;?>
    <div class="todo-accordion-products"><?php foreach($futureItems as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:''))?></span><?php endforeach;?></div>
@@ -3626,7 +3630,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
   <p>Tap the microphone and say the customer’s name, product and strength, quantity, Pen / Cartridge / Vial, delivery method and James or Tony if it’s assigned.</p>
   <div class="voice-order-example"><span>Try saying</span><q>Sarah Jones, two Reta 10mg pens, local delivery, assign to James.</q></div><div class="voice-order-alias">You can say <strong>“Reta”</strong> for Retatrutide.</div>
  </div>
- <button type="button" id="voice-order-button" class="voice-order-launch-button" data-ready="<?=$voiceOrderReady?'1':'0'?>" aria-label="Start a voice order">
+ <button type="button" id="voice-order-button" class="voice-order-launch-button" data-ready="<?=$voiceOrderReady?'1':'0'?>">
   <span class="voice-launch-rings" aria-hidden="true"></span>
   <span class="voice-launch-mic" aria-hidden="true">🎙</span>
   <strong>Start voice order</strong>
@@ -4220,7 +4224,11 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 </nav>
 <?php endif;?>
 <?php if(!in_array($reportType,['profit','reorder'],true)):?>
-<details class="ux-report-options" open><summary><span>Dates, filters &amp; exports</span><span aria-hidden="true">⌄</span></summary>
+<details class="ux-report-options" open><script>
+// Set the phone disclosure state during parsing, before its contents can paint.
+// Desktop and browsers without JavaScript keep the expanded filter form.
+(()=>{const report=document.currentScript.parentElement;if(window.matchMedia&&window.matchMedia('(max-width: 760px)').matches)report.open=false})();
+</script><summary><span>Dates, filters &amp; exports</span><span aria-hidden="true">⌄</span></summary>
 <form class="report-filter-bar" method="get">
 <input type="hidden" name="view" value="reports"><input type="hidden" name="type" value="<?=e($reportType)?>">
 <label>Period<select name="range" id="report-range">
@@ -5272,8 +5280,7 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
 });
 </script>
 <script>
-(()=>{const report=document.querySelector('.ux-report-options');if(report&&window.matchMedia&&window.matchMedia('(max-width: 760px)').matches)report.open=false;
- const active=document.querySelector('.ux-mobile-scopes a[aria-current="page"],.report-tabs a.selected,.sc-tabs a[aria-current="page"]');
+(()=>{const active=document.querySelector('.ux-mobile-scopes a[aria-current="page"],.report-tabs a.selected,.sc-tabs a[aria-current="page"]');
  const strip=active?.closest('nav');
  if(strip&&window.innerWidth<=760){
   // Scroll only the horizontal chip strip, never jump the full iPhone page.

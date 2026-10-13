@@ -1,0 +1,6 @@
+{
+  "name": "ankh-admin-assets",
+  "private": true,
+  "scripts": { "build:css": "node scripts/build-css.cjs" },
+  "devDependencies": { "clean-css": "5.3.3", "postcss": "8.5.6" }
+}
