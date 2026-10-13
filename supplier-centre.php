@@ -424,7 +424,7 @@ function sc_group_definitions():array{
  * tax, payment charges, packaging and other overheads. Never invent revenue for
  * an unmapped or zero-price product.
  */
-function sc_basket_profit_summary(array $rows,array $boxes,?float $fx,int $shippingUsdCents):array{
+function sc_basket_profit_summary(array $rows,array $boxes,?float $fx,int $shippingUsdCents,int $discountUsdCents=0):array{
  $boxCount=0;$vials=0;$supplierUsd=0;$revenue=0;$unpriced=[];
  foreach($rows as $row){
   $sku=(string)($row['sku']??'');
@@ -442,10 +442,12 @@ function sc_basket_profit_summary(array $rows,array $boxes,?float $fx,int $shipp
   }
  }
  $shipping=$boxCount>0?max(0,$shippingUsdCents):0;
- $landed=$fx===null||$boxCount===0?null:(int)round(($supplierUsd+$shipping)*$fx);
+ $discount=max(0,$discountUsdCents);
+ $discountValid=$discount<=$supplierUsd;
+ $landed=$fx===null||$boxCount===0||!$discountValid?null:(int)round(($supplierUsd-$discount+$shipping)*$fx);
  return [
   'boxes'=>$boxCount,'vials'=>$vials,'supplier_usd_cents'=>$supplierUsd,
-  'shipping_usd_cents'=>$shipping,'landed_gbp_pence'=>$landed,
+  'shipping_usd_cents'=>$shipping,'discount_usd_cents'=>$discount,'discount_valid'=>$discountValid,'landed_gbp_pence'=>$landed,
   'priced_revenue_gbp_pence'=>$revenue,'unpriced'=>$unpriced,
   'profit_gbp_pence'=>$boxCount>0&&$landed!==null&&!$unpriced?$revenue-$landed:null,
   'margin_percent'=>$boxCount>0&&$landed!==null&&!$unpriced&&$revenue>0?($revenue-$landed)/$revenue*100:null
@@ -458,10 +460,11 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $fx=sc_fx($db);
  $orderShippingUsdCents=sc_shipping_order_usd_cents($db);
  $lastImport=(string)($db->query("SELECT value FROM settings WHERE key='supplier_import_last'")->fetchColumn()?:'');
- $draftRow=$db->query('SELECT boxes_json,shipping_gbp,shipping_usd_cents,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
+ $draftRow=$db->query('SELECT boxes_json,shipping_gbp,shipping_usd_cents,discount_usd_cents,expected_date FROM supplier_basket_drafts WHERE id=1')->fetch(PDO::FETCH_ASSOC)?:[];
  $draft=json_decode((string)($draftRow['boxes_json']??'{}'),true);
  if(!is_array($draft))$draft=[];
  $draftShippingUsdCents=sc_shipping_draft_usd_cents($draftRow,$fx,$orderShippingUsdCents);
+ $draftDiscountUsdCents=max(0,(int)($draftRow['discount_usd_cents']??0));
  $draftTotalUsd=0;$draftTotalVials=0;
  foreach($catalogue as $row){
   $boxes=max(0,min(100,(int)($draft[$row['sku']]??0)));
@@ -481,9 +484,11 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   $lineUsd=$usd*$basketPacks;
   $allocatedShipping=$shippingAllocated&&$fx!==null
     ?($draftTotalUsd>0?(int)round($draftShippingUsdCents*$fx*$lineUsd/$draftTotalUsd):(int)round($draftShippingUsdCents*$fx*($pack*$basketPacks)/$draftTotalVials)):0;
+  $allocatedDiscount=$shippingAllocated&&$fx!==null&&$draftTotalUsd>0&&$draftDiscountUsdCents<=$draftTotalUsd
+    ?(int)round($draftDiscountUsdCents*$fx*$lineUsd/$draftTotalUsd):0;
   $boxGbp=$fx===null?null:(int)round($usd*$fx); // Whole-box cost before shipping, rounded once to GBP pence.
   $estimate=$fx===null?null:($shippingAllocated
-    ?((int)round($lineUsd*$fx)+$allocatedShipping)/($pack*$basketPacks)
+    ?max(0,((int)round($lineUsd*$fx)+$allocatedShipping-$allocatedDiscount)/($pack*$basketPacks))
     :($usd*$fx)/$pack);
   $price=$item['retail']===null?null:(int)$item['retail'];
   $friends=$price===null?null:($item['friends']===null?max(0,$price-500):(int)$item['friends']);
@@ -498,7 +503,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   $jayReserved=$mappedId===null?0:(int)($reservedByProduct[$mappedId]['jay']??0);
   $tonyReserved=$mappedId===null?0:(int)($reservedByProduct[$mappedId]['tony']??0);
   $rows[]=['sku'=>(string)$item['sku'],'name'=>(string)$item['name'],'strength'=>(string)$item['strength'],'pack'=>$pack,'usd'=>$usd,'product_id'=>$mappedId,
-   'ankh_name'=>(string)($item['ankh_name']??''),'retail'=>$price,'friends'=>$friends,'box_gbp'=>$boxGbp,'estimate'=>$estimate,'shipping_allocated'=>$shippingAllocated,'profit'=>$profit,'margin'=>$margin,
+   'ankh_name'=>(string)($item['ankh_name']??''),'retail'=>$price,'friends'=>$friends,'box_gbp'=>$boxGbp,'estimate'=>$estimate,'shipping_allocated'=>$shippingAllocated,'discount_allocated'=>$allocatedDiscount>0,'profit'=>$profit,'margin'=>$margin,
    'jay_physical'=>$jay+$jayReserved,'tony_physical'=>$tony+$tonyReserved,'jay_available'=>max(0,$jay),'tony_available'=>max(0,$tony),'combined_available'=>$combinedAvailable,
    'reserved'=>$jayReserved+$tonyReserved,'incoming'=>$mappedId===null?0:(int)($incomingByProduct[$mappedId]??0),
    'sold30'=>$mappedId===null?0:(int)($orderUnits[$mappedId]??0)];
@@ -513,7 +518,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  foreach($rows as $row)$groupedRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $profitRows=$rows;
  usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));
- $initialBasketProfit=sc_basket_profit_summary($rows,$draft,$fx,$draftShippingUsdCents);
+ $initialBasketProfit=sc_basket_profit_summary($rows,$draft,$fx,$draftShippingUsdCents,$draftDiscountUsdCents);
  $groupedProfitRows=array_fill_keys(array_keys($groupDefinitions),[]);
  foreach($profitRows as $row)$groupedProfitRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $groupedSmart=['attention'=>[],'covered'=>[]];
@@ -534,7 +539,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 </div>
 <?php if($tab==='profit'):?>
 <?php if(!$catalogue):?><section class="panel sc-empty"><h2>Start with the MJT supplier price import</h2><p>Upload the August 2026 supplier CSV through Prices &amp; matching. Wholesale costs are stored privately in ANKH Admin, never in the public code repository.</p><a class="quick-action" href="?view=supplier&amp;tab=products">Import supplier prices →</a></section><?php else:?>
-<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
+<section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge and any saved order discount. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
 <div class="sc-group-container" id="sc-profit-list">
@@ -548,11 +553,11 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <div class="sc-profit-expanded">
  <div class="sc-profit-metrics">
   <div><span>Supplier box (<?=$item['pack']?> vials)</span><strong><?=$item['box_gbp']===null?'Set exchange rate':money($item['box_gbp'])?></strong><small class="sc-profit-subvalue"><?=sc_money_usd($item['usd'])?> USD · before shipping</small></div>
-  <div><span><?=$item['shipping_allocated']?'Landed cost / vial':'Cost / vial'?></span><strong><?=$item['estimate']===null?'—':'£'.number_format($item['estimate']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?'Includes allocated order shipping':'Before shipping'?></small></div>
+  <div><span><?=$item['shipping_allocated']?'Landed cost / vial':'Cost / vial'?></span><strong><?=$item['estimate']===null?'—':'£'.number_format($item['estimate']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?($item['discount_allocated']?'Shipping and discount allocated':'Includes allocated order shipping'):'Before shipping'?></small></div>
   <div><span>ANKH retail / vial</span><strong><?=$item['retail']===null?'—':money($item['retail'])?></strong></div>
-  <div><span>Gross profit / vial</span><strong><?=$item['profit']===null?'—':'£'.number_format($item['profit']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?'After estimated supplier shipping':'Before shipping and overheads'?></small></div>
+  <div><span>Gross profit / vial</span><strong><?=$item['profit']===null?'—':'£'.number_format($item['profit']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?($item['discount_allocated']?'After shipping and supplier discount':'After estimated supplier shipping'):'Before shipping and overheads'?></small></div>
  </div>
- <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?'Includes proportional order shipping':'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
+ <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?(!empty($item['discount_allocated'])?'Includes proportional order shipping and discount':'Includes proportional order shipping'):'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
  <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=supplier&amp;tab=products">Match to ANKH product →</a><?php endif;?>
 </div></details>
 <?php endforeach;?></div></details>
