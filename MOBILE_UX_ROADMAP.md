@@ -57,9 +57,11 @@ Verification: fixture-rendered queue checks and existing financial/stock regress
 ## Focus and Dispatch implementation
 
 - Deduplicate the payment, near-term delivery and future-delivery datasets into one worklist. Default to All; To deliver includes future dates. Preserve explicit filters, manual delivery moves and their POST return context.
-- Offer remembered Cards / Dispatch layouts; Dispatch groups overdue, today, upcoming, unscheduled and delivered-unpaid orders.
+- Offer remembered Cards / List layouts; List groups overdue, today, upcoming, unscheduled and delivered-unpaid orders.
 - Show independent payment, preparation and delivery states, plus recipient, buyer, product lines, assignee and a combined delivery date/countdown.
 - Keep the original six summary cards above the worklist: Today’s sales, month sales, all-time gross profit, unpaid, to deliver and low stock. Jay prefers the original card presentation to the compact strip.
 - On mobile, use an accessible native dialog bottom sheet for worklist actions and Orders documents / more actions. Escape, Done and backdrop close restore the original form nodes and focus. Without JS, native disclosures still expose all forms.
 - Apply the charcoal/gold surface, typography, fields, touch targets and navigation styling across app screens. Existing data and mutation handlers are unchanged.
 - Verify with isolated PHP rendering fixtures and existing financial/stock/scheduling regressions. Physical iPhone appearance still requires device confirmation.
+
+- The dashboard filter and layout controls use separately styled navigation groups, preventing legacy `nav` bottom-bar styles from forcing five columns, stacked labels, extra height or safe-area padding onto the toolbar. The internal `dispatch` layout key remains compatible with saved selections; its visible label is List.
