@@ -54,7 +54,9 @@ Edit `style.css`, then run `npm ci` and `npm run build:css`. Commit the generate
 uses the full minified stylesheet; other screens omit rules scoped exclusively
 to Supplier Centre. Shared selectors and cascade order are preserved. Both
 Krystal deployment paths copy the generated assets; older deployment hooks can
-fall back to `style.css` until those assets are available.
+serve the same compiled styles from a public CSS-only endpoint in `index.php`
+until those assets are available. This endpoint runs before sessions and database
+access, and exposes only generated stylesheet content.
 
 Source was reviewed for escaping, prepared queries, server-side validation and authorization checks. This authoring environment did not have a PHP runtime, so PHP lint and browser/database end-to-end testing still need to be run before real customer use:
 - php -l index.php

@@ -19,7 +19,7 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm run build:css
-          git diff --exit-code -- style.min.css style.core.min.css
+          git diff --exit-code -- index.php style.min.css style.core.min.css
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
@@ -46,6 +46,9 @@ jobs:
           php -l tests/incoming-product-breakdown.php
           php -l tests/mobile-app-ux.php
           php -l tests/mobile-incoming-ux.php
+          php -l tests/css-assets.php
+      - name: Verify public compiled CSS fallback
+        run: php tests/css-assets.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
