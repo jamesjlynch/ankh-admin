@@ -175,14 +175,13 @@ check(futureDeliveryPaymentLabel(['total'=>8000,'paid_amount'=>8000])==='Paid','
 check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>0,'status'=>'New'])==='Unpaid','An unpaid future order should display Unpaid, not New.');
 check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>2000])==='Part paid','A deposit should display Part paid.');
 check(futureDeliveryPaymentLabel(['total'=>6500,'paid_amount'=>7000])==='Paid','Overpayments should not display unpaid.');
-$futureUiStart=strpos($source,'<div class="future-delivery-list">');
-$futureUiEnd=strpos($source,'<?php endforeach;?></div></div><?php endif;?>',$futureUiStart);
-check($futureUiStart!==false && $futureUiEnd!==false,'Future-delivery section must render.');
+$futureUiStart=strpos($source,'<div class="focus-worklist layout-');
+$futureUiEnd=strpos($source,'<details class="dashboard-insight dashboard-secondary focus-business-insights"',$futureUiStart);
+check($futureUiStart!==false && $futureUiEnd!==false,'Unified worklist must render future deliveries.');
 $futureUi=substr($source,$futureUiStart,$futureUiEnd-$futureUiStart);
-check(str_contains($futureUi,'<details class="future-order-entry"') && str_contains($futureUi,'<summary class="future-order-card"'),'Future order tile must expand when tapped.');
-check(!str_contains($futureUi,'<a class="future-order-card"'),'Future order tile should no longer navigate away on tap.');
-check(str_contains($futureUi,'future-order-edit-link') && str_contains($futureUi,'?view=edit&amp;id='),'Edit order must remain available inside expansion.');
-check(strpos($futureUi,'future-order-details') < strpos($futureUi,'dashboardDeliveryScheduleForm(') && str_contains($futureUi,'dashboardPreparationControls('),'Delivery and preparation controls must stay inside the expandable area.');
+check(str_contains($futureUi,'<details class="todo-card todo-accordion focus-order"') && str_contains($futureUi,'<summary class="todo-accordion-summary"'),'All worklist cards must expand when tapped.');
+check(str_contains($futureUi,'?view=edit&amp;id='),'Edit order must remain available inside expansion.');
+check(strpos($futureUi,'focus-sheet-content') < strpos($futureUi,'dashboardDeliveryScheduleForm(') && str_contains($futureUi,'dashboardPreparationControls('),'Delivery and preparation controls must stay inside the expandable area.');
 $futureCss=file_get_contents(dirname(__DIR__).'/style.css');
 check(str_contains($futureCss,'.future-order-entry[open] .future-order-chevron') && str_contains($futureCss,'.future-order-details'),'Compact future order CSS must include an expanded state.');
 echo "PASS: compact expandable future delivery tiles, paid/unpaid/part-paid labels, edit access, hidden preparation and date controls.\\n";
@@ -220,7 +219,7 @@ foreach(['Cancelled','Delivered'] as $terminal){
  $_POST=['id'=>$id,'delivery_section'=>'awaiting'];$rejected=false;try{eval($moveCode);}catch(Exception $e){$rejected=true;}
  check($rejected&&!$db->inTransaction(),'Completed/cancelled orders cannot be manually moved.');
 }
-check(str_contains($source,"dashboardDeliveryMoveControls(\$todo,'future')") && str_contains($source,"dashboardDeliveryMoveControls(\$futureOrder,'awaiting')"),'Both dashboard lists need a manual move control.');
+check(str_contains($source,"dashboardDeliveryMoveControls(\$todo,deliveryBoardSection(\$todo,\$now->format('Y-m-d'))==='future'?'awaiting':'future')"),'Unified cards must preserve manual moves in both directions.');
 echo "PASS: exclusive 4-day/5-day grouping, manual moves, persistence, date-change reset, terminal-order protections.\\n";
 
 $tileStart=strpos($source,'function dashboardPlannedDateTile(');
@@ -235,11 +234,5 @@ foreach(['', '2026-02-30', 'invalid'] as $emptyOrInvalid){
  ob_start();dashboardPlannedDateTile(['scheduled_delivery_date'=>$emptyOrInvalid]);$noTile=ob_get_clean();
  check($noTile==='','Awaiting cards must not show a tile without a valid planned delivery date.');
 }
-$paymentBlockStart=strpos($source,'<?php if($dashboardQueue===\'payment\'&&$awaitingPayment):?><div class="todo-column">');
-$deliveryBlockStart=strpos($source,'<?php if($dashboardQueue===\'delivery\'&&$awaitingDelivery):?><div class="todo-column">');
-$futureBlockStart=strpos($source,'<?php if($dashboardQueue===\'future\'&&$futureDeliveries):?><div class="todo-column future-orders-column">');
-check($paymentBlockStart!==false&&$deliveryBlockStart!==false&&$futureBlockStart!==false,'Dashboard payment and delivery sections must exist.');
-foreach([substr($source,$paymentBlockStart,$deliveryBlockStart-$paymentBlockStart),substr($source,$deliveryBlockStart,$futureBlockStart-$deliveryBlockStart)] as $block){
- check(str_contains($block,'deliveryScheduleTags($todo,$now)')&&!str_contains($block,'dashboardPlannedDateTile($todo)'),'Each expandable card must use the combined date/countdown without a duplicate calendar tile.');
-}
-echo "PASS: Payment and delivery queues use one combined planned-date/countdown badge.\\n";
+check(str_contains($futureUi,'deliveryScheduleTags($todo,$now)')&&!str_contains($futureUi,'dashboardPlannedDateTile($todo)'),'Unified cards must show one combined planned-date/countdown badge.');
+echo "PASS: Unified worklist uses one combined planned-date/countdown badge.\n";

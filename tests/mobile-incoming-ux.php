@@ -10,7 +10,7 @@ $css=file_get_contents($root.'/style.css');
 function uxIncomingAssert(bool $ok,string $message):void{
  if(!$ok)throw new RuntimeException($message);
 }
-uxIncomingAssert(str_contains($app,'class="ux-skip-link"')&&str_contains($app,'<main id="ankh-main" tabindex="-1">'),'Skip-to-main keyboard navigation missing.');
+uxIncomingAssert(str_contains($app,'class="ux-skip-link"')&&preg_match('/<main\b[^>]*id="ankh-main"[^>]*tabindex="-1"/', $app)===1,'Skip-to-main keyboard navigation missing.');
 uxIncomingAssert(str_contains($app,'<details class="incoming-by-product ux-incoming-products"')&&str_contains($app,'<summary class="incoming-by-product-head">'),'Incoming product quantities must be in a tap-to-expand section.');
 uxIncomingAssert(str_contains($app,'id="incoming-by-product-title"')&&str_contains($app,'<?=$totalIncomingUnits?> vials to receive'),'Incoming summary must retain outstanding vial counts.');
 $start=strpos($app,'<?php foreach($openSupplierOrders as $supplierOrder):?><details class="supplier-order-card ux-incoming-order">');

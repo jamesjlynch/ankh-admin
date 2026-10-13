@@ -53,3 +53,13 @@ Keep each PR independently testable and reversible. Never run setup.php or overw
 - All-time gross profit labels its period. To deliver includes both near-term and future deliveries, matching the all-pending filter.
 
 Verification: fixture-rendered queue checks and existing financial/stock regressions run in CI. The uploaded recording supplies the before-state; the updated physical iPhone safe area and keyboard behaviour still need device verification.
+
+## Focus and Dispatch implementation
+
+- Deduplicate the payment, near-term delivery and future-delivery datasets into one worklist. Default to All; To deliver includes future dates. Preserve explicit filters, manual delivery moves and their POST return context.
+- Offer remembered Cards / Dispatch layouts; Dispatch groups overdue, today, upcoming, unscheduled and delivered-unpaid orders.
+- Show independent payment, preparation and delivery states, plus recipient, buyer, product lines, assignee and a combined delivery date/countdown.
+- Put Unpaid, To deliver and Today’s sales above work; keep month sales, all-time gross profit and low stock in Business insights.
+- On mobile, use an accessible native dialog bottom sheet for worklist actions and Orders documents / more actions. Escape, Done and backdrop close restore the original form nodes and focus. Without JS, native disclosures still expose all forms.
+- Apply the charcoal/gold surface, typography, fields, touch targets and navigation styling across app screens. Existing data and mutation handlers are unchanged.
+- Verify with isolated PHP rendering fixtures and existing financial/stock/scheduling regressions. Physical iPhone appearance still requires device confirmation.
