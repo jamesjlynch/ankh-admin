@@ -535,6 +535,39 @@ function sc_group_definitions():array{
   'other'=>['Other MJT products','Supplier-only products you have not yet added to ANKH']
  ];
 }
+/**
+ * Potential gross profit IF every selected vial is sold at its current ANKH retail
+ * price. This is a purchasing projection, not realised sales profit, and excludes
+ * tax, payment charges, packaging and other overheads. Never invent revenue for
+ * an unmapped or zero-price product.
+ */
+function sc_basket_profit_summary(array $rows,array $boxes,?float $fx,int $shippingUsdCents):array{
+ $boxCount=0;$vials=0;$supplierUsd=0;$revenue=0;$unpriced=[];
+ foreach($rows as $row){
+  $sku=(string)($row['sku']??'');
+  $count=max(0,min(100,(int)($boxes[$sku]??0)));
+  if($count===0)continue;
+  $boxCount+=$count;
+  $units=$count*max(1,(int)($row['pack']??10));
+  $vials+=$units;
+  $supplierUsd+=$count*(int)($row['usd']??0);
+  $price=$row['retail']??null;
+  if($row['product_id']===null||$price===null||(int)$price<=0){
+   $unpriced[]=(string)($row['name']??$sku).' '.(string)($row['strength']??'').' ('.$sku.')';
+  }else{
+   $revenue+=$units*(int)$price;
+  }
+ }
+ $shipping=$boxCount>0?max(0,$shippingUsdCents):0;
+ $landed=$fx===null||$boxCount===0?null:(int)round(($supplierUsd+$shipping)*$fx);
+ return [
+  'boxes'=>$boxCount,'vials'=>$vials,'supplier_usd_cents'=>$supplierUsd,
+  'shipping_usd_cents'=>$shipping,'landed_gbp_pence'=>$landed,
+  'priced_revenue_gbp_pence'=>$revenue,'unpriced'=>$unpriced,
+  'profit_gbp_pence'=>$boxCount>0&&$landed!==null&&!$unpriced?$revenue-$landed:null,
+  'margin_percent'=>$boxCount>0&&$landed!==null&&!$unpriced&&$revenue>0?($revenue-$landed)/$revenue*100:null
+ ];
+}
 function sc_render(PDO $db,array $products,array $reservedByProduct,array $incomingByProduct,array $recurringForecast=[]):void{
  $tab=(string)($_GET['tab']??'profit');if(!in_array($tab,['profit','smart','order','products','incoming'],true))$tab='profit';
  $catalogue=$db->query("SELECT s.*,p.name AS ankh_name,p.price AS retail,p.family_friends_price AS friends,p.stock_tracking,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.low_stock_at FROM supplier_catalogue s LEFT JOIN products p ON p.id=s.product_id ORDER BY s.name COLLATE NOCASE,s.strength COLLATE NOCASE,s.sku")->fetchAll(PDO::FETCH_ASSOC);
@@ -597,6 +630,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  foreach($rows as $row)$groupedRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $profitRows=$rows;
  usort($profitRows,fn($a,$b)=>(($b['margin']??-999999)<=>($a['margin']??-999999)) ?: strcasecmp($a['name'].' '.$a['strength'],$b['name'].' '.$b['strength']));
+ $initialBasketProfit=sc_basket_profit_summary($rows,$draft,$fx,$draftShippingUsdCents);
  $groupedProfitRows=array_fill_keys(array_keys($groupDefinitions),[]);
  foreach($profitRows as $row)$groupedProfitRows[sc_catalogue_group($row,$purchasedSkus)][]=$row;
  $groupedSmart=['attention'=>[],'covered'=>[]];
@@ -760,7 +794,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
 <p class="sc-notice">Only products matched to your ANKH catalogue can be saved as Incoming Stock. You can still prepare and copy a supplier message for any SKU. A few specialty products have different supplier box sizes; these are shown explicitly.</p>
 <div class="sc-filters sc-order-filters"><input type="search" id="sc-order-search" placeholder="Search all supplier products…" aria-label="Search all supplier products"></div><p class="sc-find-help">Previously purchased and currently stocked products appear first. Unstocked products stay closed until you open them. Search finds items in every section.</p><p class="sc-stock-legend" aria-label="Combined available vial stock colour key"><span class="sc-stock-dot is-good" aria-hidden="true"></span>6+ vials <span class="sc-stock-dot is-low" aria-hidden="true"></span>0–4 vials <span class="sc-stock-dot is-edge" aria-hidden="true"></span>5 vials <span class="sc-stock-dot is-unknown" aria-hidden="true"></span>Not tracked</p>
 <form method="post" id="sc-order-form"><?php csrf();?><input type="hidden" name="action" value="supplier_centre_place"><input type="hidden" name="return" value="supplier">
-<div class="sc-order-quick" id="sc-order-quick" role="status" aria-live="polite"><div><small>YOUR SUPPLIER BASKET</small><strong><span id="sc-quick-boxes">0</span> boxes · <span id="sc-quick-usd">$0.00</span></strong><small id="sc-quick-gbp">Add boxes to see estimated GBP total</small></div><button type="button" id="sc-quick-review" aria-controls="sc-order-checkout">Review basket <span aria-hidden="true">→</span></button></div>
+<div class="sc-order-quick" id="sc-order-quick" role="status" aria-live="polite"><div><small>YOUR SUPPLIER BASKET</small><strong><span id="sc-quick-boxes">0</span> boxes · <span id="sc-quick-usd">$0.00</span></strong><small id="sc-quick-gbp">Add boxes to see estimated GBP total</small><small id="sc-quick-profit" class="sc-quick-profit" hidden></small></div><button type="button" id="sc-quick-review" aria-controls="sc-order-checkout">Review basket <span aria-hidden="true">→</span></button></div>
 <div class="sc-order-groups" id="sc-order-items">
 <?php foreach($groupDefinitions as $groupKey=>$groupDescription):$groupItems=$groupedRows[$groupKey];if(!$groupItems)continue;
 $groupHasDraft=false;foreach($groupItems as $groupEntry){if((int)($draft[$groupEntry['sku']]??0)>0){$groupHasDraft=true;break;}}
@@ -778,12 +812,22 @@ $groupOpen=in_array($groupKey,['purchased','stocked'],true)||$groupHasDraft;?>
 <div class="sc-order-checkout" id="sc-order-checkout"><h3 class="sc-checkout-title">Review your basket</h3><div class="sc-basket-selected" id="sc-basket-selected" aria-live="polite"><p>No boxes selected yet. Add products above to prepare an order.</p></div><div class="sc-order-summary"><div><small>Boxes selected</small><strong id="sc-total-boxes">0</strong></div><div><small>Vials incoming</small><strong id="sc-total-vials">0</strong></div><div><small>Supplier total</small><strong id="sc-total-usd">$0.00</strong></div></div>
 <label>Expected delivery date (optional)<input type="date" name="expected_date" value="<?=e((string)($draftRow['expected_date']??''))?>"></label><label>Supplier shipping per entire order (USD $)<input type="number" min="0" max="100000" step=".01" name="shipping_usd" value="<?=e(number_format($draftShippingUsdCents/100,2,'.',''))?>" id="sc-basket-shipping"><small>Flat $70.00 USD by default. Change here only if this order has a different quoted shipping fee.</small></label>
 <div class="sc-order-cost"><span>Estimated landed cost in GBP including order shipping</span><strong id="sc-total-gbp"><?=$fx===null?'Set exchange rate':'£0.00'?></strong><small id="sc-shipping-breakdown">Fixed shipping applies once per order and is allocated proportionally by supplier value across purchased vials. Rates and actual invoices may differ.</small></div>
+<section class="sc-basket-profit" aria-label="Projected supplier basket profit">
+ <div class="sc-basket-profit-heading"><div><small>IF ALL SELECTED VIALS SELL AT FULL ANKH RETAIL</small><h4>Projected gross profit after shipping</h4></div><span class="sc-profit-spark" aria-hidden="true">↗</span></div>
+ <strong class="sc-basket-profit-value" id="sc-basket-profit-value"><?=$initialBasketProfit['profit_gbp_pence']===null?'—':money($initialBasketProfit['profit_gbp_pence'])?></strong>
+ <div class="sc-basket-profit-breakdown">
+  <div><span>Potential retail sales</span><b id="sc-basket-revenue"><?=$initialBasketProfit['boxes']>0&&!$initialBasketProfit['unpriced']?money($initialBasketProfit['priced_revenue_gbp_pence']):'—'?></b></div>
+  <div><span>Supplier cost incl. shipping</span><b id="sc-basket-landed"><?=$initialBasketProfit['landed_gbp_pence']===null?'—':money($initialBasketProfit['landed_gbp_pence'])?></b></div>
+  <div><span>Projected margin</span><b id="sc-basket-margin"><?=$initialBasketProfit['margin_percent']===null?'—':number_format($initialBasketProfit['margin_percent'],1).'%'?></b></div>
+ </div>
+ <p class="sc-basket-profit-note" id="sc-basket-profit-note" aria-live="polite">Figures update as you add boxes. An estimate of future retail sales, not profit already earned. Excludes VAT/taxes, packaging, payment fees and other overheads.</p>
+</section>
 <label>Message ready for WhatsApp or supplier<input type="text" readonly value="Supplier order preview" class="sc-visually-hidden" aria-hidden="true"></label><textarea id="sc-supplier-message" readonly rows="10" aria-label="Generated supplier message"></textarea><small class="muted">The message lists full boxes and supplier codes. Costs and shipping are calculated above for your ANKH records, not included in Jessica’s message.</small>
 <div class="sc-order-actions"><button type="button" id="sc-copy-message" class="sc-copy-button">Copy supplier message</button><button type="submit" name="supplier_intent" value="draft" class="sc-draft-button">Save shared draft</button><button type="submit" id="sc-place-order">Mark as ordered &amp; track incoming</button></div><p id="sc-order-warning" class="sc-order-warning" role="status"></p>
 </div></form>
 <script>
 (function(){
- const rows=<?=json_encode(array_map(fn($r)=>['sku'=>$r['sku'],'name'=>$r['name'],'strength'=>$r['strength'],'message_label'=>sc_supplier_item_label($r['name'],$r['strength']),'pack'=>$r['pack'],'usd'=>$r['usd'],'mapped'=>$r['product_id']!==null],$rows),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
+ const rows=<?=json_encode(array_map(fn($r)=>['sku'=>$r['sku'],'name'=>$r['name'],'strength'=>$r['strength'],'message_label'=>sc_supplier_item_label($r['name'],$r['strength']),'pack'=>$r['pack'],'usd'=>$r['usd'],'retail'=>$r['retail'],'mapped'=>$r['product_id']!==null],$rows),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>;
  const fx=<?=json_encode($fx)?>;
  const inputs=[...document.querySelectorAll('[data-box-sku]')],lookup=Object.fromEntries(rows.map(r=>[r.sku,r])),form=document.querySelector('#sc-order-form'),copy=document.querySelector('#sc-copy-message'),save=document.querySelector('#sc-place-order'),preview=document.querySelector('#sc-supplier-message'),warning=document.querySelector('#sc-order-warning');
  function update(){
@@ -814,6 +858,24 @@ $groupOpen=in_array($groupKey,['purchased','stocked'],true)||$groupHasDraft;?>
   const shippingUsd=Math.round(Math.max(0,Number(document.querySelector('#sc-basket-shipping').value)||0)*100);
   document.querySelector('#sc-total-gbp').textContent=fx?gbp(Math.round((usd+(boxCount>0?shippingUsd:0))*fx)):'Set exchange rate';
   document.querySelector('#sc-shipping-breakdown').textContent='Shipping once per order: '+dollar(boxCount>0?shippingUsd:0)+(fx?' ≈ '+gbp(Math.round((boxCount>0?shippingUsd:0)*fx)):'')+'. Allocated across the ordered products by supplier value. Final invoice may differ.';
+  // Retail value represents all vials potentially sold, not immediate income from the purchase.
+  const unpriced=selected.filter(r=>!r.mapped||r.retail===null||Number(r.retail)<=0);
+  const potentialRevenue=selected.reduce((sum,r)=>sum+((r.mapped&&r.retail!==null&&Number(r.retail)>0)?r.boxes*r.pack*Number(r.retail):0),0);
+  const landedCost=fx&&boxCount>0?Math.round((usd+shippingUsd)*fx):null;
+  const complete=boxCount>0&&landedCost!==null&&unpriced.length===0;
+  const profit=complete?potentialRevenue-landedCost:null;
+  const profitPct=complete&&potentialRevenue>0?100*profit/potentialRevenue:null;
+  document.querySelector('#sc-basket-revenue').textContent=boxCount>0&&!unpriced.length?gbp(potentialRevenue):'—';
+  document.querySelector('#sc-basket-landed').textContent=landedCost===null?'—':gbp(landedCost);
+  document.querySelector('#sc-basket-profit-value').textContent=profit===null?'—':gbp(profit);
+  document.querySelector('#sc-basket-margin').textContent=profitPct===null?'—':profitPct.toFixed(1)+'%';
+  const profitNote=document.querySelector('#sc-basket-profit-note'),quickProfit=document.querySelector('#sc-quick-profit');
+  if(boxCount===0)profitNote.textContent='Select supplier boxes above to calculate projected profit after shipping.';
+  else if(!fx)profitNote.textContent='Save a GBP per USD exchange rate in Prices & matching to calculate this basket’s profit.';
+  else if(unpriced.length)profitNote.textContent='Cannot calculate whole-basket profit until these products have ANKH retail prices: '+unpriced.map(r=>r.name+' '+r.strength+' ('+r.sku+')').join(', ')+'. Match products in Prices & matching and set their selling prices.';
+  else profitNote.textContent='Assumes all '+vials+' vials sell at current full ANKH retail prices. Shipping is deducted once. This is projected gross profit, not realised profit; taxes, packaging, fees and other overheads are excluded.';
+  quickProfit.hidden=profit===null;
+  quickProfit.textContent=profit===null?'':'Potential profit after shipping: '+gbp(profit);
   preview.value=selected.length?'Hi Jessica,\nCan we place an order please for the following?\n\n'+selected.map(r=>'X'+r.boxes+' '+r.message_label+' ('+r.sku+')').join('\n')+'\n\nThanks':'Select boxes to generate a supplier message.';
   const missing=selected.filter(r=>!r.mapped);
   warning.textContent=missing.length?'Match '+missing.map(r=>r.sku).join(', ')+' to ANKH products before marking this basket as ordered.':(!fx?'Save an exchange rate in Prices & matching before recording a purchase.':'');
