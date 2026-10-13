@@ -5315,3 +5315,21 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .sc-basket-profit-breakdown b{font-size:12px}
  .sc-basket-profit-breakdown span{font-size:9px}
 }
+
+
+/* Supplier order discount — compact iPhone form and live basket adjustment */
+.sc-order-adjustments{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
+.sc-order-adjustments label{min-width:0}
+.sc-order-adjustments small{display:block;line-height:1.45}
+.sc-discount-summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 12px;margin:11px 0;padding:11px 12px;background:#161a18;border:1px solid #d5b36b40;border-radius:11px;font-size:12px}
+.sc-discount-summary span{color:var(--muted)}
+.sc-discount-summary strong{text-align:right;color:#dcb96e}
+.sc-discount-summary.is-invalid{border-color:#b86260a3}
+.sc-discount-summary.is-invalid strong{color:#efb6a4}
+.sc-basket-discount-info{font-size:12px;line-height:1.5;color:#daba7b;margin:9px 0}
+.sc-quick-discount{display:block;font-size:11px;color:#e2c07b;line-height:1.45}
+@media(max-width:640px){
+ .sc-order-adjustments{grid-template-columns:1fr;gap:4px}
+ .sc-order-adjustments input{min-height:46px}
+ .sc-discount-summary{font-size:11px}
+}
