@@ -190,6 +190,144 @@ if($stockBoardRequest!==''){
  exit;
 }
 
+
+/*
+ * Hidden live monthly reports board.
+ * Direct-link only: deliberately omitted from all ANKH navigation.
+ */
+$reportBoardKey='91c7e54a3b2d49f6a8e1c3b57d2460af';
+$reportBoardRequest=(string)($_GET['reportboard']??'');
+if($reportBoardRequest!==''){
+ if(!hash_equals($reportBoardKey,$reportBoardRequest)){http_response_code(404);exit('Not found');}
+ $buildReportBoard=function()use($db):array{
+  $tz=new DateTimeZone('Europe/London');
+  $now=new DateTimeImmutable('now',$tz);
+  $monthStart=$now->modify('first day of this month')->setTime(0,0,0);
+  $nextMonth=$monthStart->modify('+1 month');
+  $from=$monthStart->format('Y-m-d H:i:s');$to=$nextMonth->format('Y-m-d H:i:s');
+
+  $orderSql="SELECT o.id,o.customer,o.phone,o.created,o.payment_date,o.delivery_charge,o.status,
+   COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total
+   FROM orders o
+   LEFT JOIN items i ON i.order_id=o.id
+   WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')
+     AND datetime(CASE WHEN trim(COALESCE(o.payment_date,''))<>'' THEN o.payment_date||' 12:00:00' ELSE o.created END)>=datetime(?)
+     AND datetime(CASE WHEN trim(COALESCE(o.payment_date,''))<>'' THEN o.payment_date||' 12:00:00' ELSE o.created END)<datetime(?)
+   GROUP BY o.id
+   ORDER BY datetime(CASE WHEN trim(COALESCE(o.payment_date,''))<>'' THEN o.payment_date||' 12:00:00' ELSE o.created END) DESC,o.id DESC";
+  $q=$db->prepare($orderSql);$q->execute([$from,$to]);$orders=$q->fetchAll(PDO::FETCH_ASSOC);
+  $orderIds=array_map('intval',array_column($orders,'id'));
+  $orderTotals=[];foreach($orders as $o)$orderTotals[(int)$o['id']]=(int)$o['total'];
+
+  $productRows=[];
+  if($orderIds){
+   $ph=implode(',',array_fill(0,count($orderIds),'?'));
+   $q=$db->prepare("SELECT i.name,SUM(i.quantity) AS units,SUM(i.price*i.quantity) AS revenue
+    FROM items i WHERE i.order_id IN ($ph) GROUP BY i.name ORDER BY revenue DESC,units DESC,i.name COLLATE NOCASE");
+   $q->execute($orderIds);
+   foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row){
+    if(strtolower(trim((string)$row['name']))==='pen' && (int)$row['revenue']===0)continue;
+    $productRows[]=['name'=>(string)$row['name'],'units'=>(int)$row['units'],'revenue'=>(int)$row['revenue']];
+   }
+  }
+
+  $customers=[];
+  foreach($orders as $o){
+   $key=strtolower(trim((string)$o['customer'])).'|'.trim((string)$o['phone']);
+   if(!isset($customers[$key]))$customers[$key]=['name'=>(string)$o['customer'],'orders'=>0,'sales'=>0];
+   $customers[$key]['orders']++;$customers[$key]['sales']+=(int)$o['total'];
+  }
+  $customerRows=array_values($customers);
+  usort($customerRows,fn($a,$b)=>$b['sales']<=>$a['sales'] ?: $b['orders']<=>$a['orders'] ?: strcasecmp((string)$a['name'],(string)$b['name']));
+
+  return [
+   'month'=>$now->format('F Y'),
+   'sales'=>array_sum($orderTotals),
+   'orders'=>count($orders),
+   'customers'=>count($customerRows),
+   'products'=>$productRows,
+   'customer_rows'=>$customerRows,
+   'units'=>array_sum(array_column($productRows,'units')),
+   'updated'=>time()
+  ];
+ };
+ $reportData=$buildReportBoard();
+ if((string)($_GET['format']??'')==='json'){
+  header('Content-Type: application/json; charset=utf-8');
+  header('Cache-Control: no-store, max-age=0');
+  header('X-Robots-Tag: noindex, nofollow');
+  echo json_encode(['ok'=>true]+$reportData,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+  exit;
+ }
+ header('Content-Type: text/html; charset=utf-8');
+ header('Cache-Control: no-store, max-age=0');
+ header('X-Robots-Tag: noindex, nofollow');
+ ?>
+ <!doctype html>
+ <html lang="en">
+ <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#08090a">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>ANKH • Live monthly reports</title>
+  <style>
+   :root{color-scheme:dark;--bg:#070809;--panel:#121310;--panel2:#171814;--line:#3b372c;--gold:#d8b658;--gold2:#ffe690;--text:#f8f3e6;--muted:#989b94;--cyan:#79dff3}
+   *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:radial-gradient(circle at 18% -12%,#342d18 0,transparent 30%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+   body{min-height:100dvh;padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+   .wrap{width:min(1800px,100%);margin:0 auto}
+   header{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:8px 2px 20px;border-bottom:1px solid var(--line)}
+   .brand{display:flex;align-items:center;gap:14px}.mark{width:52px;height:52px;display:grid;place-items:center;border:1px solid #776634;border-radius:15px;background:#15140f;color:var(--gold2);font:700 27px Georgia,serif}
+   .brand p{margin:0;color:var(--gold);font-size:10px;font-weight:900;letter-spacing:.18em}.brand h1{margin:4px 0 0;font-size:clamp(28px,3.5vw,50px);line-height:.96;letter-spacing:-.04em}
+   .live{display:flex;align-items:center;gap:8px;color:#c1c3ba;font-size:11px;font-weight:800;white-space:nowrap}.dot{width:9px;height:9px;border-radius:50%;background:#73e7ad;box-shadow:0 0 0 5px rgba(115,231,173,.08)}
+   .hero{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:12px;padding:16px 0}.metric{padding:18px;border:1px solid var(--line);border-radius:17px;background:linear-gradient(145deg,#171814,#10110e)}.metric.primary{background:linear-gradient(145deg,#221d10,#12110d);border-color:#6c5a2d}.metric span{display:block;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.metric strong{display:block;margin-top:9px;font-size:clamp(24px,3vw,43px);line-height:.95;color:var(--text)}.metric.primary strong{color:var(--gold2)}.metric small{display:block;margin-top:6px;color:#74776f;font-size:10px}
+   .panels{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}.panel{border:1px solid var(--line);border-radius:20px;background:linear-gradient(145deg,#151612,#0f100e);padding:18px;min-width:0}.panel-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:12px}.eyebrow{margin:0;color:var(--gold);font-size:9px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.panel h2{margin:4px 0 0;font-size:clamp(22px,2.4vw,34px);letter-spacing:-.035em}.panel-head small{color:#777a73;font-size:10px}
+   .list{display:grid;gap:7px}.row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:11px 12px;border:1px solid #2b2c27;border-radius:12px;background:#11120f}.row strong{font-size:13px;overflow:hidden;text-overflow:ellipsis}.row .count{color:var(--muted);font-size:10px;white-space:nowrap}.row .money{color:var(--gold2);font-size:13px;font-weight:900;white-space:nowrap}.rank{display:inline-grid;place-items:center;width:25px;height:25px;margin-right:9px;border-radius:8px;background:#1d1b13;border:1px solid #4f4528;color:#d7bd71;font-size:10px}
+   .empty{padding:34px;text-align:center;border:1px dashed #34362f;border-radius:14px;color:var(--muted)}
+   footer{display:flex;justify-content:space-between;gap:12px;padding:18px 2px 0;color:#696c65;font-size:9px}
+   @media(max-width:800px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.metric.primary{grid-column:1/-1}.panels{grid-template-columns:1fr}.row{grid-template-columns:minmax(0,1fr) auto}.row .count{grid-row:2;grid-column:1}.brand h1{font-size:30px}}
+   @media(max-width:470px){body{padding-left:12px;padding-right:12px}header{align-items:flex-start}.live{font-size:9px}.hero{gap:8px}.metric{padding:14px}.metric strong{font-size:26px}.panel{padding:13px}.row{padding:10px}.row strong{font-size:12px}}
+   @media(min-width:1200px){body{padding:28px 34px}.hero{gap:15px}.panels{gap:16px}.panel{padding:22px}.list{grid-template-columns:1fr}.row{padding:13px 14px}.row strong,.row .money{font-size:15px}}
+   @media(min-width:1600px){.panels{grid-template-columns:1.15fr .85fr}.row{padding:15px}.row strong,.row .money{font-size:17px}}
+  </style>
+ </head>
+ <body>
+ <main class="wrap">
+  <header>
+   <div class="brand"><div class="mark">☥</div><div><p>ANKH PEPTIDES</p><h1>Monthly performance</h1></div></div>
+   <div class="live"><i class="dot"></i><span id="live-label">LIVE · <?=$reportData['month']?></span></div>
+  </header>
+  <section class="hero">
+   <article class="metric primary"><span>Sales this month</span><strong id="total-sales">£<?=number_format($reportData['sales']/100,2)?></strong><small id="month-label"><?=e($reportData['month'])?></small></article>
+   <article class="metric"><span>Completed orders</span><strong id="order-count"><?=$reportData['orders']?></strong><small>Paid / packed / dispatched / delivered</small></article>
+   <article class="metric"><span>Customers</span><strong id="customer-count"><?=$reportData['customers']?></strong><small>Customers with completed sales</small></article>
+   <article class="metric"><span>Units sold</span><strong id="unit-count"><?=$reportData['units']?></strong><small>Across all products</small></article>
+  </section>
+  <section class="panels">
+   <article class="panel"><div class="panel-head"><div><p class="eyebrow">SALES BY PRODUCT</p><h2>Products this month</h2></div><small>Highest revenue first</small></div><div class="list" id="product-list">
+    <?php foreach($reportData['products'] as $i=>$row):?><div class="row"><div><span class="rank"><?=$i+1?></span><strong><?=e($row['name'])?></strong></div><span class="count"><?=$row['units']?> unit<?=$row['units']===1?'':'s'?></span><span class="money">£<?=number_format($row['revenue']/100,2)?></span></div><?php endforeach;?>
+   </div><div class="empty" id="product-empty" <?=$reportData['products']?'hidden':''?>>No completed product sales this month.</div></article>
+   <article class="panel"><div class="panel-head"><div><p class="eyebrow">SALES BY CUSTOMER</p><h2>Customers this month</h2></div><small>Highest spend first</small></div><div class="list" id="customer-list">
+    <?php foreach($reportData['customer_rows'] as $i=>$row):?><div class="row"><div><span class="rank"><?=$i+1?></span><strong><?=e($row['name'])?></strong></div><span class="count"><?=$row['orders']?> order<?=$row['orders']===1?'':'s'?></span><span class="money">£<?=number_format($row['sales']/100,2)?></span></div><?php endforeach;?>
+   </div><div class="empty" id="customer-empty" <?=$reportData['customer_rows']?'hidden':''?>>No completed customer sales this month.</div></article>
+  </section>
+  <footer><span>ANKH live monthly reporting</span><span>Refreshes automatically every 20 seconds</span></footer>
+ </main>
+ <script>
+ (()=>{const key=<?=json_encode($reportBoardKey)?>,money=n=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(Number(n||0)/100),esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+ const els={sales:document.getElementById('total-sales'),orders:document.getElementById('order-count'),customers:document.getElementById('customer-count'),units:document.getElementById('unit-count'),month:document.getElementById('month-label'),live:document.getElementById('live-label'),products:document.getElementById('product-list'),customersList:document.getElementById('customer-list'),productEmpty:document.getElementById('product-empty'),customerEmpty:document.getElementById('customer-empty')};
+ function render(data){els.sales.textContent=money(data.sales);els.orders.textContent=Number(data.orders||0);els.customers.textContent=Number(data.customers||0);els.units.textContent=Number(data.units||0);els.month.textContent=data.month||'';els.live.textContent='LIVE · '+(data.month||'')+' · '+new Date((Number(data.updated)||Date.now()/1000)*1000).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+ const products=Array.isArray(data.products)?data.products:[];els.products.innerHTML=products.map((r,i)=>'<div class="row"><div><span class="rank">'+(i+1)+'</span><strong>'+esc(r.name)+'</strong></div><span class="count">'+Number(r.units||0)+' unit'+(Number(r.units||0)===1?'':'s')+'</span><span class="money">'+money(r.revenue)+'</span></div>').join('');els.productEmpty.hidden=products.length>0;
+ const customers=Array.isArray(data.customer_rows)?data.customer_rows:[];els.customersList.innerHTML=customers.map((r,i)=>'<div class="row"><div><span class="rank">'+(i+1)+'</span><strong>'+esc(r.name)+'</strong></div><span class="count">'+Number(r.orders||0)+' order'+(Number(r.orders||0)===1?'':'s')+'</span><span class="money">'+money(r.sales)+'</span></div>').join('');els.customerEmpty.hidden=customers.length>0;}
+ async function refresh(){try{const r=await fetch('?reportboard='+encodeURIComponent(key)+'&format=json&t='+Date.now(),{cache:'no-store',credentials:'omit'});if(!r.ok)throw new Error('refresh failed');const data=await r.json();if(data.ok)render(data)}catch(e){els.live.textContent='LIVE · reconnecting…'}}
+ refresh();setInterval(refresh,20000);})();
+ </script>
+ </body></html>
+ <?php
+ exit;
+}
+
 $db->exec('CREATE TABLE IF NOT EXISTS stock_movements (
  id INTEGER PRIMARY KEY,
  product_id INTEGER NOT NULL REFERENCES products(id),
