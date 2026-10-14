@@ -8,7 +8,7 @@ $start=strpos($source,'function orderPreparationState(');$end=strpos($source,'fu
 $start=strpos($source,'function preparationBoardData(');$end=strpos($source,"if(\$reportBoardRequest!==''",$start);eval(substr($source,$start,$end-$start));
 $start=strpos($source,'function deliveryCountdown(');$end=strpos($source,'function ', $start+10);eval(substr($source,$start,$end-$start));
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$db->exec("CREATE TABLE orders(id INTEGER PRIMARY KEY,created TEXT,status TEXT,payment_date TEXT DEFAULT '',delivery_date TEXT DEFAULT '',scheduled_delivery_date TEXT DEFAULT '',delivery_section_override TEXT DEFAULT '',delivery_charge INTEGER DEFAULT 0,assigned_to TEXT DEFAULT '',reconstituted INTEGER DEFAULT 0,packaged INTEGER DEFAULT 0);CREATE TABLE items(order_id INTEGER,price INTEGER,quantity INTEGER,id INTEGER PRIMARY KEY,name TEXT DEFAULT 'Product');CREATE TABLE payments(order_id INTEGER,amount INTEGER)");
+$db->exec("CREATE TABLE orders(id INTEGER PRIMARY KEY,created TEXT,status TEXT,payment_date TEXT DEFAULT '',delivery_date TEXT DEFAULT '',scheduled_delivery_date TEXT DEFAULT '',delivery_section_override TEXT DEFAULT '',delivery_charge INTEGER DEFAULT 0,customer TEXT DEFAULT 'Test customer',recipient_name TEXT DEFAULT '',delivery_method TEXT DEFAULT 'Local Delivery',assigned_to TEXT DEFAULT '',reconstituted INTEGER DEFAULT 0,packaged INTEGER DEFAULT 0);CREATE TABLE items(order_id INTEGER,price INTEGER,quantity INTEGER,id INTEGER PRIMARY KEY,name TEXT DEFAULT 'Product');CREATE TABLE payments(order_id INTEGER,amount INTEGER)");
 $insert=$db->prepare('INSERT INTO orders(id,created,status,payment_date,delivery_date,scheduled_delivery_date,delivery_charge) VALUES(?,?,?,?,?,?,?)');
 foreach([
  [1,'2026-10-14T10:00:00+01:00','Paid','2026-10-14','','2026-10-30',200],
@@ -38,7 +38,8 @@ check(array_column($board['columns']['reconstituted'],'id')===[1]&&array_column(
 check($board['columns']['reconstituted'][0]['owner']==='Jay'&&$board['columns']['packaged'][0]['owner']==='Tony','Board assignment aliases.');
 check($board['columns']['pending'][1]['balance']===600,'Partial payments must show only remaining balance.');
 check($board['columns']['pending'][0]['items'][0]['quantity']===1,'Product quantities must be preserved.');
-check(!array_key_exists('customer',$board['columns']['pending'][0])&&!array_key_exists('phone',$board['columns']['pending'][0]),'TV payload must omit customer details.');
+check($board['columns']['pending'][0]['customer']==='Test customer'&&$board['columns']['pending'][0]['order_date']==='2026-10-10'&&$board['columns']['pending'][0]['delivery_method']==='Local Delivery'&&$board['columns']['pending'][0]['total']===1000,'Order cards must include customer, local order date, delivery method and total.');
+check(!array_key_exists('phone',$board['columns']['pending'][0])&&!array_key_exists('address',$board['columns']['pending'][0]),'TV payload must omit contact details.');
 check($board['due_today']===1&&$board['overdue']===1,'Board summary must use all open orders.');
 $db->exec("UPDATE orders SET delivery_date='2026-10-14' WHERE id=1");$closed=todayOverviewData($db,$now);
 check($closed['preparation']['reconstituted']===0&&$closed['workload']['Jay']===0&&$closed['next_delivery']==='','Manual delivery removes an order from preparation, workload and next delivery.');
