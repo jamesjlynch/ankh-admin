@@ -65,3 +65,7 @@ Source was reviewed for escaping, prepared queries, server-side validation and a
 - Test at a phone-sized viewport.
 
 Krystal deployment is configured from this repository via the included cPanel deployment files. Private login credentials and the SQLite database remain outside GitHub.
+
+## Office Today overview
+
+Append `&screen=today` to the existing private reports-display link. This read-only screen refreshes every 30 seconds and shows today’s paid sales, orders placed, outstanding balances, all pending deliveries, and Monday–Sunday sales. Dates use Europe/London. Cancelled orders are excluded; partial payments reduce balances; future planned deliveries remain pending until manually delivered. The display contains aggregate totals only. Connection failures visibly mark the last successful figures as stale.

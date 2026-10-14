@@ -47,6 +47,8 @@ jobs:
           php -l tests/mobile-app-ux.php
           php -l tests/mobile-incoming-ux.php
           php -l tests/iphone-recording-ux.php
+      - name: Test office today overview
+        run: php tests/today-overview.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages

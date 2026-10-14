@@ -197,6 +197,65 @@ if($stockBoardRequest!==''){
  */
 $reportBoardKey='91c7e54a3b2d49f6a8e1c3b57d2460af';
 $reportBoardRequest=(string)($_GET['reportboard']??'');
+// Read-only office overview, using the existing reports display credential.
+function todayOverviewData(PDO $db, ?DateTimeImmutable $now=null):array{
+ $tz=new DateTimeZone('Europe/London');$now=($now??new DateTimeImmutable('now',$tz))->setTimezone($tz);
+ $today=$now->format('Y-m-d');$weekStart=$now->modify('monday this week')->setTime(0,0);$days=[];
+ for($n=0;$n<7;$n++){$day=$weekStart->modify('+'.$n.' days');$days[$day->format('Y-m-d')]=['date'=>$day->format('Y-m-d'),'label'=>$day->format('D'),'sales'=>0];}
+ $data=['ok'=>true,'updated'=>$now->format(DATE_ATOM),'today_sales'=>0,'today_orders'=>0,'unpaid'=>0,'unpaid_orders'=>0,'to_deliver'=>0,'overdue'=>0,'delivered_unpaid'=>0,'week_sales'=>0,'days'=>[]];
+ $rows=$db->query("SELECT o.id,o.created,o.status,o.payment_date,o.delivery_date,o.scheduled_delivery_date,o.delivery_section_override,
+ COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,
+ COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.order_id=o.id),0) paid_amount FROM orders o WHERE o.status<>'Cancelled'");
+ foreach($rows as $row){
+  $created=(new DateTimeImmutable((string)$row['created'],$tz))->setTimezone($tz)->format('Y-m-d');
+  if($created===$today)$data['today_orders']++;
+  $balance=max(0,(int)$row['total']-(int)$row['paid_amount']);$data['unpaid']+=$balance;if($balance>0)$data['unpaid_orders']++;
+  $delivered=$row['status']==='Delivered'||trim((string)$row['delivery_date'])!=='';
+  if($delivered)$data['delivered_unpaid']+=$balance;
+  if(deliveryBoardSection($row,$today)!==''){$data['to_deliver']++;if($row['scheduled_delivery_date']!==''&&$row['scheduled_delivery_date']<$today)$data['overdue']++;}
+  if(!in_array($row['status'],['Paid','Packed','Dispatched','Delivered'],true))continue;
+  $saleDate=trim((string)$row['payment_date'])?:$created;
+  if($saleDate===$today)$data['today_sales']+=(int)$row['total'];
+  if(isset($days[$saleDate])&&$saleDate<=$today){$days[$saleDate]['sales']+=(int)$row['total'];$data['week_sales']+=(int)$row['total'];}
+ }
+ $data['days']=array_values($days);return $data;
+}
+if($reportBoardRequest!==''&&(string)($_GET['screen']??'')==='today'){
+ if(!hash_equals($reportBoardKey,$reportBoardRequest)){http_response_code(404);exit('Not found');}
+ header('Referrer-Policy: no-referrer');header('X-Robots-Tag: noindex, nofollow');
+ $overview=todayOverviewData($db);
+ if((string)($_GET['format']??'')==='json'){header('Content-Type: application/json; charset=utf-8');echo json_encode($overview,JSON_THROW_ON_ERROR);exit;}
+ ?>
+ <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="#080909"><title>ANKH · Today’s overview</title>
+ <style>
+ :root{color-scheme:dark;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#080909;color:#f7f4eb}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0,#342b164d,transparent 60%);min-height:100vh}.today-board{max-width:1900px;margin:auto;padding:clamp(20px,3vw,56px)}header,.brand,footer,.chart-head{display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{justify-content:flex-start}.mark{font:48px Georgia;color:#e4bf62;border:1px solid #7d6533;border-radius:20px;padding:8px 18px}.eyebrow{color:#d8b658;text-transform:uppercase;letter-spacing:.2em;font-size:clamp(11px,1vw,17px);font-weight:800}h1{font-size:clamp(28px,3.2vw,58px);letter-spacing:-.04em;margin:5px 0}header{padding-bottom:24px;border-bottom:1px solid #363127}.meta{text-align:right;color:#aeb0a8}.meta strong{display:block;font-size:clamp(18px,2vw,32px);color:#f7f4eb}.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin:28px 0}.metric,.chart{border:1px solid #38362d;border-radius:24px;background:linear-gradient(140deg,#1a1b16,#10120f);padding:clamp(18px,2vw,36px)}.metric:first-child{border-color:#8c713a;background:linear-gradient(140deg,#302715,#14140e)}.metric span{font-size:clamp(13px,1.2vw,21px);color:#b4b6ab}.metric strong{display:block;font-size:clamp(28px,3.5vw,66px);letter-spacing:-.04em;margin:16px 0;color:#fff1c6;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.metric small{color:#93988e;font-size:clamp(11px,1vw,17px)}h2{margin:6px 0;font-size:clamp(23px,2.3vw,40px)}.week-total{color:#f5dc94;font-size:clamp(25px,3vw,52px);font-weight:800}.bars{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:clamp(8px,2vw,36px);height:clamp(180px,30vh,380px);margin-top:24px}.day{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:10px;min-width:0}.day-value{font-size:clamp(11px,1.3vw,23px);color:#f7e7b7;white-space:nowrap}.bar-slot{height:100%;width:100%;display:flex;align-items:flex-end;border-bottom:1px solid #4b4531}.bar{width:100%;height:0;border-radius:10px 10px 0 0;background:linear-gradient(#e7c46b,#745e2f)}.day.current .bar{background:linear-gradient(#fff0b6,#b78b33)}.day-label{font-size:clamp(12px,1.2vw,21px);color:#a8ad9f}.day.current .day-label{color:#ffe59a;font-weight:800}.actions{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:24px;padding-top:20px;border-top:1px solid #37372b;color:#c8c9bb;font-size:clamp(13px,1.2vw,21px)}footer{margin-top:22px;color:#92998c;font-size:clamp(11px,1vw,16px)}button{background:#1c1e17;color:#e5cf95;border:1px solid #574b2d;border-radius:10px;padding:9px 14px;cursor:pointer}#live{color:#9de1ab}body.stale #live{color:#f0b56a}body.stale .chart,body.stale .metrics{opacity:.65}@media(max-width:800px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{border-radius:16px}.brand{gap:10px}.mark{font-size:28px;padding:8px 12px}header{align-items:flex-start}.meta{font-size:11px}.bars{gap:8px}footer{flex-wrap:wrap}.day-value{font-size:10px}.chart{padding:16px}}
+ </style></head><body><main class="today-board">
+ <header><div class="brand"><div class="mark">☥</div><div><div class="eyebrow">Ankh Peptides · Office live</div><h1>Today’s overview</h1></div></div><div class="meta"><strong id="clock"></strong><span id="date"></span></div></header>
+ <section class="metrics" aria-label="Today and outstanding work">
+ <article class="metric"><span>Today’s sales</span><strong id="sales">—</strong><small>Paid orders · payment date</small></article>
+ <article class="metric"><span>Orders placed today</span><strong id="orders">—</strong><small>All non-cancelled orders</small></article>
+ <article class="metric"><span>Awaiting payment</span><strong id="unpaid">—</strong><small id="unpaid-count"></small></article>
+ <article class="metric"><span>Awaiting delivery</span><strong id="delivery">—</strong><small>Includes future agreed deliveries</small></article>
+ </section><section class="chart" aria-label="Sales this week"><div class="chart-head"><div><div class="eyebrow">Monday to Sunday</div><h2>Sales this week</h2></div><div class="week-total" id="week-total">—</div></div><div class="bars" id="bars"></div><div class="actions"><span id="overdue"></span><span id="delivered-unpaid"></span></div></section>
+ <footer><span id="live" role="status">Connecting…</span><span id="updated"></span><button type="button" id="fullscreen">Full screen</button></footer>
+ </main><script>
+ (()=>{
+ const money=n=>new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP',maximumFractionDigits:2}).format(n/100),el=id=>document.getElementById(id);let lastSuccess=0,busy=false;
+ const london=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',second:'2-digit'}),date=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',weekday:'long',day:'numeric',month:'long'});
+ function tick(){el('clock').textContent=london.format(new Date());el('date').textContent=date.format(new Date());if(lastSuccess&&Date.now()-lastSuccess>65000)stale('Updates delayed · reconnecting…');}
+ function stale(message){document.body.classList.add('stale');el('live').textContent=message;}
+ function render(d){
+ el('sales').textContent=money(d.today_sales);el('orders').textContent=d.today_orders;el('unpaid').textContent=money(d.unpaid);el('unpaid-count').textContent=d.unpaid_orders+' orders · all outstanding balances';el('delivery').textContent=d.to_deliver;el('week-total').textContent=money(d.week_sales);el('overdue').textContent=d.overdue+' deliveries overdue';el('delivered-unpaid').textContent=money(d.delivered_unpaid)+' delivered but unpaid';
+ const max=Math.max(1,...d.days.map(x=>x.sales));el('bars').replaceChildren();d.days.forEach(day=>{const item=document.createElement('div');item.className='day'+(day.date===d.updated.slice(0,10)?' current':'');const value=document.createElement('span');value.className='day-value';value.textContent=money(day.sales);const slot=document.createElement('div');slot.className='bar-slot';const bar=document.createElement('div');bar.className='bar';bar.style.height=(day.sales/max*100)+'%';slot.append(bar);const label=document.createElement('span');label.className='day-label';label.textContent=day.label;item.append(value,slot,label);el('bars').append(item);});
+ lastSuccess=Date.parse(d.updated);document.body.classList.remove('stale');el('live').textContent='● Live · refreshes every 30 seconds';el('updated').textContent='Updated '+london.format(new Date(d.updated))+' · UK time';
+ }
+ async function refresh(){if(busy)return;busy=true;try{const url=new URL(location.href);url.searchParams.set('format','json');url.searchParams.set('t',Date.now());const r=await fetch(url,{cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(12000)});if(!r.ok)throw new Error();const d=await r.json();if(d.ok!==true||!Array.isArray(d.days))throw new Error();render(d);}catch{stale(navigator.onLine?'Connection lost · reconnecting…':'Offline · showing last update');}finally{busy=false;}}
+ render(<?=json_encode($overview,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_THROW_ON_ERROR)?>);tick();setInterval(tick,1000);setInterval(refresh,30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});window.addEventListener('online',refresh);window.addEventListener('offline',()=>stale('Offline · showing last update'));
+ el('fullscreen').addEventListener('click',async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{el('fullscreen').textContent='Use your browser’s full-screen option';}});
+ })();
+ </script></body></html>
+ <?php exit;
+}
 if($reportBoardRequest!==''){
  if(!hash_equals($reportBoardKey,$reportBoardRequest)){http_response_code(404);exit('Not found');}
  $buildReportBoard=function()use($db):array{

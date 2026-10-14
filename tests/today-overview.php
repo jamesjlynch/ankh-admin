@@ -1,0 +1,30 @@
+<?php
+declare(strict_types=1);
+$source=file_get_contents(dirname(__DIR__).'/index.php');
+function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
+$start=strpos($source,'function todayOverviewData(');$end=strpos($source,"if(\$reportBoardRequest!==''",$start);eval(substr($source,$start,$end-$start));
+$start=strpos($source,'function deliveryBoardSection(');$end=strpos($source,'function isFutureDelivery(',$start);eval(substr($source,$start,$end-$start));
+$db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$db->exec("CREATE TABLE orders(id INTEGER PRIMARY KEY,created TEXT,status TEXT,payment_date TEXT DEFAULT '',delivery_date TEXT DEFAULT '',scheduled_delivery_date TEXT DEFAULT '',delivery_section_override TEXT DEFAULT '',delivery_charge INTEGER DEFAULT 0);CREATE TABLE items(order_id INTEGER,price INTEGER,quantity INTEGER);CREATE TABLE payments(order_id INTEGER,amount INTEGER)");
+$insert=$db->prepare('INSERT INTO orders(id,created,status,payment_date,delivery_date,scheduled_delivery_date,delivery_charge) VALUES(?,?,?,?,?,?,?)');
+foreach([
+ [1,'2026-10-14T10:00:00+01:00','Paid','2026-10-14','','2026-10-30',200],
+ [2,'2026-10-14T10:00:00+01:00','New','','','',0],
+ [3,'2026-10-12T10:00:00+01:00','Delivered','2026-10-12','2026-10-13','',0],
+ [4,'2026-10-14T10:00:00+01:00','Cancelled','','','',0],
+ [5,'2026-10-13T23:30:00Z','New','','','2026-10-13',0],
+ [6,'2026-10-10T10:00:00+01:00','Paid','2026-10-15','','',0],
+] as $row){$insert->execute($row);$db->prepare('INSERT INTO items VALUES(?,1000,1)')->execute([$row[0]]);}
+$db->exec('INSERT INTO payments VALUES(1,1200),(2,400),(3,250)');
+$now=new DateTimeImmutable('2026-10-14T12:00:00+01:00');$data=todayOverviewData($db,$now);
+check($data['today_sales']===1200,'Sales use payment date and include delivery fees.');
+check($data['today_orders']===3,'Orders exclude cancellations and use London local dates.');
+check($data['unpaid']===3350&&$data['unpaid_orders']===4,'Outstanding balances must subtract partial payments and exclude cancelled orders.');
+check($data['delivered_unpaid']===750,'Delivered unpaid must remain visible.');
+check($data['to_deliver']===3&&$data['overdue']===1,'Future planned deliveries stay open; delivered orders leave the queue.');
+check(count($data['days'])===7&&$data['week_sales']===2200,'Week includes seven days but excludes future dated sales.');
+check($data['days'][0]['date']==='2026-10-12'&&$data['days'][3]['sales']===0,'Week begins Monday and future days are empty.');
+$db->exec('DELETE FROM orders; DELETE FROM items; DELETE FROM payments');$empty=todayOverviewData($db,$now);
+check($empty['today_sales']===0&&$empty['to_deliver']===0&&count($empty['days'])===7,'Empty database must render a complete zero state.');
+$dst=todayOverviewData($db,new DateTimeImmutable('2026-10-25T23:30:00Z'));check($dst['days'][0]['date']==='2026-10-19','DST must not shift week boundaries.');
+echo "PASS: overview totals, partial payments, cancellations, future deliveries, UK dates, weekly sales, DST and empty data.\n";
