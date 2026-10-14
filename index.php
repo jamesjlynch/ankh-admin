@@ -3030,7 +3030,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard'],true)?$_GET['view']:'dashboard';
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
 if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
@@ -3528,6 +3528,83 @@ if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRange
 }
 }
 $sheetWebhook=setting($db,'sheets_webhook');$sheetId=setting($db,'sheets_sheet_id');$sheetSecret=setting($db,'sheets_secret');$sheetLastSync=setting($db,'sheets_last_sync');$sheetLastError=setting($db,'sheets_last_error');
+
+if($view==='stockboard'){
+ $stockboardRows=[];
+ foreach($stockProducts as $boardProduct){
+  if((int)($boardProduct['active']??0)!==1 || (int)($boardProduct['stock_tracking']??0)!==1)continue;
+  $jay=max(0,(int)($boardProduct['stock_jay_qty']??0));
+  $tony=max(0,(int)($boardProduct['stock_tony_qty']??0));
+  $unallocated=max(0,(int)($boardProduct['stock_unallocated_qty']??0));
+  $total=$jay+$tony+$unallocated;
+  if($total<=0)continue;
+  $stockboardRows[]=[
+   'id'=>(int)$boardProduct['id'],
+   'name'=>(string)$boardProduct['name'],
+   'jay'=>$jay,'tony'=>$tony,'unallocated'=>$unallocated,'total'=>$total,
+   'low_at'=>(int)($boardProduct['low_stock_at']??5)
+  ];
+ }
+ usort($stockboardRows,fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));
+ $stockboardUnits=array_sum(array_column($stockboardRows,'total'));
+ ?>
+ <style id="ankh-stockboard-style">
+ *{box-sizing:border-box}
+ html,body{margin:0;min-height:100%;background:#090a0a;color:#f7f2df;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+ body{background:
+   radial-gradient(circle at 15% -10%,rgba(217,181,83,.12),transparent 28rem),
+   radial-gradient(circle at 85% 0,rgba(217,181,83,.06),transparent 24rem),
+   #090a0a}
+ .stockboard{width:min(1680px,100%);margin:0 auto;padding:28px clamp(18px,3vw,52px) 44px}
+ .stockboard-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding-bottom:22px;border-bottom:1px solid rgba(220,185,88,.22)}
+ .stockboard-brand{display:flex;align-items:center;gap:15px}.stockboard-mark{width:54px;height:54px;border:1px solid #d9b553;border-radius:17px;display:grid;place-items:center;color:#e6c664;font:34px Georgia,serif;box-shadow:inset 0 0 26px rgba(218,181,82,.08)}
+ .stockboard-brand small,.stockboard-eyebrow{display:block;color:#d9b553;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}
+ .stockboard-brand h1{margin:3px 0 0;font-size:clamp(24px,3vw,46px);letter-spacing:-.035em}
+ .stockboard-meta{text-align:right}.stockboard-meta strong{display:block;font-size:15px}.stockboard-meta span{display:block;margin-top:5px;color:#92958d;font-size:12px}
+ .stockboard-summary{display:flex;gap:10px;flex-wrap:wrap;margin:20px 0}.stockboard-pill{padding:9px 13px;border-radius:999px;border:1px solid #353730;background:#151713;color:#c8c9c2;font-size:12px}.stockboard-pill b{color:#f5df96}
+ .stockboard-search{display:flex;gap:10px;margin:0 0 18px}.stockboard-search input{width:min(460px,100%);min-height:46px;border:1px solid #3a3d36;border-radius:14px;background:#111310;color:#f5f2e7;padding:0 15px;font-size:16px;outline:none}.stockboard-search input:focus{border-color:#b8953e;box-shadow:0 0 0 3px rgba(217,181,83,.1)}
+ .stockboard-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+ .stockboard-card{position:relative;min-height:155px;padding:20px;border:1px solid #30322d;border-radius:20px;background:linear-gradient(155deg,#181a17 0%,#111310 100%);box-shadow:0 12px 34px rgba(0,0,0,.18)}
+ .stockboard-card.low{border-color:#705b29;background:linear-gradient(155deg,#211d13,#12130f)}
+ .stockboard-card h2{margin:0;padding-right:78px;font-size:clamp(18px,1.5vw,25px);line-height:1.12;letter-spacing:-.025em}
+ .stockboard-count{margin-top:20px;display:flex;align-items:flex-end;gap:8px}.stockboard-count strong{font-size:clamp(34px,4vw,58px);line-height:.9;color:#f4dda0}.stockboard-count span{padding-bottom:4px;color:#a2a59c;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+ .stockboard-state{position:absolute;right:15px;top:15px;border:1px solid #405044;border-radius:999px;padding:6px 8px;color:#a9d7ad;background:#132017;font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.stockboard-card.low .stockboard-state{border-color:#725a25;background:#251d0e;color:#f0c75b}
+ .stockboard-locations{display:flex;gap:7px;flex-wrap:wrap;margin-top:17px}.stockboard-locations span{padding:6px 8px;border-radius:9px;background:#0d0f0d;border:1px solid #292b27;color:#959a91;font-size:10px}.stockboard-locations b{color:#e9e9df}
+ .stockboard-empty{padding:54px 20px;text-align:center;border:1px dashed #363833;border-radius:22px;color:#92958d}
+ .stockboard-foot{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:22px;padding-top:16px;border-top:1px solid #252722;color:#7e8279;font-size:10px}.stockboard-live{display:inline-flex;align-items:center;gap:7px}.stockboard-live i{width:7px;height:7px;border-radius:50%;background:#78d283;box-shadow:0 0 0 4px rgba(120,210,131,.09)}
+ [hidden]{display:none!important}
+ @media(max-width:640px){
+  .stockboard{padding:20px 14px 34px}.stockboard-head{align-items:flex-start}.stockboard-mark{width:46px;height:46px;border-radius:14px;font-size:29px}.stockboard-meta strong{font-size:12px}.stockboard-meta span{font-size:9px}.stockboard-grid{grid-template-columns:1fr 1fr;gap:9px}.stockboard-card{min-height:135px;padding:15px;border-radius:17px}.stockboard-card h2{padding-right:0;font-size:15px}.stockboard-state{position:static;display:inline-block;margin-top:10px}.stockboard-count{margin-top:13px}.stockboard-count strong{font-size:34px}.stockboard-locations{gap:5px;margin-top:12px}.stockboard-locations span{font-size:9px;padding:5px 6px}
+ }
+ @media(min-width:1200px){
+  .stockboard-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}.stockboard-card{min-height:180px;padding:23px}.stockboard-card h2{font-size:25px}.stockboard-locations span{font-size:11px}
+ }
+ @media(min-width:1700px){.stockboard-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+ </style>
+ <main class="stockboard">
+  <header class="stockboard-head">
+   <div class="stockboard-brand"><div class="stockboard-mark">☥</div><div><small>ANKH PEPTIDES</small><h1>Live stock</h1></div></div>
+   <div class="stockboard-meta"><strong><?=e((new DateTimeImmutable('now',new DateTimeZone('Europe/London')))->format('D j M · H:i'))?></strong><span>Refreshes automatically every 30 seconds</span></div>
+  </header>
+  <div class="stockboard-summary"><span class="stockboard-pill"><b><?=count($stockboardRows)?></b> products available</span><span class="stockboard-pill"><b><?=$stockboardUnits?></b> total units available</span></div>
+  <div class="stockboard-search"><input id="stockboard-search" type="search" autocomplete="off" placeholder="Search in-stock products…" aria-label="Search in-stock products"></div>
+  <?php if($stockboardRows):?><section class="stockboard-grid" id="stockboard-grid">
+   <?php foreach($stockboardRows as $row):$isLow=$row['total']<=$row['low_at'];?>
+   <article class="stockboard-card<?=$isLow?' low':''?>" data-stock-search="<?=e(strtolower($row['name']))?>">
+    <h2><?=e($row['name'])?></h2><span class="stockboard-state"><?=$isLow?'Low stock':'In stock'?></span>
+    <div class="stockboard-count"><strong><?=$row['total']?></strong><span>available</span></div>
+    <div class="stockboard-locations"><span>Jay <b><?=$row['jay']?></b></span><span>Tony <b><?=$row['tony']?></b></span><?php if($row['unallocated']>0):?><span>Holding <b><?=$row['unallocated']?></b></span><?php endif;?></div>
+   </article>
+   <?php endforeach;?>
+  </section><?php else:?><div class="stockboard-empty">No tracked products currently have available stock.</div><?php endif;?>
+  <footer class="stockboard-foot"><span class="stockboard-live"><i></i>Live from ANKH stock control</span><span>Available stock only · reserved order stock is already excluded</span></footer>
+ </main>
+ <script>
+ (()=>{document.title='ANKH · Live stock';const input=document.getElementById('stockboard-search'),cards=[...document.querySelectorAll('[data-stock-search]')];input?.addEventListener('input',()=>{const q=input.value.trim().toLowerCase();cards.forEach(card=>card.hidden=!!q&&!card.dataset.stockSearch.includes(q))});setTimeout(()=>{if(!document.hidden&&!input?.matches(':focus'))location.reload()},30000)})();
+ </script>
+ </body></html>
+ <?php exit;
+}
 ?>
 <a class="ux-skip-link" href="#ankh-main">Skip to main content</a>
 <div class="ios-status-bar" aria-hidden="true"></div>
