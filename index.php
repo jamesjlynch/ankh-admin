@@ -89,7 +89,107 @@ if(!in_array('stock_tracking',array_column($productColumns,'name'),true))$db->ex
 if(!in_array('stock_tracking_since',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN stock_tracking_since TEXT NOT NULL DEFAULT ''");
 if(!in_array('family_friends_price',array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN family_friends_price INTEGER DEFAULT NULL");
 foreach(['stock_jay_qty','stock_tony_qty','stock_unallocated_qty'] as $stockColumn){if(!in_array($stockColumn,array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN {$stockColumn} INTEGER NOT NULL DEFAULT 0");}
+
 if(!in_array('product_id',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN product_id INTEGER DEFAULT NULL");
+
+/*
+ * Hidden live stock board.
+ * There is deliberately no navigation link to this view. The long key in the
+ * bookmarked URL is the access credential for phone/TV display mode.
+ */
+$stockBoardKey='6f3d92a1c8b547e0a64f2d9b71ce8453';
+$stockBoardRequest=(string)($_GET['stockboard']??'');
+if($stockBoardRequest!==''){
+ if(!hash_equals($stockBoardKey,$stockBoardRequest)){http_response_code(404);exit('Not found');}
+ $stockBoardRows=function()use($db):array{
+  $rows=$db->query("SELECT id,name,low_stock_at,stock_jay_qty,stock_tony_qty,stock_unallocated_qty
+   FROM products
+   WHERE active=1 AND stock_tracking=1
+   ORDER BY name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+  $out=[];
+  foreach($rows as $row){
+   $jay=(int)($row['stock_jay_qty']??0);$tony=(int)($row['stock_tony_qty']??0);$holding=(int)($row['stock_unallocated_qty']??0);
+   $available=$jay+$tony+$holding;
+   if($available<=0)continue;
+   $out[]=['id'=>(int)$row['id'],'name'=>(string)$row['name'],'available'=>$available,'low_at'=>(int)($row['low_stock_at']??5)];
+  }
+  return $out;
+ };
+ $boardRows=$stockBoardRows();
+ if((string)($_GET['format']??'')==='json'){
+  header('Content-Type: application/json; charset=utf-8');
+  header('Cache-Control: no-store, max-age=0');
+  header('X-Robots-Tag: noindex, nofollow');
+  echo json_encode(['ok'=>true,'updated'=>time(),'products'=>$boardRows],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+  exit;
+ }
+ header('Content-Type: text/html; charset=utf-8');
+ header('Cache-Control: no-store, max-age=0');
+ header('X-Robots-Tag: noindex, nofollow');
+ $boardUpdated=(new DateTimeImmutable('now',new DateTimeZone('Europe/London')))->format('H:i:s');
+ $boardUnits=array_sum(array_column($boardRows,'available'));
+ ?>
+ <!doctype html>
+ <html lang="en">
+ <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090a0b">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>ANKH • Live stock</title>
+  <style>
+   :root{color-scheme:dark;--bg:#08090a;--panel:#121310;--panel2:#171814;--line:#38352b;--gold:#e3bf57;--gold2:#ffe58d;--text:#f6f2e7;--muted:#9b9c94;--good:#7ee7b7;--warn:#ffcc74}
+   *{box-sizing:border-box}
+   html,body{margin:0;min-height:100%;background:radial-gradient(circle at 20% -10%,#342d18 0,transparent 31%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+   body{min-height:100dvh;padding:max(20px,env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) max(22px,env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left))}
+   .board{width:min(1700px,100%);margin:0 auto}
+   header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:10px 2px 24px;border-bottom:1px solid var(--line)}
+   .brand{display:flex;gap:15px;align-items:center}.mark{width:54px;height:54px;display:grid;place-items:center;border:1px solid #766332;border-radius:16px;color:var(--gold2);font:700 28px Georgia,serif;background:#15140f}.brand p{margin:0;color:var(--gold);font-size:11px;font-weight:900;letter-spacing:.18em}.brand h1{margin:5px 0 0;font-size:clamp(28px,4vw,52px);line-height:.95;letter-spacing:-.04em}
+   .live{display:flex;align-items:center;gap:9px;color:#c4c5bd;font-size:12px;font-weight:800;white-space:nowrap}.dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 5px rgba(126,231,183,.08)}
+   .summary{display:flex;gap:10px;flex-wrap:wrap;padding:18px 0 14px}.pill{padding:9px 12px;border:1px solid var(--line);border-radius:999px;background:#11120f;color:var(--muted);font-size:11px}.pill b{color:var(--text);font-size:13px}
+   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+   .stock-card{min-height:132px;padding:17px 17px 15px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,var(--panel2),#10110e);display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 12px 35px rgba(0,0,0,.16)}
+   .stock-card.low{border-color:#6e5b2e;background:linear-gradient(145deg,#211d12,#12110d)}
+   .stock-name{font-size:clamp(17px,2vw,25px);font-weight:900;line-height:1.05;letter-spacing:-.025em;overflow-wrap:anywhere}
+   .stock-count{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:18px}.stock-count strong{font-size:clamp(30px,4vw,48px);line-height:.85;color:var(--gold2)}.stock-count span{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}.stock-card.low .stock-count strong{color:var(--warn)}
+   .empty{min-height:50vh;display:grid;place-items:center;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:22px}.empty strong{display:block;color:var(--text);font-size:28px;margin-bottom:8px}
+   footer{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:22px 2px 0;color:#6f716b;font-size:10px}
+   @media(max-width:520px){body{padding-left:13px;padding-right:13px}header{align-items:flex-start}.mark{width:46px;height:46px}.brand h1{font-size:30px}.live{font-size:10px}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.stock-card{min-height:116px;padding:14px}.stock-name{font-size:16px}.stock-count strong{font-size:30px}.stock-count span{font-size:8px}}
+   @media(min-width:1100px){body{padding:30px 38px}.grid{grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:16px}.stock-card{min-height:170px;padding:23px}.stock-name{font-size:28px}}
+   @media(min-width:1500px){.grid{grid-template-columns:repeat(5,minmax(0,1fr))}.stock-card{min-height:190px}.stock-name{font-size:32px}.stock-count strong{font-size:58px}}
+  </style>
+ </head>
+ <body>
+ <main class="board">
+  <header>
+   <div class="brand"><div class="mark">☥</div><div><p>ANKH PEPTIDES</p><h1>Live stock</h1></div></div>
+   <div class="live"><i class="dot"></i><span id="live-label">LIVE · updated <?=$boardUpdated?></span></div>
+  </header>
+  <div class="summary"><span class="pill"><b id="product-count"><?=count($boardRows)?></b> products available</span><span class="pill"><b id="unit-count"><?=$boardUnits?></b> total units</span></div>
+  <section class="grid" id="stock-grid" aria-live="polite">
+   <?php foreach($boardRows as $boardItem):?>
+    <article class="stock-card <?=(int)$boardItem['available']<=(int)$boardItem['low_at']?'low':''?>">
+     <div class="stock-name"><?=e($boardItem['name'])?></div>
+     <div class="stock-count"><strong><?=(int)$boardItem['available']?></strong><span>available</span></div>
+    </article>
+   <?php endforeach;?>
+  </section>
+  <section class="empty" id="stock-empty" <?=$boardRows?'hidden':''?>><div><strong>No stock available</strong><span>Products will appear here automatically when stock is added.</span></div></section>
+  <footer><span>ANKH live availability</span><span>Refreshes automatically every 15 seconds</span></footer>
+ </main>
+ <script>
+ (()=>{const key=<?=json_encode($stockBoardKey)?>,grid=document.getElementById('stock-grid'),empty=document.getElementById('stock-empty'),productCount=document.getElementById('product-count'),unitCount=document.getElementById('unit-count'),live=document.getElementById('live-label');
+ const esc=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+ function draw(products,updated){const items=Array.isArray(products)?products:[];grid.innerHTML=items.map(p=>'<article class="stock-card '+(Number(p.available)<=Number(p.low_at)?'low':'')+'"><div class="stock-name">'+esc(p.name)+'</div><div class="stock-count"><strong>'+Number(p.available||0)+'</strong><span>available</span></div></article>').join('');empty.hidden=items.length>0;grid.hidden=items.length===0;productCount.textContent=items.length;unitCount.textContent=items.reduce((n,p)=>n+Number(p.available||0),0);const d=new Date((Number(updated)||Math.floor(Date.now()/1000))*1000);live.textContent='LIVE · updated '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+ async function refresh(){try{const r=await fetch('?stockboard='+encodeURIComponent(key)+'&format=json&t='+Date.now(),{cache:'no-store',credentials:'omit'});if(!r.ok)throw new Error('refresh failed');const data=await r.json();if(data.ok)draw(data.products,data.updated)}catch(e){live.textContent='LIVE · reconnecting…'}}
+ refresh();setInterval(refresh,15000);})();
+ </script>
+ </body></html>
+ <?php
+ exit;
+}
+
 $db->exec('CREATE TABLE IF NOT EXISTS stock_movements (
  id INTEGER PRIMARY KEY,
  product_id INTEGER NOT NULL REFERENCES products(id),
