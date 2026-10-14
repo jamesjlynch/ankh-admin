@@ -3030,7 +3030,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
 if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
@@ -3602,6 +3602,83 @@ if($view==='stockboard'){
  <script>
  (()=>{document.title='ANKH · Live stock';const input=document.getElementById('stockboard-search'),cards=[...document.querySelectorAll('[data-stock-search]')];input?.addEventListener('input',()=>{const q=input.value.trim().toLowerCase();cards.forEach(card=>card.hidden=!!q&&!card.dataset.stockSearch.includes(q))});setTimeout(()=>{if(!document.hidden&&!input?.matches(':focus'))location.reload()},30000)})();
  </script>
+ </body></html>
+ <?php exit;
+}
+
+if($view==='reportsboard'){
+ $boardTz=new DateTimeZone('Europe/London');$boardNow=new DateTimeImmutable('now',$boardTz);
+ $boardMonthStart=$boardNow->modify('first day of this month')->setTime(0,0,0);
+ $boardNextMonth=$boardMonthStart->modify('+1 month');
+ $boardMonthLabel=$boardMonthStart->format('F Y');$boardStart=$boardMonthStart->format('Y-m-d');$boardEnd=$boardNextMonth->format('Y-m-d');
+ $boardPaidStatuses=['Paid','Packed','Dispatched','Delivered'];
+ $boardOrders=$db->query("SELECT o.*,COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) AS board_total FROM orders o WHERE o.status IN ('Paid','Packed','Dispatched','Delivered') ORDER BY datetime(o.created) DESC,o.id DESC")->fetchAll(PDO::FETCH_ASSOC);
+ $boardMonthOrders=[];$boardSales=0;$boardUnits=0;$boardProductMap=[];$boardCustomerMap=[];
+ foreach($boardOrders as $boardOrder){
+  $saleDate=trim((string)($boardOrder['payment_date']??''));if($saleDate==='')$saleDate=substr((string)$boardOrder['created'],0,10);
+  if($saleDate<$boardStart||$saleDate>=$boardEnd)continue;
+  $orderId=(int)$boardOrder['id'];$total=(int)$boardOrder['board_total'];$boardMonthOrders[]=$boardOrder;$boardSales+=$total;
+  $itemsQ=$db->prepare('SELECT name,quantity,price FROM items WHERE order_id=? ORDER BY id');$itemsQ->execute([$orderId]);
+  foreach($itemsQ->fetchAll(PDO::FETCH_ASSOC) as $line){
+   $name=trim((string)$line['name'])?:'Unnamed product';$qty=max(0,(int)$line['quantity']);$revenue=max(0,(int)$line['price'])*$qty;$boardUnits+=$qty;
+   $key=strtolower($name);if(!isset($boardProductMap[$key]))$boardProductMap[$key]=['name'=>$name,'units'=>0,'revenue'=>0,'orders'=>[]];
+   $boardProductMap[$key]['units']+=$qty;$boardProductMap[$key]['revenue']+=$revenue;$boardProductMap[$key]['orders'][$orderId]=true;
+  }
+  $customer=trim((string)$boardOrder['customer'])?:'Unnamed customer';$phone=trim((string)($boardOrder['phone']??''));$customerKey=strtolower($customer).'|'.$phone;
+  if(!isset($boardCustomerMap[$customerKey]))$boardCustomerMap[$customerKey]=['name'=>$customer,'revenue'=>0,'orders'=>0,'last'=>''];
+  $boardCustomerMap[$customerKey]['revenue']+=$total;$boardCustomerMap[$customerKey]['orders']++;if($saleDate>$boardCustomerMap[$customerKey]['last'])$boardCustomerMap[$customerKey]['last']=$saleDate;
+ }
+ $boardProducts=array_values($boardProductMap);foreach($boardProducts as &$row)$row['orders']=count($row['orders']);unset($row);
+ usort($boardProducts,fn($a,$b)=>$b['revenue']<=>$a['revenue'] ?: $b['units']<=>$a['units'] ?: strcasecmp($a['name'],$b['name']));
+ $boardCustomers=array_values($boardCustomerMap);usort($boardCustomers,fn($a,$b)=>$b['revenue']<=>$a['revenue'] ?: $b['orders']<=>$a['orders'] ?: strcasecmp($a['name'],$b['name']));
+ $boardOrderCount=count($boardMonthOrders);$boardAverage=$boardOrderCount?(int)round($boardSales/$boardOrderCount):0;
+ $maxProductRevenue=max(1,...array_map(fn($r)=>(int)$r['revenue'],$boardProducts?:[['revenue'=>1]]));
+ $maxCustomerRevenue=max(1,...array_map(fn($r)=>(int)$r['revenue'],$boardCustomers?:[['revenue'=>1]]));
+ ?>
+ <style id="ankh-reportsboard-style">
+ *{box-sizing:border-box}
+ html,body{margin:0;min-height:100%;background:#070809;color:#f7f4e9;font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+ body{background:radial-gradient(circle at 18% -5%,rgba(230,190,78,.14),transparent 34rem),radial-gradient(circle at 90% 8%,rgba(79,201,234,.07),transparent 30rem),#070809}
+ .reportboard{width:min(1800px,100%);margin:0 auto;padding:28px clamp(18px,3vw,52px) 40px}
+ .reportboard-head{display:flex;align-items:center;justify-content:space-between;gap:24px;padding-bottom:20px;border-bottom:1px solid rgba(224,188,79,.24)}
+ .reportboard-brand{display:flex;align-items:center;gap:16px}.reportboard-mark{width:56px;height:56px;border:1px solid #dfbb55;border-radius:17px;display:grid;place-items:center;color:#f1cd68;font:35px Georgia,serif;box-shadow:inset 0 0 28px rgba(229,188,72,.09)}
+ .reportboard-brand small{display:block;color:#dabb5c;font-size:11px;font-weight:900;letter-spacing:.18em;text-transform:uppercase}.reportboard-brand h1{margin:3px 0 0;font-size:clamp(27px,3vw,48px);letter-spacing:-.04em}
+ .reportboard-meta{text-align:right}.reportboard-meta strong{display:block;font-size:17px}.reportboard-meta span{display:block;margin-top:4px;color:#898d88;font-size:11px}
+ .reportboard-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}
+ .reportboard-kpi{padding:17px 19px;border:1px solid #33362f;border-radius:18px;background:linear-gradient(150deg,#181a17,#10120f);min-height:104px}.reportboard-kpi span{display:block;color:#9ca097;font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}.reportboard-kpi strong{display:block;margin-top:9px;color:#f4dda0;font-size:clamp(25px,2.8vw,44px);line-height:1}.reportboard-kpi small{display:block;margin-top:8px;color:#767b75;font-size:10px}
+ .reportboard-columns{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}.reportboard-panel{border:1px solid #30332d;border-radius:22px;background:linear-gradient(160deg,#141714,#0e100e);overflow:hidden}
+ .reportboard-panel-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;padding:19px 20px;border-bottom:1px solid #292c27}.reportboard-panel-head span{display:block;color:#d9b553;font-size:9px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.reportboard-panel-head h2{margin:4px 0 0;font-size:24px;letter-spacing:-.03em}.reportboard-panel-head small{color:#777c76;font-size:10px;text-align:right}
+ .reportboard-list{display:grid}.reportboard-row{position:relative;display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;padding:13px 18px;border-bottom:1px solid #232620;min-height:68px}.reportboard-row:last-child{border-bottom:0}.reportboard-rank{width:28px;height:28px;border-radius:9px;background:#20231f;color:#d7bb6c;display:grid;place-items:center;font-size:11px;font-weight:900}
+ .reportboard-main{min-width:0}.reportboard-main strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}.reportboard-main small{display:block;margin-top:5px;color:#858a83;font-size:10px}.reportboard-value{text-align:right}.reportboard-value strong{display:block;color:#f6e2a9;font-size:15px}.reportboard-value small{display:block;margin-top:4px;color:#777c75;font-size:9px}
+ .reportboard-bar{position:absolute;left:64px;right:18px;bottom:7px;height:2px;background:#22251f;border-radius:999px;overflow:hidden}.reportboard-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#80651f,#e5c15d)}
+ .reportboard-panel.customer .reportboard-bar i{background:linear-gradient(90deg,#174f5d,#59cde8)}.reportboard-panel.customer .reportboard-rank{color:#8be6f5;background:#132126}
+ .reportboard-empty{padding:48px 20px;text-align:center;color:#858980}
+ .reportboard-foot{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-top:18px;padding-top:15px;border-top:1px solid #232620;color:#73776f;font-size:10px}.reportboard-live{display:inline-flex;align-items:center;gap:7px}.reportboard-live i{width:7px;height:7px;border-radius:50%;background:#75d67f;box-shadow:0 0 0 4px rgba(117,214,127,.09)}
+ @media(max-width:760px){.reportboard{padding:18px 12px 30px}.reportboard-head{align-items:flex-start}.reportboard-mark{width:46px;height:46px;border-radius:14px;font-size:29px}.reportboard-brand h1{font-size:27px}.reportboard-meta strong{font-size:12px}.reportboard-meta span{font-size:8px}.reportboard-kpis{grid-template-columns:1fr 1fr;gap:8px;margin:14px 0}.reportboard-kpi{min-height:91px;padding:14px}.reportboard-kpi strong{font-size:26px}.reportboard-columns{grid-template-columns:1fr;gap:12px}.reportboard-panel-head{padding:16px}.reportboard-row{padding:12px 14px;grid-template-columns:30px minmax(0,1fr) auto}.reportboard-bar{left:56px;right:14px}.reportboard-main strong{font-size:13px}.reportboard-value strong{font-size:14px}.reportboard-foot{align-items:flex-start;flex-direction:column}}
+ @media(min-width:1200px){.reportboard{padding-top:32px}.reportboard-panel-head h2{font-size:28px}.reportboard-row{min-height:70px}.reportboard-main strong{font-size:15px}.reportboard-value strong{font-size:16px}}
+ </style>
+ <main class="reportboard">
+  <header class="reportboard-head">
+   <div class="reportboard-brand"><div class="reportboard-mark">☥</div><div><small>ANKH PEPTIDES</small><h1>Monthly sales</h1></div></div>
+   <div class="reportboard-meta"><strong><?=e($boardMonthLabel)?></strong><span>Live report · refreshes every 30 seconds</span></div>
+  </header>
+  <section class="reportboard-kpis">
+   <article class="reportboard-kpi"><span>Monthly sales</span><strong><?=money($boardSales)?></strong><small>Completed paid sales</small></article>
+   <article class="reportboard-kpi"><span>Orders</span><strong><?=$boardOrderCount?></strong><small>Paid / packed / dispatched / delivered</small></article>
+   <article class="reportboard-kpi"><span>Units sold</span><strong><?=$boardUnits?></strong><small>Across all product lines</small></article>
+   <article class="reportboard-kpi"><span>Average order</span><strong><?=money($boardAverage)?></strong><small>Monthly sales ÷ orders</small></article>
+  </section>
+  <section class="reportboard-columns">
+   <article class="reportboard-panel product"><div class="reportboard-panel-head"><div><span>Sales by product</span><h2>Products this month</h2></div><small><?=count($boardProducts)?> product<?=count($boardProducts)===1?'':'s'?></small></div>
+    <?php if($boardProducts):?><div class="reportboard-list"><?php foreach($boardProducts as $index=>$row):$pct=max(3,min(100,round(((int)$row['revenue']/$maxProductRevenue)*100)));?><div class="reportboard-row"><span class="reportboard-rank"><?=$index+1?></span><div class="reportboard-main"><strong><?=e($row['name'])?></strong><small><?=$row['units']?> unit<?=$row['units']===1?'':'s'?> · <?=$row['orders']?> order<?=$row['orders']===1?'':'s'?></small></div><div class="reportboard-value"><strong><?=money($row['revenue'])?></strong><small>product sales</small></div><span class="reportboard-bar"><i style="width:<?=$pct?>%"></i></span></div><?php endforeach;?></div><?php else:?><div class="reportboard-empty">No completed product sales yet this month.</div><?php endif;?>
+   </article>
+   <article class="reportboard-panel customer"><div class="reportboard-panel-head"><div><span>Sales by customer</span><h2>Customers this month</h2></div><small><?=count($boardCustomers)?> customer<?=count($boardCustomers)===1?'':'s'?></small></div>
+    <?php if($boardCustomers):?><div class="reportboard-list"><?php foreach($boardCustomers as $index=>$row):$pct=max(3,min(100,round(((int)$row['revenue']/$maxCustomerRevenue)*100)));?><div class="reportboard-row"><span class="reportboard-rank"><?=$index+1?></span><div class="reportboard-main"><strong><?=e($row['name'])?></strong><small><?=$row['orders']?> order<?=$row['orders']===1?'':'s'?> this month</small></div><div class="reportboard-value"><strong><?=money($row['revenue'])?></strong><small>customer sales</small></div><span class="reportboard-bar"><i style="width:<?=$pct?>%"></i></span></div><?php endforeach;?></div><?php else:?><div class="reportboard-empty">No completed customer sales yet this month.</div><?php endif;?>
+   </article>
+  </section>
+  <footer class="reportboard-foot"><span class="reportboard-live"><i></i>Live from ANKH Order Desk</span><span>Monthly sales use completed paid orders · product totals exclude delivery charges</span></footer>
+ </main>
+ <script>(()=>{document.title='ANKH · Monthly sales';setTimeout(()=>{if(!document.hidden)location.reload()},30000)})();</script>
  </body></html>
  <?php exit;
 }
