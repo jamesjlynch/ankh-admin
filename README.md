@@ -12,7 +12,7 @@ Private, mobile-first order management in ANKH black and gold. PHP 8.1+ and PDO 
 - Data stored in a private SQLite database on the server.
 - Optional automatic Google Sheets mirror for orders and status changes.
 
-This is a separate admin app. It does not yet import the storefront catalogue, WhatsApp conversations or storefront orders automatically. Products and orders initially need to be entered manually. The operations upgrade supports opt-in named Jay and Tony accounts. Until activated in More, the existing administrator credential remains in use; the public test-mode bypass is disabled for browser requests. Shared passkeys are disabled after named-account activation.
+This is a separate admin app. It does not yet import the storefront catalogue, WhatsApp conversations or storefront orders automatically. Products and orders initially need to be entered manually. The staged operations upgrade supports separate six-digit Jay and Tony PINs, each confirmed before activation. **This upgrade is held in an unmerged pull request**, so the existing live test setup is unchanged until the owner is ready to enroll both accounts. At deployment the public test-mode bypass will be disabled and the existing administrator credential (or private terminal recovery) must be available. Shared passkeys are disabled after named-account activation.
 
 ## Install on Krystal
 
