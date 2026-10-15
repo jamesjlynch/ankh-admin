@@ -67,6 +67,7 @@ try{
  check(activity.includes('Delivery recorded'),'Manual delivery was not recorded in audit history.');
  await page.goto(host+'/index.php?view=edit&id=1');
  check(await page.locator('.operator-order-history').count()===1,'Per-order activity history missing.');
+ await page.locator('.operator-order-history summary').click();
  check((await page.locator('.operator-order-history').innerText()).includes('Preparation updated'),'Per-order history has no preparation activity.');
  await context.close();
  console.log('PASS: original test-mode access, real one-tap preparation/delivery, audit history and 6 iPhone/iPad/desktop widths.');
