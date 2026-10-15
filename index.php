@@ -1478,7 +1478,8 @@ function activitySummary(array $metadata):string{
  'scheduled_delivery_date'=>'Planned delivery','reconstituted'=>'Reconstituted',
  'packaged'=>'Packaged','assigned_to'=>'Assigned','payment_method'=>'Method',
  'amount_paid_pence'=>'Total paid','delivery_charge'=>'Delivery charge',
- 'postage_cost'=>'Postage cost','payment_fee'=>'Payment fee'
+ 'postage_cost'=>'Postage cost','payment_fee'=>'Payment fee',
+ 'item_lines'=>'Product lines','item_units'=>'Units','item_fingerprint'=>'Products'
  ];
  $parts=[];
  foreach($changes as $field=>$values){
@@ -1489,7 +1490,7 @@ function activitySummary(array $metadata):string{
    if(in_array($field,['reconstituted','packaged'],true))return (int)$value===1?'Yes':'No';
    return (string)$value;
   };
-  $parts[]=$labels[$field].': '.$show($values['from']??null).' → '.$show($values['to']??null);
+  $parts[]=$field==='item_fingerprint'?'Products changed':$labels[$field].': '.$show($values['from']??null).' → '.$show($values['to']??null);
   if(count($parts)>=4)break;
  }
  if(isset($metadata['removed_payment'])){
@@ -2793,6 +2794,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $q=$db->prepare('SELECT '.$auditColumns.' FROM orders WHERE id=?');$q->execute([$id]);$row=$q->fetch(PDO::FETCH_ASSOC);
   if(!$row)return null;
   $q=$db->prepare('SELECT COALESCE(SUM(amount),0) FROM payments WHERE order_id=?');$q->execute([$id]);$row['amount_paid_pence']=(int)$q->fetchColumn();
+  $q=$db->prepare('SELECT product_id,name,quantity,price,presentation FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$itemRows=$q->fetchAll(PDO::FETCH_ASSOC);
+  $row['item_lines']=count($itemRows);
+  $row['item_units']=array_sum(array_map(static fn(array $item)=>(int)$item['quantity'],$itemRows));
+  $row['item_fingerprint']=hash('sha256',json_encode($itemRows,JSON_THROW_ON_ERROR));
   return $row;
  };
  $auditBefore=$auditTrack?$auditSnapshot($auditOrderId):null;
@@ -3314,7 +3319,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($previous!==$next)$changes[$key]=['from'=>$previous,'to'=>$next];
   }
   $labels=['order'=>'Order created','order_edit'=>'Order edited','order_delete'=>'Order deleted','status'=>'Order status changed','order_dates'=>'Order dates updated','delivery_mark'=>'Delivery recorded','order_schedule'=>'Delivery arranged','order_delivery_section'=>'Delivery queue changed','order_preparation'=>'Preparation updated','order_reconstituted'=>'Preparation updated','payment_add'=>'Payment recorded','payment_delete'=>'Payment removed'];
-  if($auditOrderId>0&&($changes||in_array($action,['order','order_delete','payment_add','payment_delete'],true))){
+  if($auditOrderId>0&&($changes||in_array($action,['order','order_edit','order_delete','payment_add','payment_delete'],true))){
    $meta=['changes'=>$changes];
    if($action==='payment_delete'&&$auditPaymentBefore)$meta['removed_payment']=['amount_pence'=>(int)$auditPaymentBefore['amount'],'method'=>(string)$auditPaymentBefore['method']];
    recordActivity($db,'order',$auditOrderId,$labels[$action],$meta);
