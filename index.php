@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
-session_set_cookie_params(['httponly'=>true,'secure'=>true,'samesite'=>'Strict']);
+// Local Chromium fixture uses HTTP on loopback; production cookies remain Secure-only.
+$testLocalHttp=PHP_SAPI==='cli-server' && getenv('ANKH_TEST_ALLOW_HTTP')==='1'
+ && in_array((string)($_SERVER['SERVER_ADDR']??''),['127.0.0.1','::1'],true);
+session_set_cookie_params(['httponly'=>true,'secure'=>!$testLocalHttp,'samesite'=>'Strict']);
 session_start();
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
