@@ -5,4 +5,11 @@ deployment:
     - /opt/cpanel/ea-php82/root/usr/bin/php -l index.php
     - /opt/cpanel/ea-php82/root/usr/bin/php -l setup.php
     - /opt/cpanel/ea-php82/root/usr/bin/php -l supplier-centre.php
+    - /opt/cpanel/ea-php82/root/usr/bin/php -l scripts/backup-sqlite.php
+    - /opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
+    - /bin/bash scripts/snapshot-live.sh
+    - /bin/mkdir -p /home/lynchde1/ankh-admin-tools
+    - /bin/chmod 700 /home/lynchde1/ankh-admin-tools
+    - /usr/bin/install -m 700 scripts/backup-sqlite.php /home/lynchde1/ankh-admin-tools/backup-sqlite.php
+    - /usr/bin/install -m 700 scripts/rollback-release.sh /home/lynchde1/ankh-admin-tools/rollback-release.sh
     - /bin/cp .htaccess index.php supplier-centre.php style.css style.min.css style.core.min.css setup.php manifest.webmanifest service-worker.js offline.html icon.svg splash.svg /home/lynchde1/public_html/ankh-admin/
