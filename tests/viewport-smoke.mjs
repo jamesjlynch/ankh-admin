@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-import { mkdtempSync,writeFileSync,rmSync } from 'node:fs';
+import { mkdtempSync,mkdirSync,writeFileSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join,dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,12 +9,13 @@ import { createServer } from 'node:net';
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const temp=mkdtempSync(join(tmpdir(),'ankh-viewport-'));
 const db=join(temp,'fixture.sqlite'),config=join(temp,'config.php');
+const sessions=join(temp,'sessions');mkdirSync(sessions,{mode:0o700});
 const hash=execFileSync('php',['-r','echo password_hash("fixture-admin-only",PASSWORD_DEFAULT);'],{encoding:'utf8'}).trim();
 const phpLiteral=value=>"'"+String(value).replaceAll("\\","\\\\").replaceAll("'","\\'")+"'";
 writeFileSync(config,'<?php return ["password_hash"=>'+phpLiteral(hash)+',"database_path"=>'+phpLiteral(db)+'];');
 const port=await new Promise((resolve,reject)=>{const s=createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
 const host='http://127.0.0.1:'+port;
-const server=spawn('php',['-S','127.0.0.1:'+port,'-t',root],{cwd:root,env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:['ignore','pipe','pipe']});
+const server=spawn('php',['-d','session.save_path='+sessions,'-S','127.0.0.1:'+port,'-t',root],{cwd:root,env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:['ignore','pipe','pipe']});
 let serverErrors='';server.stderr.on('data',d=>{serverErrors+=d.toString().slice(-1000)});
 let browser;
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
@@ -36,6 +37,12 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:390,height:844}});
  const page=await context.newPage();
+ // A previously public-test session with admin=true must be invalidated by the new release.
+ execFileSync('php',['-d','session.save_path='+sessions,'-r','session_id("previouspublicmode");session_start();$_SESSION["admin"]=true;$_SESSION["last"]=time();session_write_close();'],{encoding:'utf8'});
+ await context.addCookies([{name:'PHPSESSID',value:'previouspublicmode',domain:'127.0.0.1',path:'/',httpOnly:true,secure:false,sameSite:'Strict'}]);
+ await page.goto(host+'/index.php?view=dashboard');
+ check(await page.locator('#dashboard-actions').count()===0,'Previous public-test sessions must lose admin permissions.');
+ await context.clearCookies();
  await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('form input[name=password]').count()===1,'Public browser must see login.');
  check(await page.locator('#dashboard-actions').count()===0,'Public browser saw private orders.');
