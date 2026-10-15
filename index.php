@@ -3318,16 +3318,21 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
 .ankh-notification-empty{padding:22px 10px;text-align:center;color:#9a9d95}
 .ankh-notification-item.tone-money{border-color:#5c472b}.ankh-notification-item.tone-reorder{border-color:#694036;background:#1d1715}.ankh-notification-item.tone-cycle{border-color:#34513e}
 @media (max-width:760px){
- .ankh-notification-mobile-button{display:grid;place-items:center;position:fixed;right:14px;top:max(12px,env(safe-area-inset-top));z-index:10030;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #474236;border-radius:14px;background:#181a18eF;color:#f1d679;box-shadow:0 8px 24px #0008;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+ .app-brand-row .brand{margin-right:auto}
+ .ankh-notification-mobile-button{display:grid;place-items:center;position:relative;flex:0 0 44px;width:44px;height:44px;min-height:44px;margin:0;padding:0;border:1px solid #474236;border-radius:14px;background:#181a18;color:#f1d679}
  .ankh-notification-mobile-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8}
  .ankh-notification-mobile-button b{position:absolute;right:-4px;top:-5px;min-width:19px;height:19px;padding:0 4px;border-radius:999px;background:#e8c45d;color:#111;font-size:10px;line-height:19px;text-align:center}
  .ankh-notification-popover{position:fixed;display:block;z-index:10050;left:10px;right:10px;bottom:calc(82px + env(safe-area-inset-bottom));top:auto;width:auto;max-height:min(70dvh,620px);overflow:auto;padding:14px;border:1px solid #4a4435;border-radius:20px;background:#151614;box-shadow:0 24px 80px #000b}
  .ankh-notification-popover[hidden]{display:none!important}
  .ankh-notification-head{position:sticky;top:-14px;z-index:2;margin:-14px -14px 4px;padding:16px 16px 12px;background:#151614eF;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #2d2e2a}
- .ankh-notification-actions button{min-height:36px;padding:7px 10px;font-size:11px}
+ .ankh-notification-actions button{min-height:44px;padding:9px 12px;font-size:12px}
+ .ankh-notification-popover{overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+ #ankh-notification-close{min-height:44px;min-width:60px}
  .customer-intelligence-filters{margin:0 -2px 8px;padding-bottom:8px}
- .customer-intelligence-filters button{min-height:42px;padding:0 13px}
+ .customer-intelligence-filters button{min-height:44px;padding:0 13px}
  .customer-account-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .customer-account-stats>article{min-width:0}
+ .customer-account-stats strong{overflow-wrap:anywhere;font-size:clamp(18px,5vw,25px)}
 }
 @media (min-width:761px){
  main.focus-app>header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px}
@@ -3686,6 +3691,8 @@ $overdueUnpaid=array_values(array_filter($awaitingPayment,function($o)use($today
  $scheduled=trim((string)($o['scheduled_delivery_date']??''));
  return $scheduled!==''&&$scheduled<$todayDate;
 }));
+// The dashboard summary needs delivered-only balances, not the wider overdue alert list.
+$deliveredUnpaid=array_values(array_filter($awaitingPayment,fn($o)=>(string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!==''));
 if($overdueUnpaid){
  $count=count($overdueUnpaid);$amount=array_sum(array_map(fn($o)=>max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$overdueUnpaid));
  $ankhNotifications[]=['id'=>'unpaid-overdue:'.$count.':'.$amount,'tone'=>'money','title'=>$count.' unpaid order'.($count===1?' is':'s are').' overdue','body'=>money($amount).' is still outstanding on delivered or overdue orders.','href'=>'?view=balances','priority'=>20];
@@ -4041,7 +4048,19 @@ if($view==='reportsboard'){
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
 <?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
 <button type="button" class="ankh-notification-mobile-button" id="ankh-notification-mobile-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button>
-<script>(()=>{const buttons=[...document.querySelectorAll('[data-ankh-notification-toggle]')],p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close');if(!buttons.length||!p)return;const set=open=>{p.hidden=!open;buttons.forEach(b=>b.setAttribute('aria-expanded',open?'true':'false'))};buttons.forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();set(p.hidden)}));c?.addEventListener('click',()=>set(false));document.addEventListener('click',e=>{if(!p.hidden&&!p.contains(e.target)&&!e.target.closest('[data-ankh-notification-toggle]'))set(false)});document.addEventListener('keydown',e=>{if(e.key==='Escape')set(false)})})();</script>
+<script>(()=>{
+ const buttons=[...document.querySelectorAll('[data-ankh-notification-toggle]')],p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close'),mobile=document.getElementById('ankh-notification-mobile-button'),brand=document.querySelector('.app-brand-row');
+ if(!buttons.length||!p)return;
+ if(mobile&&brand)brand.insertBefore(mobile,document.getElementById('ankh-assistant-button'));
+ p.setAttribute('role','dialog');p.setAttribute('tabindex','-1');
+ let trigger=null;
+ const set=(open,restore=true)=>{p.hidden=!open;buttons.forEach(b=>b.setAttribute('aria-expanded',String(open)));if(open){p.scrollTop=0;c?.focus();}else if(restore&&trigger?.isConnected)trigger.focus();};
+ buttons.forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();trigger=b;set(p.hidden)}));
+ c?.addEventListener('click',()=>set(false));
+ document.addEventListener('click',e=>{if(!p.hidden&&!p.contains(e.target)&&!e.target.closest('[data-ankh-notification-toggle]'))set(false,false)});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!p.hidden){e.preventDefault();set(false)}});
+ document.addEventListener('focusin',e=>{if(!p.hidden&&!p.contains(e.target)&&!buttons.includes(e.target))set(false,false)});
+})();</script>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><div class="flash-confirmation"><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><?php unset($_SESSION['flash']);?></div><?php endif;?>
 <?php if($view==='dashboard'):
@@ -4809,7 +4828,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <div class="customer-account-actions"><?php if(!$customerAccount['archived']):?><a class="button" href="?view=new&amp;customer_id=<?=$customerAccount['id']?>">+ New order</a><?php if($accountLast):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$accountLast['id']?>">Repeat last order</a><?php endif;?><?php endif;?><?php if(trim((string)$customerAccount['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$customerAccount['phone']))?>">Call</a><?php endif;?></div>
 <div class="customer-account-stats">
  <article><span>Lifetime spend</span><strong><?=money($accountSpend)?></strong><small><?=$accountPaidCount?> completed order<?=$accountPaidCount===1?'':'s'?></small></article>
- <article><span>Total profit</span><strong><?=money($accountProfit)?></strong><small>Saved product costs &amp; postage deducted</small></article>
+ <article><span>Gross profit</span><strong><?=money($accountProfit)?></strong><small><?=array_filter($accountPaid,fn($o)=>!empty($orderMissingCost[(int)$o['id']]))?'Estimate · some product costs are missing':'Saved product costs & postage deducted'?></small></article>
  <article class="<?=$accountOutstanding>0?'attention':''?>"><span>Outstanding</span><strong><?=money($accountOutstanding)?></strong><small>Current unpaid balance</small></article>
  <article><span>Average order</span><strong><?=money($accountAverage)?></strong><small>Completed orders</small></article>
  <article><span>Total orders</span><strong><?=count($accountHistory)?></strong><small>Including open orders</small></article>
