@@ -41,7 +41,7 @@ try{
  check(await page.locator('#dashboard-actions').count()===0,'Public browser saw private orders.');
  await page.locator('input[name=password]').fill('fixture-admin-only');
  await page.getByRole('button',{name:/Sign in/}).click();
- await page.waitForLoadState('domcontentloaded');
+ await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('#dashboard-actions').count()===1,'Fixture login failed: URL='+page.url()+' BODY='+((await page.locator('body').innerText()).slice(0,900)));
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
  const insert='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Test Customer\',\'\',\'\',\'\',\'New\',\'2026-10-15T09:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (1,\'Test Product\',1000,1);");';
