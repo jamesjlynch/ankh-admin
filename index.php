@@ -1465,10 +1465,9 @@ function recordActivity(PDO $db,string $entity,int $entityId,string $action,arra
  $q->execute([$entity,$entityId,$action,$operatorId,$operatorName,json_encode($details,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('c')]);
 }
 function activityForOrder(PDO $db,int $orderId,int $limit=40):array{
- $q=$db->prepare('SELECT actor_name,action,details_json,created FROM activity_events WHERE (entity_type=? AND entity_id=?) OR (entity_type=? AND json_extract(details_json,\'$.order_id\')=?) ORDER BY id DESC LIMIT ?');
+ $q=$db->prepare('SELECT actor_name,action,details_json,created FROM activity_events WHERE entity_type=? AND entity_id=? ORDER BY id DESC LIMIT ?');
  $q->bindValue(1,'order');$q->bindValue(2,$orderId,PDO::PARAM_INT);
- $q->bindValue(3,'payment');$q->bindValue(4,$orderId,PDO::PARAM_INT);
- $q->bindValue(5,max(1,min(100,$limit)),PDO::PARAM_INT);$q->execute();return $q->fetchAll(PDO::FETCH_ASSOC);
+ $q->bindValue(3,max(1,min(100,$limit)),PDO::PARAM_INT);$q->execute();return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 function validOperatorPassword(string $password):bool{
  return strlen($password)>=12&&strlen($password)<=128;
