@@ -73,19 +73,21 @@ try{
  check(confirmed,'Manual delivery must require explicit confirmation.');
  await page.goto(host+'/index.php?view=more');
  await page.locator('input[name=legacy_password]').fill('fixture-admin-only');
- await page.locator('input[name=jay_password]').fill('jay-fixture-password-2026');
- await page.locator('input[name=tony_password]').fill('tony-fixture-password-2026');
+ await page.locator('input[name=jay_pin]').fill('473819');
+ await page.locator('input[name=jay_pin_confirm]').fill('473819');
+ await page.locator('input[name=tony_pin]').fill('681254');
+ await page.locator('input[name=tony_pin_confirm]').fill('681254');
  await page.getByRole('button',{name:/Activate individual accounts/}).click();
  await page.locator('.operator-security-panel').waitFor({state:'visible'});
- check((await page.locator('.operator-security-panel').innerText()).includes('Signed in as Jay'),'Jay account activation failed');
+ check((await page.locator('.operator-security-panel').innerText()).includes('Signed in as Jay'),'Jay PIN account activation failed');
  await page.getByRole('button',{name:'Sign out'}).click();
  await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('#dashboard-actions').count()===0,'Logout must hide private dashboard');
  await page.locator('select[name=operator_name]').selectOption('Tony');
- await page.locator('input[name=password]').fill('tony-fixture-password-2026');
+ await page.locator('input[name=password]').fill('681254');
  await page.getByRole('button',{name:/Sign in/}).click();
  await page.goto(host+'/index.php?view=dashboard');
- check((await page.locator('main.focus-app>header').innerText()).includes('Tony'),'Tony account attribution missing');
+ check((await page.locator('main.focus-app>header').innerText()).includes('Tony'),'Tony PIN account attribution missing');
  const nextOrder='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Second Test\',\'\',\'\',\'\',\'New\',\'2026-10-15T10:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (2,\'Test Product\',1000,1);");';
  execFileSync('php',['-r',nextOrder],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
  await page.goto(host+'/index.php?view=dashboard');
@@ -95,7 +97,7 @@ try{
  await page.goto(host+'/index.php?view=activity');
  check((await page.locator('.activity-list').innerText()).includes('Tony'),'Activity history must attribute actions to Tony');
  await context.close();
- console.log('PASS: real browser sign-in, one-tap workflow, account activation, and 6 iPhone/iPad/desktop widths.');
+ console.log('PASS: real browser sign-in, one-tap workflow, distinct PIN activation, and 6 iPhone/iPad/desktop widths.');
 }finally{
  await browser?.close();
  server.kill('SIGTERM');
