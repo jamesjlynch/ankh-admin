@@ -13,7 +13,7 @@ const hash=execFileSync('php',['-r','echo password_hash("fixture-admin-only",PAS
 writeFileSync(config,'<?php return ["password_hash"=>'+JSON.stringify(hash)+',"database_path"=>'+JSON.stringify(db)+'];');
 const port=await new Promise((resolve,reject)=>{const s=createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const p=s.address().port;s.close(()=>resolve(p));});});
 const host='http://127.0.0.1:'+port;
-const server=spawn('php',['-S','127.0.0.1:'+port,'-t',root],{cwd:root,env:{...process.env,ANKH_ADMIN_CONFIG:config},stdio:['ignore','pipe','pipe']});
+const server=spawn('php',['-S','127.0.0.1:'+port,'-t',root],{cwd:root,env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:['ignore','pipe','pipe']});
 let serverErrors='';server.stderr.on('data',d=>{serverErrors+=d.toString().slice(-1000)});
 let browser;
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
@@ -41,6 +41,7 @@ try{
  await page.locator('input[name=password]').fill('fixture-admin-only');
  await page.getByRole('button',{name:/Sign in/}).click();
  await page.waitForURL(/view=dashboard/);
+ check(await page.locator('#dashboard-actions').count()===1,'Fixture login failed: '+(await page.locator('body').innerText()).slice(0,600));
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
  const insert='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Test Customer\',\'\',\'\',\'\',\'New\',\'2026-10-15T09:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (1,\'Test Product\',1000,1);");';
  execFileSync('php',['-r',insert],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
