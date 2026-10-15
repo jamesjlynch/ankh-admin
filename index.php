@@ -3309,6 +3309,14 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
 .customer-intelligence-badges span{padding:5px 8px;border:1px solid #343638;border-radius:999px;background:#151716;color:#9fa19b;font-size:9px;font-weight:800;letter-spacing:.2px}
 .customer-intelligence-badges .money{border-color:#64512c;color:#e6c56c;background:#211b10}
 .customer-intelligence-badges .cycle{border-color:#35543d;color:#9ac9a5;background:#132018}
+.ankh-notification-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 12px}
+.ankh-notification-head h2{margin:0;font-size:18px}.ankh-notification-head small{color:#96988f}
+.ankh-notification-item{padding:13px;border:1px solid #30322e;border-radius:14px;background:#1b1d1a;margin-top:9px}
+.ankh-notification-item>a{display:block;color:inherit;text-decoration:none}
+.ankh-notification-item strong{display:block;font-size:14px;margin-bottom:4px}.ankh-notification-item p{margin:0;color:#a8aaa0;font-size:12px;line-height:1.4}
+.ankh-notification-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.ankh-notification-actions form{margin:0}.ankh-notification-actions button{padding:6px 9px;min-height:30px;border-radius:9px;font-size:10px}
+.ankh-notification-empty{padding:22px 10px;text-align:center;color:#9a9d95}
+.ankh-notification-item.tone-money{border-color:#5c472b}.ankh-notification-item.tone-reorder{border-color:#694036;background:#1d1715}.ankh-notification-item.tone-cycle{border-color:#34513e}
 @media (max-width:760px){
  .ankh-notification-mobile-button{display:grid;place-items:center;position:fixed;right:14px;top:max(12px,env(safe-area-inset-top));z-index:10030;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #474236;border-radius:14px;background:#181a18eF;color:#f1d679;box-shadow:0 8px 24px #0008;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
  .ankh-notification-mobile-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8}
@@ -4801,7 +4809,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <div class="customer-account-actions"><?php if(!$customerAccount['archived']):?><a class="button" href="?view=new&amp;customer_id=<?=$customerAccount['id']?>">+ New order</a><?php if($accountLast):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$accountLast['id']?>">Repeat last order</a><?php endif;?><?php endif;?><?php if(trim((string)$customerAccount['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$customerAccount['phone']))?>">Call</a><?php endif;?></div>
 <div class="customer-account-stats">
  <article><span>Lifetime spend</span><strong><?=money($accountSpend)?></strong><small><?=$accountPaidCount?> completed order<?=$accountPaidCount===1?'':'s'?></small></article>
- <article><span>Profit generated</span><strong><?=money($accountProfit)?></strong><small>Saved costs &amp; postage deducted</small></article>
+ <article><span>Total profit</span><strong><?=money($accountProfit)?></strong><small>Saved product costs &amp; postage deducted</small></article>
  <article class="<?=$accountOutstanding>0?'attention':''?>"><span>Outstanding</span><strong><?=money($accountOutstanding)?></strong><small>Current unpaid balance</small></article>
  <article><span>Average order</span><strong><?=money($accountAverage)?></strong><small>Completed orders</small></article>
  <article><span>Total orders</span><strong><?=count($accountHistory)?></strong><small>Including open orders</small></article>
@@ -4812,7 +4820,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 </div>
 <div class="customer-account-grid">
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CONTACT</p><h2>Customer details</h2></div></div><?php if($customerAccount['address']):?><p class="address"><?=nl2br(e($customerAccount['address']))?></p><?php else:?><p class="muted">No address saved.</p><?php endif;?><div class="customer-quick-actions"><?php if($customerAccount['address']):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($customerAccount['address'])?>">Copy address</button><?php endif;?></div></section>
-<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">FAVOURITES</p><h2>Most ordered products</h2></div></div><?php if($accountFavourites):foreach($accountFavourites as $fav):?><div class="dashboard-row"><span><?=e($fav['name'])?></span><strong>×<?=$fav['qty']?></strong></div><?php endforeach;else:?><p class="muted">No product history yet.</p><?php endif;?></section>
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">FAVOURITES</p><h2>Most purchased products</h2></div></div><?php if($accountFavourites):foreach($accountFavourites as $fav):?><div class="dashboard-row"><span><?=e($fav['name'])?></span><strong>×<?=$fav['qty']?></strong></div><?php endforeach;else:?><p class="muted">No product history yet.</p><?php endif;?></section>
 </div>
 <?php if($accountCycles):?><section class="panel customer-cycle-panel">
 <div class="cycle-customer-head"><div><p class="eyebrow">RECURRING</p><h2>Recurring peptides</h2><p>Manage this customer’s expected repeat orders.</p></div><a class="cycle-preview-link" href="?view=orders&amp;section=recurring">Recurring →</a></div>
