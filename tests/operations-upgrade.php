@@ -6,7 +6,7 @@ $source=file_get_contents($root.'/index.php');
 function opsAssert(bool $passed,string $message):void{if(!$passed)throw new RuntimeException($message);}
 $required=[
  'operator_accounts','activity_events','operators_setup','operator_change_password',
- 'validOperatorPassword','recordActivity','activityForOrder',
+ 'validOperatorPin','recordActivity','activityForOrder',
  'dashboardNextActionLabel','dashboardOneTapActions',
  'operations-next-form','Mark delivered today',
  'data-customer-insight="recurring"','id="ankh-notifications"',
@@ -17,6 +17,10 @@ opsAssert(!str_contains($source,'$testingNoAuth=true;'),'Public web auth bypass 
 opsAssert(!str_contains($source,'<aside class="desktop-today-panel"'),'Unrequested fixed aside must never return.');
 opsAssert(substr_count($source,'class="dashboard-stat-card"')===6,'Six original metric cards must remain.');
 opsAssert(str_contains($source,'Confirm this order has actually been delivered today?'),'Delivery completion requires user confirmation.');
+opsAssert(str_contains($source,"'/^[0-9]{6}$/D'"),'Named PINs must be six digits.');
+opsAssert(str_contains($source,'jay_pin_confirm')&&str_contains($source,'tony_pin_confirm'),'Both operator PINs must be confirmed.');
+opsAssert(str_contains($source,'hash_equals($jayPin,$tonyPin)'),'Operators must not share a PIN.');
+opsAssert(!str_contains($source,'jay_password')&&!str_contains($source,'tony_password'),'Old passphrase fields must be retired.');
 // An isolated DB validates migrations and rendering without modifying production.
 $temp=sys_get_temp_dir().'/ankh-ops-'.bin2hex(random_bytes(6));mkdir($temp,0700);
 $config=$temp.'/config.php';
