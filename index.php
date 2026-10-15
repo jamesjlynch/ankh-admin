@@ -3299,8 +3299,28 @@ if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
 $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__DIR__.'/style.css') ?: 0);
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="<?=e($stylesheet)?>?v=<?=e($stylesheetVersion)?>"><style id="ankh-desktop-intelligence-v1">
-.ankh-notification-popover,.desktop-today-panel,.ankh-notification-button{display:none}
+.ankh-notification-popover,.desktop-today-panel,.ankh-notification-button,.ankh-notification-mobile-button{display:none}
 .ankh-header-tools{display:contents}
+.customer-intelligence-filters{display:flex;gap:7px;overflow-x:auto;overscroll-behavior-inline:contain;padding:2px 0 12px;scrollbar-width:none}
+.customer-intelligence-filters::-webkit-scrollbar{display:none}
+.customer-intelligence-filters button{flex:0 0 auto;white-space:nowrap;min-height:36px;padding:0 11px;border-radius:999px}
+.customer-intelligence-filters button.selected{background:#d8b65c;color:#111;border-color:#d8b65c}
+.customer-intelligence-badges{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.customer-intelligence-badges span{padding:5px 8px;border:1px solid #343638;border-radius:999px;background:#151716;color:#9fa19b;font-size:9px;font-weight:800;letter-spacing:.2px}
+.customer-intelligence-badges .money{border-color:#64512c;color:#e6c56c;background:#211b10}
+.customer-intelligence-badges .cycle{border-color:#35543d;color:#9ac9a5;background:#132018}
+@media (max-width:760px){
+ .ankh-notification-mobile-button{display:grid;place-items:center;position:fixed;right:14px;top:max(12px,env(safe-area-inset-top));z-index:10030;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #474236;border-radius:14px;background:#181a18eF;color:#f1d679;box-shadow:0 8px 24px #0008;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+ .ankh-notification-mobile-button svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8}
+ .ankh-notification-mobile-button b{position:absolute;right:-4px;top:-5px;min-width:19px;height:19px;padding:0 4px;border-radius:999px;background:#e8c45d;color:#111;font-size:10px;line-height:19px;text-align:center}
+ .ankh-notification-popover{position:fixed;display:block;z-index:10050;left:10px;right:10px;bottom:calc(82px + env(safe-area-inset-bottom));top:auto;width:auto;max-height:min(70dvh,620px);overflow:auto;padding:14px;border:1px solid #4a4435;border-radius:20px;background:#151614;box-shadow:0 24px 80px #000b}
+ .ankh-notification-popover[hidden]{display:none!important}
+ .ankh-notification-head{position:sticky;top:-14px;z-index:2;margin:-14px -14px 4px;padding:16px 16px 12px;background:#151614eF;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid #2d2e2a}
+ .ankh-notification-actions button{min-height:36px;padding:7px 10px;font-size:11px}
+ .customer-intelligence-filters{margin:0 -2px 8px;padding-bottom:8px}
+ .customer-intelligence-filters button{min-height:42px;padding:0 13px}
+ .customer-account-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media (min-width:761px){
  main.focus-app>header{position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px}
  .ankh-header-tools{display:flex;align-items:center;gap:12px}
@@ -3313,7 +3333,6 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
  .ankh-notification-item{padding:13px;border:1px solid #30322e;border-radius:14px;background:#1b1d1a;margin-top:9px}.ankh-notification-item>a{display:block;color:inherit;text-decoration:none}.ankh-notification-item strong{display:block;font-size:14px;margin-bottom:4px}.ankh-notification-item p{margin:0;color:#a8aaa0;font-size:12px;line-height:1.4}
  .ankh-notification-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.ankh-notification-actions form{margin:0}.ankh-notification-actions button{padding:6px 9px;min-height:30px;border-radius:9px;font-size:10px}.ankh-notification-empty{padding:22px 10px;text-align:center;color:#9a9d95}
  .desktop-today-panel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0 20px}.desktop-today-panel>a{padding:14px;border:1px solid #34352f;border-radius:14px;background:#181a17;color:inherit;text-decoration:none}.desktop-today-panel span{display:block;color:#aaa99d;font-size:11px}.desktop-today-panel strong{display:block;margin-top:7px;font-size:19px}.desktop-today-panel small{display:block;margin-top:4px;color:#81847e;font-size:10px}
- .customer-intelligence-filters{display:flex;gap:7px;overflow:auto;padding:2px 0 12px}.customer-intelligence-filters button{white-space:nowrap;min-height:36px;padding:0 11px;border-radius:999px}.customer-intelligence-filters button.selected{background:#d8b65c;color:#111;border-color:#d8b65c}
  .customer-account-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
  .customer-account-grid{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}
  .profit-table thead th,.report-table thead th{position:sticky;top:0;z-index:2}
@@ -3644,18 +3663,60 @@ usort($lowStock,fn($a,$b)=>$a['fridge_available']<=>$b['fridge_available'] ?: st
 $penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
 
-// Live notification centre. IDs include the condition state so resolved issues can alert again if they recur.
+// Live notification centre. IDs include the current condition so resolved issues can alert again if they recur.
 $notificationStateRaw=json_decode(setting($db,'notification_state','{}'),true);$notificationState=is_array($notificationStateRaw)?$notificationStateRaw:[];
-$ankhNotifications=[];$notificationNow=time();$tomorrowDate=$retaToday->modify('+1 day')->format('Y-m-d');
-$tomorrowDeliveries=array_values(array_filter($orders,fn($o)=>(string)($o['scheduled_delivery_date']??'')===$tomorrowDate && trim((string)($o['delivery_date']??''))==='' && !in_array((string)$o['status'],['Cancelled','Delivered'],true)));
-if($tomorrowDeliveries){$count=count($tomorrowDeliveries);$ankhNotifications[]=['id'=>'delivery:'.$tomorrowDate.':'.$count,'tone'=>'delivery','title'=>$count.' deliver'.($count===1?'y':'ies').' due tomorrow','body'=>'Open the delivery queue to check preparation and assignments.','href'=>'?view=orders&scope=to_deliver'];}
-$deliveredUnpaid=array_values(array_filter($awaitingPayment,fn($o)=>trim((string)($o['delivery_date']??''))!=='' || (string)$o['status']==='Delivered'));
-if($deliveredUnpaid){$count=count($deliveredUnpaid);$amount=array_sum(array_map(fn($o)=>max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$deliveredUnpaid));$ankhNotifications[]=['id'=>'unpaid-delivered:'.$count.':'.$amount,'tone'=>'money','title'=>$count.' delivered order'.($count===1?'':'s').' still unpaid','body'=>money($amount).' remains outstanding after delivery.','href'=>'?view=balances'];}
-foreach(array_slice($lowStock,0,8) as $stockAlert){$qty=(int)$stockAlert['fridge_available'];$threshold=(int)$stockAlert['low_stock_at'];$ankhNotifications[]=['id'=>'low-stock:'.(int)$stockAlert['id'].':'.$qty.':'.$threshold,'tone'=>'stock','title'=>(string)$stockAlert['name'].' needs attention','body'=>$qty.' available · low-stock level '.$threshold.'. Review the reorder planner.','href'=>'?view=reorder'];}
-if($retaDue7){$count=count($retaDue7);$weekKey=$retaToday->format('o-W');$ankhNotifications[]=['id'=>'recurring-week:'.$weekKey.':'.$count,'tone'=>'cycle','title'=>$count.' recurring customer'.($count===1?' is':'s are').' due within 7 days','body'=>'Review upcoming repeat orders and expected stock demand.','href'=>'?view=reta&weeks=4'];}
-$visibleNotifications=[];foreach($ankhNotifications as $notice){$saved=$notificationState[$notice['id']]??null;if(is_array($saved)){if(!empty($saved['dismissed']))continue;if((int)($saved['until']??0)>$notificationNow)continue;}$visibleNotifications[]=$notice;}
-$notificationCount=count($visibleNotifications);
+$ankhNotifications=[];$notificationNow=time();$todayDate=$retaToday->format('Y-m-d');$tomorrowDate=$retaToday->modify('+1 day')->format('Y-m-d');
 
+$tomorrowDeliveries=array_values(array_filter($orders,fn($o)=>(string)($o['scheduled_delivery_date']??'')===$tomorrowDate && trim((string)($o['delivery_date']??''))==='' && !in_array((string)$o['status'],['Cancelled','Delivered'],true)));
+if($tomorrowDeliveries){
+ $count=count($tomorrowDeliveries);
+ $ankhNotifications[]=['id'=>'delivery:'.$tomorrowDate.':'.$count,'tone'=>'delivery','title'=>$count.' deliver'.($count===1?'y':'ies').' due tomorrow','body'=>'Check preparation, packaging and who each order is assigned to.','href'=>'?view=orders&scope=to_deliver','priority'=>10];
+}
+
+$overdueUnpaid=array_values(array_filter($awaitingPayment,function($o)use($todayDate){
+ if((string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!=='')return true;
+ $scheduled=trim((string)($o['scheduled_delivery_date']??''));
+ return $scheduled!==''&&$scheduled<$todayDate;
+}));
+if($overdueUnpaid){
+ $count=count($overdueUnpaid);$amount=array_sum(array_map(fn($o)=>max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$overdueUnpaid));
+ $ankhNotifications[]=['id'=>'unpaid-overdue:'.$count.':'.$amount,'tone'=>'money','title'=>$count.' unpaid order'.($count===1?' is':'s are').' overdue','body'=>money($amount).' is still outstanding on delivered or overdue orders.','href'=>'?view=balances','priority'=>20];
+}
+
+// Reorder alerts use the same principles as the planner: real available stock, 7-day demand,
+// active recurring demand due in 30 days, incoming supplier stock and supplier pack size.
+$notificationRecentDelivered=sc_recent_delivered($db,30);$notificationRecurringByName=[];
+foreach(($recurringForecast30['stock']??[]) as $forecastName=>$forecastQty)$notificationRecurringByName[strtolower(trim((string)$forecastName))]=(int)$forecastQty;
+$notificationReorderProductIds=[];
+foreach($trackedStock as $stockAlert){
+ $productId=(int)$stockAlert['id'];$name=(string)$stockAlert['name'];$available=max(0,(int)($stockAlert['stock_qty']??0));$threshold=max(0,(int)($stockAlert['low_stock_at']??0));
+ $recent=max(0,(int)($notificationRecentDelivered[$productId]??0));$leadDemand=(int)ceil($recent*7/30);$recurring30=max(0,(int)($notificationRecurringByName[strtolower(trim($name))]??0));
+ $incoming=max(0,(int)($incomingByProduct[$productId]??0));$target=$threshold+$leadDemand+$recurring30;$gap=max(0,$target-($available+$incoming));$packSize=max(1,(int)($stockAlert['supplier_pack_size']??10));
+ if($gap>0){
+  $packs=(int)ceil($gap/$packSize);$notificationReorderProductIds[$productId]=true;
+  $body=$available.' available'.($incoming>0?' + '.$incoming.' incoming':'').' · target '.$target.' · '.$packs.' supplier pack'.($packs===1?'':'s').' suggested.';
+  $ankhNotifications[]=['id'=>'reorder:'.$productId.':'.$available.':'.$incoming.':'.$target,'tone'=>'reorder','title'=>$name.' reorder needed','body'=>$body,'href'=>'?view=reorder','priority'=>30+$gap];
+ }
+}
+foreach($lowStock as $stockAlert){
+ $productId=(int)$stockAlert['id'];if(isset($notificationReorderProductIds[$productId]))continue;
+ $qty=(int)$stockAlert['fridge_available'];$threshold=(int)$stockAlert['low_stock_at'];
+ $ankhNotifications[]=['id'=>'low-stock:'.$productId.':'.$qty.':'.$threshold,'tone'=>'stock','title'=>(string)$stockAlert['name'].' below stock threshold','body'=>$qty.' available across Jay and Tony · alert level '.$threshold.'.','href'=>'?view=stock&filter=low','priority'=>25];
+}
+
+if($retaDue7){
+ $count=count($retaDue7);$weekKey=$retaToday->format('o-W');
+ $ankhNotifications[]=['id'=>'recurring-week:'.$weekKey.':'.$count,'tone'=>'cycle','title'=>$count.' recurring customer'.($count===1?' is':'s are').' due within 7 days','body'=>'Review upcoming repeat orders and the stock they are expected to need.','href'=>'?view=reta&weeks=4','priority'=>15];
+}
+
+usort($ankhNotifications,fn($a,$b)=>(int)($b['priority']??0)<=>(int)($a['priority']??0));
+$visibleNotifications=[];
+foreach($ankhNotifications as $notice){
+ $saved=$notificationState[$notice['id']]??null;
+ if(is_array($saved)){if(!empty($saved['dismissed']))continue;if((int)($saved['until']??0)>$notificationNow)continue;}
+ $visibleNotifications[]=$notice;
+}
+$notificationCount=count($visibleNotifications);
 
 if(in_array($view,['reports','reorder'],true)){
 // Shared report filters and datasets. Sales, product and customer views use order date;
@@ -3968,10 +4029,11 @@ if($view==='reportsboard'){
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['more','products','reports','reorder','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
+<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
 <?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
-<script>(()=>{const b=document.getElementById('ankh-notification-button'),p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close');if(!b||!p)return;const set=open=>{p.hidden=!open;b.setAttribute('aria-expanded',open?'true':'false')};b.addEventListener('click',e=>{e.stopPropagation();set(p.hidden)});c?.addEventListener('click',()=>set(false));document.addEventListener('click',e=>{if(!p.hidden&&!p.contains(e.target)&&e.target!==b)set(false)});document.addEventListener('keydown',e=>{if(e.key==='Escape')set(false)})})();</script>
+<button type="button" class="ankh-notification-mobile-button" id="ankh-notification-mobile-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button>
+<script>(()=>{const buttons=[...document.querySelectorAll('[data-ankh-notification-toggle]')],p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close');if(!buttons.length||!p)return;const set=open=>{p.hidden=!open;buttons.forEach(b=>b.setAttribute('aria-expanded',open?'true':'false'))};buttons.forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();set(p.hidden)}));c?.addEventListener('click',()=>set(false));document.addEventListener('click',e=>{if(!p.hidden&&!p.contains(e.target)&&!e.target.closest('[data-ankh-notification-toggle]'))set(false)});document.addEventListener('keydown',e=>{if(e.key==='Escape')set(false)})})();</script>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):?><div class="flash-confirmation"><p class="success" role="status"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><?php unset($_SESSION['flash']);?></div><?php endif;?>
 <?php if($view==='dashboard'):
@@ -4640,7 +4702,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php
 $customerSpendByKey=[];$customerOutstandingByKey=[];$customerRecurringKeys=[];
 foreach($storedCustomers as $rankCustomer){$rankKey=strtolower(trim((string)$rankCustomer['name'])).'|'.trim((string)$rankCustomer['phone']);$rankHistory=$customerOrderHistory[$rankKey]??[];$customerSpendByKey[$rankKey]=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$rankHistory));}
-arsort($customerSpendByKey);$customerTopKeys=array_fill_keys(array_slice(array_keys($customerSpendByKey),0,min(10,count($customerSpendByKey))),true);
+arsort($customerSpendByKey);$customerTopSpend=array_filter($customerSpendByKey,fn($spent)=>(int)$spent>0);$customerTopKeys=array_fill_keys(array_slice(array_keys($customerTopSpend),0,min(10,count($customerTopSpend))),true);
 foreach($balanceAccounts as $balanceAccount)$customerOutstandingByKey[(string)$balanceAccount['key']]=(int)$balanceAccount['outstanding'];
 foreach($retaCyclesActive as $customerCycle){$cycleKey=strtolower(trim((string)$customerCycle['customer_name'])).'|'.trim((string)$customerCycle['phone']);$customerRecurringKeys[$cycleKey]=true;}
 $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiveKey=strtolower(trim((string)$inactiveCustomer['name'])).'|'.trim((string)$inactiveCustomer['phone']);$inactiveHistory=$customerOrderHistory[$inactiveKey]??[];$inactiveLast=$inactiveHistory[0]??null;if($inactiveLast && strtotime((string)$inactiveLast['created'])<strtotime('-60 days'))$inactiveCustomerCount++;}
@@ -4663,6 +4725,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <summary><div><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · <?=e(date('d M y',strtotime($lastOrder['created'])))?><?php endif;?></small></div></summary>
 <div class="detail">
 <div class="customer-metrics"><div><span>Spent</span><strong><?=money($customerSpent)?></strong></div><div><span>Orders</span><strong><?=count($history)?></strong></div><div><span>Last order</span><strong><?=$lastOrder?e(date('d M y',strtotime($lastOrder['created']))):'—'?></strong></div><div><span>Avg. gap</span><strong><?=$avgOrderDays!==null?$avgOrderDays.'d':'—'?></strong></div></div>
+<?php if($isTop||$isInactive||$hasOutstanding||$hasRecurring):?><div class="customer-intelligence-badges"><?php if($isTop):?><span>TOP CUSTOMER</span><?php endif;?><?php if($hasRecurring):?><span class="cycle">RECURRING</span><?php endif;?><?php if($hasOutstanding):?><span class="money"><?=money((int)$customerOutstandingByKey[$customerKey])?> DUE</span><?php endif;?><?php if($isInactive):?><span>INACTIVE 60+D</span><?php endif;?></div><?php endif;?>
 <?php if($c['address']):?><p class="address"><?=nl2br(e($c['address']))?></p><?php endif;?>
 <div class="customer-quick-actions"><a class="quick-action customer-account-link" href="?view=customer&amp;id=<?=$c['id']?>">Open account</a><?php if(!$c['archived']):?><a class="quick-action" href="?view=new&amp;customer_id=<?=$c['id']?>">+ New order</a><?php if($lastOrder):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$lastOrder['id']?>">Repeat last</a><?php endif;?><?php endif;?><?php if(trim((string)$c['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$c['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$c['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($c['address'])?>">Copy address</button><?php endif;?></div>
 <?php if($usualProducts):?><div class="usual-products"><span class="order-check-label">Usual products</span><div class="product-chips"><?php foreach($usualProducts as $usual):?><span><?=e($usual['name'])?> <b>×<?=$usual['qty']?></b></span><?php endforeach;?></div></div><?php endif;?>
@@ -4726,10 +4789,13 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
  $accountSpend=array_sum(array_map(fn($o)=>(int)$o['total'],$accountPaid));$accountAverage=$accountPaidCount?intdiv($accountSpend,$accountPaidCount):0;
  $accountOutstanding=array_sum(array_map(fn($o)=>$o['status']==='Cancelled'?0:max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$accountHistory));
  $accountProfit=0;foreach($accountPaid as $accountOrder){$oid=(int)$accountOrder['id'];$accountProfit+=(int)$accountOrder['total']-(int)($orderCostById[$oid]??0)-(int)($accountOrder['postage_cost']??0);}
- $accountLast=$accountHistory[0]??null;$accountFavourites=array_slice($customerProductCounts[$accountKey]??[],0,5);
+ $accountLast=$accountHistory[0]??null;$accountFavourites=array_slice($customerProductCounts[$accountKey]??[],0,5);$accountTopProduct=$accountFavourites[0]??null;
  $accountCycles=array_values(array_filter($retaCyclesActive,fn($cycle)=>strtolower(trim((string)$cycle['customer_name']))===strtolower(trim((string)$customerAccount['name'])) && trim((string)$cycle['phone'])===trim((string)$customerAccount['phone'])));
  $accountOrderDates=array_values(array_filter(array_map(fn($o)=>(string)$o['status']==='Cancelled'?null:strtotime((string)$o['created']),$accountHistory)));$accountIntervals=[];for($ai=1;$ai<count($accountOrderDates);$ai++)$accountIntervals[]=abs($accountOrderDates[$ai-1]-$accountOrderDates[$ai])/86400;$accountAvgDays=$accountIntervals?(int)round(array_sum($accountIntervals)/count($accountIntervals)):null;
  usort($accountCycles,fn($a,$b)=>strcmp((string)$a['next_due_date'],(string)$b['next_due_date']));$accountNextCycle=$accountCycles[0]??null;
+ $accountLikelyDate='';$accountLikelyDetail='No repeat pattern yet';
+ if($accountNextCycle){$accountLikelyDate=(string)$accountNextCycle['next_due_date'];$accountLikelyDetail='Recurring · '.(string)($accountNextCycle['product_name']?:$accountNextCycle['product_summary']);}
+ elseif($accountLast&&$accountAvgDays!==null&&$accountAvgDays>0){$lastTs=strtotime((string)$accountLast['created']);if($lastTs){$likelyTs=strtotime('+'.$accountAvgDays.' days',$lastTs);$guard=0;while($likelyTs<strtotime($todayDate)&&$guard++<24)$likelyTs=strtotime('+'.$accountAvgDays.' days',$likelyTs);$accountLikelyDate=date('Y-m-d',$likelyTs);$accountLikelyDetail='Estimated from '.$accountAvgDays.'-day average'.($accountTopProduct?' · '.(string)$accountTopProduct['name']:'');}}
 ?>
 <div class="heading customer-account-heading"><div><p class="eyebrow">CUSTOMER ACCOUNT</p><h1><?=e($customerAccount['name'])?></h1><p class="muted"><?=e($customerAccount['phone']?:'No phone saved')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p></div><a class="quick-action" href="?view=customers">← Customers</a></div>
 <div class="customer-account-actions"><?php if(!$customerAccount['archived']):?><a class="button" href="?view=new&amp;customer_id=<?=$customerAccount['id']?>">+ New order</a><?php if($accountLast):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$accountLast['id']?>">Repeat last order</a><?php endif;?><?php endif;?><?php if(trim((string)$customerAccount['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$customerAccount['phone']))?>">Call</a><?php endif;?></div>
@@ -4741,7 +4807,8 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
  <article><span>Total orders</span><strong><?=count($accountHistory)?></strong><small>Including open orders</small></article>
  <article><span>Last order</span><strong><?=$accountLast?e(date('d M y',strtotime($accountLast['created']))):'—'?></strong><small><?=$accountLast?'ANK-'.str_pad((string)$accountLast['id'],4,'0',STR_PAD_LEFT):'No orders yet'?></small></article>
  <article><span>Average repeat gap</span><strong><?=$accountAvgDays!==null?$accountAvgDays.' days':'—'?></strong><small>Between non-cancelled orders</small></article>
- <article><span>Next recurring</span><strong><?=$accountNextCycle?e(date('d M y',strtotime((string)$accountNextCycle['next_due_date']))):'—'?></strong><small><?=$accountNextCycle?e((string)($accountNextCycle['product_name']?:$accountNextCycle['product_summary'])):'No active recurring plan'?></small></article>
+ <article><span>Most purchased</span><strong><?=$accountTopProduct?e((string)$accountTopProduct['name']):'—'?></strong><small><?=$accountTopProduct?'×'.(int)$accountTopProduct['qty'].' units ordered':'No product history yet'?></small></article>
+ <article><span>Next likely order</span><strong><?=$accountLikelyDate?e(date('d M y',strtotime($accountLikelyDate))):'—'?></strong><small><?=e($accountLikelyDetail)?></small></article>
 </div>
 <div class="customer-account-grid">
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CONTACT</p><h2>Customer details</h2></div></div><?php if($customerAccount['address']):?><p class="address"><?=nl2br(e($customerAccount['address']))?></p><?php else:?><p class="muted">No address saved.</p><?php endif;?><div class="customer-quick-actions"><?php if($customerAccount['address']):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($customerAccount['address'])?>">Copy address</button><?php endif;?></div></section>
