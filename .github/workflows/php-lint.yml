@@ -47,6 +47,9 @@ jobs:
           php -l tests/mobile-app-ux.php
           php -l tests/mobile-incoming-ux.php
           php -l tests/iphone-recording-ux.php
+          php -l scripts/backup-sqlite.php
+          php -l tests/operations-testmode.php
+          php -l tests/backup-sqlite.php
       - name: Test office today overview
         run: php tests/today-overview.php
       - name: Render dashboard and customer intelligence with isolated data
@@ -87,5 +90,14 @@ jobs:
         run: php tests/iphone-recording-ux.php
       - name: Validate mobile action sheet lifecycle
         run: node tests/mobile-focus-sheet.cjs
+      - name: Test operations, identity and audit migrations
+        run: php tests/operations-testmode.php
+      - name: Test private SQLite backup and integrity
+        run: php tests/backup-sqlite.php
+      - name: Check Bash rollback helpers
+        run: |
+          bash -n deploy-krystal.sh
+          bash -n scripts/snapshot-live.sh
+          bash -n scripts/rollback-release.sh
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
