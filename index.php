@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
-session_set_cookie_params(['httponly'=>true,'secure'=>true,'samesite'=>'Strict']);
+// Allow ordinary HTTP only for an explicitly enabled localhost browser-test fixture.
+$localTestHttp=PHP_SAPI==='cli-server' && getenv('ANKH_TEST_ALLOW_HTTP')==='1'
+ && in_array((string)($_SERVER['SERVER_ADDR']??''),['127.0.0.1','::1'],true);
+session_set_cookie_params(['httponly'=>true,'secure'=>!$localTestHttp,'samesite'=>'Strict']);
 session_start();
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
