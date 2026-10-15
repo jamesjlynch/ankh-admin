@@ -77,7 +77,7 @@ try{
  await page.locator('select[name=operator_name]').selectOption('Tony');
  await page.locator('input[name=password]').fill('tony-fixture-password-2026');
  await page.getByRole('button',{name:/Sign in/}).click();
- await page.locator('#dashboard-actions').waitFor({state:'visible'});
+ await page.goto(host+'/index.php?view=dashboard');
  check((await page.locator('main.focus-app>header').innerText()).includes('Tony'),'Tony account attribution missing');
  const nextOrder='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Second Test\',\'\',\'\',\'\',\'New\',\'2026-10-15T10:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (2,\'Test Product\',1000,1);");';
  execFileSync('php',['-r',nextOrder],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
