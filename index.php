@@ -1472,6 +1472,32 @@ function activityForOrder(PDO $db,int $orderId,int $limit=40):array{
 function validOperatorPassword(string $password):bool{
  return strlen($password)>=12&&strlen($password)<=128;
 }
+function activitySummary(array $metadata):string{
+ $changes=$metadata['changes']??[];$labels=[
+ 'status'=>'Status','payment_date'=>'Paid date','delivery_date'=>'Delivered',
+ 'scheduled_delivery_date'=>'Planned delivery','reconstituted'=>'Reconstituted',
+ 'packaged'=>'Packaged','assigned_to'=>'Assigned','payment_method'=>'Method',
+ 'amount_paid_pence'=>'Total paid','delivery_charge'=>'Delivery charge',
+ 'postage_cost'=>'Postage cost','payment_fee'=>'Payment fee'
+ ];
+ $parts=[];
+ foreach($changes as $field=>$values){
+  if(!array_key_exists($field,$labels)||!is_array($values))continue;
+  $show=static function($value)use($field):string{
+   if($value===null||$value==='')return '—';
+   if(in_array($field,['amount_paid_pence','delivery_charge','postage_cost','payment_fee'],true))return '£'.number_format(((int)$value)/100,2);
+   if(in_array($field,['reconstituted','packaged'],true))return (int)$value===1?'Yes':'No';
+   return (string)$value;
+  };
+  $parts[]=$labels[$field].': '.$show($values['from']??null).' → '.$show($values['to']??null);
+  if(count($parts)>=4)break;
+ }
+ if(isset($metadata['removed_payment'])){
+  $removed=$metadata['removed_payment'];$parts[]='Removed £'.number_format(((int)($removed['amount_pence']??0))/100,2).' payment';
+ }
+ return implode(' · ',$parts);
+}
+
 
 // Current retail catalogue from the ANKH price-list artwork supplied 22 Sep 2026.
 // Exact penny prices from the detailed Gym & Performance list take precedence
@@ -4594,7 +4620,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <details class="panel operator-order-history"><summary>Order activity history</summary>
 <?php $history=activityForOrder($db,(int)$editOrder['id']);?>
 <div class="activity-list"><?php foreach($history as $event):?><article class="activity-row"><div>
- <strong><?=e($event['action'])?></strong><small><?=e($event['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime((string)$event['created'])))?></small>
+ <strong><?=e($event['action'])?></strong><small><?=e($event['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime((string)$event['created'])))?></small><?php if($eventSummary=activitySummary(json_decode((string)$event['details_json'],true)?:[])):?><small><?=e($eventSummary)?></small><?php endif;?>
  </div></article><?php endforeach;?>
  <?php if(!$history):?><p class="muted">No changes have been recorded since activity tracking was enabled.</p><?php endif;?>
 </div></details>
@@ -5567,7 +5593,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <section class="panel"><div class="activity-list">
 <?php $activityRows=$db->query("SELECT entity_type,entity_id,action,actor_name,details_json,created FROM activity_events ORDER BY id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC); ?>
 <?php foreach($activityRows as $entry):$detail=json_decode((string)$entry['details_json'],true)?:[];$orderTarget=$entry['entity_type']==='order'?(int)$entry['entity_id']:(int)($detail['order_id']??0);?>
-<article class="activity-row"><div><strong><?=e($entry['action'])?></strong><small><?=e($entry['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime($entry['created'])))?></small></div>
+<article class="activity-row"><div><strong><?=e($entry['action'])?></strong><small><?=e($entry['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime($entry['created'])))?></small><?php if($summary=activitySummary($detail)):?><small><?=e($summary)?></small><?php endif;?></div>
 <?php if($orderTarget>0):?><a href="?view=edit&amp;id=<?=$orderTarget?>">Order #<?=$orderTarget?> →</a><?php endif;?></article>
 <?php endforeach;?><?php if(!$activityRows):?><p class="muted">Activity tracking is ready. New changes will appear here.</p><?php endif;?></div></section>
 <?php elseif($view==='more'):?>
