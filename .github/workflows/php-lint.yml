@@ -48,6 +48,7 @@ jobs:
           php -l tests/mobile-incoming-ux.php
           php -l tests/iphone-recording-ux.php
           php -l scripts/backup-sqlite.php
+          php -l scripts/reset-admin-login.php
           php -l tests/operations-upgrade.php
           php -l tests/backup-sqlite.php
       - name: Test office today overview
