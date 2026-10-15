@@ -1469,8 +1469,9 @@ function activityForOrder(PDO $db,int $orderId,int $limit=40):array{
  $q->bindValue(1,'order');$q->bindValue(2,$orderId,PDO::PARAM_INT);
  $q->bindValue(3,max(1,min(100,$limit)),PDO::PARAM_INT);$q->execute();return $q->fetchAll(PDO::FETCH_ASSOC);
 }
-function validOperatorPassword(string $password):bool{
- return strlen($password)>=12&&strlen($password)<=128;
+function validOperatorPin(string $pin):bool{
+ // Six digits reduce guessing risk compared with legacy four-digit admin PINs.
+ return (bool)preg_match('/^[0-9]{6}$/D',$pin);
 }
 function activitySummary(array $metadata):string{
  $changes=$metadata['changes']??[];$labels=[
@@ -2826,14 +2827,16 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='operators_setup'){
    if($operatorsEnabled)throw new Exception('Individual accounts are already active.');
    if(!password_verify((string)($_POST['legacy_password']??''),$adminPasswordHash))throw new Exception('Current administrator password was not recognised.');
-   $jayPassword=(string)($_POST['jay_password']??'');$tonyPassword=(string)($_POST['tony_password']??'');
-   if(!validOperatorPassword($jayPassword)||!validOperatorPassword($tonyPassword))throw new Exception('Both passphrases must contain 12–128 characters.');
-   if(hash_equals($jayPassword,$tonyPassword))throw new Exception('Jay and Tony must use different passphrases.');
+   $jayPin=(string)($_POST['jay_pin']??'');$tonyPin=(string)($_POST['tony_pin']??'');
+   if(!validOperatorPin($jayPin)||!validOperatorPin($tonyPin))throw new Exception('Each account needs a six-digit PIN.');
+   if(!hash_equals($jayPin,(string)($_POST['jay_pin_confirm']??'')) ||
+      !hash_equals($tonyPin,(string)($_POST['tony_pin_confirm']??'')))throw new Exception('Confirm both PINs before activating.');
+   if(hash_equals($jayPin,$tonyPin))throw new Exception('Jay and Tony must choose different PINs.');
    $db->beginTransaction();
    try{
     $insert=$db->prepare('INSERT INTO operator_accounts(name,password_hash,created,updated) VALUES (?,?,?,?)');
-    $date=gmdate('c');$insert->execute(['Jay',password_hash($jayPassword,PASSWORD_DEFAULT),$date,$date]);$jayId=(int)$db->lastInsertId();
-    $insert->execute(['Tony',password_hash($tonyPassword,PASSWORD_DEFAULT),$date,$date]);
+    $date=gmdate('c');$insert->execute(['Jay',password_hash($jayPin,PASSWORD_DEFAULT),$date,$date]);$jayId=(int)$db->lastInsertId();
+    $insert->execute(['Tony',password_hash($tonyPin,PASSWORD_DEFAULT),$date,$date]);
     saveSetting($db,'operators_enabled','1');
     $db->commit();
    }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
@@ -2847,13 +2850,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='operator_change_password'){
    if(!$operatorsEnabled)throw new Exception('Activate named accounts first.');
    $current=operatorAccount($db,(string)($_SESSION['operator_name']??''));
-   if(!$current||(int)$current['id']!==(int)($_SESSION['operator_id']??0)||!password_verify((string)($_POST['current_password']??''),(string)$current['password_hash']))throw new Exception('Current passphrase was not recognised.');
-   $new=(string)($_POST['new_password']??'');
-   if(!validOperatorPassword($new)||$new!==(string)($_POST['new_password_confirm']??''))throw new Exception('Enter and confirm a new passphrase of 12–128 characters.');
-   if(password_verify($new,(string)$current['password_hash']))throw new Exception('Choose a different passphrase.');
+   if(!$current||(int)$current['id']!==(int)($_SESSION['operator_id']??0)||!password_verify((string)($_POST['current_pin']??''),(string)$current['password_hash']))throw new Exception('Current PIN was not recognised.');
+   $new=(string)($_POST['new_pin']??'');
+   if(!validOperatorPin($new)||!hash_equals($new,(string)($_POST['new_pin_confirm']??'')))throw new Exception('Enter and confirm a new six-digit PIN.');
+   if(password_verify($new,(string)$current['password_hash']))throw new Exception('Choose a different PIN.');
    $db->prepare('UPDATE operator_accounts SET password_hash=?,updated=? WHERE id=?')->execute([password_hash($new,PASSWORD_DEFAULT),gmdate('c'),(int)$current['id']]);
-   recordActivity($db,'security',(int)$current['id'],'Passphrase changed');
-   $_SESSION['flash']='Passphrase updated.';
+   recordActivity($db,'security',(int)$current['id'],'Personal PIN changed');
+   $_SESSION['flash']='Personal PIN updated.';
    header('Location: ./?view=more');exit;
   }
   if($action==='notification_state'){
@@ -3578,10 +3581,10 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
 <?php elseif(!$auth): ?>
-<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1><?=$operatorsEnabled?'Your account':'Sign in'?></h1><p class="muted"><?=$operatorsEnabled?'Use your own account and passphrase.':'Enter the existing administrator PIN or password.'?></p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
+<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1><?=$operatorsEnabled?'Your account':'Sign in'?></h1><p class="muted"><?=$operatorsEnabled?'Choose Jay or Tony and enter your own six-digit PIN.':'Enter the existing administrator PIN or password.'?></p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login">
 <?php if($operatorsEnabled):?><label>Account<select name="operator_name" required><option value="Jay">Jay</option><option value="Tony">Tony</option></select></label><?php endif;?>
-<label><?=$operatorsEnabled?'Passphrase':'Administrator PIN / password'?><input type="password" name="password" required autocomplete="current-password" <?=$operatorsEnabled?'minlength="12" maxlength="128"':''?>></label><button>Sign in →</button></form>
+<label><?=$operatorsEnabled?'Personal PIN':'Administrator PIN / password'?><input type="password" name="password" <?=$operatorsEnabled?'inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6"':''?> required autocomplete="current-password"></label><button>Sign in →</button></form>
 <?php if(!$operatorsEnabled && $passkeyCount>0):?><div class="login-divider"><span>or</span></div><button type="button" id="passkey-login" class="passkey-login">◎ Use Face ID / Passkey</button><p id="passkey-login-status" class="muted passkey-status"></p><?php endif;?>
 <script>
 function ankhB64ToBuffer(value){value=value.replace(/-/g,'+').replace(/_/g,'/');while(value.length%4)value+='=';const raw=atob(value),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out.buffer}
@@ -5610,18 +5613,20 @@ document.addEventListener('DOMContentLoaded',()=>{
 <section class="panel operator-security-panel" aria-label="Personal accounts">
  <div class="dashboard-panel-head"><div><p class="eyebrow">ACCOUNT SECURITY</p><h2><?=$operatorsEnabled?'Signed in as '.e((string)($_SESSION['operator_name']??'')):'Set up Jay and Tony accounts'?></h2></div></div>
  <?php if(!$operatorsEnabled):?>
- <p class="muted">Create two individual accounts without changing existing order data. Both passphrases must be different and at least 12 characters. Once activated, the shared PIN and shared passkeys stop signing users in.</p>
+ <p class="muted">Test setup: both people choose a different six-digit PIN. Individual logins only activate after both PINs are confirmed and the existing administrator credential is verified. Never enter PINs in chat or share them between accounts.</p>
  <form method="post" class="operator-form"><?php csrf();?><input type="hidden" name="action" value="operators_setup"><input type="hidden" name="return" value="more">
- <label>Current administrator PIN or password<input type="password" name="legacy_password" autocomplete="current-password" required></label>
- <label>Jay’s new passphrase<input type="password" name="jay_password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
- <label>Tony’s new passphrase<input type="password" name="tony_password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+ <label>Existing administrator PIN or password<input type="password" name="legacy_password" autocomplete="current-password" required></label>
+ <label>Jay’s six-digit PIN<input type="password" inputmode="numeric" pattern="[0-9]{6}" name="jay_pin" autocomplete="new-password" minlength="6" maxlength="6" required></label>
+ <label>Confirm Jay’s PIN<input type="password" inputmode="numeric" pattern="[0-9]{6}" name="jay_pin_confirm" autocomplete="new-password" minlength="6" maxlength="6" required></label>
+ <label>Tony’s six-digit PIN<input type="password" inputmode="numeric" pattern="[0-9]{6}" name="tony_pin" autocomplete="new-password" minlength="6" maxlength="6" required></label>
+ <label>Confirm Tony’s PIN<input type="password" inputmode="numeric" pattern="[0-9]{6}" name="tony_pin_confirm" autocomplete="new-password" minlength="6" maxlength="6" required></label>
  <button type="submit">Activate individual accounts</button></form>
  <?php else:?>
  <p class="muted">Individual account activity is attributed to the person signed in. Existing shared passkeys remain disabled until person-specific passkeys are implemented.</p>
- <details><summary>Change my passphrase</summary><form method="post" class="operator-form"><?php csrf();?><input type="hidden" name="action" value="operator_change_password"><input type="hidden" name="return" value="more">
- <label>Current passphrase<input type="password" name="current_password" autocomplete="current-password" required></label>
- <label>New passphrase<input type="password" name="new_password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
- <label>Confirm new passphrase<input type="password" name="new_password_confirm" autocomplete="new-password" minlength="12" maxlength="128" required></label><button>Update passphrase</button></form></details>
+ <details><summary>Change my PIN</summary><form method="post" class="operator-form"><?php csrf();?><input type="hidden" name="action" value="operator_change_password"><input type="hidden" name="return" value="more">
+ <label>Current PIN<input type="password" name="current_pin" inputmode="numeric" pattern="[0-9]{6}" autocomplete="current-password" minlength="6" maxlength="6" required></label>
+ <label>New six-digit PIN<input type="password" name="new_pin" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required></label>
+ <label>Confirm new PIN<input type="password" name="new_pin_confirm" inputmode="numeric" pattern="[0-9]{6}" autocomplete="new-password" minlength="6" maxlength="6" required></label><button>Update PIN</button></form></details>
  <?php endif;?>
 </section>
 
