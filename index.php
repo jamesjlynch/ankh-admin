@@ -3351,6 +3351,22 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
  .profit-table thead th,.report-table thead th{position:sticky;top:0;z-index:2}
  .profit-table tbody tr:hover,.report-table tbody tr:hover{background:rgba(218,185,91,.045)}
 }
+/* Tablet-only layout repair: preserve the established dashboard and navigation. */
+@media (min-width:761px) and (max-width:1199px){
+ main.focus-app{min-width:0;padding-left:clamp(20px,3vw,36px);padding-right:clamp(20px,3vw,36px)}
+ main.focus-app .focus-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;border:0;padding:0;margin:0 0 24px}
+ main.focus-app .focus-summary .dashboard-stat-card,
+ main.focus-app .focus-summary .dashboard-stat-card:first-child,
+ main.focus-app .focus-summary .dashboard-stat-card:last-child{min-width:0;padding:16px;background:var(--focus-panel,#191c21);border:1px solid var(--border);border-radius:16px}
+ main.focus-app .focus-summary .dashboard-stat-card+.dashboard-stat-card{border-left:1px solid var(--border)}
+ main.focus-app .focus-summary .dashboard-stat-card>strong{overflow-wrap:anywhere}
+ main.focus-app .focus-worklist{grid-template-columns:minmax(0,1fr)}
+ main.focus-app .dashboard-heading,main.focus-app .focus-work-toolbar{flex-wrap:wrap}
+ main.focus-app .dashboard-queue-tabs{flex-wrap:wrap}
+ .ankh-notification-popover{width:min(390px,calc(100vw - 260px));right:16px}
+ .customer-account-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #customer-list.customer-intelligence-grid{grid-template-columns:minmax(0,1fr)}
+}
 @media (min-width:1000px){
  #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
 }
@@ -4092,12 +4108,6 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
-<aside class="desktop-today-panel" aria-label="Today at a glance">
- <a href="?view=orders&amp;scope=to_deliver"><span>Tomorrow</span><strong><?=count($tomorrowDeliveries)?> deliver<?=count($tomorrowDeliveries)===1?'y':'ies'?></strong><small>planned for <?=e($retaToday->modify('+1 day')->format('D j M'))?></small></a>
- <a href="?view=balances"><span>Delivered &amp; unpaid</span><strong><?=count($deliveredUnpaid)?></strong><small><?=money(array_sum(array_map(fn($o)=>max(0,(int)$o['total']-(int)($o['paid_amount']??0)),$deliveredUnpaid)))?> outstanding</small></a>
- <a href="?view=reorder"><span>Stock attention</span><strong><?=count($lowStock)?></strong><small>at or below alert level</small></a>
- <a href="?view=reta&amp;weeks=4"><span>Recurring · 7 days</span><strong><?=count($retaDue7)?></strong><small>customers approaching repeat date</small></a>
-</aside>
 <section class="todo-board dashboard-action-queue" id="dashboard-actions">
 <div class="todo-board-head"><div><h2>Your worklist</h2><p class="muted focus-work-count"><?=count($dashboardWork)?> order<?=count($dashboardWork)===1?'':'s'?></p></div><?php if($stockShortages):?><a class="queue-stock-warning" href="#dashboard-stock-shortage"><?=$stockShortageUnits?> stock short ↓</a><?php endif;?></div>
 <div class="focus-work-toolbar"><div class="dashboard-queue-tabs" role="navigation" aria-label="Orders needing action">
