@@ -9,7 +9,15 @@ git merge --ff-only origin/main
 /opt/cpanel/ea-php82/root/usr/bin/php -l index.php
 /opt/cpanel/ea-php82/root/usr/bin/php -l setup.php
 /opt/cpanel/ea-php82/root/usr/bin/php -l supplier-centre.php
+/opt/cpanel/ea-php82/root/usr/bin/php -l scripts/backup-sqlite.php
 /opt/cpanel/ea-php82/root/usr/bin/php -r 'if (PHP_VERSION_ID < 80100 || !extension_loaded("pdo_sqlite")) { fwrite(STDERR, "PHP 8.1+ and PDO SQLite required\n"); exit(1); }'
+# Keep a verified private database snapshot and a code rollback point BEFORE replacing live files.
+/opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
+bash scripts/snapshot-live.sh
+mkdir -p /home/lynchde1/ankh-admin-tools
+chmod 700 /home/lynchde1/ankh-admin-tools
+install -m 700 scripts/backup-sqlite.php /home/lynchde1/ankh-admin-tools/backup-sqlite.php
+install -m 700 scripts/rollback-release.sh /home/lynchde1/ankh-admin-tools/rollback-release.sh
 target=/home/lynchde1/public_html/ankh-admin
 mkdir -p "$target"
 for file in .htaccess style.css style.min.css style.core.min.css setup.php index.php supplier-centre.php manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
