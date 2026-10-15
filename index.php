@@ -4589,6 +4589,13 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="edit-section"><span class="wizard-kicker">PAYMENT & NOTES</span><label>Payment method<select id="payment-method" name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$editOrder['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Notes<textarea name="notes" maxlength="4000"><?=e($editOrder['notes'])?></textarea></label></div>
 <div class="edit-total"><span>Order total</span><strong id="subtotal">£0.00</strong></div><button class="save-order">Save changes</button>
 </form>
+<details class="panel operator-order-history"><summary>Order activity history</summary>
+<?php $history=activityForOrder($db,(int)$editOrder['id']);?>
+<div class="activity-list"><?php foreach($history as $event):?><article class="activity-row"><div>
+ <strong><?=e($event['action'])?></strong><small><?=e($event['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime((string)$event['created'])))?></small>
+ </div></article><?php endforeach;?>
+ <?php if(!$history):?><p class="muted">No changes have been recorded since activity tracking was enabled.</p><?php endif;?>
+</div></details>
 <?php endif;?>
 
 <?php elseif($view==='products'):?>
