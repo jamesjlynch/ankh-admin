@@ -1431,6 +1431,46 @@ function saveSetting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)')->execute([$key,$value]);
 }
 
+
+// Additive upgrade: historical orders, customer records and payments are never rewritten.
+$db->exec("CREATE TABLE IF NOT EXISTS operator_accounts (
+ id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+ password_hash TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1,
+ created TEXT NOT NULL, updated TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS activity_events (
+ id INTEGER PRIMARY KEY, entity_type TEXT NOT NULL,
+ entity_id INTEGER NOT NULL, action TEXT NOT NULL,
+ actor_id INTEGER DEFAULT NULL, actor_name TEXT NOT NULL,
+ details_json TEXT NOT NULL DEFAULT '{}', created TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ankh_activity_entity ON activity_events(entity_type,entity_id,id DESC);
+CREATE INDEX IF NOT EXISTS idx_ankh_activity_created ON activity_events(created DESC);");
+
+function operatorAccount(PDO $db,string $name):?array{
+ $q=$db->prepare('SELECT id,name,password_hash,active FROM operator_accounts WHERE name=? LIMIT 1');
+ $q->execute([$name]);$row=$q->fetch(PDO::FETCH_ASSOC);
+ return $row && (int)$row['active']===1?$row:null;
+}
+function activityActor():array{
+ return [(int)($_SESSION['operator_id']??0)?:null,(string)($_SESSION['operator_name']??'Legacy admin')];
+}
+function recordActivity(PDO $db,string $entity,int $entityId,string $action,array $details=[]):void{
+ if(!in_array($entity,['order','payment','security'],true)||$entityId<0)throw new InvalidArgumentException('Invalid activity target.');
+ [$operatorId,$operatorName]=activityActor();
+ $q=$db->prepare('INSERT INTO activity_events(entity_type,entity_id,action,actor_id,actor_name,details_json,created) VALUES (?,?,?,?,?,?,?)');
+ $q->execute([$entity,$entityId,$action,$operatorId,$operatorName,json_encode($details,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('c')]);
+}
+function activityForOrder(PDO $db,int $orderId,int $limit=40):array{
+ $q=$db->prepare('SELECT actor_name,action,details_json,created FROM activity_events WHERE (entity_type=? AND entity_id=?) OR (entity_type=? AND json_extract(details_json,\'$.order_id\')=?) ORDER BY id DESC LIMIT ?');
+ $q->bindValue(1,'order');$q->bindValue(2,$orderId,PDO::PARAM_INT);
+ $q->bindValue(3,'payment');$q->bindValue(4,$orderId,PDO::PARAM_INT);
+ $q->bindValue(5,max(1,min(100,$limit)),PDO::PARAM_INT);$q->execute();return $q->fetchAll(PDO::FETCH_ASSOC);
+}
+function validOperatorPassword(string $password):bool{
+ return strlen($password)>=12&&strlen($password)<=128;
+}
+
 // Current retail catalogue from the ANKH price-list artwork supplied 22 Sep 2026.
 // Exact penny prices from the detailed Gym & Performance list take precedence
 // where the two supplied posters show rounded versions of the same price.
@@ -1767,8 +1807,19 @@ function passkeyChallengeValid(string $kind):string{
 $pinSetupTokenHash='64a1ea8550f3bb078a15088090d021b056d8bdad6ee24d1346e7603693b1cbea';
 $savedAdminPinHash=setting($db,'admin_pin_hash','');
 $pinSetupComplete=$savedAdminPinHash!=='';
-// TEMPORARY PUBLIC TEST MODE: set false before the app is used with real data.
-$testingNoAuth=true;
+// CLI rendering of isolated regression fixtures may bypass sign-in; never bypass over HTTP.
+$testingNoAuth=PHP_SAPI==='cli';
+$operatorsEnabled=setting($db,'operators_enabled','0')==='1';
+if($operatorsEnabled){
+ $operatorId=(int)($_SESSION['operator_id']??0);
+ $operatorSessionValid=false;
+ if($operatorId>0){
+  $oq=$db->prepare('SELECT name,active FROM operator_accounts WHERE id=?');$oq->execute([$operatorId]);$operatorSession=$oq->fetch(PDO::FETCH_ASSOC);
+  $operatorSessionValid=$operatorSession && (int)$operatorSession['active']===1 &&
+   hash_equals((string)$operatorSession['name'],(string)($_SESSION['operator_name']??''));
+ }
+ if(!$operatorSessionValid){unset($_SESSION['admin'],$_SESSION['operator_id'],$_SESSION['operator_name']);}
+}else{unset($_SESSION['operator_id']);if(empty($_SESSION['operator_name']))$_SESSION['operator_name']='Legacy admin';}
 $adminPasswordHash=$pinSetupComplete?$savedAdminPinHash:(string)$config['password_hash'];
 $openAiKey=trim((string)($config['openai_api_key']??(getenv('OPENAI_API_KEY')?:'')));
 $voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
@@ -1776,7 +1827,7 @@ $voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
 $pinSetupToken=(string)($_GET['setup_pin']??$_POST['setup_pin']??'');
 $pinSetupAuthorized=!$pinSetupComplete && $pinSetupToken!=='' && hash_equals($pinSetupTokenHash,hash('sha256',$pinSetupToken));
 
-if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();}
+if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();if(!$operatorsEnabled)$_SESSION['operator_name']='Isolated test';}
 
 if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin_pin'){
  try{
@@ -2139,6 +2190,7 @@ if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='order-pdf'){
 
 if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-options'){
  try{
+  if($operatorsEnabled)voiceJson(['ok'=>false,'error'=>'Shared passkeys are disabled with named accounts. Sign in with your own passphrase.'],403);
   $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))$body=$_POST;
   if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
   $kind=(string)($body['kind']??'login');$register=$kind==='register';
@@ -2163,6 +2215,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-options'
 }
 if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-register'){
  try{
+  if($operatorsEnabled)voiceJson(['ok'=>false,'error'=>'Shared passkey registration is disabled for named accounts.'],403);
   if($testingNoAuth)voiceJson(['ok'=>false,'error'=>'Passkey registration is disabled while public test mode is active.'],403);
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
   $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))voiceJson(['ok'=>false,'error'=>'Invalid passkey response.'],400);
@@ -2179,6 +2232,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-register
 }
 if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-login'){
  try{
+  if($operatorsEnabled)voiceJson(['ok'=>false,'error'=>'Shared passkey login is disabled for named accounts.'],403);
   $body=json_decode((string)file_get_contents('php://input'),true);if(!is_array($body))voiceJson(['ok'=>false,'error'=>'Invalid passkey response.'],400);
   if(!hash_equals($_SESSION['csrf'],(string)($body['csrf']??'')))voiceJson(['ok'=>false,'error'=>'Please refresh the page and try again.'],403);
   $challenge=passkeyChallengeValid('login');$client=webauthnClientData((string)($body['clientDataJSON']??''),'webauthn.get',$challenge);
@@ -2699,16 +2753,54 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if ($action==='login') {
   $ip=hash('sha256',$_SERVER['REMOTE_ADDR']??'unknown');$q=$db->prepare('SELECT * FROM attempts WHERE ip=?');$q->execute([$ip]);$a=$q->fetch(PDO::FETCH_ASSOC);
   if($a && $a['failures']>=5 && time()-(int)$a['started']<900) throw new Exception('Too many attempts. Please wait 15 minutes.');
-  if(!password_verify((string)($_POST['password']??''),$adminPasswordHash)){
+  $chosenAccount=$operatorsEnabled?operatorAccount($db,(string)($_POST['operator_name']??'')):null;
+  $accepted=$operatorsEnabled?($chosenAccount && password_verify((string)($_POST['password']??''),(string)$chosenAccount['password_hash'])):password_verify((string)($_POST['password']??''),$adminPasswordHash);
+  if(!$accepted){
    if(!$a || time()-(int)$a['started']>=900){$q=$db->prepare('INSERT OR REPLACE INTO attempts VALUES (?,1,?)');$q->execute([$ip,time()]);}
    else{$q=$db->prepare('UPDATE attempts SET failures=failures+1 WHERE ip=?');$q->execute([$ip]);}
    throw new Exception('Password not recognised.');
   }
   $db->prepare('DELETE FROM attempts WHERE ip=?')->execute([$ip]);
   session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  if($operatorsEnabled){$_SESSION['operator_id']=(int)$chosenAccount['id'];$_SESSION['operator_name']=(string)$chosenAccount['name'];}
+  else{unset($_SESSION['operator_id']);$_SESSION['operator_name']='Legacy admin';}
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
+
+  if($action==='operators_setup'){
+   if($operatorsEnabled)throw new Exception('Individual accounts are already active.');
+   if(!password_verify((string)($_POST['legacy_password']??''),$adminPasswordHash))throw new Exception('Current administrator password was not recognised.');
+   $jayPassword=(string)($_POST['jay_password']??'');$tonyPassword=(string)($_POST['tony_password']??'');
+   if(!validOperatorPassword($jayPassword)||!validOperatorPassword($tonyPassword))throw new Exception('Both passphrases must contain 12–128 characters.');
+   if(hash_equals($jayPassword,$tonyPassword))throw new Exception('Jay and Tony must use different passphrases.');
+   $db->beginTransaction();
+   try{
+    $insert=$db->prepare('INSERT INTO operator_accounts(name,password_hash,created,updated) VALUES (?,?,?,?)');
+    $date=gmdate('c');$insert->execute(['Jay',password_hash($jayPassword,PASSWORD_DEFAULT),$date,$date]);$jayId=(int)$db->lastInsertId();
+    $insert->execute(['Tony',password_hash($tonyPassword,PASSWORD_DEFAULT),$date,$date]);
+    saveSetting($db,'operators_enabled','1');
+    $db->commit();
+   }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
+   $operatorsEnabled=true;
+   session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+   $_SESSION['operator_id']=$jayId;$_SESSION['operator_name']='Jay';
+   recordActivity($db,'security',0,'Individual accounts activated');
+   $_SESSION['flash']='Individual Jay and Tony accounts activated. Existing shared passkeys are disabled.';
+   header('Location: ./?view=more');exit;
+  }
+  if($action==='operator_change_password'){
+   if(!$operatorsEnabled)throw new Exception('Activate named accounts first.');
+   $current=operatorAccount($db,(string)($_SESSION['operator_name']??''));
+   if(!$current||(int)$current['id']!==(int)($_SESSION['operator_id']??0)||!password_verify((string)($_POST['current_password']??''),(string)$current['password_hash']))throw new Exception('Current passphrase was not recognised.');
+   $new=(string)($_POST['new_password']??'');
+   if(!validOperatorPassword($new)||$new!==(string)($_POST['new_password_confirm']??''))throw new Exception('Enter and confirm a new passphrase of 12–128 characters.');
+   if(password_verify($new,(string)$current['password_hash']))throw new Exception('Choose a different passphrase.');
+   $db->prepare('UPDATE operator_accounts SET password_hash=?,updated=? WHERE id=?')->execute([password_hash($new,PASSWORD_DEFAULT),gmdate('c'),(int)$current['id']]);
+   recordActivity($db,'security',(int)$current['id'],'Passphrase changed');
+   $_SESSION['flash']='Passphrase updated.';
+   header('Location: ./?view=more');exit;
+  }
   if($action==='notification_state'){
    $notificationId=preg_replace('/[^a-zA-Z0-9:_\-.]/','',substr((string)($_POST['notification_id']??''),0,180));
    $stateAction=(string)($_POST['state_action']??'');$days=(int)($_POST['days']??1);
@@ -3292,7 +3384,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
 if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
@@ -3375,9 +3467,11 @@ $stylesheetVersion=(string)(@filemtime(__DIR__.'/'.$stylesheet) ?: @filemtime(__
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
 <?php elseif(!$auth): ?>
-<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Enter your PIN.</h1><p class="muted">Use your 4-digit ANKH Admin PIN.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
-<form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>4-digit PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password"></label><button>Sign in →</button></form>
-<?php if($passkeyCount>0):?><div class="login-divider"><span>or</span></div><button type="button" id="passkey-login" class="passkey-login">◎ Use Face ID / Passkey</button><p id="passkey-login-status" class="muted passkey-status"></p><?php endif;?>
+<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1><?=$operatorsEnabled?'Your account':'Sign in'?></h1><p class="muted"><?=$operatorsEnabled?'Use your own account and passphrase.':'Enter the existing administrator PIN or password.'?></p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="login">
+<?php if($operatorsEnabled):?><label>Account<select name="operator_name" required><option value="Jay">Jay</option><option value="Tony">Tony</option></select></label><?php endif;?>
+<label><?=$operatorsEnabled?'Passphrase':'Administrator PIN / password'?><input type="password" name="password" required autocomplete="current-password" <?=$operatorsEnabled?'minlength="12" maxlength="128"':''?>></label><button>Sign in →</button></form>
+<?php if(!$operatorsEnabled && $passkeyCount>0):?><div class="login-divider"><span>or</span></div><button type="button" id="passkey-login" class="passkey-login">◎ Use Face ID / Passkey</button><p id="passkey-login-status" class="muted passkey-status"></p><?php endif;?>
 <script>
 function ankhB64ToBuffer(value){value=value.replace(/-/g,'+').replace(/_/g,'/');while(value.length%4)value+='=';const raw=atob(value),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out.buffer}
 function ankhBufferToB64(buffer){const bytes=new Uint8Array(buffer);let raw='';bytes.forEach(b=>raw+=String.fromCharCode(b));return btoa(raw).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')}
@@ -4060,7 +4154,7 @@ if($view==='reportsboard'){
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['more','products','reports','reorder','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
+<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?><?php if($operatorsEnabled):?> · <?=e((string)($_SESSION['operator_name']??''))?><?php endif;?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
 <?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
 <button type="button" class="ankh-notification-mobile-button" id="ankh-notification-mobile-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button>
@@ -5382,9 +5476,36 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 <?php elseif($view==='supplier'):?>
 <?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
+<?php elseif($view==='activity'):?>
+<div class="heading"><div><h1>Order &amp; payment activity</h1><p class="muted page-description">Recent recorded changes, attributed to a signed-in account.</p></div><a class="quick-action" href="?view=more">← More</a></div>
+<section class="panel"><div class="activity-list">
+<?php $activityRows=$db->query("SELECT entity_type,entity_id,action,actor_name,details_json,created FROM activity_events ORDER BY id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC); ?>
+<?php foreach($activityRows as $entry):$detail=json_decode((string)$entry['details_json'],true)?:[];$orderTarget=$entry['entity_type']==='order'?(int)$entry['entity_id']:(int)($detail['order_id']??0);?>
+<article class="activity-row"><div><strong><?=e($entry['action'])?></strong><small><?=e($entry['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime($entry['created'])))?></small></div>
+<?php if($orderTarget>0):?><a href="?view=edit&amp;id=<?=$orderTarget?>">Order #<?=$orderTarget?> →</a><?php endif;?></article>
+<?php endforeach;?><?php if(!$activityRows):?><p class="muted">Activity tracking is ready. New changes will appear here.</p><?php endif;?></div></section>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
+<section class="panel operator-security-panel" aria-label="Personal accounts">
+ <div class="dashboard-panel-head"><div><p class="eyebrow">ACCOUNT SECURITY</p><h2><?=$operatorsEnabled?'Signed in as '.e((string)($_SESSION['operator_name']??'')):'Set up Jay and Tony accounts'?></h2></div></div>
+ <?php if(!$operatorsEnabled):?>
+ <p class="muted">Create two individual accounts without changing existing order data. Both passphrases must be different and at least 12 characters. Once activated, the shared PIN and shared passkeys stop signing users in.</p>
+ <form method="post" class="operator-form"><?php csrf();?><input type="hidden" name="action" value="operators_setup"><input type="hidden" name="return" value="more">
+ <label>Current administrator PIN or password<input type="password" name="legacy_password" autocomplete="current-password" required></label>
+ <label>Jay’s new passphrase<input type="password" name="jay_password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+ <label>Tony’s new passphrase<input type="password" name="tony_password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+ <button type="submit">Activate individual accounts</button></form>
+ <?php else:?>
+ <p class="muted">Individual account activity is attributed to the person signed in. Existing shared passkeys remain disabled until person-specific passkeys are implemented.</p>
+ <details><summary>Change my passphrase</summary><form method="post" class="operator-form"><?php csrf();?><input type="hidden" name="action" value="operator_change_password"><input type="hidden" name="return" value="more">
+ <label>Current passphrase<input type="password" name="current_password" autocomplete="current-password" required></label>
+ <label>New passphrase<input type="password" name="new_password" autocomplete="new-password" minlength="12" maxlength="128" required></label>
+ <label>Confirm new passphrase<input type="password" name="new_password_confirm" autocomplete="new-password" minlength="12" maxlength="128" required></label><button>Update passphrase</button></form></details>
+ <?php endif;?>
+</section>
+
 <div class="more-grid">
+<a class="more-card" href="?view=activity"><span class="more-icon">≡</span><div><h2>Order &amp; payment activity</h2><p>Review who changed orders, preparation, deliveries and payments.</p></div><b>›</b></a>
 <a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
 <a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; Profit Centre</h2><p>Supplier box prices, margins, combined purchases and incoming stock.</p></div><b>›</b></a>
