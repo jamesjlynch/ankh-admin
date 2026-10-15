@@ -75,6 +75,15 @@ try{
  await page.locator('input[name=legacy_password]').fill('fixture-admin-only');
  await page.locator('input[name=jay_pin]').fill('473819');
  await page.locator('input[name=jay_pin_confirm]').fill('473819');
+ // Two identical PINs must never switch off the pre-activation setup.
+ await page.locator('input[name=tony_pin]').fill('473819');
+ await page.locator('input[name=tony_pin_confirm]').fill('473819');
+ await page.getByRole('button',{name:/Activate individual accounts/}).click();
+ check(await page.locator('input[name=jay_pin]').count()===1,'Matching PINs must not activate accounts.');
+ check((await page.locator('body').innerText()).includes('different PINs'),'Duplicate PIN rejection must be explained.');
+ await page.locator('input[name=legacy_password]').fill('fixture-admin-only');
+ await page.locator('input[name=jay_pin]').fill('473819');
+ await page.locator('input[name=jay_pin_confirm]').fill('473819');
  await page.locator('input[name=tony_pin]').fill('681254');
  await page.locator('input[name=tony_pin_confirm]').fill('681254');
  await page.getByRole('button',{name:/Activate individual accounts/}).click();
