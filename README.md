@@ -12,7 +12,7 @@ Private, mobile-first order management in ANKH black and gold. PHP 8.1+ and PDO 
 - Data stored in a private SQLite database on the server.
 - Optional automatic Google Sheets mirror for orders and status changes.
 
-This is a separate admin app. It does not yet import the storefront catalogue, WhatsApp conversations or storefront orders automatically. Products and orders initially need to be entered manually. There is one shared administrator login.
+This is a separate admin app. It does not yet import the storefront catalogue, WhatsApp conversations or storefront orders automatically. Products and orders initially need to be entered manually. The operations upgrade supports opt-in named Jay and Tony accounts. Until activated in More, the existing administrator credential remains in use; the public test-mode bypass is disabled for browser requests. Shared passkeys are disabled after named-account activation.
 
 ## Install on Krystal
 
@@ -26,6 +26,9 @@ This is a separate admin app. It does not yet import the storefront catalogue, W
 The default layout stores ankh-admin-config.php and ankh-admin-private/ in your hosting account home directory, outside public_html. Do not put the SQLite database in a public web folder. If using a different directory layout, set ANKH_ADMIN_CONFIG to an absolute path outside the document root before running setup and in the PHP runtime.
 
 Setup is terminal-only and refuses to replace existing configuration. No password or database is committed to GitHub. HTTPS is required because session cookies are secure-only.
+
+## Operations upgrade rollout (2026-10)
+See [Operations Rollout](docs/OPERATIONS-ROLLOUT.md) before deploying or activating named accounts. The app adds two tables without rewriting historical orders or customers, contextual next-action controls and attributed activity history. The deployment paths run a private verified SQLite backup and save a code rollback snapshot **before** publishing files. Daily backup scheduling must be set up separately in Krystal cron and off-host backups are recommended. Never put private files under public_html. PHP and responsive browser tests run on pull requests.
 
 ## Backup and maintenance
 Back up the private configuration and database using your hosting backup system. Keep backups outside public_html. A backup of GitHub alone does not include orders. For live SQLite backups use SQLite's backup mechanism or take the app offline during the copy; do not assume copying a busy database is consistent.
