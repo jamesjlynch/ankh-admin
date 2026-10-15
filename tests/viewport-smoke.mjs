@@ -71,7 +71,7 @@ try{
  await page.getByRole('button',{name:/Activate individual accounts/}).click();
  await page.locator('.operator-security-panel').waitFor({state:'visible'});
  check((await page.locator('.operator-security-panel').innerText()).includes('Signed in as Jay'),'Jay account activation failed');
- await page.locator('aside form input[value=logout]').first().evaluate(el=>el.form.submit());
+ await page.getByRole('button',{name:'Sign out'}).click();
  await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('#dashboard-actions').count()===0,'Logout must hide private dashboard');
  await page.locator('select[name=operator_name]').selectOption('Tony');
