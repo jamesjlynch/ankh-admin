@@ -79,6 +79,14 @@ try{
  await page.getByRole('button',{name:/Sign in/}).click();
  await page.locator('#dashboard-actions').waitFor({state:'visible'});
  check((await page.locator('main.focus-app>header').innerText()).includes('Tony'),'Tony account attribution missing');
+ const nextOrder='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Second Test\',\'\',\'\',\'\',\'New\',\'2026-10-15T10:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (2,\'Test Product\',1000,1);");';
+ execFileSync('php',['-r',nextOrder],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
+ await page.goto(host+'/index.php?view=dashboard');
+ await page.locator('#work-order-2 summary').first().click();
+ await page.locator('#work-order-2').getByRole('button',{name:/Mark reconstituted/}).click();
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
+ await page.goto(host+'/index.php?view=activity');
+ check((await page.locator('.activity-list').innerText()).includes('Tony'),'Activity history must attribute actions to Tony');
  await context.close();
  console.log('PASS: real browser sign-in, one-tap workflow, account activation, and 6 iPhone/iPad/desktop widths.');
 }finally{
