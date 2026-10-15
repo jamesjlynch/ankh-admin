@@ -8,13 +8,14 @@ The original SQLite database remains the source of truth. Existing orders, custo
 3. Run a private, integrity-verified SQLite snapshot using scripts/backup-sqlite.php before deploying.
 4. Snapshot the existing live web assets to the non-public home-directory release folder. No private config/database file is copied with web assets.
 
-## Jay/Tony onboarding
+## Jay/Tony PIN onboarding — release not yet approved
+Until both personal PINs have been chosen, the operations upgrade remains in its feature branch and the existing live test setup is unchanged. Do not expose the future PIN setup screen to unauthenticated public visitors or publish the upgrade before verifying secure administrator access.
 1. Sign in with the existing administrator PIN/password.
 2. Open More → Set up Jay and Tony accounts.
-3. Enter the existing credential and choose DIFFERENT 12–128-character passphrases. These are entered directly in the web app and never in GitHub or chat.
+3. Enter the existing administrator credential. Jay and Tony each choose and confirm a different six-digit PIN in the app. Never share the PINs in GitHub or chat.
 4. Both accounts are created in one database transaction. Activation signs the current session into Jay.
 5. Tony signs in on his own device. The former shared PIN and shared passkeys cease to authenticate named users. Individual passkeys require a future account-bound implementation.
-6. Change a passphrase through More as required. If both passwords are lost, recover through authorised private server-side access; NEVER turn public test mode back on.
+6. Change your own PIN through More. Lost PINs can be recovered from an authorised private server terminal; NEVER re-enable public test mode.
 
 ## Order flow
 The six original dashboard metrics remain. The worklist adds a compact status summary, next action hints, and button forms using existing server-validated order_preparation and delivery_mark transitions with CSRF checks. Mark delivered today always requires an explicit confirmation. Scheduled future deliveries do NOT automatically become delivered or leave the delivery queue.
@@ -40,4 +41,4 @@ Exercise 390px iPhone, 768px/820px iPad portrait, 1024px/1180px iPad landscape, 
 Production should not be declared live until the Krystal deployment, successful backup and login checks have been independently verified.
 
 ## Credential recovery
-If the old login credential is unknown after deploying, use the server terminal: php /home/lynchde1/ankh-admin-tools/reset-admin-login.php (before named-account activation) or append Jay / Tony once enabled. The script prompts for a new passphrase privately and never prints it. No public bypass is reintroduced.
+If the old login credential is unknown after deploying, use the server terminal: php /home/lynchde1/ankh-admin-tools/reset-admin-login.php (before named-account activation) or append Jay / Tony once enabled. The script prompts for a new six-digit PIN privately and never prints it. No public bypass is reintroduced.
