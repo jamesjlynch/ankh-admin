@@ -1839,6 +1839,10 @@ $pinSetupComplete=$savedAdminPinHash!=='';
 // CLI rendering of isolated regression fixtures may bypass sign-in; never bypass over HTTP.
 $testingNoAuth=PHP_SAPI==='cli';
 $operatorsEnabled=setting($db,'operators_enabled','0')==='1';
+// Public-test-mode sessions from older releases must never retain administrator access.
+if(PHP_SAPI!=='cli' && (string)($_SESSION['auth_version']??'')!=='2026-operations-v1'){
+ unset($_SESSION['admin'],$_SESSION['last'],$_SESSION['operator_id'],$_SESSION['operator_name']);
+}
 if($operatorsEnabled){
  $operatorId=(int)($_SESSION['operator_id']??0);
  $operatorSessionValid=false;
@@ -1856,7 +1860,7 @@ $voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
 $pinSetupToken=(string)($_GET['setup_pin']??$_POST['setup_pin']??'');
 $pinSetupAuthorized=!$pinSetupComplete && $pinSetupToken!=='' && hash_equals($pinSetupTokenHash,hash('sha256',$pinSetupToken));
 
-if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();if(!$operatorsEnabled)$_SESSION['operator_name']='Isolated test';}
+if($testingNoAuth){$_SESSION['admin']=true;$_SESSION['last']=time();$_SESSION['auth_version']='2026-operations-v1';if(!$operatorsEnabled)$_SESSION['operator_name']='Isolated test';}
 
 if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin_pin'){
  try{
@@ -1867,7 +1871,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin
   if($pin!==$confirm)throw new Exception('The two PINs do not match.');
   saveSetting($db,'admin_pin_hash',password_hash($pin,PASSWORD_DEFAULT));
   saveSetting($db,'pin_setup_completed_at',gmdate('c'));
-  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();$_SESSION['auth_version']='2026-operations-v1';
   header('Location: ./?view=dashboard&pin_created=1');exit;
  }catch(Throwable $ex){$error=$ex->getMessage();}
 }
@@ -2271,7 +2275,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-login'){
   if($verified!==1)throw new Exception('Passkey signature could not be verified.');
   $oldCount=(int)$passkey['sign_count'];$newCount=(int)$auth['count'];if($oldCount>0&&$newCount>0&&$newCount<=$oldCount)throw new Exception('Passkey counter check failed.');
   $db->prepare('UPDATE passkeys SET sign_count=? WHERE id=?')->execute([$newCount,(int)$passkey['id']]);
-  unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();$_SESSION['auth_version']='2026-operations-v1';
   voiceJson(['ok'=>true]);
  }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey sign-in failed.'],500);}
 }
@@ -2812,7 +2816,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    throw new Exception('Password not recognised.');
   }
   $db->prepare('DELETE FROM attempts WHERE ip=?')->execute([$ip]);
-  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();$_SESSION['auth_version']='2026-operations-v1';
   if($operatorsEnabled){$_SESSION['operator_id']=(int)$chosenAccount['id'];$_SESSION['operator_name']=(string)$chosenAccount['name'];}
   else{unset($_SESSION['operator_id']);$_SESSION['operator_name']='Legacy admin';}
  } else {
@@ -2834,7 +2838,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $db->commit();
    }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
    $operatorsEnabled=true;
-   session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+   session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();$_SESSION['auth_version']='2026-operations-v1';
    $_SESSION['operator_id']=$jayId;$_SESSION['operator_name']='Jay';
    recordActivity($db,'security',0,'Individual accounts activated');
    $_SESSION['flash']='Individual Jay and Tony accounts activated. Existing shared passkeys are disabled.';
