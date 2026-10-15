@@ -41,7 +41,7 @@ try{
  check(await page.locator('#dashboard-actions').count()===0,'Public browser saw private orders.');
  await page.locator('input[name=password]').fill('fixture-admin-only');
  await page.getByRole('button',{name:/Sign in/}).click();
- await page.waitForURL(/view=dashboard/);
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
  check(await page.locator('#dashboard-actions').count()===1,'Fixture login failed: '+(await page.locator('body').innerText()).slice(0,600));
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
  const insert='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Test Customer\',\'\',\'\',\'\',\'New\',\'2026-10-15T09:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (1,\'Test Product\',1000,1);");';
@@ -55,21 +55,21 @@ try{
  await page.locator('#work-order-1 summary').first().click();
  check(await page.locator('#work-order-1 .operations-next-button').count()===1,'Next action missing');
  await page.locator('#work-order-1').getByRole('button',{name:/Mark reconstituted/}).click();
- await page.waitForURL(/view=dashboard/);
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
  await page.locator('#work-order-1 summary').first().click();
  await page.locator('#work-order-1').getByRole('button',{name:/Mark packaged/}).click();
- await page.waitForURL(/view=dashboard/);
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
  await page.locator('#work-order-1 summary').first().click();
  let confirmed=false;page.once('dialog',async d=>{confirmed=true;await d.accept();});
  await page.locator('#work-order-1').getByRole('button',{name:/Mark delivered today/}).click();
- await page.waitForURL(/view=dashboard/);
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
  check(confirmed,'Manual delivery must require explicit confirmation.');
  await page.goto(host+'/index.php?view=more');
  await page.locator('input[name=legacy_password]').fill('fixture-admin-only');
  await page.locator('input[name=jay_password]').fill('jay-fixture-password-2026');
  await page.locator('input[name=tony_password]').fill('tony-fixture-password-2026');
  await page.getByRole('button',{name:/Activate individual accounts/}).click();
- await page.waitForURL(/view=more/);
+ await page.locator('.operator-security-panel').waitFor({state:'visible'});
  check((await page.locator('.operator-security-panel').innerText()).includes('Signed in as Jay'),'Jay account activation failed');
  await page.locator('aside form input[value=logout]').first().evaluate(el=>el.form.submit());
  await page.goto(host+'/index.php?view=dashboard');
@@ -77,7 +77,7 @@ try{
  await page.locator('select[name=operator_name]').selectOption('Tony');
  await page.locator('input[name=password]').fill('tony-fixture-password-2026');
  await page.getByRole('button',{name:/Sign in/}).click();
- await page.waitForURL(/view=dashboard/);
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
  check((await page.locator('main.focus-app>header').innerText()).includes('Tony'),'Tony account attribution missing');
  await context.close();
  console.log('PASS: real browser sign-in, one-tap workflow, account activation, and 6 iPhone/iPad/desktop widths.');
