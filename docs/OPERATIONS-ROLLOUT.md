@@ -38,3 +38,6 @@ Private release snapshots are saved before website code is replaced. Run the pri
 Exercise 390px iPhone, 768px/820px iPad portrait, 1024px/1180px iPad landscape, and 1440px desktop. Check overflow, sidebar, six original metric cards, worklist forms, notifications, customer intelligence, payments, sign-in and sign-out. Check both named accounts independently and test failed credentials.
 
 Production should not be declared live until the Krystal deployment, successful backup and login checks have been independently verified.
+
+## Credential recovery
+If the old login credential is unknown after deploying, use the server terminal: php /home/lynchde1/ankh-admin-tools/reset-admin-login.php (before named-account activation) or append Jay / Tony once enabled. The script prompts for a new passphrase privately and never prints it. No public bypass is reintroduced.
