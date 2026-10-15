@@ -18,6 +18,7 @@ mkdir -p /home/lynchde1/ankh-admin-tools
 chmod 700 /home/lynchde1/ankh-admin-tools
 install -m 700 scripts/backup-sqlite.php /home/lynchde1/ankh-admin-tools/backup-sqlite.php
 install -m 700 scripts/rollback-release.sh /home/lynchde1/ankh-admin-tools/rollback-release.sh
+install -m 700 scripts/reset-admin-login.php /home/lynchde1/ankh-admin-tools/reset-admin-login.php
 target=/home/lynchde1/public_html/ankh-admin
 mkdir -p "$target"
 for file in .htaccess style.css style.min.css style.core.min.css setup.php index.php supplier-centre.php manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
