@@ -32,7 +32,7 @@ After a FIRST successful manual run, set a daily cPanel cron, for example:
 Ensure HOME=/home/lynchde1 or ANKH_ADMIN_CONFIG is set correctly in cron. This cron is NOT activated by a GitHub merge alone. Independently copy backups off-host and test an isolated restore at least once a month.
 
 ## Rollback
-Private release snapshots are saved before website code is replaced. Run the private rollback-release.sh with the exact snapshot identifier to restore ONLY PHP/CSS web files, never the live SQLite database. Existing database tables remain. Restoring an old DATABASE instead requires a maintenance window and means losing records added after its timestamp.
+Private release snapshots are saved before website code is replaced. Run the private rollback-release.sh with the exact snapshot identifier to restore ONLY PHP/CSS web files, never the live SQLite database. The rollback helper deliberately refuses snapshots that contain the former PUBLIC TEST MODE authentication bypass. An unsafe release must never be restored merely to recover the old interface. Existing database tables remain. Restoring an old DATABASE instead requires a maintenance window and means losing records added after its timestamp.
 
 ## Regression matrix
 Exercise 390px iPhone, 768px/820px iPad portrait, 1024px/1180px iPad landscape, and 1440px desktop. Check overflow, sidebar, six original metric cards, worklist forms, notifications, customer intelligence, payments, sign-in and sign-out. Check both named accounts independently and test failed credentials.
