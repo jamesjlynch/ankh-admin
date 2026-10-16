@@ -32,6 +32,25 @@ try{
   checkOperations((int)$q->fetchColumn()===1,'Missing base/additive table: '.$table);
  }
  checkOperations((int)$db->query("SELECT COUNT(*) FROM activity_events")->fetchColumn()===0,'Historical actions must not be fabricated.');
+ $db->exec("INSERT INTO orders(id,customer,phone,address,notes,status,created,payment_method) VALUES(1,'Free fixture','','','','New','2026-10-16','Other')");
+ $db->exec("INSERT INTO items(order_id,name,price,quantity) VALUES(1,'Fixture item',0,1)");
+ $ordersCmd=str_replace('"dashboard"','"orders"',$cmd);
+ $renderOrders=static function()use($ordersCmd):string{
+  $out=[];$code=1;exec(escapeshellarg(PHP_BINARY).' -d display_errors=1 -r '.escapeshellarg($ordersCmd).' 2>&1',$out,$code);
+  $html=implode("\n",$out);checkOperations($code===0&&!str_contains($html,'Fatal error'),'Orders rendering failed');return $html;
+ };
+ $html=$renderOrders();
+ checkOperations(str_contains($html,'No payment required'),'Free orders need an honest payment label');
+ checkOperations(str_contains($html,'name="action" value="order_preparation"')&&str_contains($html,'name="action" value="delivery_mark"'),'Free orders need preparation and delivery controls');
+ checkOperations(str_contains($html,'name="return" value="orders"'),'Order actions should return to Orders');
+ $db->exec("UPDATE orders SET reconstituted=1 WHERE id=1");
+ checkOperations(str_contains($renderOrders(),'Ready to package'),'Prepared free order must still render');
+ $db->exec("UPDATE orders SET delivery_date='2026-10-16' WHERE id=1");
+ $html=$renderOrders();
+ checkOperations(!str_contains($html,'class="order-fulfilment"'),'Delivered free orders must hide fulfilment controls');
+ $db->exec("UPDATE orders SET delivery_date='',status='Cancelled' WHERE id=1");
+ checkOperations(!str_contains($renderOrders(),'class="order-fulfilment"'),'Cancelled free orders must hide fulfilment controls');
+ checkOperations((int)$db->query('SELECT COUNT(*) FROM payments')->fetchColumn()===0,'Free fulfilment must not fabricate payments');
  echo "PASS: unchanged test access, source and isolated operations schema/rendering.\n";
 }finally{
  $db=null;
