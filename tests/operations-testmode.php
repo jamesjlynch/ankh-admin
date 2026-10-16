@@ -35,9 +35,12 @@ try{
  $db->exec("INSERT INTO orders(id,customer,phone,address,notes,status,created,payment_method) VALUES(1,'Free fixture','','','','New','2026-10-16','Other')");
  $db->exec("INSERT INTO items(order_id,name,price,quantity) VALUES(1,'Fixture item',0,1)");
  $ordersCmd=str_replace('"dashboard"','"orders"',$cmd);
- $renderOrders=static function()use($ordersCmd):string{
+ $q->closeCursor();
+ $renderOrders=static function()use($ordersCmd,&$db,$temp):string{
+  $db=null;
   $out=[];$code=1;exec(escapeshellarg(PHP_BINARY).' -d display_errors=1 -r '.escapeshellarg($ordersCmd).' 2>&1',$out,$code);
-  $html=implode("\n",$out);checkOperations($code===0&&!str_contains($html,'Fatal error'),'Orders rendering failed');return $html;
+  $db=new PDO('sqlite:'.$temp.'/fixture.sqlite');
+  $html=implode("\n",$out);checkOperations($code===0&&!str_contains($html,'Fatal error'),'Orders rendering failed: '.substr($html,-1500));return $html;
  };
  $html=$renderOrders();
  checkOperations(str_contains($html,'No payment required'),'Free orders need an honest payment label');
