@@ -3203,7 +3203,6 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->prepare('UPDATE orders SET pricing_type=? WHERE id=?')->execute([$pricingType,$orderId]);
    $insertItem=$db->prepare('INSERT INTO items(order_id,product_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
    foreach($lines as $line)$insertItem->execute([$orderId,$line['product_id'],$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
-   if($deliveryDate!=='')syncProductCyclesFromDeliveredOrder($db,$orderId,true);
    reconcileDeliveredStock($db,$orderId,false);
    if($isEdit)syncProductCyclesFromDeliveredOrder($db,$orderId);
    $db->commit();$syncError=syncOrderToSheet($db,$orderId);
@@ -5154,6 +5153,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">The target includes your low-stock alert, estimated non-recurring demand during the 7-day supplier wait, and potential repeat orders due in the next 30 days. Current open orders are already reserved out of available stock. Suggested quantities are rounded up to full supplier packs.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
 <div class="report-infographic-actions"><button type="button" id="report-infographic-download">☥&nbsp; Create square infographic</button><span id="report-infographic-status" aria-live="polite"></span></div>
 <section class="report-infographic-preview" id="report-infographic-preview" hidden aria-label="Infographic preview">
+<?php if($reportType==='personal'):?><style>.report-infographic-actions{display:none!important}</style><?php endif;?>
  <div class="report-infographic-preview-head"><div><p class="eyebrow">YOUR ANKH INFOGRAPHIC</p><h2>Ready to share</h2></div><button type="button" class="quiet" id="report-infographic-close">Close</button></div>
  <img id="report-infographic-image" alt="Square ANKH report infographic">
  <div class="report-infographic-preview-actions"><button type="button" id="report-infographic-share">Share / Save image</button><a id="report-infographic-save" class="button quiet" download="ankh-report.png">Save PNG</a></div>
