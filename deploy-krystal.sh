@@ -39,29 +39,8 @@ fi
 # Never touch database backups, orders or configuration here.
 releases=/home/lynchde1/ankh-admin-releases
 if [[ -d "$releases" ]]; then
-  mapfile -t old_releases < <(find "$releases" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | grep -E '^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}
-/opt/cpanel/ea-php82/root/usr/bin/php -l setup.php
-/opt/cpanel/ea-php82/root/usr/bin/php -l supplier-centre.php
-/opt/cpanel/ea-php82/root/usr/bin/php -l scripts/backup-sqlite.php
-/opt/cpanel/ea-php82/root/usr/bin/php -r 'if (PHP_VERSION_ID < 80100 || !extension_loaded("pdo_sqlite")) { fwrite(STDERR, "PHP 8.1+ and PDO SQLite required\n"); exit(1); }'
-# Use the known private config path, not an environment-dependent HOME variable.
-ANKH_ADMIN_CONFIG=/home/lynchde1/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
-bash scripts/snapshot-live.sh
-mkdir -p /home/lynchde1/ankh-admin-tools
-chmod 700 /home/lynchde1/ankh-admin-tools
-install -m 700 scripts/backup-sqlite.php /home/lynchde1/ankh-admin-tools/backup-sqlite.php
-install -m 700 scripts/rollback-release.sh /home/lynchde1/ankh-admin-tools/rollback-release.sh
-mkdir -p "$target"
-for file in "${files[@]}"; do
-  install -m 644 "$file" "$target/.$file.deploy"
-  mv "$target/.$file.deploy" "$target/$file"
-done
-printf '%s\n' "$release" > "$marker.tmp"
-chmod 600 "$marker.tmp"
-mv "$marker.tmp" "$marker"
-echo "Published ${release:0:12} successfully at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
- | sort -r || true)
-  for old in "${old_releases[@]:30}"; do
+  mapfile -t old_releases < <(find "$releases" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | grep -E '^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}$' | sort -r || true)
+  for old in "\${old_releases[@]:30}"; do
     [[ "$old" =~ ^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}$ ]] || continue
     rm -rf -- "$releases/$old"
   done
