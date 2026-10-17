@@ -68,6 +68,7 @@ if(!in_array('packaged',array_column($orderColumns,'name'),true))$db->exec("ALTE
 if(!in_array('scheduled_delivery_date',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN scheduled_delivery_date TEXT NOT NULL DEFAULT ''");
 if(!in_array('delivery_section_override',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN delivery_section_override TEXT NOT NULL DEFAULT ''");
 $itemColumns=$db->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('pricing_type',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN pricing_type TEXT NOT NULL DEFAULT 'standard'");
 if(!in_array('cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN cost INTEGER DEFAULT NULL");
 if(!in_array('presentation',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation_cost',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN presentation_cost INTEGER NOT NULL DEFAULT 0");
@@ -337,7 +338,7 @@ if($reportBoardRequest!==''){
    COALESCE(SUM(i.price*i.quantity),0)+COALESCE(o.delivery_charge,0) AS total
    FROM orders o
    LEFT JOIN items i ON i.order_id=o.id
-   WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')
+   WHERE o.status IN ('Paid','Packed','Dispatched','Delivered') AND o.pricing_type<>'free'
      AND datetime(CASE WHEN trim(COALESCE(o.payment_date,''))<>'' THEN o.payment_date||' 12:00:00' ELSE o.created END)>=datetime(?)
      AND datetime(CASE WHEN trim(COALESCE(o.payment_date,''))<>'' THEN o.payment_date||' 12:00:00' ELSE o.created END)<datetime(?)
    GROUP BY o.id
@@ -1385,6 +1386,18 @@ if($stockMigrationDone===false){
 // left one save behind by the previous single-statement fridge update.
 $db->exec("UPDATE products SET stock_qty=COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0) WHERE stock_tracking=1 AND (stock_qty IS NULL OR stock_qty<>(COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)+COALESCE(stock_unallocated_qty,0)))");
 $customerColumns=$db->query('PRAGMA table_info(customers)')->fetchAll(PDO::FETCH_ASSOC);
+if(!in_array('pricing_type',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN pricing_type TEXT NOT NULL DEFAULT 'standard'");
+function customerPricingType(PDO $db,string $name,string $phone):string{
+ $q=$db->prepare('SELECT pricing_type FROM customers WHERE name=? COLLATE NOCASE AND phone=? AND archived=0');$q->execute([trim($name),trim($phone)]);
+ return (string)($q->fetchColumn()?:'standard');
+}
+function customerPricingOptions(string $selected='standard'):void{
+ ?><fieldset><legend>Customer pricing</legend><?php foreach(['standard'=>'Standard','family_friends'=>'Family & Friends','free'=>'Free'] as $value=>$label):?><label class="check"><input type="radio" name="pricing_type" value="<?=e($value)?>" <?=$selected===$value?'checked':''?>><?=e($label)?></label><?php endforeach;?><p class="muted">Applies to new orders only. Family &amp; Friends uses saved product prices (retail if none is set). Free records personal stock use, including pens, with no payment required.</p></fieldset><?php
+}
+function personalStockUsage(PDO $db,string $from='',string $to=''):array{
+ $q=$db->prepare("SELECT o.id,o.customer,o.assigned_to,o.delivery_date,i.name,i.presentation,i.quantity,i.cost,i.presentation_cost FROM orders o JOIN items i ON i.order_id=o.id WHERE o.pricing_type='free' AND o.status<>'Cancelled' AND trim(o.delivery_date)<>'' AND (?='' OR o.delivery_date>=?) AND (?='' OR o.delivery_date<=?) ORDER BY o.delivery_date DESC,o.id DESC,i.id");
+ $q->execute([$from,$from,$to,$to]);return $q->fetchAll(PDO::FETCH_ASSOC);
+}
 if(!in_array('archived',array_column($customerColumns,'name'),true))$db->exec("ALTER TABLE customers ADD COLUMN archived INTEGER NOT NULL DEFAULT 0");
 $db->exec('CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)');
 $db->exec('CREATE INDEX IF NOT EXISTS idx_reta_cycles_due ON reta_cycles(active,next_due_date)');
@@ -2959,6 +2972,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $q->execute([$customerName,$customerPhone,$customerAddress,gmdate('c')]);
    }
   }
+  if($action==='customer_pricing'){
+   $customerId=(int)($_POST['customer_id']??0);$pricingType=(string)($_POST['pricing_type']??'');
+   if(!in_array($pricingType,['standard','family_friends','free'],true))throw new Exception('Choose a valid customer pricing option.');
+   $q=$db->prepare('UPDATE customers SET pricing_type=? WHERE id=?');$q->execute([$pricingType,$customerId]);
+   if(!$q->rowCount())throw new Exception('Customer could not be found.');
+  }
   if($action==='customer_archive'){
    $customerId=(int)($_POST['id']??0);$archive=($_POST['archive']??'1')==='1'?1:0;
    $q=$db->prepare('UPDATE customers SET archived=? WHERE id=?');$q->execute([$archive,$customerId]);
@@ -3125,6 +3144,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $orderTz=new DateTimeZone('Europe/London');$todayLocal=new DateTimeImmutable('today',$orderTz);if($isEdit && (string)($_POST['change_order_date']??'')!=='1')$orderDate=(new DateTimeImmutable((string)$existingOrder['created']))->setTimezone($orderTz)->format('Y-m-d');$chosenDate=DateTimeImmutable::createFromFormat('!Y-m-d',$orderDate,$orderTz);
    if(!$chosenDate || $chosenDate->format('Y-m-d')!==$orderDate || $chosenDate>$todayLocal)throw new Exception('Choose a valid order date.');
 
+   // Snapshot the classification. Customer changes never silently reprice old orders.
+   $pricingType=$isEdit?(string)($existingOrder['pricing_type']??'standard'):customerPricingType($db,$name,$phone);
+   if($pricingType==='free'){$deliveryCharge=0;$paymentMethod='Other';}
    $scheduleFieldsPresent=array_key_exists('schedule_fields_present',$_POST);
    $scheduleEnabled=(string)($_POST['future_delivery']??'')==='1';
    $scheduledDeliveryDate=$isEdit&&!$scheduleFieldsPresent?(string)($existingOrder['scheduled_delivery_date']??''):($scheduleEnabled?trim((string)($_POST['scheduled_delivery_date']??'')):'');
@@ -3149,6 +3171,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $familyFriendsPrice=$p['family_friends_price']===null?max(0,$basePrice-500):(int)$p['family_friends_price'];$discount=(!$isStandalonePen&&$discountFlag)?max(0,$basePrice-$familyFriendsPrice):0;$formatCharge=0;
     $calculatedPrice=max(0,$basePrice-$discount);
     $postedPrice=postedMoneyPence($line['price']??number_format($calculatedPrice/100,2,'.',''),'line price');
+    if($pricingType==='free'){$postedPrice=0;$discount=0;$recurringFlag=false;$cycleWeeks=0;}
+    elseif($pricingType==='family_friends'&&!$isEdit){
+     $basePrice=(int)$p['price'];$postedPrice=$p['family_friends_price']===null?$basePrice:(int)$p['family_friends_price'];$discount=max(0,$basePrice-$postedPrice);
+    }
     $costKey='id:'.(int)$p['id'];$saved=$existingItemCosts[$costKey]??($existingItemCosts['name:'.strtolower(trim((string)$p['name']))]??null);
     $productCost=$saved&&array_key_exists('cost',$saved)?$saved['cost']:($p['cost']===null?null:(int)$p['cost']);
     $presentationCost=0;
@@ -3174,6 +3200,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $db->prepare('INSERT INTO orders(customer,recipient_name,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee,scheduled_delivery_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
    }
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
+   $db->prepare('UPDATE orders SET pricing_type=? WHERE id=?')->execute([$pricingType,$orderId]);
    $insertItem=$db->prepare('INSERT INTO items(order_id,product_id,name,price,cost,presentation,presentation_cost,base_price,discount,quantity,recurring,cycle_weeks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
    foreach($lines as $line)$insertItem->execute([$orderId,$line['product_id'],$line['product']['name'],$line['price'],$line['cost'],$line['presentation'],$line['presentation_cost'],$line['base_price'],$line['discount'],$line['qty'],$line['recurring'],$line['cycle_weeks']]);
    if($deliveryDate!=='')syncProductCyclesFromDeliveredOrder($db,$orderId,true);
@@ -3224,7 +3251,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'stock_count'=>'Physical stock count reconciled.',
   'stock_untrack'=>'Product removed from Stock Control. Historical movements were kept.',
   'product_delete'=>'Product deleted.',
-  'delivery_mark'=>'Delivery recorded; balance remains outstanding.',
+  'delivery_mark'=>orderBalancePence($db,(int)($_POST['id']??0))>0?'Delivery recorded; balance remains outstanding.':'Delivery recorded; no payment outstanding.',
+  'customer_pricing'=>'Customer pricing saved. Existing orders are unchanged.',
   'order_schedule'=>(($_POST['schedule_clear']??'')==='1')?'Planned delivery date cleared.':'Delivery date arranged.',
   'order_delivery_section'=>(($_POST['delivery_section']??'')==='auto')?'Automatic delivery timing restored.':'Order moved to '.(($_POST['delivery_section']??'')==='future'?'Future deliveries.':'Awaiting delivery.'),
   'order_preparation'=>'Preparation stage updated.',
@@ -3588,7 +3616,8 @@ $customerSuggestions=array_values(array_map(fn($customer)=>[
  'id'=>(int)$customer['id'],
  'name'=>(string)$customer['name'],
  'phone'=>(string)$customer['phone'],
- 'address'=>(string)$customer['address']
+ 'address'=>(string)$customer['address'],
+ 'pricing_type'=>(string)$customer['pricing_type']
 ],array_filter($storedCustomers,fn($customer)=>(int)$customer['archived']===0)));
 $customerOrderHistory=[];
 foreach($orders as $customerOrder){
@@ -3640,6 +3669,7 @@ foreach($products as $catalogProduct){
  $productCatalogForJs[]=['id'=>(int)$catalogProduct['id'],'name'=>(string)$catalogProduct['name'],'base'=>$baseName,'strength'=>$strength,'price'=>(int)$catalogProduct['price']/100,'family_price'=>$catalogProduct['family_friends_price']===null?max(0,((int)$catalogProduct['price']-500)/100):(int)$catalogProduct['family_friends_price']/100,'active'=>(int)$catalogProduct['active']===1];
 }
 
+foreach($productCatalogForJs as &$jsProduct){foreach($products as $p){if((int)$p['id']===$jsProduct['id']){$jsProduct['saved_family_price']=$p['family_friends_price']===null?null:(int)$p['family_friends_price']/100;break;}}}unset($jsProduct);
 if($view==='new' && (int)($_GET['customer_id']??0)>0){
  $q=$db->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([(int)$_GET['customer_id']]);$newOrderCustomer=$q->fetch(PDO::FETCH_ASSOC)?:null;
 }
@@ -3673,7 +3703,7 @@ if($view==='edit' && (int)($_GET['id']??0)>0){
    $hasLineFormat=!$isStandalonePen&&in_array((string)$ei['presentation'],['Pen','Cartridge','Vial'],true);
    $format=$isStandalonePen?'':($hasLineFormat?(string)$ei['presentation']:(in_array((string)($editOrder['presentation']??''),['Pen','Cartridge','Vial'],true)?(string)$editOrder['presentation']:'Vial'));
    $base=$ei['base_price']===null?(int)$p['price']:(int)$ei['base_price'];$discount=!$isStandalonePen&&(int)($ei['discount']??0)>0;$pairId='edit_'.(++$editPairCounter);
-   $editPrice=$isStandalonePen?(int)$ei['price']:max(0,$base-($discount?500:0));
+   $editPrice=(int)$ei['price'];
    $editLines[]=['product_id'=>(int)$p['id'],'name'=>(string)$p['name'],'quantity'=>(int)$ei['quantity'],'presentation'=>$format,'base_price'=>$isStandalonePen?(int)$p['price']/100:$base/100,'discount'=>$discount,'price'=>$editPrice/100,'pair_id'=>$pairId,'paired_pen'=>false];
   }
  }
@@ -3748,7 +3778,9 @@ if($todoOrderIds){
 $grossProfit=0;$uncostedSales=0;$topSelling=[];$orderCostById=[];$orderPenCostById=[];$orderMissingCost=[];$productProfit=[];$penCostAll=0;
 $dashboardItems=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.presentation,i.presentation_cost,i.base_price,i.discount,i.quantity,o.status FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ('Paid','Packed','Dispatched','Delivered')")->fetchAll(PDO::FETCH_ASSOC);
 $ordersWithPenRows=[];foreach($dashboardItems as $itemForPenCheck)if(strtolower(trim((string)$itemForPenCheck['name']))==='pen')$ordersWithPenRows[(int)$itemForPenCheck['order_id']]=true;
+$personalOrderIds=[];foreach($orders as $po)if(($po['pricing_type']??'standard')==='free')$personalOrderIds[(int)$po['id']]=true;
 foreach($dashboardItems as $dashboardItem){
+ if(isset($personalOrderIds[(int)$dashboardItem['order_id']]))continue;
  $orderId=(int)$dashboardItem['order_id'];$qty=(int)$dashboardItem['quantity'];$line=(int)$dashboardItem['price']*$qty;$cost=$dashboardItem['cost']===null?null:(int)$dashboardItem['cost'];$presentationCost=(int)($dashboardItem['presentation_cost']??0);$name=(string)$dashboardItem['name'];
  if(strtolower(trim($name))==='pen'){
   if($cost!==null){$standalonePenCost=$cost*$qty;$orderCostById[$orderId]=($orderCostById[$orderId]??0)+$standalonePenCost;$orderPenCostById[$orderId]=($orderPenCostById[$orderId]??0)+$standalonePenCost;$penCostAll+=$standalonePenCost;}else{$uncostedSales+=$line;$orderMissingCost[$orderId]=true;}
@@ -3797,6 +3829,7 @@ $reportPeriods=[
 $reportPeriodKey=in_array($_GET['period']??'week',['today','week','month','all'],true)?($_GET['period']??'week'):'week';
 $reportOrderRows=[];$paymentBreakdown=[];
 foreach($orders as $reportOrder){
+ if(($reportOrder['pricing_type']??'standard')==='free')continue;
  if(!in_array($reportOrder['status'],$paidStatuses,true))continue;
  $orderId=(int)$reportOrder['id'];$dateText=(string)($reportOrder['payment_date']?:$reportOrder['created']);$reportTs=strtotime($dateText)?:0;
  $revenue=(int)$reportOrder['total'];$cogs=(int)($orderCostById[$orderId]??0);$penCogs=(int)($orderPenCostById[$orderId]??0);$postage=(int)($reportOrder['postage_cost']??0);$profit=$revenue-$cogs-$postage;
@@ -3878,7 +3911,7 @@ $notificationCount=count($visibleNotifications);
 if(in_array($view,['reports','reorder'],true)){
 // Shared report filters and datasets. Sales, product and customer views use order date;
 // cash received uses payment date; recurring and stock views use their own event dates.
-$reportTypes=['overview','sales','profit','products','customers','recurring','stock'];
+$reportTypes=['overview','sales','profit','products','customers','recurring','stock','personal'];
 $reportType=$view==='reorder'?'reorder':(in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview');
 $reorderWindowDays=in_array((int)($_GET['demand_days']??30),[30,60,90],true)?(int)($_GET['demand_days']??30):30;
 $reportRanges=['today','week','month','quarter','all','custom','next4w','next8w','next12w'];
@@ -3908,6 +3941,7 @@ $reportFromTs=$reportFrom!==''?(new DateTimeImmutable($reportFrom.' 00:00:00',$t
 $reportToTs=$reportTo!==''?(new DateTimeImmutable($reportTo.' 23:59:59',$tz))->getTimestamp():null;
 $reportOrdersFiltered=[];$reportOrderIds=[];$reportOrderCustomerKeys=[];$reportCustomerStats=[];$reportOrderValue=0;$reportPaidRecorded=0;$reportOutstanding=0;$reportStatusTotals=[];$reportTrend=[];
 foreach($orders as $analyticsOrder){
+ if(($analyticsOrder['pricing_type']??'standard')==='free')continue;
  if((string)$analyticsOrder['status']==='Cancelled')continue;
  $createdTs=strtotime((string)$analyticsOrder['created'])?:0;
  if($reportFromTs!==null&&$createdTs<$reportFromTs)continue;
@@ -3989,9 +4023,14 @@ if($reportTo!==''){$paymentWhere[]='date(created)<=date(?)';$paymentParams[]=$re
 if($paymentWhere)$paymentDateSql.=' WHERE '.implode(' AND ',$paymentWhere);
 $paymentDateSql.=' GROUP BY COALESCE(NULLIF(method,\'\'),\'Not recorded\') ORDER BY total DESC';
 $paymentMethodStmt=$db->prepare($paymentDateSql);$paymentMethodStmt->execute($paymentParams);$reportPaymentsByMethod=$paymentMethodStmt->fetchAll(PDO::FETCH_ASSOC);$reportCashReceived=array_sum(array_map(fn($p)=>(int)$p['total'],$reportPaymentsByMethod));
+$personalUsage=($view==='reports'&&$reportType==='personal')?personalStockUsage($db,$reportFrom,$reportTo):[];
 $reportExport=(string)($_GET['export']??'');
 if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRangeError){
  $exportType=$reportType;$exportRows=[];$exportHeaders=[];
+ if($reportType==='personal'){
+  $exportHeaders=['Delivered','Order','Customer','Assigned to','Product','Presentation','Quantity','Stock cost (£)','Cost missing'];
+  foreach($personalUsage as $r)$exportRows[]=[$r['delivery_date'],'ANK-'.$r['id'],$r['customer'],$r['assigned_to'],$r['name'],$r['presentation'],(int)$r['quantity'],$r['cost']===null?'':number_format(((int)$r['cost']+(int)$r['presentation_cost'])*(int)$r['quantity']/100,2,'.',''),$r['cost']===null?'Yes':'No'];
+ }
  if($reportExport==='stock-movements'){$exportType='stock-movements';$exportHeaders=['Date','Product','Location','Movement','Change','Supplier','Batch / lot','Expiry','Unit cost (£)','Note','Order ID'];foreach($reportStockMovements as $m)$exportRows[]=[(string)$m['created'],(string)$m['product_name'],(string)($m['location']??'Unallocated'),(string)$m['movement_type'],(int)$m['quantity_change'],(string)$m['supplier'],(string)$m['batch_reference'],(string)$m['expiry_date'],$m['unit_cost']===null?'':number_format((int)$m['unit_cost']/100,2,'.',''),(string)$m['note'],$m['order_id']===null?'':(int)$m['order_id']];}
  elseif($reportType==='profit'){$exportHeaders=['Order','Customer','Status','Payment date','Sales (£)','Product cost (£)','Pen cost (£)','Postage (£)','Gross profit (£)','Cost missing'];foreach($selectedReportOrders as $r)$exportRows[]=['ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),(string)$r['customer'],(string)$r['status'],(string)$r['date'],number_format((int)$r['revenue']/100,2,'.',''),number_format((int)$r['product_cost']/100,2,'.',''),number_format((int)$r['pen_cost']/100,2,'.',''),number_format((int)$r['postage']/100,2,'.',''),number_format((int)$r['profit']/100,2,'.',''),!empty($r['missing_cost'])?'Yes':'No'];}
  elseif(in_array($reportType,['sales','overview'],true)){$exportHeaders=['Order','Order date','Customer','Phone','Status','Assigned to','Order value (£)','Paid recorded (£)','Balance due (£)'];foreach($reportOrdersFiltered as $o)$exportRows[]=['ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),date('Y-m-d',(int)$o['_report_ts']),(string)$o['customer'],(string)$o['phone'],(string)$o['status'],(string)($o['assigned_to']??''),number_format((int)$o['_order_value']/100,2,'.',''),number_format((int)$o['_paid_recorded']/100,2,'.',''),number_format((int)$o['_balance_due']/100,2,'.','')];}
@@ -4982,6 +5021,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 ?>
 <div class="heading customer-account-heading"><div><p class="eyebrow">CUSTOMER ACCOUNT</p><h1><?=e($customerAccount['name'])?></h1><p class="muted"><?=e($customerAccount['phone']?:'No phone saved')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p></div><a class="quick-action" href="?view=customers">← Customers</a></div>
 <div class="customer-account-actions"><?php if(!$customerAccount['archived']):?><a class="button" href="?view=new&amp;customer_id=<?=$customerAccount['id']?>">+ New order</a><?php if($accountLast):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$accountLast['id']?>">Repeat last order</a><?php endif;?><?php endif;?><?php if(trim((string)$customerAccount['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$customerAccount['phone']))?>">Call</a><?php endif;?></div>
+<section class="panel"><form method="post"><?php csrf();?><input type="hidden" name="action" value="customer_pricing"><input type="hidden" name="return" value="customer"><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php customerPricingOptions((string)$customerAccount['pricing_type']);?><button>Save customer pricing</button></form><a class="quick-action" href="?view=reports&amp;type=personal">Personal stock use report</a></section>
 <div class="customer-account-stats">
  <article><span>Lifetime spend</span><strong><?=money($accountSpend)?></strong><small><?=$accountPaidCount?> completed order<?=$accountPaidCount===1?'':'s'?></small></article>
  <article><span>Gross profit</span><strong><?=money($accountProfit)?></strong><small><?=array_filter($accountPaid,fn($o)=>!empty($orderMissingCost[(int)$o['id']]))?'Estimate · some product costs are missing':'Saved product costs & postage deducted'?></small></article>
@@ -5075,7 +5115,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 
 <?php elseif(in_array($view,['reports','reorder'],true)):?>
 <?php
-$reportTitles=['overview'=>'Overview','sales'=>'Sales','profit'=>'Profit','products'=>'Products','customers'=>'Customers','recurring'=>'Recurring','stock'=>'Stock'];
+$reportTitles=['overview'=>'Overview','sales'=>'Sales','profit'=>'Profit','products'=>'Products','customers'=>'Customers','recurring'=>'Recurring','stock'=>'Stock','personal'=>'Personal stock use'];
 $reportRangeLabels=['today'=>'Today','week'=>'This week','month'=>'This month','quarter'=>'This quarter','all'=>'All time','custom'=>'Custom dates','next4w'=>'Next 4 weeks','next8w'=>'Next 8 weeks','next12w'=>'Next 12 weeks'];
 $reportWindowLabel=$reportRangeLabels[$reportRange]??'Selected period';
 $reportTrendMax=1;foreach($reportTrend as $trendRow)$reportTrendMax=max($reportTrendMax,(int)$trendRow['order_value']);
@@ -5343,6 +5383,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 </tbody></table></div></section>
 
 
+<?php elseif($reportType==='personal'):?>
+<section class="panel"><h2>Personal stock use</h2><p class="muted">Free orders marked delivered, by delivery date. Open and cancelled orders are excluded. Costs use the order’s saved costs, not today’s prices. These orders are excluded from sales and profit reports. Older £0 orders are not automatically classified as personal use.</p>
+<?php $personalTotals=[];$personalCost=0;$personalUnits=0;$personalMissing=0;foreach($personalUsage as $r){$key=(string)$r['customer'];$personalTotals[$key]??=['units'=>0,'cost'=>0,'missing'=>0];$units=(int)$r['quantity'];$cost=((int)$r['cost']+(int)$r['presentation_cost'])*$units;$personalTotals[$key]['units']+=$units;$personalTotals[$key]['cost']+=$cost;$personalUnits+=$units;$personalCost+=$cost;if($r['cost']===null){$personalMissing++;$personalTotals[$key]['missing']++;}}?>
+<p><strong><?=$personalUnits?> units · <?=money($personalCost)?> recorded stock cost</strong><?php if($personalMissing):?> · Incomplete: <?=$personalMissing?> lines missing costs<?php endif;?></p>
+<?php foreach($personalTotals as $person=>$r):?><div class="line"><span><?=e($person)?> · <?=$r['units']?> units</span><strong><?=money($r['cost'])?><?=$r['missing']?' + missing costs':''?></strong></div><?php endforeach;?>
+<?php if(!$personalUsage):?><p class="empty">No delivered personal-use orders in this period.</p><?php endif;?>
+<?php foreach($personalUsage as $r):?><article class="panel"><strong><?=e($r['customer'])?> · ANK-<?=(int)$r['id']?></strong><p><?=e($r['delivery_date'].' · '.$r['name'].($r['presentation']?' · '.$r['presentation']:''))?></p><p><?=(int)$r['quantity']?> units · <?=$r['cost']===null?'Cost missing':money(((int)$r['cost']+(int)$r['presentation_cost'])*(int)$r['quantity'])?> stock cost</p></article><?php endforeach;?></section>
 <?php elseif($reportType==='overview'):?>
 <section class="report-metrics">
 <article><span>Order value</span><strong><?=money($reportOrderValue)?></strong><small><?=$reportOrdersFiltered?count($reportOrdersFiltered):0?> orders placed</small></article>
@@ -5782,6 +5829,31 @@ futureDeliveryToggle?.addEventListener('change',toggleFutureDelivery);
 toggleFutureDelivery();
 const draftEnabled=wizard?.dataset.draftEnabled==='1';
 let currentWizardStep=1,lineCounter=0,productSearchMoved=false;
+const editingExistingOrder=<?=json_encode($view==='edit')?>;
+const savedOrderPricing=<?=json_encode($editOrder['pricing_type']??'standard')?>;
+function activeCustomerPricing(){
+ if(editingExistingOrder)return savedOrderPricing;
+ const name=(customerSearch?.value||'').trim().toLowerCase(),phone=(customerPhone?.value||'').trim();
+ const customer=customerSuggestions.find(c=>(c.name||'').trim().toLowerCase()===name&&(c.phone||'').trim()===phone);
+ return customer?.pricing_type||'standard';
+}
+function applyCustomerPricing(reset=false){
+ const type=activeCustomerPricing(),automatic=type==='free'||(type==='family_friends'&&!editingExistingOrder);
+ let note=document.querySelector('#customer-pricing-note');if(!note&&customerSearch){note=document.createElement('p');note.id='customer-pricing-note';note.className='muted';note.setAttribute('aria-live','polite');customerSearch.after(note);}
+ if(note)note.textContent=type==='free'?'Free · Personal stock use. No payment required.':type==='family_friends'?'Family & Friends · Saved product prices apply.':'Standard pricing';
+ selectedOrderCards().forEach(card=>{
+  const data=lineData(card),p=productCatalog.find(p=>Number(p.id)===data.product_id),price=card.querySelector('[data-line-price]'),discount=card.querySelector('[data-line-discount]'),family=card.querySelector('[data-family-line]');
+  if(price){price.readOnly=automatic;if(automatic)price.value=(type==='free'?0:Number(p?.saved_family_price??p?.price??0)).toFixed(2);else if(reset&&!editingExistingOrder)price.value=Number(p?.price??data.base_price).toFixed(2);}
+  if(discount&&(automatic||reset))discount.value=type==='family_friends'&&Number(p?.saved_family_price??p?.price)<Number(p?.price)?'1':'0';
+  if(family)family.disabled=automatic;
+  refreshLineVisuals(card);
+ });
+ if(deliveryChargeInput){deliveryChargeInput.readOnly=type==='free';if(type==='free')deliveryChargeInput.value='0.00';}
+ if(type==='free'&&paymentMethodInput)paymentMethodInput.value='Other';
+ updateTotal();
+}
+customerSearch?.addEventListener('change',()=>applyCustomerPricing(true));
+customerPhone?.addEventListener('change',()=>applyCustomerPricing(true));
 
 function moneyFormat(value){return new Intl.NumberFormat('en-GB',{style:'currency',currency:'GBP'}).format(Number(value)||0)}
 function selectedOrderCards(){return [...document.querySelectorAll('.order-line-card')]}
@@ -5803,6 +5875,9 @@ function lineData(card){
  };
 }
 function calculatedLinePrice(card){
+ const pricing=activeCustomerPricing();
+ if(pricing==='free')return 0;
+ if(pricing==='family_friends'&&!editingExistingOrder){const p=productCatalog.find(p=>Number(p.id)===lineData(card).product_id);return Number(p?.saved_family_price??p?.price??0);}
  const data=lineData(card);if(isStandalonePenCard(card))return Math.max(0,data.price||data.base_price);
  const ff=Number(card.dataset.familyPrice);return data.discount?Math.min(data.base_price,Number.isFinite(ff)?ff:Math.max(0,data.base_price-5)):data.base_price;
 }
@@ -5826,6 +5901,7 @@ function refreshLineVisuals(card){
  const priceOut=card.querySelector('[data-line-total]');if(priceOut)priceOut.textContent=moneyFormat(data.price*data.quantity);
 }
 function recalculateLinePrice(card){
+ if(activeCustomerPricing()==='free'||(activeCustomerPricing()==='family_friends'&&!editingExistingOrder)){applyCustomerPricing();return;}
  const price=card.querySelector('[data-line-price]');if(price&&!isStandalonePenCard(card))price.value=calculatedLinePrice(card).toFixed(2);refreshLineVisuals(card);updateTotal();
 }
 function updateSelectedState(){
@@ -5923,12 +5999,13 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
  qtyInput.addEventListener('input',()=>{if(Number(qtyInput.value)<1)qtyInput.value='1';refreshLineVisuals(card);updateTotal();saveDraftOrder()});
  priceInput.addEventListener('input',()=>{refreshLineVisuals(card);updateTotal();saveDraftOrder()});
 
- if(insertAfterCard&&insertAfterCard.parentNode===selectedLinesContainer)insertAfterCard.after(card);else selectedLinesContainer.append(card);refreshLineVisuals(card);updateSelectedState();updateTotal();
+ if(insertAfterCard&&insertAfterCard.parentNode===selectedLinesContainer)insertAfterCard.after(card);else selectedLinesContainer.append(card);applyCustomerPricing();refreshLineVisuals(card);updateSelectedState();updateTotal();
  if(scroll){productSearch?.blur();if(!productSearchMoved)setTimeout(()=>card.scrollIntoView({behavior:'smooth',block:'center'}),80);else setTimeout(()=>productSearchWrap?.scrollIntoView({behavior:'smooth',block:'center'}),80)}
  return card;
 }
 
 function updateTotal(){
+ if(activeCustomerPricing()==='free'&&deliveryChargeInput)deliveryChargeInput.value='0.00';
  let total=selectedOrderCards().reduce((sum,card)=>{const d=lineData(card);return sum+(d.price*d.quantity)},0);
  if(deliveryMethodSelect?.value==='Postage')total+=Math.max(0,Number(deliveryChargeInput?.value)||0);
  const out=document.querySelector('#subtotal');if(out){out.setAttribute('aria-live','polite');out.textContent=moneyFormat(total)}
@@ -5968,7 +6045,7 @@ document.querySelectorAll('[data-wizard-next]').forEach(button=>button.addEventL
 }));
 document.querySelectorAll('[data-wizard-back]').forEach(button=>button.addEventListener('click',()=>showWizardStep(Number(button.dataset.wizardBack))));
 
-function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}customerSearch?.blur();saveDraftOrder()}
+function chooseCustomer(customer){if(customerSearch)customerSearch.value=customer.name||'';if(customerPhone)customerPhone.value=customer.phone||'';if(customerAddress)customerAddress.value=customer.address||'';if(customerResults){customerResults.hidden=true;customerResults.replaceChildren()}applyCustomerPricing(true);customerSearch?.blur();saveDraftOrder()}
 function showCustomerResults(){if(!customerSearch||!customerResults)return;const term=customerSearch.value.toLowerCase().trim();customerResults.replaceChildren();if(term.length<1){customerResults.hidden=true;return}const matches=customerSuggestions.filter(c=>(c.name||'').toLowerCase().includes(term)||(c.phone||'').toLowerCase().includes(term)).slice(0,8);if(!matches.length){customerResults.hidden=true;return}matches.forEach(c=>{const b=document.createElement('button');b.type='button';b.className='customer-result';b.setAttribute('role','option');const main=document.createElement('strong');main.textContent=c.name||'Customer';const info=document.createElement('span');info.textContent=c.phone||'';b.append(main,info);if(c.address){const addr=document.createElement('small');addr.textContent=c.address.replace(/\s+/g,' ').trim();b.append(addr)}b.addEventListener('click',()=>chooseCustomer(c));customerResults.append(b)});customerResults.hidden=false}
 customerSearch?.addEventListener('input',showCustomerResults);customerSearch?.addEventListener('focus',showCustomerResults);
 document.querySelectorAll('[data-recent-customer]').forEach(button=>button.addEventListener('click',()=>{const customer=customerSuggestions.find(c=>String(c.id)===button.dataset.recentCustomer);if(customer)chooseCustomer(customer)}));
@@ -6036,7 +6113,7 @@ function reconcilePenRows(){
 }
 const restoredDraft=restoreDraftOrder();
 if(!restoredDraft)initialOrderLines.forEach(line=>addOrderLine(line,false));
-reconcilePenRows();togglePostageFields();updateTotal();
+reconcilePenRows();togglePostageFields();applyCustomerPricing();updateTotal();
 wizard?.addEventListener('input',saveDraftOrder);wizard?.addEventListener('change',saveDraftOrder);
 
 const voiceOrderButton=document.querySelector('#voice-order-button'),voiceOrderPanel=document.querySelector('#voice-order-panel'),voiceOrderTitle=document.querySelector('#voice-order-title'),voiceOrderMessage=document.querySelector('#voice-order-message'),voiceOrderTranscript=document.querySelector('#voice-order-transcript'),voiceOrderQuestions=document.querySelector('#voice-order-questions'),voiceOrderPulse=document.querySelector('#voice-order-pulse');
