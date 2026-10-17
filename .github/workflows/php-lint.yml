@@ -99,7 +99,11 @@ jobs:
       - name: Check Bash rollback helpers
         run: |
           bash -n deploy-krystal.sh
+          bash -n scripts/publish-live.sh
+          bash -n tests/publish-live.sh
           bash -n scripts/snapshot-live.sh
           bash -n scripts/rollback-release.sh
       - name: Check deploy includes required PHP modules
         run: php tests/deploy-smoke.php
+      - name: Test real one-step publishing with isolated files
+        run: bash tests/publish-live.sh
