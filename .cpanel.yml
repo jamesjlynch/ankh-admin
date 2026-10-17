@@ -6,7 +6,7 @@ deployment:
     - /opt/cpanel/ea-php82/root/usr/bin/php -l setup.php
     - /opt/cpanel/ea-php82/root/usr/bin/php -l supplier-centre.php
     - /opt/cpanel/ea-php82/root/usr/bin/php -l scripts/backup-sqlite.php
-    - /opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
+    - /usr/bin/env ANKH_ADMIN_CONFIG=/home/lynchde1/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
     - /bin/bash scripts/snapshot-live.sh
     - /bin/mkdir -p /home/lynchde1/ankh-admin-tools
     - /bin/chmod 700 /home/lynchde1/ankh-admin-tools
