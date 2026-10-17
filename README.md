@@ -30,7 +30,7 @@ Setup is terminal-only and refuses to replace existing configuration. No passwor
 ## Operations improvements — October 2026
 The app retains its existing test access and visual design. The dashboard now prioritises daily work, offers a one-tap progression through preparation and confirmed delivery, and records new changes in an order/payment activity log. Existing orders and payments are preserved; one additive audit table is created.
 
-Before publishing, both Krystal deploy routes perform a verified private SQLite backup and save a code rollback snapshot. See [Operations release guide](docs/OPERATIONS-TESTMODE-RELEASE.md). New daily backup cron configuration must be completed on the host.
+**Publish changes:** push or merge code into GitHub `main`. The existing Krystal scheduled job pulls `main` and runs `scripts/publish-live.sh`; the cPanel Git deployment uses that same command. PHP checks run before updated files are published. Ordinary code deployment no longer depends on a database backup or creates new rollback snapshots. The private database is untouched by the publisher. Daily SQLite backups must run independently; see [Operations release guide](docs/OPERATIONS-TESTMODE-RELEASE.md). A stopped or missing hosting cron job cannot be restarted from GitHub.
 
 ## Backup and maintenance
 Back up the private configuration and database using your hosting backup system. Keep backups outside public_html. A backup of GitHub alone does not include orders. For live SQLite backups use SQLite's backup mechanism or take the app offline during the copy; do not assume copying a busy database is consistent.
