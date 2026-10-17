@@ -41,8 +41,8 @@ try{
  // after the snapshot starts. Cross-checking live row counts afterwards can
  // incorrectly reject a valid backup during normal business activity.
  foreach(['orders','customers','payments'] as $table){
-  $count=(int)$copy->query('SELECT COUNT(*) FROM '.$table)->fetchColumn();
-  if($count<0)throw new RuntimeException('Backup verification failed for '.$table);
+  $count=$copy->query('SELECT COUNT(*) FROM '.$table)->fetchColumn();
+  if($count===false)throw new RuntimeException('Backup verification failed for '.$table);
  }
  $copy=null;
  if(!rename($temp,$final))throw new RuntimeException('Unable to finalise snapshot.');
