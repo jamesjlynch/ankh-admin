@@ -27,9 +27,9 @@ These GitHub scripts **cannot create, repair or restart a missing/disabled Kryst
 
 Keep daily consistent SQLite backups in a separate, scheduled job using `scripts/backup-sqlite.php`. The backup script verifies database integrity, stores 0600 snapshots outside public_html and retains 30 snapshots.
 
-If the scheduled backup job has not yet been configured, install the backup utility once on Krystal and add a daily cron entry:
+If the scheduled backup job has not yet been configured, add a separate daily cron entry that runs the checked-in backup utility:
 
-    15 3 * * * /opt/cpanel/ea-php82/root/usr/bin/php /home/lynchde1/ankh-admin-tools/backup-sqlite.php >> /home/lynchde1/ankh-admin-backup.log 2>&1
+    15 3 * * * /usr/bin/env ANKH_ADMIN_CONFIG=/home/lynchde1/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php /home/lynchde1/repositories/ankh-admin/scripts/backup-sqlite.php >> /home/lynchde1/ankh-admin-backup.log 2>&1
 
 Daily backup setup needs host access; GitHub merging cannot install a cron task. Periodically test an off-host recovery.
 
