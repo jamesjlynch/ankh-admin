@@ -92,6 +92,8 @@ jobs:
         run: node tests/mobile-focus-sheet.cjs
       - name: Test operations, identity and audit migrations
         run: php tests/operations-testmode.php
+      - name: Test customer pricing and personal stock use
+        run: php tests/customer-pricing.php
       - name: Test private SQLite backup and integrity
         run: php tests/backup-sqlite.php
       - name: Check Bash rollback helpers
