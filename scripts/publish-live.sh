@@ -4,7 +4,7 @@
 set -Eeuo pipefail
 umask 077
 
-home=/home/lynchde1
+home=${ANKH_DEPLOY_HOME:-/home/lynchde1}
 log="$home/ankh-admin-deploy.log"
 exec >> "$log" 2>&1
 trap 'code=$?; echo "[ERROR] Publish failed (exit $code) at line $LINENO" >&2' ERR
@@ -20,7 +20,7 @@ fi
 release="$(git rev-parse HEAD)"
 target="$home/public_html/ankh-admin"
 marker="$home/.ankh-admin-last-deployed-sha"
-php=/opt/cpanel/ea-php82/root/usr/bin/php
+php=${ANKH_DEPLOY_PHP:-/opt/cpanel/ea-php82/root/usr/bin/php}
 files=(.htaccess index.php supplier-centre.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
 
 # A successful commit is not a successful deployment; compare the actual live files.
