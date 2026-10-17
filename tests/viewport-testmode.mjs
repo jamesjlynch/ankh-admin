@@ -69,6 +69,25 @@ try{
  check(await page.locator('.operator-order-history').count()===1,'Per-order activity history missing.');
  await page.locator('.operator-order-history summary').click();
  check((await page.locator('.operator-order-history').innerText()).includes('Preparation updated'),'Per-order history has no preparation activity.');
+ const pricingSeed='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO customers(id,name,phone,address,created,pricing_type) VALUES(99001,\'Personal fixture\',\'\',\'\',\'2026-01-01\',\'free\'),(99002,\'Friend fixture\',\'\',\'\',\'2026-01-01\',\'family_friends\'); INSERT INTO products(id,name,price,family_friends_price,cost) VALUES(99001,\'Browser fixture 5mg\',5000,3700,1200);");';
+ execFileSync('php',['-r',pricingSeed],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
+ await page.setViewportSize({width:390,height:844});
+ await page.goto(host+'/index.php?view=customer&id=99001');
+ check(await page.locator('input[name="pricing_type"][value="free"]').isChecked(),'Free customer selection not shown');
+ check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Customer pricing overflows on iPhone');
+ await page.goto(host+'/index.php?view=new&customer_id=99001');
+ const freeState=await page.evaluate(()=>{
+  addOrderLine({product_id:99001,quantity:2,presentation:'Pen',price:50},false);reconcilePenRows();applyCustomerPricing();
+  return {prices:selectedOrderCards().map(c=>lineData(c).price),type:activeCustomerPricing(),note:document.querySelector('#customer-pricing-note')?.textContent};
+ });
+ check(freeState.type==='free'&&freeState.prices.length===2&&freeState.prices.every(p=>p===0),'Personal customer must zero both peptide and paired pen');
+ check(freeState.note.includes('No payment required'),'Free order needs visible pricing explanation');
+ const friendPrice=await page.evaluate(()=>{chooseCustomer(customerSuggestions.find(c=>Number(c.id)===99002));return lineData(selectedOrderCards().find(c=>lineData(c).product_id===99001)).price;});
+ check(friendPrice===37,'Switching Free to Family & Friends must restore saved family price');
+ const standardPrice=await page.evaluate(()=>{chooseCustomer({name:'New standard customer',phone:'',address:''});return lineData(selectedOrderCards().find(c=>lineData(c).product_id===99001)).price;});
+ check(standardPrice===50,'Switching to a standard customer must not retain free prices');
+ await page.goto(host+'/index.php?view=reports&type=personal&range=all');
+ check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Personal-use report overflows on iPhone');
  await context.close();
  console.log('PASS: original test-mode access, real one-tap preparation/delivery, audit history and 6 iPhone/iPad/desktop widths.');
 }finally{
