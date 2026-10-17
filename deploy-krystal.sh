@@ -39,7 +39,7 @@ fi
 /opt/cpanel/ea-php82/root/usr/bin/php -l setup.php
 /opt/cpanel/ea-php82/root/usr/bin/php -l supplier-centre.php
 /opt/cpanel/ea-php82/root/usr/bin/php -l scripts/backup-sqlite.php
-/opt/cpanel/ea-php82/root/usr/bin/php -r 'if (PHP_VERSION_ID < 80100 || !extension_loaded("pdo_sqlite")) { fwrite(STDERR, "PHP 8.1+ and PDO SQLite required\\n"); exit(1); }'
+/opt/cpanel/ea-php82/root/usr/bin/php -r 'if (PHP_VERSION_ID < 80100 || !extension_loaded("pdo_sqlite")) { fwrite(STDERR, "PHP 8.1+ and PDO SQLite required\n"); exit(1); }'
 # Use the known private config path, not an environment-dependent HOME variable.
 ANKH_ADMIN_CONFIG=/home/lynchde1/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
 bash scripts/snapshot-live.sh
@@ -52,7 +52,7 @@ for file in "${files[@]}"; do
   install -m 644 "$file" "$target/.$file.deploy"
   mv "$target/.$file.deploy" "$target/$file"
 done
-printf '%s\\n' "$release" > "$marker.tmp"
+printf '%s\n' "$release" > "$marker.tmp"
 chmod 600 "$marker.tmp"
 mv "$marker.tmp" "$marker"
 echo "Published ${release:0:12} successfully at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
