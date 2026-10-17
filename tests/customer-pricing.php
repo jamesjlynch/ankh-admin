@@ -42,5 +42,15 @@ try{
  $friend['lines'][0]['product_id']=99002;pricingRequest([],$friend);$fallbackId=(int)$db->query('SELECT MAX(id) FROM orders')->fetchColumn();
  pricingCheck((int)$db->query('SELECT price FROM items WHERE order_id='.$fallbackId)->fetchColumn()===1000,'Missing saved F&F price must use retail');
  pricingCheck(str_contains(pricingRequest(['view'=>'customer','id'=>99001]),'Save customer pricing'),'Customer pricing UI must render');
- echo "PASS: customer pricing, enforced free/F&F totals, snapshots, stock delivery idempotency, personal report/CSV, historical classification.\n";
+ $customersUi=pricingRequest(['view'=>'customers']);
+ pricingCheck(preg_match('~id="add-customer-panel".*?name="pricing_type".*?</form>~s',$customersUi)===1,'Add customer form must offer pricing types');
+ pricingCheck(preg_match('~data-customer-form="99002".*?name="pricing_type".*?</form>~s',$customersUi)===1,'Edit customer form must offer pricing types');
+ pricingRequest([],['action'=>'customer','id'=>99002,'name'=>'Friend fixture','phone'=>'','address'=>'Updated address','pricing_type'=>'free','return'=>'customers']);
+ pricingCheck($db->query('SELECT pricing_type FROM customers WHERE id=99002')->fetchColumn()==='free','Edit customer must save Free pricing');
+ pricingCheck($db->query('SELECT price FROM items WHERE order_id='.$friendId)->fetchColumn()==3700,'Editing customer pricing must preserve prior order prices');
+ pricingRequest([],['action'=>'customer','id'=>99002,'name'=>'Friend fixture','phone'=>'','address'=>'Another address','return'=>'customers']);
+ pricingCheck($db->query('SELECT pricing_type FROM customers WHERE id=99002')->fetchColumn()==='free','Legacy customer edits must not reset customer pricing');
+ pricingRequest([],['action'=>'customer','name'=>'New Family fixture','phone'=>'555','address'=>'','pricing_type'=>'family_friends','return'=>'customers']);
+ pricingCheck($db->query("SELECT pricing_type FROM customers WHERE name='New Family fixture'")->fetchColumn()==='family_friends','Add customer must save Family & Friends pricing');
+ echo "PASS: customer add/edit pricing choices, enforced free/F&F totals, snapshots, stock delivery idempotency, personal report/CSV, historical classification.\n";
 }finally{$db=null;foreach(glob($temp.'/*')?:[] as $file)unlink($file);rmdir($temp);}
