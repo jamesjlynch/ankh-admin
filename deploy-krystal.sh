@@ -40,7 +40,7 @@ fi
 releases=/home/lynchde1/ankh-admin-releases
 if [[ -d "$releases" ]]; then
   mapfile -t old_releases < <(find "$releases" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | grep -E '^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}$' | sort -r || true)
-  for old in "\${old_releases[@]:30}"; do
+  for old in "${old_releases[@]:30}"; do
     [[ "$old" =~ ^[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,12}$ ]] || continue
     rm -rf -- "$releases/$old"
   done
