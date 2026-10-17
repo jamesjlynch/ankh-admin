@@ -33,6 +33,7 @@ try{
  pricingCheck(str_contains($report,'2 units')&&str_contains($report,'£24.00'),'Personal report needs quantity and historical stock cost');
  $csv=pricingRequest(['view'=>'reports','type'=>'personal','range'=>'all','export'=>'1']);
  pricingCheck(str_contains($csv,'Owner fixture')&&str_contains($csv,'24.00'),'Personal CSV must export cost');
+ pricingCheck(!str_contains($csv,'<!doctype')&&!str_contains($csv,'<html'),'CSV must not include the page header');
  pricingRequest([],['action'=>'customer_pricing','customer_id'=>99001,'pricing_type'=>'standard']);
  pricingCheck($db->query('SELECT pricing_type FROM orders WHERE id='.$id)->fetchColumn()==='free','Customer pricing change must not relabel history');
  $friend=$base;$friend['customer']='Friend fixture';$friend['delivery_method']='Collection';$friend['lines'][0]['price']='0.01';$friend['lines'][0]['recurring']='0';
