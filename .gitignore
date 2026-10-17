@@ -1,1 +1,4 @@
 node_modules/
+
+# PHP/cPanel runtime logs must not block clean-tree deployment checks.
+error_log
