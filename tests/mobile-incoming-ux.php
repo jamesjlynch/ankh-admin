@@ -12,7 +12,7 @@ function uxIncomingAssert(bool $ok,string $message):void{
 }
 uxIncomingAssert(str_contains($app,'class="ux-skip-link"')&&preg_match('/<main\b[^>]*id="ankh-main"[^>]*tabindex="-1"/', $app)===1,'Skip-to-main keyboard navigation missing.');
 uxIncomingAssert(str_contains($app,'<details class="incoming-by-product ux-incoming-products"')&&str_contains($app,'<summary class="incoming-by-product-head">'),'Incoming product quantities must be in a tap-to-expand section.');
-uxIncomingAssert(str_contains($app,'id="incoming-by-product-title"')&&str_contains($app,'<?=$totalIncomingUnits?> vials to receive'),'Incoming summary must retain outstanding vial counts.');
+uxIncomingAssert(str_contains($app,'id="incoming-by-product-title"')&&str_contains($app,'<?=$totalIncomingUnits?> units to receive'),'Incoming summary must retain outstanding unit counts.');
 $start=strpos($app,'<?php foreach($openSupplierOrders as $supplierOrder):?><details class="supplier-order-card ux-incoming-order">');
 $stop=$start===false?false:strpos($app,'<?php else:?><div class="incoming-empty">',$start);
 uxIncomingAssert($start!==false&&$stop!==false,'Supplier orders must become expandable disclosure cards.');

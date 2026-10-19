@@ -1862,6 +1862,35 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_POST['action']??'')==='create_admin
  }catch(Throwable $ex){$error=$ex->getMessage();}
 }
 
+function backOrderStockPlan(PDO $db,array $incoming):array{
+ $products=[];foreach($db->query('SELECT * FROM products') as $p)$products[(int)$p['id']]=$p;
+ $q=$db->query("SELECT COALESCE(i.product_id,(SELECT p.id FROM products p WHERE lower(trim(p.name))=lower(trim(i.name)) ORDER BY p.id LIMIT 1)) product_id,i.name,i.presentation,SUM(i.quantity) quantity FROM items i JOIN orders o ON o.id=i.order_id WHERE o.back_order=1 AND o.status NOT IN ('Cancelled','Delivered','Dispatched') AND trim(COALESCE(o.delivery_date,''))='' GROUP BY product_id,lower(trim(i.name)),i.presentation");
+ $rows=[];
+ foreach($q as $line){
+  $id=(int)($line['product_id']??0);$key=$id>0?'id:'.$id:'name:'.strtolower(trim((string)$line['name']));$qty=(int)$line['quantity'];
+  if(!isset($rows[$key])){$p=$products[$id]??null;$tracked=$p&&(int)$p['stock_tracking']===1;$raw=$tracked?(int)$p['stock_qty']:null;
+   $rows[$key]=['id'=>$id,'name'=>(string)($p['name']??$line['name']),'quantity'=>0,'formats'=>[],'available'=>$raw===null?null:max(0,$raw),'raw_available'=>$raw,'incoming'=>max(0,(int)($incoming[$id]['due']??0)),'expected_date'=>$incoming[$id]['expected_date']??null];
+  }
+  $rows[$key]['quantity']+=$qty;$format=trim((string)$line['presentation']);if($format!=='')$rows[$key]['formats'][$format]=($rows[$key]['formats'][$format]??0)+$qty;
+ }
+ foreach($rows as &$row){$raw=$row['raw_available'];$row['shortfall']=$raw===null?null:max(0,$row['quantity']-$raw-$row['incoming']);$row['active_shortage']=$raw===null?0:max(0,-$raw);ksort($row['formats']);}unset($row);
+ $rows=array_values($rows);usort($rows,fn($a,$b)=>strcasecmp($a['name'],$b['name']));return $rows;
+}
+function renderBackOrderStockPlan(array $rows,int $waitingCount):void{
+ ?><section class="backorder-workspace" aria-labelledby="backorder-stock-title">
+ <div class="backorder-overview"><div><strong><?=$waitingCount?></strong><span>Orders waiting</span></div><div><strong><?=array_sum(array_column($rows,'quantity'))?></strong><span>Units needed</span></div><a href="?view=stock&amp;section=incoming">Incoming stock <span aria-hidden="true">↗</span></a></div>
+ <div class="backorder-section-heading"><div><h2 id="backorder-stock-title">What’s back ordered</h2><p>Product totals across all waiting orders.</p></div></div>
+ <?php if(!$rows):?><p class="empty">No products waiting for stock.</p><?php else:?><div class="backorder-product-grid">
+ <?php foreach($rows as $row):$status=$row['available']===null?'Count stock first':($row['available']>=$row['quantity']?'Stock available':($row['shortfall']===0?'Covered on arrival':$row['shortfall'].' still needed'));$state=$row['available']===null?'unknown':($row['shortfall']>0?'short':'covered');?>
+ <article class="backorder-product" data-backorder-product="<?=(int)$row['id']?>" data-needed="<?=(int)$row['quantity']?>" data-incoming="<?=(int)$row['incoming']?>" data-shortfall="<?=$row['shortfall']===null?'unknown':(int)$row['shortfall']?>">
+ <div class="backorder-product-head"><div><h3><?=e($row['name'])?></h3><?php if($row['formats']):?><p><?php $parts=[];foreach($row['formats'] as $format=>$qty)$parts[]=$qty.' × '.$format;echo e(implode(' · ',$parts));?></p><?php else:?><p><?=strtolower(trim($row['name']))==='pen'?'Accessory':'Format not recorded'?></p><?php endif;?></div><div class="backorder-needed"><strong><?=(int)$row['quantity']?></strong><span>needed</span></div></div>
+ <dl class="backorder-stock-metrics"><div><dt>Available</dt><dd><?=$row['available']===null?'—':(int)$row['available']?></dd></div><div><dt>Incoming</dt><dd><?=(int)$row['incoming']?></dd></div><div><dt>Still short</dt><dd><?=$row['shortfall']===null?'—':(int)$row['shortfall']?></dd></div></dl>
+ <div class="backorder-product-footer"><span class="backorder-stock-status status-<?=e($state)?>"><?=e($status)?></span><?php if($row['incoming']>0&&$row['expected_date']):?><small>Next arrival <?=e(date('d M',strtotime($row['expected_date'])))?></small><?php endif;?></div>
+ <?php if($row['active_shortage']>0):?><p class="backorder-stock-note">Incoming stock must also cover <?=$row['active_shortage']?> units short on active orders.</p><?php endif;?></article>
+ <?php endforeach;?></div><?php endif;?>
+ <p class="backorder-plan-note">Combined stock, after active reservations. Incoming units must be received before use; activation checks the assigned fridge.</p>
+ </section><?php
+}
 function backOrderAvailability(PDO $db,array $order):array{
  $location=stockLocationForAssignee((string)($order['assigned_to']??''));$column=stockLocationColumn($location);
  $q=$db->prepare("SELECT COALESCE(i.product_id,(SELECT p.id FROM products p WHERE lower(trim(p.name))=lower(trim(i.name)) ORDER BY p.id LIMIT 1)) product_id,MIN(i.name) name,SUM(i.quantity) quantity FROM items i WHERE i.order_id=? GROUP BY product_id");$q->execute([(int)$order['id']]);
@@ -4451,11 +4480,11 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php
 $ordersSection=in_array($_GET['section']??'', ['recurring','backorders'],true)?(string)$_GET['section']:'all';
 $backOrders=array_values(array_filter($orders,fn($o)=>isBackOrder($o)));
-$backOrderDemand=$db->query("SELECT i.name,SUM(i.quantity) quantity FROM items i JOIN orders o ON o.id=i.order_id WHERE o.back_order=1 AND o.status<>'Cancelled' GROUP BY i.name ORDER BY quantity DESC,i.name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+$backOrderDemand=backOrderStockPlan($db,array_column($incomingProductBreakdown,null,'product_id'));
 usort($backOrders,fn($a,$b)=>strcmp((string)$a['back_order_since'],(string)$b['back_order_since']) ?: (int)$a['id']<=>(int)$b['id']);
 $orderScopes=['today_sales'=>'Today’s sales','month_sales'=>'This month’s sales','unpaid'=>'Unpaid orders','to_deliver'=>'Orders to deliver'];
 $activeOrderList=array_values(array_filter($orders,fn($o)=>!isBackOrder($o)));
-$orderScope=in_array((string)($_GET['scope']??''),array_keys($orderScopes),true)?(string)$_GET['scope']:'';
+$orderScope=$ordersSection==='all'&&in_array((string)($_GET['scope']??''),array_keys($orderScopes),true)?(string)$_GET['scope']:'';
 $listedOrders=$ordersSection==='backorders'?$backOrders:$activeOrderList;
 if($ordersSection==='all' && $orderScope!==''){
  $listedOrders=array_values(array_filter($activeOrderList,function($o)use($orderScope,$paidStatuses,$todayStart,$monthStart,$now){
@@ -4469,14 +4498,13 @@ $listedOpen=count(array_filter($listedOrders,fn($o)=>!in_array($o['status'],['Di
 $listedPaid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$listedOrders));
 $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['total']-(int)($o['paid_amount']??0)):(int)$o['total'],$listedOrders));
 ?>
-<div class="heading"><div><h1>Orders</h1><p class="muted page-description">Search, update or repeat any order.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
-<div class="orders-section-tabs"><a href="?view=orders" class="<?=$ordersSection==='all'?'selected':''?>">All orders <b><?=count($activeOrderList)?></b></a><a href="?view=orders&amp;section=recurring" class="<?=$ordersSection==='recurring'?'selected':''?>">Recurring <b><?=count($retaCyclesActive)?></b></a><a href="?view=orders&amp;section=backorders" class="<?=$ordersSection==='backorders'?'selected':''?>">Back orders <b><?=count($backOrders)?></b></a></div>
-<nav class="ux-mobile-scopes" aria-label="Find orders quickly">
+<div class="heading orders-page-heading"><div><h1><?=$ordersSection==='backorders'?'Back orders':'Orders'?></h1><p class="muted page-description"><?=$ordersSection==='backorders'?'Stock needed for your waiting orders.':'Search, update or repeat any order.'?></p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<nav class="ux-mobile-scopes order-view-nav" aria-label="Order views">
  <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
+ <a href="?view=orders&amp;section=backorders" <?=$ordersSection==='backorders'?'aria-current="page"':''?>>Back orders <b><?=count($backOrders)?></b></a>
+ <a href="?view=orders&amp;section=recurring" <?=$ordersSection==='recurring'?'aria-current="page"':''?>>Recurring</a>
  <a href="?view=orders&amp;scope=unpaid" <?=$orderScope==='unpaid'?'aria-current="page"':''?>>Unpaid</a>
  <a href="?view=orders&amp;scope=to_deliver" <?=$orderScope==='to_deliver'?'aria-current="page"':''?>>To deliver</a>
- <a href="?view=orders&amp;section=recurring" <?=$ordersSection==='recurring'?'aria-current="page"':''?>>Recurring</a>
- <a href="?view=orders&amp;section=backorders" <?=$ordersSection==='backorders'?'aria-current="page"':''?>>Back orders</a>
  <a href="?view=orders&amp;scope=today_sales" <?=$orderScope==='today_sales'?'aria-current="page"':''?>>Today</a>
 </nav>
 <?php if($ordersSection==='recurring'):?>
@@ -4542,14 +4570,16 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </section>
 <script>(()=>{const button=document.querySelector('[data-recurring-custom-toggle]'),form=document.querySelector('[data-recurring-custom-form]');if(button&&form)button.addEventListener('click',()=>form.classList.toggle('open'))})();</script>
 <?php else:?>
-<?php if($ordersSection==='backorders'):?><div class="order-scope-banner"><div><strong>Waiting for stock · oldest first</strong><small><?=count($backOrders)?> orders · <?=money(array_sum(array_column($backOrders,'total')))?> waiting value</small><p>Stock is not reserved. Check the assigned fridge, then move each order to active when ready. Payment history stays with the order.</p></div></div><?php endif;?>
-<?php if($ordersSection==='backorders'&&$backOrderDemand):?><details class="back-order-option"><summary>Back-order demand · <?=array_sum(array_column($backOrderDemand,'quantity'))?> units waiting</summary><?php foreach($backOrderDemand as $demand):?><div class="line"><span><?=e($demand['name'])?></span><strong><?=(int)$demand['quantity']?> needed</strong></div><?php endforeach;?></details><?php endif;?>
+<?php if($ordersSection==='backorders'):?>
+<?php renderBackOrderStockPlan($backOrderDemand,count($backOrders));?>
+<div class="backorder-section-heading waiting-orders-heading"><div><h2>Waiting orders</h2><p>Waiting for stock · oldest first</p></div></div>
+<?php endif;?>
 <?php if($orderScope!==''):?><div class="order-scope-banner"><div><strong><?=e($orderScopes[$orderScope])?></strong><small><?=count($listedOrders)?> orders · <?=money($listedValue)?><?=$orderScope==='unpaid'?' outstanding':''?></small></div><a class="quick-action quiet" href="?view=orders">All orders →</a></div><?php endif;?>
-<div class="stats compact-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div>
-<div class="filters ux-order-filters"><label>Search orders<input id="search" type="search" placeholder="Name, phone or order number"></label><label>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
+<?php if($ordersSection!=='backorders'):?><div class="stats compact-stats orders-summary-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div><?php endif;?>
+<div class="filters ux-order-filters <?=$ordersSection==='backorders'?'backorder-search':''?>"><label><?=$ordersSection==='backorders'?'Search waiting orders':'Search orders'?><input id="search" type="search" placeholder="Name, phone or order number"></label><label <?=$ordersSection==='backorders'?'hidden':''?>>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <p class="ux-result-count" id="ux-order-visible" role="status" aria-live="polite"><?=count($listedOrders)?> orders</p>
 <div class="order-list">
-<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderFocusStatuses($o);?><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):((int)$o['total']===0?'No payment required':'Paid in full')?></small></div></summary><div class="detail">
+<?php foreach($listedOrders as $o):?><details class="order compact-order" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><?php if(isBackOrder($o)):$lines=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$lines->execute([(int)$o['id']]);?><p class="backorder-order-products"><?php $parts=[];foreach($lines as $line)$parts[]=(int)$line['quantity'].' × '.$line['name'].($line['presentation']?' · '.$line['presentation']:'');echo e(implode(' / ',$parts));?></p><?php endif;?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderFocusStatuses($o);?><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):((int)$o['total']===0?'No payment required':'Paid in full')?></small></div></summary><div class="detail">
 <?php backOrderControls($db,$o);?>
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?></div>
 <?php if(orderPreparationState($o)!=='closed'):?>
@@ -4788,16 +4818,17 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 <?php endif;?>
 <?php if($stockSection==='incoming'):?>
 <div class="stock-subpage-heading"><a href="?view=stock">← Stock overview</a><div><p class="eyebrow">SUPPLIER STOCK</p><h2>Incoming stock</h2><p>Keep supplier orders separate from the stock you already have.</p></div></div>
+<?php $backOrderIncomingByProduct=array_column(backOrderStockPlan($db,array_column($incomingProductBreakdown,null,'product_id')),null,'id');?>
 <section class="incoming-stock-section">
  <div class="incoming-stock-head"><div><p class="eyebrow">INCOMING STOCK</p><h2>Supplier orders</h2><p class="muted">Orders are entered in packs. One pack = 10 units.</p></div><div class="incoming-stock-total"><strong><?=$totalIncomingUnits?></strong><span>units incoming</span></div></div>
 <?php if($incomingProductBreakdown):?>
 <details class="incoming-by-product ux-incoming-products" id="incoming-by-product" aria-labelledby="incoming-by-product-title">
- <summary class="incoming-by-product-head"><span><small class="eyebrow">WHAT'S ON THE WAY</small><strong id="incoming-by-product-title">Incoming by product</strong><small><?=count($incomingProductBreakdown)?> products with outstanding deliveries · <?=$totalIncomingUnits?> vials to receive</small></span><b class="ux-incoming-disclosure-icon" aria-hidden="true">⌄</b></summary><div class="ux-incoming-product-content">
+ <summary class="incoming-by-product-head"><span><small class="eyebrow">WHAT'S ON THE WAY</small><strong id="incoming-by-product-title">Incoming by product</strong><small><?=count($incomingProductBreakdown)?> products with outstanding deliveries · <?=$totalIncomingUnits?> units to receive</small></span><b class="ux-incoming-disclosure-icon" aria-hidden="true">⌄</b></summary><div class="ux-incoming-product-content">
  <div class="incoming-by-product-list">
  <?php foreach($incomingProductBreakdown as $dueItem):?>
  <article class="incoming-by-product-row">
-  <div><strong><?=e($dueItem['name'])?></strong><small><?=$dueItem['orders']?> supplier order<?=$dueItem['orders']===1?'':'s'?><?php if($dueItem['expected_date']):?> · Earliest expected <?=e(date('d M Y',strtotime($dueItem['expected_date'])))?><?php else:?> · Date not set<?php endif;?></small></div>
-  <span class="incoming-by-product-due"><b>+<?=$dueItem['due']?></b><small>vials due</small></span>
+  <div><strong><?=e($dueItem['name'])?></strong><small><?=$dueItem['orders']?> supplier order<?=$dueItem['orders']===1?'':'s'?><?php if($dueItem['expected_date']):?> · Earliest expected <?=e(date('d M Y',strtotime($dueItem['expected_date'])))?><?php else:?> · Date not set<?php endif;?></small><?php $waitingDemand=$backOrderIncomingByProduct[(int)$dueItem['product_id']]??null;if($waitingDemand):?><a class="incoming-backorder-demand" href="?view=orders&amp;section=backorders"><?=(int)$waitingDemand['quantity']?> back ordered<?php if($waitingDemand['shortfall']!==null):?> · <?=$waitingDemand['shortfall']>0?(int)$waitingDemand['shortfall'].' still short':'covered with stock + incoming'?><?php endif;?> →</a><?php endif;?></div>
+  <span class="incoming-by-product-due"><b>+<?=$dueItem['due']?></b><small>units due</small></span>
  </article>
  <?php endforeach;?>
  </div>

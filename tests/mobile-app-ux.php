@@ -12,11 +12,11 @@ uxCheck(substr_count($app,'class="ux-mobile-actions"')===1,'Exactly one dashboar
 foreach(['?view=new','?view=orders&amp;scope=to_deliver','?view=stock','?view=supplier&amp;tab=order','?view=reports'] as $route){
  uxCheck(str_contains($app,'href="'.$route.'"'),'The dashboard needs working one-tap quick links: '.$route);
 }
-uxCheck(str_contains($app,'class="ux-mobile-scopes"')&&str_contains($app,'aria-label="Find orders quickly"'),'Orders must offer an accessible quick-filter strip.');
+uxCheck(str_contains($app,'class="ux-mobile-scopes order-view-nav"')&&str_contains($app,'aria-label="Order views"'),'Orders must offer an accessible quick-filter strip.');
 foreach(['?view=orders&amp;scope=unpaid','?view=orders&amp;scope=to_deliver','?view=orders&amp;section=recurring'] as $route){
  uxCheck(str_contains($app,'href="'.$route.'"'),'Orders scope link missing: '.$route);
 }
-uxCheck(str_contains($app,'class="filters ux-order-filters"'),'Order search/status filters must have compact mobile styling.');
+uxCheck(str_contains($app,'class="filters ux-order-filters '),'Order search/status filters must have compact mobile styling.');
 uxCheck(str_contains($app,'id="ux-order-visible"')&&str_contains($app,'id="ux-customer-visible"'),'Live result counters needed for orders and customers.');
 uxCheck(str_contains($app,"label.textContent=visible+' order'")&&str_contains($app,"label.textContent=visible+' customer'"),'Live result counters must update during searches.');
 uxCheck(str_contains($app,'<details class="ux-report-options" open>')&&str_contains($app,'Dates, filters &amp; exports'),'Secondary report options need a disclosure, open by default without JS.');

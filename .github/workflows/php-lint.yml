@@ -51,7 +51,9 @@ jobs:
           php -l tests/operations-testmode.php
           php -l tests/backup-sqlite.php
       - name: Test back-order waiting list
-        run: php tests/back-orders.php
+        run: |
+          php tests/back-orders.php
+          php tests/back-order-stock-plan.php
       - name: Test office today overview
         run: php tests/today-overview.php
       - name: Render dashboard and customer intelligence with isolated data
