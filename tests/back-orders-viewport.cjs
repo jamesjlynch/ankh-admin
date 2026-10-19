@@ -32,6 +32,15 @@ const assert=require('node:assert/strict');
   assert(await page.getByRole('heading',{name:'Waiting customer fixture'}).count());
   assert.equal(sql("echo $db->query('SELECT stock_jay_qty FROM products WHERE id=99001')->fetchColumn();").toString(),'1');
   await page.goto(host+'/?view=orders&section=backorders');assert.equal(await page.locator('.order-list .order').count(),0);
+  await page.goto(host+'/?view=edit&id=99001');
+  assert(await page.getByRole('button',{name:'Move to back orders'}).isVisible(),'Edit order must expose the back-order action');
+  assert.equal(await page.locator('#edit-order-form input[name="action"][value="order_backorder"]').count(),0,'Move action must have its own form');
+  await page.goto(host+'/?view=dashboard');await page.locator('#work-order-99001 > summary').click();
+  const dashboardMove=page.locator('#focus-sheet-body').getByRole('button',{name:'Move to back orders'});
+  await dashboardMove.waitFor({state:'visible'});page.once('dialog',d=>d.accept());await dashboardMove.click();
+  await page.waitForURL('**/?view=orders&section=backorders');
+  assert.equal(sql("echo $db->query('SELECT back_order FROM orders WHERE id=99001')->fetchColumn();").toString(),'1');
+  assert.equal(sql("echo $db->query('SELECT stock_jay_qty FROM products WHERE id=99001')->fetchColumn();").toString(),'3');
   await page.goto(host+'/?view=new');const checkbox=page.locator('input[name="back_order"]');assert(!(await checkbox.isChecked()));
   assert.deepEqual(errors,[]);console.log('PASS: mobile/desktop waiting list, no overflow, assigned-stock guard, real activation form, no duplicate orders, active default.');
  }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}
