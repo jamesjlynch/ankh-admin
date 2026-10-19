@@ -13,11 +13,11 @@ function rememberStockUndo(int $productId,array $changes,array $movementIds,bool
 $_SESSION=[];
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $db->exec("CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,stock_tracking INTEGER,stock_tracking_since TEXT,stock_jay_qty INTEGER,stock_tony_qty INTEGER,stock_unallocated_qty INTEGER,stock_qty INTEGER);
-CREATE TABLE orders(id INTEGER PRIMARY KEY,status TEXT,delivery_date TEXT);
+CREATE TABLE orders(id INTEGER PRIMARY KEY,status TEXT,delivery_date TEXT,back_order INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE stock_fulfilments(order_id INTEGER,product_id INTEGER,quantity INTEGER,location TEXT);
 CREATE TABLE stock_movements(id INTEGER PRIMARY KEY,product_id INTEGER,movement_type TEXT,quantity_change INTEGER,order_id INTEGER,location TEXT,supplier TEXT,batch_reference TEXT,expiry_date TEXT,unit_cost INTEGER,note TEXT,created TEXT);
 INSERT INTO products VALUES(1,'Retatrutide 20mg',1,'2026-10-01',1,1,0,2);
-INSERT INTO orders VALUES(1,'Paid',''),(2,'New','');
+INSERT INTO orders(id,status,delivery_date) VALUES(1,'Paid',''),(2,'New','');
 INSERT INTO stock_fulfilments VALUES(1,1,2,'Jay'),(2,1,1,'Tony');");
 check(activeReservedStock($db,1,'Jay')===2,'Jay has two units reserved.');
 check(activeReservedStock($db,1,'Tony')===1,'Tony has one unit reserved.');

@@ -5737,3 +5737,11 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 }
 @media(prefers-reduced-motion:no-preference){.focus-action-sheet[open]{animation:focus-sheet-enter .18s ease-out}@keyframes focus-sheet-enter{from{transform:translateY(32px);opacity:0}to{transform:translateY(0);opacity:1}}}
 @media print{.focus-action-sheet,.focus-layout-switch{display:none!important}.focus-group-heading{display:block}.focus-worklist{display:block}}
+
+/* Optional back-order waiting list. */
+.orders-section-tabs{overflow-x:auto;flex-wrap:nowrap;max-width:100%}.orders-section-tabs>a{flex-shrink:0}
+.back-order-controls,.back-order-option{border:1px solid var(--border,#3b3527);border-radius:14px;padding:16px;margin:12px 0;background:rgba(190,151,70,.05)}
+.back-order-controls p,.back-order-option p{font-size:.875rem;line-height:1.5;margin:8px 0 12px;overflow-wrap:anywhere}
+.back-order-controls button{min-height:44px;max-width:100%;white-space:normal}.back-order-controls button:disabled{opacity:.5;cursor:not-allowed}
+.back-order-controls .stock-ready{color:#53c88b}.back-order-option summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600}
+.back-order-option .check{margin-top:12px}.back-order-option input{min-width:20px;min-height:20px}

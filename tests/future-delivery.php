@@ -49,7 +49,7 @@ check(!empty($insertMatch),'Order insert must exist.');
 $insertSql=$insertMatch[0];preg_match('/INSERT INTO orders\\(([^)]+)\\)/',$insertSql,$columnsMatch);$columns=explode(',',$columnsMatch[1]);
 check(in_array('scheduled_delivery_date',$columns,true),'New orders must save the schedule.');
 $oldColumns=array_filter($columns,fn($c)=>$c!=='scheduled_delivery_date');
-$db->exec('CREATE TABLE orders (id INTEGER PRIMARY KEY,'.implode(',',array_map(fn($c)=>$c.' TEXT',$oldColumns)).", delivery_date TEXT NOT NULL DEFAULT '')");
+$db->exec('CREATE TABLE orders (id INTEGER PRIMARY KEY,'.implode(',',array_map(fn($c)=>$c.' TEXT',$oldColumns)).", back_order INTEGER NOT NULL DEFAULT 0, delivery_date TEXT NOT NULL DEFAULT '')");
 $db->exec("INSERT INTO orders(id,customer) VALUES (1,'Existing')");
 preg_match('/ALTER TABLE orders ADD COLUMN scheduled_delivery_date TEXT NOT NULL DEFAULT \'\'/',$source,$migration);
 check(!empty($migration),'Schedule migration must exist.');$db->exec($migration[0]);

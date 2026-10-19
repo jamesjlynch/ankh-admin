@@ -2,13 +2,14 @@
 declare(strict_types=1);
 $source=file_get_contents(dirname(__DIR__).'/index.php');
 function check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
+$helperStart=strpos($source,'function isBackOrder(');$helperEnd=strpos($source,'function assertOrderActive(',$helperStart);eval(substr($source,$helperStart,$helperEnd-$helperStart));
 $start=strpos($source,'function todayOverviewData(');$end=strpos($source,'function preparationBoardData(',$start);eval(substr($source,$start,$end-$start));
 $start=strpos($source,'function deliveryBoardSection(');$end=strpos($source,'function isFutureDelivery(',$start);eval(substr($source,$start,$end-$start));
 $start=strpos($source,'function orderPreparationState(');$end=strpos($source,'function setOrderPreparation(',$start);eval(substr($source,$start,$end-$start));
 $start=strpos($source,'function preparationBoardData(');$end=strpos($source,"if(\$reportBoardRequest!==''",$start);eval(substr($source,$start,$end-$start));
 $start=strpos($source,'function deliveryCountdown(');$end=strpos($source,'function ', $start+10);eval(substr($source,$start,$end-$start));
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$db->exec("CREATE TABLE orders(id INTEGER PRIMARY KEY,created TEXT,status TEXT,payment_date TEXT DEFAULT '',delivery_date TEXT DEFAULT '',scheduled_delivery_date TEXT DEFAULT '',delivery_section_override TEXT DEFAULT '',delivery_charge INTEGER DEFAULT 0,customer TEXT DEFAULT 'Test customer',recipient_name TEXT DEFAULT '',delivery_method TEXT DEFAULT 'Local Delivery',assigned_to TEXT DEFAULT '',reconstituted INTEGER DEFAULT 0,packaged INTEGER DEFAULT 0);CREATE TABLE items(order_id INTEGER,price INTEGER,quantity INTEGER,id INTEGER PRIMARY KEY,name TEXT DEFAULT 'Product');CREATE TABLE payments(order_id INTEGER,amount INTEGER)");
+$db->exec("CREATE TABLE orders(id INTEGER PRIMARY KEY,back_order INTEGER NOT NULL DEFAULT 0,created TEXT,status TEXT,payment_date TEXT DEFAULT '',delivery_date TEXT DEFAULT '',scheduled_delivery_date TEXT DEFAULT '',delivery_section_override TEXT DEFAULT '',delivery_charge INTEGER DEFAULT 0,customer TEXT DEFAULT 'Test customer',recipient_name TEXT DEFAULT '',delivery_method TEXT DEFAULT 'Local Delivery',assigned_to TEXT DEFAULT '',reconstituted INTEGER DEFAULT 0,packaged INTEGER DEFAULT 0);CREATE TABLE items(order_id INTEGER,price INTEGER,quantity INTEGER,id INTEGER PRIMARY KEY,name TEXT DEFAULT 'Product');CREATE TABLE payments(order_id INTEGER,amount INTEGER)");
 $insert=$db->prepare('INSERT INTO orders(id,created,status,payment_date,delivery_date,scheduled_delivery_date,delivery_charge) VALUES(?,?,?,?,?,?,?)');
 foreach([
  [1,'2026-10-14T10:00:00+01:00','Paid','2026-10-14','','2026-10-30',200],
