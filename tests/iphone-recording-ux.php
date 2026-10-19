@@ -17,7 +17,7 @@ function loadPresentationFunction(string $source,string $name):void{
  }
  throw new RuntimeException('Unclosed helper: '.$name);
 }
-foreach(['isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
+foreach(['backOrderControls','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>'Lee'])==='Lee','Recipient should lead the card.');
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>' '])==='Morgan','Blank recipient should fall back to purchaser.');
 recordingCheck(dashboardQueueView(['payment'=>0,'delivery'=>2,'future'=>1])==='all','Default worklist must show all work.');
@@ -27,6 +27,7 @@ $start=strpos($source,'<section class="todo-board dashboard-action-queue"');
 $end=strpos($source,'<!-- dashboard-worklist-end -->',$start);
 recordingCheck($start!==false&&$end!==false,'Queue must precede stock detail.');
 $template=substr($source,$start,$end-$start);
+$db=new PDO('sqlite::memory:');
 $tz=new DateTimeZone('Europe/London');$now=new DateTimeImmutable('2026-10-13 12:00:00',$tz);
 $base=['customer'=>'Morgan','recipient_name'=>'Lee','status'=>'New','total'=>6500,'paid_amount'=>0,'delivery_date'=>'','created'=>'2026-10-11','assigned_to'=>'James','payment_method'=>'Bank Transfer','delivery_method'=>'Local Delivery','address'=>'','tracking_reference'=>'','reconstituted'=>0,'packaged'=>0,'delivery_section_override'=>''];
 $near=$base+['id'=>1,'scheduled_delivery_date'=>'2026-10-16'];
@@ -54,6 +55,7 @@ foreach(['cards','dispatch'] as $dashboardLayout)foreach(['all'=>6,'payment'=>5,
  foreach($dashboardWork as $order)recordingCheck(substr_count($html,'id="work-order-'.$order['id'].'"')===1,'Each order must appear once in either layout.');
  recordingCheck(str_contains($html,'layout-'.$dashboardLayout),'Chosen layout must be rendered.');
  recordingCheck(str_contains($html,'?view=edit&amp;id='),'Every worklist must preserve editing access.');
+ recordingCheck(str_contains($html,'Move to back orders'),'Every active worklist must expose the waiting-list action.');
  if(in_array($dashboardQueue,['all','payment'],true)){
   recordingCheck(str_contains($html,'Delivered fixture'),'Delivered-unpaid work must remain visible.');
   preg_match('/id="work-order-3".*?<\/details>/s',$html,$match);
