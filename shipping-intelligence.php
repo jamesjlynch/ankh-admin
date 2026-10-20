@@ -49,8 +49,14 @@ $shipCoverageDays=$shipCoverEnd?max(1,(int)$shipToday->diff($shipCoverEnd)->form
 $shipLastOrderDate=$shipForecastEvent
  ? (new DateTimeImmutable($shipForecastEvent['date'],$shipToday->getTimezone()))->modify('-'.($shipLeadDays+$shipRecoveryDays).' days')
  : null;
+$shipEarlyCoverEnd=$shipLastOrderDate && $shipLastOrderDate>$shipToday
+ ? $shipLastOrderDate->modify('+'.$shipLeadDays.' days')
+ : $shipToday->modify('+'.$shipLeadDays.' days');
+$shipEarlyCoverDays=max(1,(int)$shipToday->diff($shipEarlyCoverEnd)->format('%r%a')+1);
 $shipRecentSales=sc_recent_delivered($db,30);
 $shipFutureRecurring=$shipCoverEnd?retaProjectionRange($retaForecastCycles,$shipToday,$shipCoverEnd,true):['stock'=>[]];
+$shipEarlyRecurring=$shipCoverEnd?retaProjectionRange($retaForecastCycles,$shipToday,$shipEarlyCoverEnd,true):['stock'=>[]];
+$shipEarlyRecurringByProduct=[];
 $shipRecurringByProduct=[];
 $shipProductNameIds=[];
 foreach($stockProducts as $product){
@@ -63,9 +69,13 @@ foreach(($shipFutureRecurring['stock']??[]) as $name=>$qty){
  $ids=$shipProductNameIds[strtolower(trim((string)$name))]??[];
  if(count($ids)===1)$shipRecurringByProduct[$ids[0]]=($shipRecurringByProduct[$ids[0]]??0)+max(0,(int)$qty);
 }
+foreach(($shipEarlyRecurring['stock']??[]) as $name=>$qty){
+ $ids=$shipProductNameIds[strtolower(trim((string)$name))]??[];
+ if(count($ids)===1)$shipEarlyRecurringByProduct[$ids[0]]=($shipEarlyRecurringByProduct[$ids[0]]??0)+max(0,(int)$qty);
+}
 // Count only outstanding deliveries with a future, recorded ETA before the cover end.
 // Late, undated and later orders need review and must not give false reassurance.
-$shipOnTimeIncoming=[];$shipUncertainIncoming=[];
+$shipOnTimeIncoming=[];$shipUncertainIncoming=[];$shipEarlyIncoming=[];
 foreach($supplierItemRows as $item){
  if(in_array((string)$item['status'],['Received','Cancelled'],true))continue;
  $remaining=max(0,(int)$item['quantity']-(int)$item['received_qty']);
@@ -73,6 +83,7 @@ foreach($supplierItemRows as $item){
  $id=(int)$item['product_id'];$eta=substr(trim((string)($item['expected_date']??'')),0,10);
  if($shipCoverEnd && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$eta) && $eta>$shipToday->format('Y-m-d') && $eta<=$shipCoverEnd->format('Y-m-d')){
   $shipOnTimeIncoming[$id]=($shipOnTimeIncoming[$id]??0)+$remaining;
+  if($eta<=$shipEarlyCoverEnd->format('Y-m-d'))$shipEarlyIncoming[$id]=($shipEarlyIncoming[$id]??0)+$remaining;
  }else{$shipUncertainIncoming[$id]=($shipUncertainIncoming[$id]??0)+$remaining;}
 }
 $shipRows=[];$shipNeedsCount=0;$shipAtRisk=0;$shipOrderNow=0;
@@ -99,7 +110,9 @@ if($shipCoverEnd){
   $historyDays=$trackingDate!==''&&$trackingDate>$shipToday->modify('-30 days')->format('Y-m-d')
    ? max(1,(int)(new DateTimeImmutable($trackingDate,$shipToday->getTimezone()))->diff($shipToday)->format('%r%a')+1) : 30;
   $lowHistory=$tracked&&$historyDays<14;
-  $immediateShortage=$net<=0&&$demand>0;
+  $earlyDemand=(int)ceil($recent*$shipEarlyCoverDays/30)+max(0,(int)($shipEarlyRecurringByProduct[$id]??0));
+  $earlyIncoming=max(0,(int)($shipEarlyIncoming[$id]??0));
+  $immediateShortage=$tracked&&$earlyDemand>0&&$net+$earlyIncoming<$earlyDemand;
   if(!$tracked){$state='uncounted';$shipNeedsCount++;}
   elseif($gap>0){
    $state=($shipLastOrderDate!==null&&$shipToday>=$shipLastOrderDate)||$immediateShortage?'order':'low';
