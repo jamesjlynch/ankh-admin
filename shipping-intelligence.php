@@ -37,6 +37,9 @@ $shipForecastEvent=$shipRiskEvents[0]??null;
 foreach($shipUpcoming as $event){
  if((string)($_GET['forecast_event']??'')===(string)$event['id']){$shipForecastEvent=$event;break;}
 }
+// Keep the overview highlight aligned with the disruption used by the forecast.
+$shipNext=$shipForecastEvent;
+$shipDays=$shipNext?max(0,(int)$shipToday->diff(new DateTimeImmutable($shipNext['date'],$shipToday->getTimezone()))->format('%r%a')):0;
 $shipLeadDays=7;          // The existing supplier lead-time assumption.
 $shipRecoveryDays=7;      // Extra planning buffer; not a carrier guarantee.
 $shipCoverEnd=$shipForecastEvent
