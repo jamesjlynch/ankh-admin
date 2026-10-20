@@ -261,7 +261,6 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
 $shipTab=(string)($_GET['tab']??'')==='stock'?'stock':'calendar';
 $shipSelectedId=(string)($_GET['event']??'');
 $shipSelected=null;foreach($shippingEvents as $candidate){if($candidate['id']===$shipSelectedId)$shipSelected=$candidate;}
-$shipSoonest=$shipUpcoming[0]??null;
 $shipTotalAttention=$shipAtRisk+$shipNeedsCount;
 ?>
 <?php if($shipMode==='overview'):?>
@@ -278,13 +277,6 @@ $shipTotalAttention=$shipAtRisk+$shipNeedsCount;
  </a>
 </nav>
 <?php if($shipTab==='calendar'):?>
- <?php if($shipSoonest):?>
- <a class="ship-summary-strip" href="?view=shipping&amp;mode=event&amp;event=<?=rawurlencode($shipSoonest['id'])?>">
-  <span class="ship-summary-date"><?=e(date('j M',strtotime($shipSoonest['date'])))?></span>
-  <span class="ship-summary-copy"><small>Next calendar event</small><strong><?=e($shipSoonest['name'])?></strong></span>
-  <span class="ship-summary-arrow" aria-hidden="true">›</span>
- </a>
- <?php endif;?>
  <a class="ship-stock-shortcut" href="?view=shipping&amp;tab=stock">
   <span class="ship-stock-shortcut-copy"><strong><?=$shipTotalAttention?> product<?=$shipTotalAttention===1?'':'s'?> need<?=$shipTotalAttention===1?'s':''?> review</strong>
   <small><?=$shipOrderNow?> order now · <?=max(0,$shipAtRisk-$shipOrderNow)?> running low · <?=$shipNeedsCount?> need a stock count</small></span><span aria-hidden="true">→</span>
