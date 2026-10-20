@@ -30,22 +30,90 @@ $shipUpcoming=array_values(array_filter($shippingEvents,static fn($event)=>$even
 $shipNext=$shipUpcoming[0]??null;
 foreach($shipUpcoming as $ev){if($ev['risk']==='critical'){$shipNext=$ev;break;}}
 $shipDays=$shipNext ? max(0,(int)$shipToday->diff(new DateTimeImmutable($shipNext['date']))->format('%r%a')) : 0;
-$shipProtectionDays=isset($_GET['cover'])&&in_array((int)$_GET['cover'],[21,28,35,42,56],true)?(int)$_GET['cover']:42;
-$shipLookback=in_array((int)($_GET['demand_days']??30),[30,60,90],true)?(int)($_GET['demand_days']??30):30;
-$shipRows=[];
-foreach($reportTrackedStock as $sp){
- $pid=(int)$sp['id'];$available=max(0,(int)$sp['stock_qty']);
- // stock_qty is already net of reservations. Never deduct reserved stock twice.
- $recent=max(0,(int)($reorderSalesByProduct[$pid]??0));
- $recurring=max(0,(int)($reorderRecurringByProduct[$pid]??0));
- $target=(int)ceil($recent*$shipProtectionDays/$shipLookback)+$recurring;
- $gap=max(0,$target-$available);
- $pack=max(1,(int)($sp['supplier_pack_size']??10));
- $units=$gap>0?(int)ceil($gap/$pack)*$pack:0;
- $shipRows[]=['name'=>(string)$sp['name'],'available'=>$available,'recent'=>$recent,'recurring'=>$recurring,'target'=>$target,'gap'=>$gap,'order'=>$units,'pack'=>$pack,'id'=>$pid];
+// Work from calendar dates, not a manually chosen number of cover days.
+$shipRiskEvents=array_values(array_filter($shipUpcoming,static fn($event)=>in_array($event['risk'],['high','critical'],true)));
+if(!$shipRiskEvents)$shipRiskEvents=$shipUpcoming;
+$shipForecastEvent=$shipRiskEvents[0]??null;
+foreach($shipUpcoming as $event){
+ if((string)($_GET['forecast_event']??'')===(string)$event['id']){$shipForecastEvent=$event;break;}
 }
-usort($shipRows,static fn($a,$b)=>$b['gap']<=>$a['gap'] ?: strcmp($a['name'],$b['name']));
-$shipAtRisk=count(array_filter($shipRows,static fn($r)=>$r['gap']>0));
+$shipLeadDays=7;          // The existing supplier lead-time assumption.
+$shipRecoveryDays=7;      // Extra planning buffer; not a carrier guarantee.
+$shipCoverEnd=$shipForecastEvent
+ ? (new DateTimeImmutable($shipForecastEvent['end'],$shipToday->getTimezone()))->modify('+'.($shipLeadDays+$shipRecoveryDays).' days')
+ : null;
+$shipCoverageDays=$shipCoverEnd?max(1,(int)$shipToday->diff($shipCoverEnd)->format('%r%a')+1):0;
+$shipLastOrderDate=$shipForecastEvent
+ ? (new DateTimeImmutable($shipForecastEvent['date'],$shipToday->getTimezone()))->modify('-'.($shipLeadDays+$shipRecoveryDays).' days')
+ : null;
+$shipRecentSales=sc_recent_delivered($db,30);
+$shipFutureRecurring=$shipCoverEnd?retaProjectionRange($retaForecastCycles,$shipToday,$shipCoverEnd,true):['stock'=>[]];
+$shipRecurringByProduct=[];
+$shipProductNameIds=[];
+foreach($stockProducts as $product){
+ if((int)($product['active']??0)!==1)continue;
+ $key=strtolower(trim((string)$product['name']));
+ $shipProductNameIds[$key]??=[];
+ $shipProductNameIds[$key][]=(int)$product['id'];
+}
+foreach(($shipFutureRecurring['stock']??[]) as $name=>$qty){
+ $ids=$shipProductNameIds[strtolower(trim((string)$name))]??[];
+ if(count($ids)===1)$shipRecurringByProduct[$ids[0]]=($shipRecurringByProduct[$ids[0]]??0)+max(0,(int)$qty);
+}
+// Count only outstanding deliveries with a future, recorded ETA before the cover end.
+// Late, undated and later orders need review and must not give false reassurance.
+$shipOnTimeIncoming=[];$shipUncertainIncoming=[];
+foreach($supplierItemRows as $item){
+ if(in_array((string)$item['status'],['Received','Cancelled'],true))continue;
+ $remaining=max(0,(int)$item['quantity']-(int)$item['received_qty']);
+ if($remaining===0)continue;
+ $id=(int)$item['product_id'];$eta=substr(trim((string)($item['expected_date']??'')),0,10);
+ if($shipCoverEnd && preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$eta) && $eta>$shipToday->format('Y-m-d') && $eta<=$shipCoverEnd->format('Y-m-d')){
+  $shipOnTimeIncoming[$id]=($shipOnTimeIncoming[$id]??0)+$remaining;
+ }else{$shipUncertainIncoming[$id]=($shipUncertainIncoming[$id]??0)+$remaining;}
+}
+$shipRows=[];$shipNeedsCount=0;$shipAtRisk=0;$shipOrderNow=0;
+if($shipCoverEnd){
+ foreach($stockProducts as $sp){
+  if((int)($sp['active']??0)!==1)continue;
+  $id=(int)$sp['id'];$tracked=(int)($sp['stock_tracking']??0)===1;
+  $recent=max(0,(int)($shipRecentSales[$id]??0));
+  $recurring=max(0,(int)($shipRecurringByProduct[$id]??0));
+  $incoming=max(0,(int)($shipOnTimeIncoming[$id]??0));
+  $uncertain=max(0,(int)($shipUncertainIncoming[$id]??0));
+  if(!$tracked&&$recent===0&&$recurring===0&&$incoming===0&&$uncertain===0)continue;
+  $net=(int)($sp['stock_jay_qty']??0)+(int)($sp['stock_tony_qty']??0)+(int)($sp['stock_unallocated_qty']??0);
+  $available=$tracked?max(0,$net):null;
+  // Existing fridge balances are already net of reservations. Do not deduct twice.
+  $buffer=($recent>0||$recurring>0)?max(0,(int)($sp['low_stock_at']??0)):0;
+  $expectedNonRecurring=(int)ceil($recent*$shipCoverageDays/30);
+  $demand=$expectedNonRecurring+$recurring;
+  $target=$demand+$buffer;
+  $gap=$tracked?max(0,$target-$net-$incoming):null;
+  $pack=max(1,(int)($sp['supplier_pack_size']??10));
+  $suggestedUnits=$gap!==null&&$gap>0?(int)ceil($gap/$pack)*$pack:0;
+  $trackingDate=substr((string)($sp['stock_tracking_since']??''),0,10);
+  $historyDays=$trackingDate!==''&&$trackingDate>$shipToday->modify('-30 days')->format('Y-m-d')
+   ? max(1,(int)(new DateTimeImmutable($trackingDate,$shipToday->getTimezone()))->diff($shipToday)->format('%r%a')+1) : 30;
+  $lowHistory=$tracked&&$historyDays<14;
+  $immediateShortage=$net<=0&&$demand>0;
+  if(!$tracked){$state='uncounted';$shipNeedsCount++;}
+  elseif($gap>0){
+   $state=($shipLastOrderDate!==null&&$shipToday>=$shipLastOrderDate)||$immediateShortage?'order':'low';
+   $shipAtRisk++;if($state==='order')$shipOrderNow++;
+  }elseif($lowHistory||($recent===0&&$recurring===0&&$net<=0)){$state='review';}
+  else{$state='covered';}
+  $shipRows[]=[
+   'id'=>$id,'name'=>(string)$sp['name'],'tracked'=>$tracked,'state'=>$state,
+   'available'=>$available,'jay'=>(int)($sp['stock_jay_qty']??0),
+   'tony'=>(int)($sp['stock_tony_qty']??0),'unallocated'=>(int)($sp['stock_unallocated_qty']??0),
+   'recent'=>$recent,'recurring'=>$recurring,'incoming'=>$incoming,'uncertain'=>$uncertain,
+   'demand'=>$demand,'target'=>$target,'gap'=>$gap,'pack'=>$pack,'order'=>$suggestedUnits,'limited_history'=>$lowHistory
+  ];
+ }
+}
+$shipRank=['order'=>0,'low'=>1,'uncounted'=>2,'review'=>3,'covered'=>4];
+usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state']])?:((int)($b['gap']??0)<=>(int)($a['gap']??0))?:strcmp($a['name'],$b['name']));
 ?>
 <style>
 .ship-page{--ship-gold:#dfb666;--ship-muted:#a2a3a7;color:#f4f0e9;max-width:1120px;margin:auto}
