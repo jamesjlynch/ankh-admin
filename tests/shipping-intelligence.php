@@ -37,9 +37,24 @@ function retaProjectionRange(array $cycles,DateTimeImmutable $start,DateTimeImmu
  return ['stock'=>['Example product A'=>7]];
 }
 function e($value):string{return htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');}
-ob_start();
-require dirname(__DIR__).'/shipping-intelligence.php';
+// Calendar must be the default; large stock lists must never appear above it.
+$_GET=['view'=>'shipping'];
+ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
+$calendar=ob_get_clean();
+foreach(['Upcoming disruptions','Fixture supplier shutdown','ship-view-tabs','View details','Edit disruption calendar'] as $expected){
+ if(strpos($calendar,$expected)===false){fwrite(STDERR,"Calendar overview missing: $expected\n");exit(1);}
+}
+foreach(['class="ship-product-card"','class="ship-card ship-forecast-card"'] as $unexpected){
+ if(strpos($calendar,$unexpected)!==false){fwrite(STDERR,"Stock list must not appear on the calendar: $unexpected\n");exit(1);}
+}
+if(strpos($calendar,'id="ship-calendar"')===false){fwrite(STDERR,"Calendar tab is not the default.\n");exit(1);}
+
+// The separate stock tab must show the same underlying automatic forecast.
+$_GET=['view'=>'shipping','tab'=>'stock','forecast_event'=>$id];
+ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
 $html=ob_get_clean();
+if(strpos($html,'id="ship-calendar"')!==false){fwrite(STDERR,"Calendar content leaked into stock tab.\n");exit(1);}
+if(strpos($html,'name="tab" value="stock"')===false){fwrite(STDERR,"Selecting a forecast event loses the stock tab.\n");exit(1);}
 foreach([
  'Fixture supplier shutdown',
  'Example product A',
@@ -60,3 +75,17 @@ if(strpos($html,'10 incoming with unconfirmed/late ETA (excluded)')===false){
  fwrite(STDERR,"Undated supplier stock was not flagged.\n");exit(1);
 }
 echo "PASS: real net fridge stock, on-time supplier units, dynamic disruption cover, recurring demand and uncounted product warning.\n";
+
+$_GET=['view'=>'shipping','mode'=>'event','event'=>$id];
+ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
+$detail=ob_get_clean();
+if(strpos($detail,'Information &amp; shipping impact')===false||strpos($detail,'<nav class="ship-view-tabs"')!==false){
+ fwrite(STDERR,"Event detail screen failed its isolated navigation.\n");exit(1);
+}
+$_GET=['view'=>'shipping','mode'=>'manage','event'=>$id];
+ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
+$manage=ob_get_clean();
+if(strpos($manage,'Manage disruption calendar')===false||strpos($manage,'<nav class="ship-view-tabs"')!==false||strpos($manage,'class="ship-product-card"')!==false){
+ fwrite(STDERR,"Calendar editing should use its own screen.\n");exit(1);
+}
+echo "PASS: calendar-first mobile workspace, isolated stock forecast, full event details and separate editing page.\n";
