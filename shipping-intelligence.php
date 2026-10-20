@@ -70,7 +70,35 @@ $shipAtRisk=count(array_filter($shipRows,static fn($r)=>$r['gap']>0));
 .ship-page .ship-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.ship-page .ship-form label{min-width:130px;flex:1;margin:0;color:#c7c6c2}.ship-page .ship-form select{margin-top:8px}
 .ship-page .ship-form button{min-height:48px}.ship-page .ship-empty{color:var(--ship-muted);padding:12px 0}.ship-page .ship-foot{color:var(--ship-muted);font-size:12px;line-height:1.6;margin:10px 0}
 @media(max-width:600px){.ship-page .ship-card{padding:17px}.ship-page .ship-head{align-items:start}.ship-page .ship-grid{gap:9px}.ship-page .ship-grid .ship-card{padding:15px}.ship-page .ship-form button{width:100%}}
-.ship-page .ship-editor{border-top:1px solid #39393a;padding:4px 0}.ship-page .ship-editor summary{padding:15px 2px;min-height:54px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:650;font-size:14px;cursor:pointer}.ship-page .ship-editor summary small{font-size:12px;color:#aaa;display:block;font-weight:400;margin-top:4px}.ship-page .ship-edit-form{padding:12px 0}.ship-page .ship-edit-form label{margin:0 0 13px;font-size:13px;color:#d6d3cd}.ship-page .ship-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ship-page .ship-remove{background:#352425;color:#ffbdba;border:1px solid #6a4545;margin:0 0 14px;min-height:45px}@media(max-width:420px){.ship-page .ship-two{grid-template-columns:1fr}}\n.ship-page .ship-event-link{text-decoration:none;color:inherit;align-items:center;min-height:86px}.ship-page .ship-event-link:active{background:#262626}.ship-page .ship-manage-link{width:100%;margin-top:20px}.ship-page .ship-full-notes{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;font-size:15px;color:#e7e3db;padding:17px;background:#141515;border-radius:12px;margin-bottom:23px}.ship-page .ship-detail-title{font-size:27px;margin:17px 0}.ship-page .ship-date-span{padding:14px 0 24px;color:#e4cb91}.ship-page .ship-back{color:#dfb666;text-decoration:none;font-size:14px}.ship-page .ship-event-link .ship-row-info{display:block}.ship-page .ship-edit-form textarea{min-height:175px;resize:vertical}\n</style>
+.ship-page .ship-editor{border-top:1px solid #39393a;padding:4px 0}.ship-page .ship-editor summary{padding:15px 2px;min-height:54px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:650;font-size:14px;cursor:pointer}.ship-page .ship-editor summary small{font-size:12px;color:#aaa;display:block;font-weight:400;margin-top:4px}.ship-page .ship-edit-form{padding:12px 0}.ship-page .ship-edit-form label{margin:0 0 13px;font-size:13px;color:#d6d3cd}.ship-page .ship-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ship-page .ship-remove{background:#352425;color:#ffbdba;border:1px solid #6a4545;margin:0 0 14px;min-height:45px}@media(max-width:420px){.ship-page .ship-two{grid-template-columns:1fr}}\n.ship-page .ship-event-link{text-decoration:none;color:inherit;align-items:center;min-height:86px}.ship-page .ship-event-link:active{background:#262626}.ship-page .ship-manage-link{width:100%;margin-top:20px}.ship-page .ship-full-notes{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;font-size:15px;color:#e7e3db;padding:17px;background:#141515;border-radius:12px;margin-bottom:23px}.ship-page .ship-detail-title{font-size:27px;margin:17px 0}.ship-page .ship-date-span{padding:14px 0 24px;color:#e4cb91}.ship-page .ship-back{color:#dfb666;text-decoration:none;font-size:14px}.ship-page .ship-event-link .ship-row-info{display:block}.ship-page .ship-edit-form textarea{min-height:175px;resize:vertical}\n/* Isolated, accessible iPhone calendar cards: text links have no underline. */
+.ship-page .ship-calendar-panel{background:#18191b;border-color:#2b2d31;padding:21px}
+.ship-page .ship-calendar-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:20px}
+.ship-page .ship-calendar-intro h2{font-size:21px;line-height:1.25;margin:0 0 7px;font-weight:750;color:#f4efe2}
+.ship-page .ship-calendar-intro .ship-sub{max-width:44ch;line-height:1.55}
+.ship-page .ship-count{white-space:nowrap;font-size:11px;font-weight:650;color:#d6be83;background:#2e291e;border:1px solid #4f432b;padding:6px 9px;border-radius:30px}
+.ship-page .ship-event-tiles{display:grid;grid-template-columns:1fr;gap:11px;margin-top:16px}
+.ship-page a.ship-event-tile,.ship-page a.ship-event-tile:link,.ship-page a.ship-event-tile:visited{display:block;min-width:0;background:#222326;border:1px solid #373a3e;border-radius:17px;padding:16px 17px;color:#eeeae2!important;text-decoration:none!important;-webkit-text-decoration:none!important;box-shadow:0 2px 12px #0002;transition:border-color .15s,background-color .15s,transform .15s}
+.ship-page a.ship-event-tile *,.ship-page a.ship-event-tile:visited *{text-decoration:none!important;-webkit-text-decoration:none!important}
+.ship-page a.ship-event-tile:hover,.ship-page a.ship-event-tile:focus-visible{background:#28292c;border-color:#a1864d}
+.ship-page a.ship-event-tile:active{background:#2f2b24;transform:scale(.995)}
+.ship-page .ship-event-tile-top{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:26px;margin-bottom:12px}
+.ship-page .ship-event-tile-date{display:block;color:#e8c77d;font-size:12px;font-weight:750;letter-spacing:.3px;white-space:nowrap}
+.ship-page .ship-risk-chip{display:inline-flex;align-items:center;justify-content:center;flex:none;white-space:nowrap;border:1px solid #666;border-radius:100px;font-size:11px;line-height:1.2;font-weight:650;color:#dedede;padding:6px 9px}
+.ship-page .ship-risk-chip.critical,.ship-page .ship-risk-chip.high{border-color:#85514d;color:#f4c4bd;background:#402725}
+.ship-page .ship-risk-chip.medium{border-color:#8b714b;color:#f5d6a0;background:#403323}
+.ship-page .ship-risk-chip.low{border-color:#437565;color:#b3ead5;background:#22372f}
+.ship-page .ship-event-tile-title{display:flex;align-items:flex-start;gap:12px;justify-content:space-between}
+.ship-page .ship-event-tile-title h3{font-size:18px;line-height:1.35;letter-spacing:-.25px;font-weight:750;color:#f8f4ea;margin:0;overflow-wrap:anywhere;min-width:0;flex:1}
+.ship-page .ship-tile-chevron{font-size:25px;line-height:1;flex:none;color:#d9b56f;padding-top:1px}
+.ship-page .ship-event-preview{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.55;max-height:3.1em;color:#b6b6b8;font-size:13px;margin:9px 0 13px;overflow-wrap:anywhere}
+.ship-page .ship-event-tile-bottom{padding-top:10px;border-top:1px solid #383a3c;display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:11px;line-height:1.4;color:#a4a7a9}
+.ship-page .ship-read-more{color:#e7c987;font-weight:700;white-space:nowrap}
+.ship-page .ship-read-more span{margin-left:3px;font-size:13px}
+.ship-page .ship-calendar-panel>.ship-foot{margin-top:17px}
+.ship-page .ship-calendar-panel .ship-manage-link{margin-top:15px;display:flex;text-decoration:none!important}
+@media(max-width:600px){.ship-page .ship-calendar-panel{padding:14px}.ship-page a.ship-event-tile{padding:15px}.ship-page .ship-calendar-intro{padding:4px 2px 0}.ship-page .ship-calendar-intro h2{font-size:20px}.ship-page .ship-count{font-size:10px}.ship-page .ship-event-tile-title h3{font-size:17px}.ship-page .ship-event-preview{font-size:13px}}
+@media(prefers-reduced-motion:reduce){.ship-page a.ship-event-tile{transition:none}}
+</style>
 <div class="ship-page">
 <?php if(!in_array((string)($_GET['mode']??''),['manage','event'],true)): ?>
  <div class="ship-head"><div><div class="ship-kicker">Operations / Shipping</div><h1>Shipping Intelligence</h1><p class="ship-sub">China → United Kingdom · supplier disruption planning</p></div><a class="ship-action ship-secondary" href="?view=more" aria-label="Back to More">← More</a></div>
@@ -122,11 +150,28 @@ $shipAtRisk=count(array_filter($shipRows,static fn($r)=>$r['gap']>0));
 <details class="ship-editor"><summary>Restore default events</summary><p class="ship-sub">This will remove your custom events and revert all edits.</p><form method="post" action="?view=shipping&amp;mode=manage" onsubmit="return confirm('Reset all calendar changes?')"><input type="hidden" name="csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="ship_reset"><button class="ship-remove" type="submit">Restore original calendar</button></form></details>
 </section>
 <?php else:?>
-<section class="ship-card" id="ship-calendar"><h2>Upcoming holidays &amp; disruptions</h2><p class="ship-sub">Tap any event to read its full information.</p>
-<?php foreach($shipUpcoming as $ev):?><a class="ship-row ship-event-link" href="?view=shipping&amp;mode=event&amp;event=<?=rawurlencode($ev['id'])?>"><span class="ship-date"><?=e(strtoupper(date('d M',strtotime($ev['date']))))?></span><span class="ship-row-info"><span class="ship-topline"><strong><?=e($ev['name'])?></strong><span class="ship-pill <?=e($ev['risk'])?>"><?=e(ucfirst($ev['risk']))?></span></span><small><?=e(mb_strimwidth((string)($ev['detail']??''),0,110,'…'))?></small><span class="ship-event-badges"><span><?=e($ev['status'])?></span><span> · through <?=e(date('j M Y',strtotime($ev['end'])))?></span></span></span><span aria-hidden="true">›</span></a><?php endforeach;?>
-<?php if(!$shipUpcoming):?><p class="ship-empty">No upcoming events. Add one in Calendar Management.</p><?php endif;?>
-<p class="ship-foot">Planning estimates are not confirmed supplier closure dates.</p>
-<a class="ship-action ship-secondary ship-manage-link" href="?view=shipping&amp;mode=manage">✎ Edit disruption calendar →</a></section>
+<section class="ship-card ship-calendar-panel" id="ship-calendar">
+ <div class="ship-calendar-intro">
+  <div><h2>Upcoming disruptions</h2><p class="ship-sub">Select an event to see the full dates, notes and shipping impact.</p></div>
+  <span class="ship-count"><?=count($shipUpcoming)?> events</span>
+ </div>
+ <div class="ship-event-tiles">
+ <?php foreach($shipUpcoming as $ev):?>
+ <a class="ship-event-tile" href="?view=shipping&amp;mode=event&amp;event=<?=rawurlencode($ev['id'])?>" aria-label="Read <?=e($ev['name'])?> event details">
+  <div class="ship-event-tile-top">
+   <span class="ship-event-tile-date"><?=e(date('j M Y',strtotime($ev['date'])))?></span>
+   <span class="ship-risk-chip <?=e($ev['risk'])?>"><?=e($ev['risk']==='critical'?'Very high':ucfirst($ev['risk']))?> risk</span>
+  </div>
+  <div class="ship-event-tile-title"><h3><?=e($ev['name'])?></h3><span class="ship-tile-chevron" aria-hidden="true">›</span></div>
+  <p class="ship-event-preview"><?=e((string)($ev['detail']??'No additional details recorded yet.'))?></p>
+  <div class="ship-event-tile-bottom"><span>Until <?=e(date('j M Y',strtotime($ev['end'])))?></span><span class="ship-read-more">View details <span aria-hidden="true">↗</span></span></div>
+ </a>
+ <?php endforeach;?>
+ <?php if(!$shipUpcoming):?><p class="ship-empty">No upcoming events. Add one in Calendar Management.</p><?php endif;?>
+ </div>
+ <p class="ship-foot">Holiday dates and disruption estimates may differ from your supplier's confirmed closure schedule.</p>
+ <a class="ship-action ship-secondary ship-manage-link" href="?view=shipping&amp;mode=manage">✎ Edit disruption calendar →</a>
+ </section>
 <?php endif;?>
 <section class="ship-card"><h2>Supplier &amp; shipment tools</h2><p class="ship-sub">Keep purchasing and stock receipts within your existing system — no duplicated order records.</p><p style="display:flex;flex-wrap:wrap;gap:9px;margin-top:15px"><a class="ship-action" href="?view=supplier">Supplier Centre →</a><a class="ship-action ship-secondary" href="?view=stock&amp;section=incoming">Incoming stock →</a><a class="ship-action ship-secondary" href="?view=supplies">Business Supplies →</a></p></section>
 </div>
