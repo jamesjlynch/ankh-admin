@@ -10,6 +10,21 @@ $shippingEvents=[
  ['date'=>'2027-04-03','end'=>'2027-04-05','name'=>'Qingming Festival','detail'=>'Anticipated holiday period; dates subject to the official Chinese timetable.','risk'=>'medium','status'=>'provisional'],
  ['date'=>'2027-05-01','end'=>'2027-05-05','name'=>'Labour Day planning window','detail'=>'Provisional impact period; verify official closure dates.','risk'=>'medium','status'=>'provisional']
 ];
+$shipCalendarDefaults=$shippingEvents;$shipEditsRaw=$db->query("SELECT value FROM settings WHERE key='shipping_calendar_edits'")->fetchColumn();
+$shipEdits=is_string($shipEditsRaw)?json_decode($shipEditsRaw,true):[];
+if(!is_array($shipEdits))$shipEdits=[];
+$shippingEvents=[];
+foreach($shipCalendarDefaults as $idx=>$default){
+ $id='default-'.$idx;$override=$shipEdits[$id]??[];
+ if(!empty($override['deleted']))continue;
+ $shippingEvents[]=array_replace($default,is_array($override)?$override:[],['id'=>$id]);
+}
+foreach($shipEdits as $id=>$event){
+ if(!str_starts_with((string)$id,'custom-')||!is_array($event)||!empty($event['deleted']))continue;
+ if(!isset($event['date'],$event['end'],$event['name'],$event['risk']))continue;
+ $shippingEvents[]=$event+['id'=>$id,'detail'=>'','status'=>'manually managed'];
+}
+usort($shippingEvents,static fn($a,$b)=>strcmp($a['date'],$b['date']));
 $shipToday=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));
 $shipUpcoming=array_values(array_filter($shippingEvents,static fn($event)=>$event['end'] >= $shipToday->format('Y-m-d')));
 $shipNext=$shipUpcoming[0]??null;
@@ -55,7 +70,7 @@ $shipAtRisk=count(array_filter($shipRows,static fn($r)=>$r['gap']>0));
 .ship-page .ship-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap}.ship-page .ship-form label{min-width:130px;flex:1;margin:0;color:#c7c6c2}.ship-page .ship-form select{margin-top:8px}
 .ship-page .ship-form button{min-height:48px}.ship-page .ship-empty{color:var(--ship-muted);padding:12px 0}.ship-page .ship-foot{color:var(--ship-muted);font-size:12px;line-height:1.6;margin:10px 0}
 @media(max-width:600px){.ship-page .ship-card{padding:17px}.ship-page .ship-head{align-items:start}.ship-page .ship-grid{gap:9px}.ship-page .ship-grid .ship-card{padding:15px}.ship-page .ship-form button{width:100%}}
-</style>
+.ship-page .ship-editor{border-top:1px solid #39393a;padding:4px 0}.ship-page .ship-editor summary{padding:15px 2px;min-height:54px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-weight:650;font-size:14px;cursor:pointer}.ship-page .ship-editor summary small{font-size:12px;color:#aaa;display:block;font-weight:400;margin-top:4px}.ship-page .ship-edit-form{padding:12px 0}.ship-page .ship-edit-form label{margin:0 0 13px;font-size:13px;color:#d6d3cd}.ship-page .ship-two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ship-page .ship-remove{background:#352425;color:#ffbdba;border:1px solid #6a4545;margin:0 0 14px;min-height:45px}@media(max-width:420px){.ship-page .ship-two{grid-template-columns:1fr}}\n</style>
 <div class="ship-page">
  <div class="ship-head"><div><div class="ship-kicker">Operations / Shipping</div><h1>Shipping Intelligence</h1><p class="ship-sub">China → United Kingdom · supplier disruption planning</p></div><a class="ship-action ship-secondary" href="?view=more" aria-label="Back to More">← More</a></div>
  <?php if($shipNext):?>
@@ -71,7 +86,30 @@ $shipAtRisk=count(array_filter($shipRows,static fn($r)=>$r['gap']>0));
  <div class="ship-row"><div class="ship-row-info"><div class="ship-topline"><strong><?=e($sr['name'])?></strong><span class="ship-pill <?=$risk?>"><?=$sr['gap']>0?'Review reorder':'Covered'?></span></div><small><?=$sr['available']?> available · <?=$sr['target']?> estimated required · <?=$sr['recent']?> sold in <?=$shipLookback?> days<?php if($sr['recurring']):?> · <?=$sr['recurring']?> upcoming recurring<?php endif;?></small><div class="ship-bar"><span style="width:<?=min(100,$sr['target']>0?100*$sr['available']/$sr['target']:100)?>%"></span></div><small><?=$sr['order']>0?'Consider ordering '.$sr['order'].' units (pack size '.$sr['pack'].')':'No additional units indicated'?></small></div></div>
  <?php endforeach;?>
  <a class="ship-action" href="?view=reorder">Open full Reorder Planner →</a><p class="ship-foot">Planning estimates only. Available stock is already net of reservations; do not subtract reserved quantities twice. Incoming stock and expiry dates must be checked before ordering. Factory shutdown dates and customs holds are not live-tracked.</p></section>
- <section class="ship-card"><h2>Upcoming holidays &amp; disruptions</h2>
+ <section class="ship-card" id="ship-calendar"><div class="ship-topline"><h2>Edit disruption calendar</h2><span class="ship-pill">Saved for both owners</span></div>
+<p class="ship-sub">Add supplier shutdowns or change existing dates. Removed suggestions stay hidden until you restore the original calendar. All dates are editable.</p>
+<?php if(isset($_GET['calendar'])&&$_GET['calendar']==='saved'):?><p class="success">Calendar updated successfully.</p><?php endif;?>
+<details class="ship-editor"><summary>＋ Add a new disruption</summary><form method="post" action="?view=shipping#ship-calendar" class="ship-edit-form">
+<input type="hidden" name="csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="ship_save"><input type="hidden" name="event_id" value="new">
+<label>Event name<input required maxlength="100" name="name" placeholder="Supplier factory closure"></label>
+<div class="ship-two"><label>Start date<input type="date" required name="date"></label><label>End date<input type="date" required name="end"></label></div>
+<label>Disruption risk<select name="risk"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Very high</option></select></label>
+<label>Notes<textarea name="detail" maxlength="400" placeholder="Factory closing and reopening arrangements"></textarea></label><button type="submit">Save new event</button></form></details>
+<?php foreach($shippingEvents as $editEvent):?>
+<details class="ship-editor"><summary><span><?=e($editEvent['name'])?><small><?=e(date('j M Y',strtotime($editEvent['date'])))?> – <?=e(date('j M Y',strtotime($editEvent['end'])))?></small></span><span class="ship-pill <?=e($editEvent['risk'])?>">Edit</span></summary>
+<form method="post" action="?view=shipping#ship-calendar" class="ship-edit-form">
+<input type="hidden" name="csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="ship_save"><input type="hidden" name="event_id" value="<?=e($editEvent['id'])?>">
+<label>Event name<input required maxlength="100" name="name" value="<?=e($editEvent['name'])?>"></label>
+<div class="ship-two"><label>Start date<input required type="date" name="date" value="<?=e($editEvent['date'])?>"></label><label>End date<input required type="date" name="end" value="<?=e($editEvent['end'])?>"></label></div>
+<label>Risk<select name="risk"><?php foreach(['low'=>'Low','medium'=>'Medium','high'=>'High','critical'=>'Very high'] as $rv=>$rl):?><option value="<?=e($rv)?>" <?=$editEvent['risk']===$rv?'selected':''?>><?=e($rl)?></option><?php endforeach;?></select></label>
+<label>Notes<textarea name="detail" maxlength="400"><?=e($editEvent['detail']??'')?></textarea></label><button type="submit">Save changes</button></form>
+<form method="post" action="?view=shipping#ship-calendar" onsubmit="return confirm('Remove this disruption from your calendar?')">
+<input type="hidden" name="csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="ship_delete"><input type="hidden" name="event_id" value="<?=e($editEvent['id'])?>">
+<button class="ship-remove" type="submit">Remove event</button></form></details>
+<?php endforeach;?>
+<details class="ship-editor"><summary>Restore original calendar</summary><p class="ship-sub">This resets all custom events, edited dates and removed events to the original suggestions.</p>
+<form method="post" action="?view=shipping#ship-calendar" onsubmit="return confirm('Reset every calendar change and remove all custom disruptions?')"><input type="hidden" name="csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="ship_reset"><button type="submit" class="ship-remove">Restore original suggestions</button></form></details></section>
+<section class="ship-card"><h2>Upcoming holidays &amp; disruptions</h2>
  <?php foreach($shipUpcoming as $ev):?><div class="ship-row"><div class="ship-date"><?=e(strtoupper(date('d M',strtotime($ev['date']))))?></div><div class="ship-row-info"><div class="ship-topline"><strong><?=e($ev['name'])?></strong><span class="ship-pill <?=e($ev['risk'])?>"><?=e($ev['risk'])?></span></div><small><?=e($ev['detail'])?></small><div class="ship-event-badges"><span><?=e($ev['status'])?></span><span>· through <?=e(date('j M Y',strtotime($ev['end'])))?></span></div></div></div><?php endforeach;?>
  <p class="ship-foot">Provisional dates and disruption windows are marked as such. Confirm official public-holiday schedules and individual supplier closures before relying on them.</p></section>
  <section class="ship-card"><h2>Supplier &amp; shipment tools</h2><p class="ship-sub">Keep purchasing and stock receipts within your existing system — no duplicated order records.</p><p style="display:flex;flex-wrap:wrap;gap:9px;margin-top:15px"><a class="ship-action" href="?view=supplier">Supplier Centre →</a><a class="ship-action ship-secondary" href="?view=stock&amp;section=incoming">Incoming stock →</a><a class="ship-action ship-secondary" href="?view=supplies">Business Supplies →</a></p></section>
