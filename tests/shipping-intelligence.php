@@ -5,12 +5,12 @@ declare(strict_types=1);
 date_default_timezone_set('Europe/London');
 $_SESSION=['csrf'=>'shipping-test'];
 $now=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));
-$id='custom-1234567890abcdef';
-$_GET=['view'=>'shipping','forecast_event'=>$id];
+$eventId='custom-1234567890abcdef';
+$_GET=['view'=>'shipping','forecast_event'=>$eventId];
 $db=new PDO('sqlite::memory:');
 $db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
 $db->exec('CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
-$events=[$id=>[
+$events=[$eventId=>[
  'date'=>$now->modify('+45 days')->format('Y-m-d'),
  'end'=>$now->modify('+55 days')->format('Y-m-d'),
  'name'=>'Fixture supplier shutdown','risk'=>'high','detail'=>'Factory closed for test','status'=>'manually managed'
@@ -50,7 +50,7 @@ foreach(['class="ship-product-card"','class="ship-card ship-forecast-card"'] as 
 if(strpos($calendar,'id="ship-calendar"')===false){fwrite(STDERR,"Calendar tab is not the default.\n");exit(1);}
 
 // The separate stock tab must show the same underlying automatic forecast.
-$_GET=['view'=>'shipping','tab'=>'stock','forecast_event'=>$id];
+$_GET=['view'=>'shipping','tab'=>'stock','forecast_event'=>$eventId];
 ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
 $html=ob_get_clean();
 if(strpos($html,'id="ship-calendar"')!==false){fwrite(STDERR,"Calendar content leaked into stock tab.\n");exit(1);}
@@ -76,13 +76,13 @@ if(strpos($html,'10 incoming with unconfirmed/late ETA (excluded)')===false){
 }
 echo "PASS: real net fridge stock, on-time supplier units, dynamic disruption cover, recurring demand and uncounted product warning.\n";
 
-$_GET=['view'=>'shipping','mode'=>'event','event'=>$id];
+$_GET=['view'=>'shipping','mode'=>'event','event'=>$eventId];
 ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
 $detail=ob_get_clean();
 if(strpos($detail,'Information &amp; shipping impact')===false||strpos($detail,'<nav class="ship-view-tabs"')!==false){
  fwrite(STDERR,"Event detail screen failed its isolated navigation.\n");exit(1);
 }
-$_GET=['view'=>'shipping','mode'=>'manage','event'=>$id];
+$_GET=['view'=>'shipping','mode'=>'manage','event'=>$eventId];
 ob_start();require dirname(__DIR__).'/shipping-intelligence.php';
 $manage=ob_get_clean();
 if(strpos($manage,'Manage disruption calendar')===false||strpos($manage,'<nav class="ship-view-tabs"')!==false||strpos($manage,'class="ship-product-card"')!==false){
