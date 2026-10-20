@@ -29,6 +29,14 @@ CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, credential_id TEXT NOT NULL UNIQUE, public_key_pem TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT "Passkey", created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, amount INTEGER NOT NULL CHECK(amount>0), method TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS business_supply_items (
+ id INTEGER PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL, specification TEXT NOT NULL DEFAULT "",
+ supplier TEXT NOT NULL DEFAULT "", product_url TEXT NOT NULL DEFAULT "", backup_supplier TEXT NOT NULL DEFAULT "", backup_url TEXT NOT NULL DEFAULT "",
+ usual_quantity INTEGER NOT NULL DEFAULT 1 CHECK(usual_quantity>0), usual_cost INTEGER DEFAULT NULL CHECK(usual_cost>=0),
+ stock_level TEXT NOT NULL DEFAULT "Enough", stock_note TEXT NOT NULL DEFAULT "", requested_by TEXT NOT NULL DEFAULT "", owner TEXT NOT NULL DEFAULT "",
+ notes TEXT NOT NULL DEFAULT "", active INTEGER NOT NULL DEFAULT 1, revision INTEGER NOT NULL DEFAULT 1,
+ request_key TEXT NOT NULL UNIQUE, created TEXT NOT NULL, updated TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS business_supplies (
  id INTEGER PRIMARY KEY, item TEXT NOT NULL, category TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0),
  supplier TEXT NOT NULL, reference TEXT NOT NULL DEFAULT "", ordered_date TEXT NOT NULL, expected_date TEXT NOT NULL DEFAULT "",
@@ -59,6 +67,13 @@ CREATE TABLE IF NOT EXISTS reta_cycles (
  ended_at TEXT NOT NULL DEFAULT "",
  end_reason TEXT NOT NULL DEFAULT ""
 );');
+$supplyColumns=array_column($db->query('PRAGMA table_info(business_supplies)')->fetchAll(PDO::FETCH_ASSOC),'name');
+if(!in_array('cupboard_id',$supplyColumns,true))$db->exec('ALTER TABLE business_supplies ADD COLUMN cupboard_id INTEGER DEFAULT NULL REFERENCES business_supply_items(id)');
+if(!in_array('received_quantity',$supplyColumns,true)){
+ $db->exec('ALTER TABLE business_supplies ADD COLUMN received_quantity INTEGER NOT NULL DEFAULT 0');
+ $db->exec("UPDATE business_supplies SET received_quantity=quantity WHERE status='Received'");
+}
+$db->exec('CREATE INDEX IF NOT EXISTS business_supplies_cupboard ON business_supplies(cupboard_id,status)');
 $orderColumns=$db->query('PRAGMA table_info(orders)')->fetchAll(PDO::FETCH_ASSOC);
 if(!in_array('referrer',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN referrer TEXT NOT NULL DEFAULT ''");
 if(!in_array('presentation',array_column($orderColumns,'name'),true))$db->exec("ALTER TABLE orders ADD COLUMN presentation TEXT NOT NULL DEFAULT ''");
@@ -2102,7 +2117,62 @@ function supplyUrl(string $value):string{
  if(strlen($value)>2000||!filter_var($value,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($value,PHP_URL_SCHEME)),['http','https'],true))throw new Exception('Use a complete http or https link for the product or tracking.');
  return $value;
 }
-function saveBusinessSupply(PDO $db,array $input):int{
+function saveSupplyCupboard(PDO $db,array $input):int{
+ $text=static function(string $key,int $limit=200)use($input):string{$v=trim((string)($input[$key]??''));if(strlen($v)>$limit)throw new Exception('Check the length of '.str_replace('_',' ',$key).'.');return $v;};
+ $name=$text('name');$category=$text('category');$level=$text('stock_level');$who=$text('requested_by');
+ if($name===''||!in_array($category,supplyCategories(),true)||!in_array($level,['Enough','Running low','Out'],true)||!in_array($who,['','Jay','Tony'],true))throw new Exception('Enter an item name and choose a valid category, stock level and partner.');
+ $quantity=filter_var($input['usual_quantity']??1,FILTER_VALIDATE_INT);if($quantity===false||$quantity<1||$quantity>100000)throw new Exception('Enter a usual quantity between 1 and 100,000.');
+ $raw=$text('usual_cost');if($raw!==''&&!preg_match('/^\d{1,6}(?:\.\d{1,2})?$/',$raw))throw new Exception('Enter the usual items total in pounds and pence.');
+ $cost=$raw===''?null:postedMoneyPence($raw,'usual items total');
+ $values=[$name,$category,$text('specification',1000),$text('supplier'),supplyUrl($text('product_url',2000)),$text('backup_supplier'),supplyUrl($text('backup_url',2000)),$quantity,$cost,$level,$text('stock_note',500),$who,$text('notes',4000)];
+ $id=(int)($input['id']??0);$now=date('c');
+ if($id>0){
+  $q=$db->prepare('UPDATE business_supply_items SET name=?,category=?,specification=?,supplier=?,product_url=?,backup_supplier=?,backup_url=?,usual_quantity=?,usual_cost=?,stock_level=?,stock_note=?,requested_by=?,notes=?,updated=?,revision=revision+1 WHERE id=? AND revision=? AND active=1');$q->execute([...$values,$now,$id,(int)($input['revision']??0)]);
+  if($q->rowCount()!==1)throw new Exception('This supply changed while you were editing. Refresh and reopen it.');
+ }else{
+  $key=$text('request_key');if(!preg_match('/^[a-f0-9]{32}$/',$key))throw new Exception('Refresh the supply form and try again.');
+  $q=$db->prepare('INSERT INTO business_supply_items(name,category,specification,supplier,product_url,backup_supplier,backup_url,usual_quantity,usual_cost,stock_level,stock_note,requested_by,notes,request_key,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_key) DO NOTHING');$q->execute([...$values,$key,$now,$now]);
+  $q=$db->prepare('SELECT id FROM business_supply_items WHERE request_key=?');$q->execute([$key]);$id=(int)$q->fetchColumn();
+ }
+ return $id;
+}
+function changeSupplyCupboard(PDO $db,array $input):void{
+ $id=(int)($input['cupboard_id']??0);$revision=(int)($input['cupboard_revision']??0);$operation=(string)($input['operation']??'');
+ $q=$db->prepare('SELECT * FROM business_supply_items WHERE id=?');$q->execute([$id]);$item=$q->fetch(PDO::FETCH_ASSOC);
+ if(!$item||(int)$item['revision']!==$revision)throw new Exception('This supply changed. Refresh before updating it.');
+ if(!(int)$item['active']&&$operation!=='restore')throw new Exception('Restore this supply before updating it.');
+ $owner=$item['owner'];$level=$item['stock_level'];$active=1;
+ if($operation==='level'){$level=(string)($input['stock_level']??'');if(!in_array($level,['Enough','Running low','Out'],true))throw new Exception('Choose a valid stock level.');}
+ elseif($operation==='claim'){
+  $owner=(string)($input['owner']??'');if(!in_array($owner,['Jay','Tony'],true))throw new Exception('Choose who is ordering.');
+  if($item['owner']!=='')throw new Exception($item['owner'].' is already handling this. Release their claim before assigning it again.');
+  $q=$db->prepare("SELECT COUNT(*) FROM business_supplies WHERE cupboard_id=? AND status IN ('Ordered','Dispatched')");$q->execute([$id]);if((int)$q->fetchColumn()>0)throw new Exception('This supply is already on the way. Check its purchase first.');
+ }
+ elseif($operation==='release')$owner='';
+ elseif($operation==='archive'){
+  $q=$db->prepare("SELECT COUNT(*) FROM business_supplies WHERE cupboard_id=? AND status IN ('Ordered','Dispatched')");$q->execute([$id]);if((int)$q->fetchColumn()>0||$owner!=='')throw new Exception('Finish or cancel its purchase and release its claim before archiving.');$active=0;
+ }elseif($operation==='restore')$active=1;
+ else throw new Exception('Choose a valid supply action.');
+ $q=$db->prepare("UPDATE business_supply_items SET stock_level=?,owner=?,active=?,stock_note=CASE WHEN ?='level' THEN '' ELSE stock_note END,revision=revision+1,updated=? WHERE id=? AND revision=?");$q->execute([$level,$owner,$active,$operation,date('c'),$id,$revision]);if($q->rowCount()!==1)throw new Exception('This supply changed. Refresh before updating it.');
+}
+function receiveBusinessSupply(PDO $db,array $input):void{
+ $db->beginTransaction();try{
+  $q=$db->prepare('SELECT * FROM business_supplies WHERE id=?');$q->execute([(int)($input['purchase_id']??0)]);$p=$q->fetch(PDO::FETCH_ASSOC);
+  if(!$p||(int)$p['revision']!==(int)($input['purchase_revision']??0)||!in_array($p['status'],['Ordered','Dispatched'],true))throw new Exception('This purchase changed. Refresh before checking it in.');
+  $received=filter_var($input['received_quantity']??'',FILTER_VALIDATE_INT);$remaining=(int)$p['quantity']-(int)$p['received_quantity'];
+  if($received===false||$received<1||$received>$remaining)throw new Exception('Check the quantity received against the amount still due.');
+  $total=(int)$p['received_quantity']+$received;$status=$total===(int)$p['quantity']?'Received':'Dispatched';$now=date('c');
+  $db->prepare('UPDATE business_supplies SET received_quantity=?,status=?,revision=revision+1,updated=? WHERE id=?')->execute([$total,$status,$now,(int)$p['id']]);
+  if($p['cupboard_id']){
+   $level=(string)($input['stock_level']??'');$note=trim((string)($input['stock_note']??''));if(!in_array($level,['Enough','Running low','Out'],true)||strlen($note)>500)throw new Exception('Choose the cupboard level after this delivery and a short stock note.');
+   $q=$db->prepare("SELECT COUNT(*) FROM business_supplies WHERE cupboard_id=? AND status IN ('Ordered','Dispatched')");$q->execute([(int)$p['cupboard_id']]);$open=(int)$q->fetchColumn();
+   $q=$db->prepare('UPDATE business_supply_items SET stock_level=?,stock_note=?,owner=CASE WHEN CAST(? AS INTEGER)=0 THEN \'\' ELSE owner END,revision=revision+1,updated=? WHERE id=? AND revision=?');$q->execute([$level,$note,$open,$now,(int)$p['cupboard_id'],(int)($input['cupboard_revision']??0)]);
+   if($q->rowCount()!==1)throw new Exception('The cupboard entry changed. Refresh before checking in this delivery.');
+  }
+  $db->commit();
+ }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
+}
+function persistBusinessSupply(PDO $db,array $input):int{
  $text=static function(string $key,int $limit=200)use($input):string{$value=trim((string)($input[$key]??''));if(strlen($value)>$limit)throw new Exception('The '.str_replace('_',' ',$key).' is too long.');return $value;};
  $item=$text('item');$supplier=$text('supplier');$category=$text('category');$status=$text('status');$payment=$text('payment_status');
  if($item===''||$supplier==='')throw new Exception('Enter what you ordered and the supplier.');
@@ -2127,6 +2197,41 @@ function saveBusinessSupply(PDO $db,array $input):int{
   $q=$db->prepare('SELECT id FROM business_supplies WHERE request_key=?');$q->execute([$key]);$id=(int)$q->fetchColumn();
  }
  return $id;
+}
+function saveBusinessSupply(PDO $db,array $input):int{
+ $db->beginTransaction();try{
+  $id=(int)($input['id']??0);$existing=null;$duplicate=false;
+  if($id>0){$q=$db->prepare('SELECT * FROM business_supplies WHERE id=?');$q->execute([$id]);$existing=$q->fetch(PDO::FETCH_ASSOC);if(!$existing)throw new Exception('Purchase not found.');}
+  else{$q=$db->prepare('SELECT * FROM business_supplies WHERE request_key=?');$q->execute([(string)($input['request_key']??'')]);$duplicate=$q->fetch(PDO::FETCH_ASSOC);if($duplicate){$db->commit();return (int)$duplicate['id'];}}
+  $cupboardId=(int)($existing['cupboard_id']??($input['cupboard_id']??0));
+  if($existing&&(int)($input['quantity']??0)<(int)$existing['received_quantity'])throw new Exception('Quantity cannot be less than the amount already received.');
+  if($existing&&(int)$existing['received_quantity']>0&&(int)($input['quantity']??0)===(int)$existing['received_quantity']&&in_array($input['status']??'',['Ordered','Dispatched'],true))throw new Exception('All of this purchase has arrived. Keep it Received or increase the ordered quantity.');
+  $cupboard=null;
+  if($cupboardId>0){
+   $q=$db->prepare('SELECT * FROM business_supply_items WHERE id=?');$q->execute([$cupboardId]);$cupboard=$q->fetch(PDO::FETCH_ASSOC);if(!$cupboard||(!$existing&&!(int)$cupboard['active']))throw new Exception('This cupboard item is unavailable.');
+   if(!$existing){
+    if((int)$cupboard['revision']!==(int)($input['cupboard_revision']??0))throw new Exception('This supply changed. Refresh and reopen Record purchase.');
+    $q=$db->prepare("SELECT COUNT(*) FROM business_supplies WHERE cupboard_id=? AND status IN ('Ordered','Dispatched')");$q->execute([$cupboardId]);if((int)$q->fetchColumn()>0)throw new Exception('This supply is already on the way. Open its existing purchase before ordering again.');
+   }
+  }
+  $id=persistBusinessSupply($db,$input);
+  $status=(string)$input['status'];$received=$status==='Received'?(int)$input['quantity']:(int)($existing['received_quantity']??0);
+  $db->prepare('UPDATE business_supplies SET cupboard_id=?,received_quantity=? WHERE id=?')->execute([$cupboardId?:null,$received,$id]);
+  if($cupboard){
+   $q=$db->prepare("SELECT COUNT(*) FROM business_supplies WHERE cupboard_id=? AND status IN ('Ordered','Dispatched')");$q->execute([$cupboardId]);$open=(int)$q->fetchColumn();
+   $db->prepare("UPDATE business_supply_items SET owner=CASE WHEN CAST(? AS INTEGER)=0 THEN '' ELSE owner END,revision=revision+1,updated=? WHERE id=?")->execute([$open,date('c'),$cupboardId]);
+  }
+  $db->commit();return $id;
+ }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
+}
+function saveSupplyItemWithSource(PDO $db,array $input):int{
+ $db->beginTransaction();try{
+  $source=(int)($input['source_purchase_id']??0);$purchase=null;
+  if($source>0){$q=$db->prepare('SELECT * FROM business_supplies WHERE id=?');$q->execute([$source]);$purchase=$q->fetch(PDO::FETCH_ASSOC);if(!$purchase||$purchase['cupboard_id']||(int)$purchase['revision']!==(int)($input['source_revision']??0))throw new Exception('This purchase changed or already has a cupboard item. Refresh before saving it.');}
+  $id=saveSupplyCupboard($db,$input);
+  if($purchase)$db->prepare('UPDATE business_supplies SET cupboard_id=?,revision=revision+1,updated=? WHERE id=?')->execute([$id,date('c'),$source]);
+  $db->commit();return $id;
+ }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
 }
 function supplySpending(array $rows,string $from='',string $to=''):array{
  $result=['paid'=>0,'refunded'=>0,'net'=>0,'unpaid'=>0,'ordered'=>0,'events'=>[]];
@@ -3014,6 +3119,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='business_supply_save')saveBusinessSupply($db,$_POST);
+  if($action==='supply_item_save')saveSupplyItemWithSource($db,$_POST);
+  if($action==='supply_item_change')changeSupplyCupboard($db,$_POST);
+  if($action==='supply_delivery_receive')receiveBusinessSupply($db,$_POST);
   if($action==='notification_state'){
    $notificationId=preg_replace('/[^a-zA-Z0-9:_\-.]/','',substr((string)($_POST['notification_id']??''),0,180));
    $stateAction=(string)($_POST['state_action']??'');$days=(int)($_POST['days']??1);
@@ -3472,6 +3580,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'order_backorder'=>(($_POST['back_order']??'')==='1')?'Order moved to back orders; stock released.':'Order moved to active orders; stock reserved.',
   'order_edit'=>'Order updated.',
   'business_supply_save'=>'Business supply purchase saved.',
+  'supply_item_save'=>'Supply saved to the shared cupboard.',
+  'supply_item_change'=>'Shared supply updated.',
+  'supply_delivery_receive'=>'Delivery checked in and cupboard updated.',
   'profit_settings'=>'Profit settings saved.',
   'order_delete'=>'Order deleted.',
   'order_dates'=>'Order dates updated.',
@@ -3521,6 +3632,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if($action==='order' && $savedOrderId>0 && (string)($_POST['back_order']??'')==='1'){header('Location: ./?view=orders&section=backorders');exit;}
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
  $returnView=(string)($_POST['return']??'orders');$returnSection=(string)($_POST['return_section']??'');
+ if($returnView==='supplies'&&in_array($returnSection,['cupboard','shopping','purchases'],true)){header('Location: ./?view=supplies&section='.$returnSection);exit;}
  if($action==='stock_fridge_counts'){
   $returnFilter=(($_POST['return_filter']??'')==='low')?'&filter=low':'';
   $returnFridge=in_array($_POST['return_fridge']??'combined',['combined','jay','tony'],true)?(string)($_POST['return_fridge']??'combined'):'combined';
@@ -5869,26 +5981,90 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php if($orderTarget>0):?><a href="?view=edit&amp;id=<?=$orderTarget?>">Order #<?=$orderTarget?> →</a><?php endif;?></article>
 <?php endforeach;?><?php if(!$activityRows):?><p class="muted">Activity tracking is ready. New changes will appear here.</p><?php endif;?></div></section>
 <?php elseif($view==='supplies'):
+ $supplySection=in_array($_GET['section']??'',['cupboard','shopping','purchases'],true)?(string)$_GET['section']:((isset($_GET['new'])||isset($_GET['edit'])||isset($_GET['status'])||isset($_GET['q'])||($_POST['action']??'')==='business_supply_save')?'purchases':'cupboard');
+ if(isset($_POST['return_section'])&&in_array($_POST['return_section'],['cupboard','shopping','purchases'],true))$supplySection=(string)$_POST['return_section'];
+ $cupboardItems=$db->query("SELECT * FROM business_supply_items ORDER BY CASE stock_level WHEN 'Out' THEN 0 WHEN 'Running low' THEN 1 ELSE 2 END,name COLLATE NOCASE,id")->fetchAll(PDO::FETCH_ASSOC);$cupboardById=[];$cupboardIncoming=[];$cupboardLast=[];
+ foreach($cupboardItems as $c)$cupboardById[(int)$c['id']]=$c;
+ foreach($businessSupplies as $p)if($p['cupboard_id']){$cid=(int)$p['cupboard_id'];if($p['status']!=='Cancelled')$cupboardLast[$cid]??=$p;if(in_array($p['status'],['Ordered','Dispatched'],true))$cupboardIncoming[$cid][]=$p;}
+ $cupboardActive=array_filter($cupboardItems,static fn($c)=>(int)$c['active']===1);$cupboardNeed=array_filter($cupboardActive,static fn($c)=>$c['stock_level']!=='Enough');$cupboardShopping=array_filter($cupboardActive,static fn($c)=>$c['stock_level']!=='Enough'||$c['owner']!=='');
+ $cupboardToBuy=array_filter($cupboardNeed,static fn($c)=>empty($cupboardIncoming[(int)$c['id']]));
+ $cupboardFormId=(int)($_GET['edit_item']??0);$sourcePurchaseId=(int)($_GET['from_purchase']??0);$sourcePurchase=null;foreach($businessSupplies as $p)if((int)$p['id']===$sourcePurchaseId)$sourcePurchase=$p;
+ $cupboardFormOpen=isset($_GET['new_item'])||$cupboardFormId>0||$sourcePurchaseId>0||($_POST['action']??'')==='supply_item_save';
+ $cupboardForm=$cupboardById[$cupboardFormId]??['id'=>0,'revision'=>0,'name'=>'','category'=>'Other supplies','specification'=>'','supplier'=>'','product_url'=>'','backup_supplier'=>'','backup_url'=>'','usual_quantity'=>1,'usual_cost'=>null,'stock_level'=>$supplySection==='shopping'?'Running low':'Enough','stock_note'=>'','requested_by'=>'','notes'=>'','request_key'=>bin2hex(random_bytes(16))];
+ if($sourcePurchase&&!$sourcePurchase['cupboard_id'])$cupboardForm=array_replace($cupboardForm,['name'=>$sourcePurchase['item'],'category'=>$sourcePurchase['category'],'supplier'=>$sourcePurchase['supplier'],'product_url'=>$sourcePurchase['product_url'],'usual_quantity'=>$sourcePurchase['quantity'],'usual_cost'=>$sourcePurchase['item_cost'],'notes'=>$sourcePurchase['notes']]);
+ $cupboardForm['source_purchase_id']=$sourcePurchaseId;$cupboardForm['source_revision']=$sourcePurchase['revision']??0;$cupboardForm['usual_cost']=$cupboardForm['usual_cost']===null?'':number_format((int)$cupboardForm['usual_cost']/100,2,'.','');
+ if(($_POST['action']??'')==='supply_item_save')foreach(array_keys($cupboardForm) as $field)if(isset($_POST[$field])&&is_scalar($_POST[$field]))$cupboardForm[$field]=(string)$_POST[$field];
  $supplyToday=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
  $supplyMonth=supplySpending($businessSupplies,substr($supplyToday,0,7).'-01',$supplyToday);$supplyAll=supplySpending($businessSupplies);
  $supplyOpen=array_filter($businessSupplies,static fn($r)=>in_array($r['status'],['Ordered','Dispatched'],true));
- $supplyFilter=in_array($_GET['status']??'outstanding',['outstanding','all','Received','Cancelled'],true)?(string)($_GET['status']??'outstanding'):'outstanding';$supplySearch=trim((string)($_GET['q']??''));
+ $supplyHistoryId=(int)($_GET['cupboard_filter']??0);$defaultSupplyFilter=$supplyHistoryId>0?'all':'outstanding';$supplyFilter=in_array($_GET['status']??$defaultSupplyFilter,['outstanding','all','Received','Cancelled'],true)?(string)($_GET['status']??$defaultSupplyFilter):$defaultSupplyFilter;$supplySearch=trim((string)($_GET['q']??''));
  $supplyRows=array_filter($businessSupplies,static function($r)use($supplyFilter,$supplySearch){if($supplyFilter==='outstanding'&&!in_array($r['status'],['Ordered','Dispatched'],true))return false;if(in_array($supplyFilter,['Received','Cancelled'],true)&&$r['status']!==$supplyFilter)return false;return $supplySearch===''||stripos(implode(' ',[$r['item'],$r['supplier'],$r['category'],$r['reference'],$r['tracking_reference']]),$supplySearch)!==false;});
+ if($supplyHistoryId>0)$supplyRows=array_filter($supplyRows,static fn($p)=>(int)$p['cupboard_id']===$supplyHistoryId);
  $supplyEditId=(int)($_GET['edit']??0);$supplyForm=null;foreach($businessSupplies as $r)if((int)$r['id']===$supplyEditId)$supplyForm=$r;
  $supplyFormOpen=isset($_GET['new'])||$supplyEditId>0||($_POST['action']??'')==='business_supply_save';
  if($supplyFormOpen){
   $supplyForm??=['id'=>0,'revision'=>0,'item'=>'','category'=>'Other supplies','quantity'=>1,'supplier'=>'','reference'=>'','ordered_date'=>$supplyToday,'expected_date'=>'','status'=>'Ordered','item_cost'=>0,'shipping'=>0,'payment_status'=>'Unpaid','paid_date'=>$supplyToday,'refunded_date'=>'','product_url'=>'','tracking_reference'=>'','tracking_url'=>'','notes'=>'','request_key'=>bin2hex(random_bytes(16))];
+  $purchaseCupboardId=(int)($supplyForm['cupboard_id']??($_GET['cupboard_id']??($_POST['cupboard_id']??0)));$purchaseCupboard=$cupboardById[$purchaseCupboardId]??null;
+  if(!(int)$supplyForm['id']&&$purchaseCupboard)$supplyForm=array_replace($supplyForm,['item'=>$purchaseCupboard['name'],'category'=>$purchaseCupboard['category'],'quantity'=>$purchaseCupboard['usual_quantity'],'supplier'=>$purchaseCupboard['supplier'],'product_url'=>$purchaseCupboard['product_url'],'item_cost'=>$purchaseCupboard['usual_cost']??0,'notes'=>$purchaseCupboard['specification']]);
+  $supplyForm['cupboard_id']=$purchaseCupboardId;$supplyForm['cupboard_revision']=$purchaseCupboard['revision']??0;
   foreach(['item_cost','shipping'] as $field)$supplyForm[$field]=number_format((int)$supplyForm[$field]/100,2,'.','');
   if(($_POST['action']??'')==='business_supply_save')foreach(array_keys($supplyForm) as $field)if(isset($_POST[$field])&&is_scalar($_POST[$field]))$supplyForm[$field]=(string)$_POST[$field];
  }
 ?>
-<div class="heading supplies-heading"><div><p class="eyebrow">OPERATING PURCHASES</p><h1>Business Supplies</h1><p class="muted page-description">Labels, ink, envelopes and everything you use to run the business.</p></div><a class="button" href="?view=supplies&amp;new=1#supply-form">+ Add purchase</a></div>
+<div class="heading supplies-heading"><div><p class="eyebrow">YOUR SHARED SUPPLIES</p><h1>Business Supplies</h1><p class="muted page-description">Know what you need, where to buy it and who is handling it.</p></div><a class="button" href="?view=supplies&amp;section=<?=e($supplySection)?>&amp;<?=$supplySection==='purchases'?'new=1#supply-form':'new_item=1#cupboard-form'?>"><?=$supplySection==='purchases'?'+ Add purchase':($supplySection==='shopping'?'+ Add request':'+ Add supply')?></a></div>
 <div class="supply-top-links"><a class="quick-action" href="?view=more">← More</a><a class="quick-action" href="?view=reports&amp;type=outgoings">Outgoings report →</a></div>
+<div class="supply-section-tabs" role="navigation" aria-label="Business supplies sections"><?php foreach(['cupboard'=>'Supplies cupboard','shopping'=>'Shopping list','purchases'=>'Purchases'] as $key=>$label):?><a class="<?=$key===$supplySection?'selected':''?>" <?=$key===$supplySection?'aria-current="page"':''?> href="?view=supplies&amp;section=<?=$key?>"><?=e($label)?><span><?=$key==='cupboard'?count($cupboardActive):($key==='shopping'?count($cupboardShopping):count($supplyOpen))?></span></a><?php endforeach;?></div>
+<?php if($supplySection!=='purchases'):?>
+<?php if($cupboardFormOpen&&($cupboardFormId>0&&!isset($cupboardById[$cupboardFormId])||$sourcePurchaseId>0&&(!$sourcePurchase||$sourcePurchase['cupboard_id']))):?><p class="error">That supply is unavailable or this purchase already has a cupboard item.</p>
+<?php elseif($cupboardFormOpen):?>
+<section class="panel" id="cupboard-form"><div class="heading"><h2><?=(int)$cupboardForm['id']?'Edit supply':($supplySection==='shopping'?'Add to shopping list':'Save a supply')?></h2><a class="quick-action" href="?view=supplies&amp;section=<?=e($supplySection)?>">Close</a></div>
+<form method="post" class="supply-form"><?php csrf();?><input type="hidden" name="action" value="supply_item_save"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="<?=e($supplySection)?>">
+<?php foreach(['id','revision','request_key','source_purchase_id','source_revision'] as $field):?><input type="hidden" name="<?=$field?>" value="<?=e($cupboardForm[$field])?>"><?php endforeach;?>
+<label class="supply-wide">Supply name<input name="name" maxlength="200" value="<?=e($cupboardForm['name'])?>" placeholder="e.g. Thermal shipping labels" required></label>
+<label>Category<select name="category"><?php foreach(supplyCategories() as $v):?><option <?=$cupboardForm['category']===$v?'selected':''?>><?=e($v)?></option><?php endforeach;?></select></label>
+<label>Stock level<select name="stock_level"><?php foreach(['Enough','Running low','Out'] as $v):?><option <?=$cupboardForm['stock_level']===$v?'selected':''?>><?=$v?></option><?php endforeach;?></select></label>
+<label class="supply-wide">Exact size / model / specification<input name="specification" maxlength="1000" value="<?=e($cupboardForm['specification'])?>" placeholder="100 × 150mm · waterproof · printer model or cartridge code"></label>
+<label>Stock note<input name="stock_note" maxlength="500" value="<?=e($cupboardForm['stock_note'])?>" placeholder="e.g. One roll left"></label>
+<label>Requested by<select name="requested_by"><option value="">Not recorded</option><?php foreach(['Jay','Tony'] as $v):?><option <?=$cupboardForm['requested_by']===$v?'selected':''?>><?=$v?></option><?php endforeach;?></select></label>
+<label>Preferred supplier<input name="supplier" maxlength="200" value="<?=e($cupboardForm['supplier'])?>"></label>
+<label>Usual quantity / packs<input type="number" name="usual_quantity" min="1" max="100000" value="<?=e($cupboardForm['usual_quantity'])?>" required></label>
+<label class="supply-wide">Product / reorder link<input type="url" name="product_url" maxlength="2000" value="<?=e($cupboardForm['product_url'])?>" placeholder="https://…"></label>
+<label>Usual items total (£)<input type="number" name="usual_cost" min="0" max="100000" step="0.01" value="<?=e($cupboardForm['usual_cost'])?>"><small>Optional total for the usual quantity. Purchases keep the actual price.</small></label>
+<label>Backup supplier<input name="backup_supplier" maxlength="200" value="<?=e($cupboardForm['backup_supplier'])?>"></label>
+<label class="supply-wide">Backup product link<input type="url" name="backup_url" maxlength="2000" value="<?=e($cupboardForm['backup_url'])?>" placeholder="https://…"></label>
+<label class="supply-wide">Ordering notes<textarea name="notes" rows="3" maxlength="4000" placeholder="Colours, pack sizes, delivery advice or what to avoid"><?=e($cupboardForm['notes'])?></textarea></label>
+<p class="muted supply-wide">Running low and Out appear on the shared shopping list. Saving a supply or request does not record spending.</p><div class="supply-wide supply-form-actions"><button>Save supply</button><a class="quick-action" href="?view=supplies&amp;section=<?=e($supplySection)?>">Cancel</a></div>
+</form></section>
+<?php endif;?>
+<section class="report-metrics supply-metrics"><article><span>Need buying</span><strong><?=count($cupboardToBuy)?></strong><small>Low or out, with nothing on the way</small></article><article><span>Being handled</span><strong><?=count(array_filter($cupboardActive,static fn($c)=>$c['owner']!==''))?></strong><small>Claimed by Jay or Tony</small></article><article><span>On the way</span><strong><?=count($supplyOpen)?></strong><small>Recorded purchases awaiting delivery</small></article></section>
+<?php $cupboardSearch=trim((string)($_GET['cq']??''));$cupboardFilter=in_array($_GET['level']??'all',['all','Enough','Running low','Out','archived'],true)?(string)($_GET['level']??'all'):'all';$cupboardRows=$supplySection==='shopping'?$cupboardShopping:($cupboardFilter==='archived'?array_filter($cupboardItems,static fn($c)=>!(int)$c['active']):$cupboardActive);$cupboardRows=array_filter($cupboardRows,static fn($c)=>($cupboardFilter==='all'||$cupboardFilter==='archived'||$c['stock_level']===$cupboardFilter)&&($cupboardSearch===''||stripos(implode(' ',[$c['name'],$c['specification'],$c['supplier'],$c['category'],$c['stock_note'],$c['owner']]),$cupboardSearch)!==false));?>
+<details class="cupboard-search" <?=$cupboardSearch!==''||$cupboardFilter!=='all'?'open':''?>><summary>Find &amp; filter supplies <span aria-hidden="true">⌄</span></summary><form method="get" class="supply-filters"><input type="hidden" name="view" value="supplies"><input type="hidden" name="section" value="<?=e($supplySection)?>"><label>Find a supply<input name="cq" value="<?=e($cupboardSearch)?>" placeholder="Name, model or supplier"></label><label>Show<select name="level"><?php foreach(['all'=>'All stock levels','Out'=>'Out of stock','Running low'=>'Running low','Enough'=>'Enough']+($supplySection==='cupboard'?['archived'=>'Archived supplies']:[]) as $v=>$label):?><option value="<?=e($v)?>" <?=$cupboardFilter===$v?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></label><button>Apply</button></form></details>
+<p class="muted"><?=$supplySection==='shopping'?'Low supplies and partner claims. Check anything already on the way before buying again.':'Save the exact product once, then use its links whenever either of you needs to reorder.'?></p>
+<div class="cupboard-list">
+<?php foreach($cupboardRows as $c):$cid=(int)$c['id'];$incoming=$cupboardIncoming[$cid]??[];$last=$cupboardLast[$cid]??null;$levelClass=$c['stock_level']==='Out'?'out':($c['stock_level']==='Running low'?'low':'enough');?>
+<article class="panel cupboard-card" id="cupboard-<?=$cid?>"><div class="cupboard-card-head"><div><p class="eyebrow"><?=e($c['category'])?></p><h2><?=e($c['name'])?></h2></div><span class="cupboard-level level-<?=$levelClass?>"><?=e($c['stock_level'])?></span></div>
+<?php if($c['specification']):?><p class="cupboard-spec"><?=e($c['specification'])?></p><?php endif;?><?php if($c['stock_note']):?><p class="cupboard-stock-note"><?=e($c['stock_note'])?></p><?php endif;?>
+<div class="cupboard-facts"><span><small>Preferred supplier</small><strong><?=e($c['supplier']?:'Add a supplier')?></strong></span><span><small>Usual quantity / packs</small><strong><?=(int)$c['usual_quantity']?></strong></span><?php if($last):?><span><small>Last order · items total</small><strong><?=money((int)$last['item_cost'])?> for <?=(int)$last['quantity']?></strong></span><?php elseif($c['usual_cost']!==null):?><span><small>Usual items total</small><strong><?=money((int)$c['usual_cost'])?></strong></span><?php endif;?></div>
+<?php if($c['requested_by']):?><p class="muted">Requested by <?=e($c['requested_by'])?></p><?php endif;?>
+<?php if($c['owner']):?><p class="cupboard-owner"><?=e($c['owner'])?> is handling this</p><?php endif;?>
+<?php if($incoming):?><div class="cupboard-incoming"><strong>Already on the way</strong><?php foreach($incoming as $p):?><a href="?view=supplies&amp;section=purchases&amp;edit=<?=(int)$p['id']?>#supply-form"><?=(int)$p['quantity']-(int)$p['received_quantity']?> quantity / packs still due<?= $p['expected_date']?' · '.e($p['expected_date']):''?> · View purchase →</a><?php endforeach;?></div><?php endif;?>
+<?php if((int)$c['active']):?>
+<form method="post" class="cupboard-level-form"><?php csrf();?><input type="hidden" name="action" value="supply_item_change"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="<?=e($supplySection)?>"><input type="hidden" name="cupboard_id" value="<?=$cid?>"><input type="hidden" name="cupboard_revision" value="<?=(int)$c['revision']?>"><input type="hidden" name="operation" value="level"><span>Update stock level</span><div><?php foreach(['Enough','Running low','Out'] as $v):?><button class="quiet <?=$c['stock_level']===$v?'selected':''?>" name="stock_level" value="<?=$v?>" <?=$c['stock_level']===$v?'disabled':''?>><?=$v?></button><?php endforeach;?></div></form>
+<?php if(!$incoming):?><form method="post" class="cupboard-claim-form"><?php csrf();?><input type="hidden" name="action" value="supply_item_change"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="<?=e($supplySection)?>"><input type="hidden" name="cupboard_id" value="<?=$cid?>"><input type="hidden" name="cupboard_revision" value="<?=(int)$c['revision']?>"><input type="hidden" name="operation" value="<?=$c['owner']?'release':'claim'?>"><?php if($c['owner']):?><button class="quick-action">Release <?=e($c['owner'])?>’s claim</button><?php else:?><span>Who is ordering?</span><button class="quick-action" name="owner" value="Jay">Jay will order</button><button class="quick-action" name="owner" value="Tony">Tony will order</button><?php endif;?></form><?php endif;?>
+<div class="supply-card-actions"><?php if(!$incoming):?><a class="button" href="?view=supplies&amp;section=purchases&amp;new=1&amp;cupboard_id=<?=$cid?>#supply-form">Record purchase</a><?php endif;?><?php if($c['product_url']):?><a class="quick-action" href="<?=e($c['product_url'])?>" target="_blank" rel="noopener noreferrer">Open product ↗</a><?php endif;?><a class="quick-action" href="?view=supplies&amp;section=<?=e($supplySection)?>&amp;edit_item=<?=$cid?>#cupboard-form">Edit supply</a></div>
+<?php else:?><form method="post"><?php csrf();?><input type="hidden" name="action" value="supply_item_change"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="cupboard"><input type="hidden" name="cupboard_id" value="<?=$cid?>"><input type="hidden" name="cupboard_revision" value="<?=(int)$c['revision']?>"><button name="operation" value="restore">Restore supply</button></form><?php endif;?>
+<details class="cupboard-details"><summary>Notes, backup &amp; purchase history <span aria-hidden="true">⌄</span></summary><div><?php if($c['notes']):?><p><?=nl2br(e($c['notes']))?></p><?php endif;?><?php if($c['backup_supplier']||$c['backup_url']):?><p>Backup: <?=e($c['backup_supplier']?:'Alternative supplier')?><?php if($c['backup_url']):?> · <a target="_blank" rel="noopener noreferrer" href="<?=e($c['backup_url'])?>">Open backup product ↗</a><?php endif;?></p><?php endif;?>
+<a class="quick-action" href="?view=supplies&amp;section=purchases&amp;cupboard_filter=<?=$cid?>">Purchase history →</a><small>Last updated <?=e(date('d M Y, H:i',strtotime($c['updated'])))?></small>
+<?php if((int)$c['active']&&!$incoming&&!$c['owner']):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="supply_item_change"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="cupboard"><input type="hidden" name="cupboard_id" value="<?=$cid?>"><input type="hidden" name="cupboard_revision" value="<?=(int)$c['revision']?>"><button class="quiet" name="operation" value="archive">Archive supply</button></form><?php endif;?></div></details>
+</article><?php endforeach;?>
+<?php if(!$cupboardRows):?><section class="panel cupboard-empty"><h2><?=$supplySection==='shopping'?'Nothing on this shopping list':'Build your shared supplies cupboard'?></h2><p class="muted"><?=$supplySection==='shopping'?'Mark a supply Running low or Out, or add a request. Items stay visible while someone is handling them.':'Save your labels, ink and packaging with the exact model and supplier links. You can also open Purchases and save an existing purchase as a supply.'?></p><a class="quick-action" href="?view=supplies&amp;section=<?=e($supplySection)?>&amp;new_item=1#cupboard-form"><?=$supplySection==='shopping'?'+ Add request':'+ Add supply'?></a></section><?php endif;?></div>
+<?php else:?>
 <?php if($supplyFormOpen&&$supplyEditId>0&&(int)$supplyForm['id']===0):?><p class="error">That purchase could not be found.</p>
 <?php elseif($supplyFormOpen):?>
 <section class="panel" id="supply-form"><div class="heading"><h2><?=(int)$supplyForm['id']>0?'Edit purchase':'Add purchase'?></h2><a class="quick-action" href="?view=supplies">Close</a></div>
-<form method="post" class="supply-form"><input type="hidden" name="action" value="business_supply_save"><input type="hidden" name="return" value="supplies"><?php csrf();?>
-<?php foreach(['id','revision','request_key'] as $field):?><input type="hidden" name="<?=$field?>" value="<?=e($supplyForm[$field])?>"><?php endforeach;?>
+<form method="post" class="supply-form"><input type="hidden" name="action" value="business_supply_save"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="purchases"><?php csrf();?>
+<?php foreach(['id','revision','request_key','cupboard_id','cupboard_revision'] as $field):?><input type="hidden" name="<?=$field?>" value="<?=e($supplyForm[$field])?>"><?php endforeach;?>
+<?php if($purchaseCupboard):?><p class="cupboard-purchase-note supply-wide">Linked to <a href="?view=supplies&amp;section=cupboard#cupboard-<?=(int)$purchaseCupboard['id']?>"><?=e($purchaseCupboard['name'])?></a>. Check the actual price before saving. Use delivery check-in below when it arrives to update the cupboard.</p><?php endif;?>
 <label class="supply-wide">Item / purchase<input name="item" maxlength="200" value="<?=e($supplyForm['item'])?>" placeholder="e.g. 500 thermal labels" required></label>
 <label>Category<select name="category"><?php foreach(supplyCategories() as $category):?><option <?=$supplyForm['category']===$category?'selected':''?>><?=e($category)?></option><?php endforeach;?></select></label>
 <label>Quantity / packs<input type="number" name="quantity" min="1" max="100000" value="<?=e($supplyForm['quantity'])?>" required></label>
@@ -5911,17 +6087,26 @@ document.addEventListener('DOMContentLoaded',()=>{
 </form></section>
 <?php endif;?>
 <section class="report-metrics supply-metrics"><article><span>On the way</span><strong><?=count($supplyOpen)?></strong><small>Purchases awaiting delivery</small></article><article><span>Still to pay</span><strong><?=money($supplyAll['unpaid'])?></strong><small>All non-cancelled unpaid purchases</small></article><article><span>Spent this month</span><strong><?=money($supplyMonth['net'])?></strong><small>Payments less refunds</small></article></section>
-<form method="get" class="supply-filters"><input type="hidden" name="view" value="supplies"><label>Search purchases<input name="q" value="<?=e($supplySearch)?>" placeholder="Item, supplier or tracking"></label><label>Show<select name="status"><?php foreach(['outstanding'=>'On the way','all'=>'All purchases','Received'=>'Received','Cancelled'=>'Cancelled'] as $key=>$label):?><option value="<?=e($key)?>" <?=$supplyFilter===$key?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></label><button>Apply</button></form>
+<?php if($supplyHistoryId>0):?><p class="cupboard-purchase-note">Purchase history for <?=e($cupboardById[$supplyHistoryId]['name']??'this supply')?> · <a href="?view=supplies&amp;section=purchases&amp;status=all">Show all purchases</a></p><?php endif;?>
+<form method="get" class="supply-filters"><input type="hidden" name="view" value="supplies"><input type="hidden" name="section" value="purchases"><?php if($supplyHistoryId>0):?><input type="hidden" name="cupboard_filter" value="<?=$supplyHistoryId?>"><?php endif;?><label>Search purchases<input name="q" value="<?=e($supplySearch)?>" placeholder="Item, supplier or tracking"></label><label>Show<select name="status"><?php foreach(['outstanding'=>'On the way','all'=>'All purchases','Received'=>'Received','Cancelled'=>'Cancelled'] as $key=>$label):?><option value="<?=e($key)?>" <?=$supplyFilter===$key?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></label><button>Apply</button></form>
 <p class="muted"><?=count($supplyRows)?> purchase<?=count($supplyRows)===1?'':'s'?> shown</p>
 <div class="supply-list">
 <?php foreach($supplyRows as $r):$total=(int)$r['item_cost']+(int)$r['shipping'];?>
 <article class="panel supply-card"><div class="supply-card-head"><div><p class="eyebrow"><?=e($r['category'])?></p><h2><?=e($r['item'])?></h2><p class="muted"><?=e($r['supplier'])?> · <?=(int)$r['quantity']?> quantity / packs</p></div><strong class="supply-total"><?=money($total)?></strong></div>
 <div class="supply-badges"><span class="badge"><?=e($r['status'])?></span><span class="badge"><?=e($r['payment_status'])?></span></div>
+<?php if($r['cupboard_id']&&isset($cupboardById[(int)$r['cupboard_id']])):?><a class="incoming-edit-link" href="?view=supplies&amp;section=cupboard#cupboard-<?=(int)$r['cupboard_id']?>">Cupboard: <?=e($cupboardById[(int)$r['cupboard_id']]['name'])?> →</a><?php endif;?>
+<?php if((int)$r['received_quantity']>0):?><p class="muted"><?=(int)$r['received_quantity']?> of <?=(int)$r['quantity']?> quantity / packs received</p><?php endif;?>
 <dl class="supply-meta"><div><dt>Ordered</dt><dd><?=e($r['ordered_date'])?></dd></div><?php if($r['expected_date']):?><div><dt>Expected</dt><dd><?=e($r['expected_date'])?></dd></div><?php endif;?><div><dt>Items + delivery</dt><dd><?=money((int)$r['item_cost'])?> + <?=money((int)$r['shipping'])?></dd></div><?php if($r['reference']):?><div><dt>Reference</dt><dd><?=e($r['reference'])?></dd></div><?php endif;?><?php if($r['paid_date']):?><div><dt>Paid</dt><dd><?=e($r['paid_date'])?></dd></div><?php endif;?><?php if($r['refunded_date']):?><div><dt>Refunded</dt><dd><?=e($r['refunded_date'])?></dd></div><?php endif;?><?php if($r['tracking_reference']):?><div class="supply-wide"><dt>Tracking</dt><dd><?=e($r['tracking_reference'])?></dd></div><?php endif;?></dl>
 <?php if($r['notes']):?><p class="supply-notes"><?=nl2br(e($r['notes']))?></p><?php endif;?>
-<div class="supply-card-actions"><a class="button" href="?view=supplies&amp;edit=<?=(int)$r['id']?>#supply-form">Edit purchase</a><?php if($r['tracking_url']):?><a class="quick-action" target="_blank" rel="noopener noreferrer" href="<?=e($r['tracking_url'])?>">Track delivery ↗</a><?php endif;?><?php if($r['product_url']):?><a class="quick-action" target="_blank" rel="noopener noreferrer" href="<?=e($r['product_url'])?>">Product / reorder ↗</a><?php endif;?></div></article>
+<div class="supply-card-actions"><a class="button" href="?view=supplies&amp;edit=<?=(int)$r['id']?>#supply-form">Edit purchase</a><?php if($r['tracking_url']):?><a class="quick-action" target="_blank" rel="noopener noreferrer" href="<?=e($r['tracking_url'])?>">Track delivery ↗</a><?php endif;?><?php if($r['product_url']):?><a class="quick-action" target="_blank" rel="noopener noreferrer" href="<?=e($r['product_url'])?>">Product / reorder ↗</a><?php endif;?><?php if(!$r['cupboard_id']):?><a class="quick-action" href="?view=supplies&amp;section=cupboard&amp;from_purchase=<?=(int)$r['id']?>#cupboard-form">Save as cupboard item</a><?php endif;?></div>
+<?php if(in_array($r['status'],['Ordered','Dispatched'],true)&&(int)$r['received_quantity']<(int)$r['quantity']):$receiptCupboard=$cupboardById[(int)$r['cupboard_id']]??null;?>
+<details class="cupboard-details supply-receive"><summary>Check in delivery <span aria-hidden="true">⌄</span></summary><form method="post" class="supply-form"><?php csrf();?><input type="hidden" name="action" value="supply_delivery_receive"><input type="hidden" name="return" value="supplies"><input type="hidden" name="return_section" value="purchases"><input type="hidden" name="purchase_id" value="<?=(int)$r['id']?>"><input type="hidden" name="purchase_revision" value="<?=(int)$r['revision']?>"><input type="hidden" name="cupboard_revision" value="<?=(int)($receiptCupboard['revision']??0)?>">
+<label class="supply-wide">Quantity / packs received now<input type="number" name="received_quantity" min="1" max="<?=(int)$r['quantity']-(int)$r['received_quantity']?>" value="<?=(int)$r['quantity']-(int)$r['received_quantity']?>" required><small>Only what arrived in this delivery. Any remainder stays on the way.</small></label>
+<?php if($receiptCupboard):?><label>Cupboard level after delivery<select name="stock_level"><?php foreach(['Enough','Running low','Out'] as $v):?><option <?=$receiptCupboard['stock_level']===$v?'selected':''?>><?=$v?></option><?php endforeach;?></select></label><label>Updated stock note<input name="stock_note" maxlength="500" value="<?=e($receiptCupboard['stock_note'])?>" placeholder="e.g. Three rolls on the shelf"></label><?php endif;?><button class="supply-wide">Save delivery check-in</button></form></details>
+<?php endif;?></article>
 <?php endforeach;?>
 <?php if(!$supplyRows):?><section class="panel"><h2><?=$businessSupplies?'No matching purchases':'Keep your supplies in one place'?></h2><p class="muted"><?=$businessSupplies?'Try All purchases or a different search.':'Add labels, ink, packaging or equipment with the supplier, total cost and tracking details. Your recorded payments will feed into Reports.'?></p><a class="quick-action" href="?view=supplies&amp;new=1#supply-form">+ Add purchase</a></section><?php endif;?></div>
+<?php endif;?>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
