@@ -222,21 +222,79 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
 .ship-page .ship-forecast-empty p{font-size:13px;color:#bfbcb5;line-height:1.6}
 .ship-page .ship-reorder-link{margin-top:10px;text-decoration:none}
 @media(max-width:600px){.ship-page .ship-event-select{display:block}.ship-page .ship-forecast-choose{width:100%;margin-top:10px}.ship-page .ship-forecast-dates{grid-template-columns:1fr 1fr}.ship-page .ship-forecast-dates>div:last-child{grid-column:1/-1}.ship-page .ship-product-card{padding:14px}.ship-page .ship-product-heading h3{font-size:16px}}
+
+/* Distinct calendar and stock workspaces — no endless product list above events. */
+.ship-page .ship-head-compact{margin-bottom:16px;align-items:center}
+.ship-page .ship-head-compact h1{font-size:clamp(26px,4vw,34px);margin:3px 0 5px}
+.ship-page .ship-head-back{text-align:right;white-space:nowrap;font-size:13px}
+.ship-page .ship-view-tabs{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:0 0 16px}
+.ship-page .ship-view-tabs>a,.ship-page .ship-view-tabs>a:visited{display:flex;gap:7px;align-items:center;justify-content:center;text-decoration:none!important;min-height:50px;border-radius:12px;border:1px solid #37383a;background:#1a1b1d;color:#acaeb1;font-size:13px;font-weight:700;padding:10px 9px;white-space:nowrap}
+.ship-page .ship-view-tabs>a.active,.ship-page .ship-view-tabs>a[aria-current="page"]{color:#f7dc9c;border-color:#a68b58;background:#30291c}
+.ship-page .ship-view-tabs>a small{display:inline-flex;justify-content:center;align-items:center;border-radius:30px;min-width:21px;min-height:21px;padding:2px 5px;background:#373638;font-size:11px;color:#e0ddd6}
+.ship-page .ship-view-tabs>a.active small{background:#514126;color:#ffe4a3}
+.ship-page .ship-tab-icon{font-size:15px;line-height:1}
+.ship-page a.ship-summary-strip,.ship-page a.ship-stock-shortcut{display:flex;align-items:center;gap:12px;text-decoration:none!important;border-radius:14px;min-height:64px;padding:12px 14px;margin-bottom:11px}
+.ship-page a.ship-summary-strip{background:#27231c;border:1px solid #665333;color:#f4ede0}
+.ship-page .ship-summary-date{display:flex;align-items:center;justify-content:center;min-width:56px;min-height:41px;background:#403521;border-radius:10px;font-size:12px;font-weight:800;color:#f0cf8e;white-space:nowrap}
+.ship-page .ship-summary-copy,.ship-page .ship-stock-shortcut-copy{display:grid;gap:5px;min-width:0;flex:1}
+.ship-page .ship-summary-copy small,.ship-page .ship-stock-shortcut-copy small{font-size:11px;font-weight:450;line-height:1.3;color:#b5b1a8}
+.ship-page .ship-summary-copy strong,.ship-page .ship-stock-shortcut-copy strong{font-size:14px;line-height:1.35;font-weight:700;color:#f4eee4;overflow-wrap:anywhere}
+.ship-page .ship-summary-arrow{color:#e9c57c;font-size:23px}
+.ship-page a.ship-stock-shortcut{border:1px solid #343941;background:#1e2228;color:#f4ede0}
+.ship-page .ship-stock-shortcut>span:last-child{font-size:19px;color:#e5c585}
+.ship-page .ship-calendar-panel{margin-top:12px}
+.ship-page .ship-result-filter{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:15px;color:#bbb;font-size:12px}
+.ship-page .ship-result-filter a{text-decoration:none;color:#efcd82;font-weight:700}
+.ship-page .ship-everything-covered{padding:15px;background:#243d31;border-radius:10px}
+.ship-page .ship-tools-panel{margin-top:12px}
+@media(max-width:600px){
+ .ship-page .ship-head-compact{gap:10px}
+ .ship-page .ship-head-compact h1{font-size:27px}
+ .ship-page .ship-view-tabs{gap:7px}
+ .ship-page .ship-view-tabs>a{font-size:12px;padding:9px 6px}
+ .ship-page a.ship-summary-strip,.ship-page a.ship-stock-shortcut{padding:11px 12px}
+ .ship-page .ship-tools-panel{padding:15px}
+}
 </style>
 <div class="ship-page">
-<?php if(!in_array((string)($_GET['mode']??''),['manage','event'],true)): ?>
- <div class="ship-head"><div><div class="ship-kicker">Operations / Shipping</div><h1>Shipping Intelligence</h1><p class="ship-sub">China → United Kingdom · supplier disruption planning</p></div><a class="ship-action ship-secondary" href="?view=more" aria-label="Back to More">← More</a></div>
- <?php if($shipNext):?>
- <section class="ship-card ship-highlight"><div class="ship-topline"><span class="ship-kicker">Next major disruption</span><span class="ship-pill <?=e($shipNext['risk'])?>"><?=e(ucfirst($shipNext['risk']))?> risk</span></div>
- <div class="ship-primary"><?=e($shipNext['name'])?></div><p class="ship-sub"><?=e(date('j F Y',strtotime($shipNext['date'])))?> – <?=e(date('j F Y',strtotime($shipNext['end'])))?></p>
- <p class="ship-foot"><?=e($shipNext['detail'])?></p><div class="ship-meta"><strong><?=$shipDays?> days until planning-window start</strong><span class="ship-pill"><?=e($shipNext['status'])?></span></div></section>
+<?php $shipMode=in_array((string)($_GET['mode']??''),['manage','event'],true)?(string)$_GET['mode']:'overview';
+$shipTab=(string)($_GET['tab']??'')==='stock'?'stock':'calendar';
+$shipSelectedId=(string)($_GET['event']??'');
+$shipSelected=null;foreach($shippingEvents as $candidate){if($candidate['id']===$shipSelectedId)$shipSelected=$candidate;}
+$shipSoonest=$shipUpcoming[0]??null;
+$shipTotalAttention=$shipAtRisk+$shipNeedsCount;
+?>
+<?php if($shipMode==='overview'):?>
+<div class="ship-head ship-head-compact">
+ <div><div class="ship-kicker">Operations · Shipping</div><h1>Shipping Intelligence</h1><p class="ship-sub">China → United Kingdom</p></div>
+ <a class="ship-back ship-head-back" href="?view=more" aria-label="Back to More">← More</a>
+</div>
+<nav class="ship-view-tabs" aria-label="Shipping Intelligence sections">
+ <a href="?view=shipping" class="<?=$shipTab==='calendar'?'active':''?>" <?=$shipTab==='calendar'?'aria-current="page"':''?>>
+  <span class="ship-tab-icon" aria-hidden="true">▦</span><span>Calendar</span><small><?=count($shipUpcoming)?></small>
+ </a>
+ <a href="?view=shipping&amp;tab=stock" class="<?=$shipTab==='stock'?'active':''?>" <?=$shipTab==='stock'?'aria-current="page"':''?>>
+  <span class="ship-tab-icon" aria-hidden="true">▣</span><span>Stock forecast</span><?php if($shipTotalAttention):?><small><?=$shipTotalAttention?></small><?php endif;?>
+ </a>
+</nav>
+<?php if($shipTab==='calendar'):?>
+ <?php if($shipSoonest):?>
+ <a class="ship-summary-strip" href="?view=shipping&amp;mode=event&amp;event=<?=rawurlencode($shipSoonest['id'])?>">
+  <span class="ship-summary-date"><?=e(date('j M',strtotime($shipSoonest['date'])))?></span>
+  <span class="ship-summary-copy"><small>Next calendar event</small><strong><?=e($shipSoonest['name'])?></strong></span>
+  <span class="ship-summary-arrow" aria-hidden="true">›</span>
+ </a>
  <?php endif;?>
- <div class="ship-grid"><section class="ship-card"><span class="ship-sub">Upcoming events</span><div class="ship-num"><?=count($shipUpcoming)?></div><span class="ship-sub">On your shipping calendar</span></section><section class="ship-card"><span class="ship-sub">Potential stock gaps</span><div class="ship-num"><?=$shipAtRisk?></div><span class="ship-sub"><?=$shipNeedsCount?> without confirmed stock counts</span></section></div>
+ <a class="ship-stock-shortcut" href="?view=shipping&amp;tab=stock">
+  <span class="ship-stock-shortcut-copy"><strong><?=$shipTotalAttention?> product<?=$shipTotalAttention===1?'':'s'?> need<?=$shipTotalAttention===1?'s':''?> review</strong>
+  <small><?=$shipOrderNow?> order now · <?=max(0,$shipAtRisk-$shipOrderNow)?> running low · <?=$shipNeedsCount?> need a stock count</small></span><span aria-hidden="true">→</span>
+ </a>
+<?php else:?>
  <section class="ship-card ship-forecast-card">
   <div class="ship-topline"><h2>Stock protection forecast</h2><span class="ship-pill">Automatic</span></div>
   <?php if($shipForecastEvent&&$shipCoverEnd):?>
    <p class="ship-sub">Your stock and existing orders are compared with the next disruption, so you don't need to guess how many days to cover.</p>
-   <form method="get" class="ship-event-select"><input type="hidden" name="view" value="shipping">
+   <form method="get" class="ship-event-select"><input type="hidden" name="view" value="shipping"><input type="hidden" name="tab" value="stock">
     <label>Disruption to plan around
     <select name="forecast_event" onchange="this.form.submit()">
      <?php foreach($shipUpcoming as $event):?><option value="<?=e($event['id'])?>" <?=$shipForecastEvent['id']===$event['id']?'selected':''?>><?=e($event['name'].' · '.date('j M',strtotime($event['date'])))?></option><?php endforeach;?>
@@ -255,8 +313,15 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
     <div><strong><?=$shipNeedsCount?></strong><span>Need a count</span></div>
    </div>
    <?php if(!$shipRows):?><div class="ship-forecast-empty"><strong>No product records are available for a reliable forecast.</strong><p>Confirm fridge stock counts in Stock Control. The app will then automatically calculate what might be needed before the disruption.</p><a class="ship-action ship-secondary" href="?view=stock">Open Stock Control →</a></div><?php endif;?>
+   <?php $shipShowAll=(string)($_GET['show']??'')==='all';$shipCoveredCount=count(array_filter($shipRows,static fn($sr)=>$sr['state']==='covered'));$shipDisplayedRows=$shipShowAll?$shipRows:array_values(array_filter($shipRows,static fn($sr)=>$sr['state']!=='covered')); ?>
+   <div class="ship-result-filter">
+    <span><?=count($shipDisplayedRows)?> products shown</span>
+    <?php if($shipCoveredCount>0):?>
+     <a href="?view=shipping&amp;tab=stock&amp;forecast_event=<?=rawurlencode((string)$shipForecastEvent['id'])?><?=$shipShowAll?'':'&amp;show=all'?>"><?=e($shipShowAll?'Hide covered products':'Show '.$shipCoveredCount.' covered products')?> →</a>
+    <?php endif;?>
+   </div>
    <div class="ship-product-results">
-   <?php foreach($shipRows as $sr):
+   <?php foreach($shipDisplayedRows as $sr):
      $state=$sr['state'];$stateText=['order'=>'Order now','low'=>'Running low','covered'=>'Covered','uncounted'=>'Needs stock count','review'=>'Review data'][$state]??'Review';
    ?>
    <article class="ship-product-card">
@@ -281,14 +346,16 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
    </article>
    <?php endforeach;?>
    </div>
+   <?php if(!$shipDisplayedRows && $shipRows):?><p class="ship-covered-note ship-everything-covered">No products currently need attention for this disruption.</p><?php endif;?>
   <?php else:?>
    <div class="ship-forecast-empty"><strong>No upcoming calendar disruptions found.</strong><p>Add an event to enable automatic stock coverage planning.</p><a class="ship-action ship-secondary" href="?view=shipping&amp;mode=manage">Manage calendar →</a></div>
   <?php endif;?>
   <a class="ship-action ship-secondary ship-reorder-link" href="?view=reorder">Open full Reorder Planner →</a>
   <p class="ship-foot">Estimates use non-recurring delivered sales (last 30 days), projected recurring orders not already open, fridge balances net of reservations, and only incoming orders with a future ETA within this cover period. Expiry dates, changes in demand and actual customs/carrier delays still require a manual check. Nothing is ordered automatically.</p>
  </section>
- <?php endif; ?>
-<?php $shipMode=in_array((string)($_GET['mode']??''),['manage','event'],true)?(string)$_GET['mode']:'overview';$shipSelectedId=(string)($_GET['event']??'');$shipSelected=null;foreach($shippingEvents as $candidate){if($candidate['id']===$shipSelectedId)$shipSelected=$candidate;} ?>
+<?php endif;?>
+<?php endif;?>
+
 <?php if($shipMode==='event'):?>
 <section class="ship-card ship-detail">
 <a class="ship-back" href="?view=shipping">← Back to calendar</a>
@@ -322,6 +389,7 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
 <details class="ship-editor"><summary>Restore default events</summary><p class="ship-sub">This will remove your custom events and revert all edits.</p><form method="post" action="?view=shipping&amp;mode=manage" onsubmit="return confirm('Reset all calendar changes?')"><input type="hidden" name="csrf" value="<?=e($_SESSION['csrf'])?>"><input type="hidden" name="action" value="ship_reset"><button class="ship-remove" type="submit">Restore original calendar</button></form></details>
 </section>
 <?php else:?>
+<?php if($shipTab==='calendar'):?>
 <section class="ship-card ship-calendar-panel" id="ship-calendar">
  <div class="ship-calendar-intro">
   <div><h2>Upcoming disruptions</h2><p class="ship-sub">Select an event to see the full dates, notes and shipping impact.</p></div>
@@ -345,5 +413,8 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
  <a class="ship-action ship-secondary ship-manage-link" href="?view=shipping&amp;mode=manage">✎ Edit disruption calendar →</a>
  </section>
 <?php endif;?>
-<section class="ship-card"><h2>Supplier &amp; shipment tools</h2><p class="ship-sub">Keep purchasing and stock receipts within your existing system — no duplicated order records.</p><p style="display:flex;flex-wrap:wrap;gap:9px;margin-top:15px"><a class="ship-action" href="?view=supplier">Supplier Centre →</a><a class="ship-action ship-secondary" href="?view=stock&amp;section=incoming">Incoming stock →</a><a class="ship-action ship-secondary" href="?view=supplies">Business Supplies →</a></p></section>
+<?php endif;?>
+<?php if($shipMode==='overview'):?>
+<section class="ship-card ship-tools-panel"><h2>Supplier &amp; shipment tools</h2><p class="ship-sub">Keep purchasing and stock receipts within your existing system — no duplicated order records.</p><p style="display:flex;flex-wrap:wrap;gap:9px;margin-top:15px"><a class="ship-action" href="?view=supplier">Supplier Centre →</a><a class="ship-action ship-secondary" href="?view=stock&amp;section=incoming">Incoming stock →</a><a class="ship-action ship-secondary" href="?view=supplies">Business Supplies →</a></p></section>
+<?php endif;?>
 </div>
