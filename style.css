@@ -5767,3 +5767,5 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .backorder-order-products{font-size:12px;color:#b7bbc2;line-height:1.45;margin:6px 0;overflow-wrap:anywhere}
 @media(max-width:760px){.backorder-product-grid{grid-template-columns:minmax(0,1fr)}.orders-page-heading .page-description{display:none}.backorder-overview{gap:8px}.backorder-overview>a{font-size:11px}.backorder-overview strong{font-size:25px}.focus-app .orders-summary-stats article{padding:12px 8px}.focus-app .orders-summary-stats strong{margin-top:8px}.backorder-product{padding:15px}}
 .incoming-backorder-demand{display:block;margin-top:6px;font-size:11px;line-height:1.4;text-decoration:none;color:#e7c777}
+.backorder-income{display:grid;gap:6px;padding:17px 18px;margin:0 0 18px;border:1px solid #65532e;border-radius:16px;background:linear-gradient(120deg,#2c2518,#191c21)}
+.backorder-income>span{color:#d9cfb7;font-size:12px;font-weight:600}.backorder-income>strong{color:#efd38a;font-size:clamp(26px,7vw,34px);font-weight:650;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}.backorder-income>small{font-size:11px;color:#b8b3a8;line-height:1.4}

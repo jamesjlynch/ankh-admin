@@ -1876,8 +1876,9 @@ function backOrderStockPlan(PDO $db,array $incoming):array{
  foreach($rows as &$row){$raw=$row['raw_available'];$row['shortfall']=$raw===null?null:max(0,$row['quantity']-$raw-$row['incoming']);$row['active_shortage']=$raw===null?0:max(0,-$raw);ksort($row['formats']);}unset($row);
  $rows=array_values($rows);usort($rows,fn($a,$b)=>strcasecmp($a['name'],$b['name']));return $rows;
 }
-function renderBackOrderStockPlan(array $rows,int $waitingCount):void{
+function renderBackOrderStockPlan(array $rows,int $waitingCount,int $expectedIncome):void{
  ?><section class="backorder-workspace" aria-labelledby="backorder-stock-title">
+ <div class="backorder-income"><span>Expected money in</span><strong><?=money($expectedIncome)?></strong><small>Still owed after payments already received.</small></div>
  <div class="backorder-overview"><div><strong><?=$waitingCount?></strong><span>Orders waiting</span></div><div><strong><?=array_sum(array_column($rows,'quantity'))?></strong><span>Units needed</span></div><a href="?view=stock&amp;section=incoming">Incoming stock <span aria-hidden="true">↗</span></a></div>
  <div class="backorder-section-heading"><div><h2 id="backorder-stock-title">What’s back ordered</h2><p>Product totals across all waiting orders.</p></div></div>
  <?php if(!$rows):?><p class="empty">No products waiting for stock.</p><?php else:?><div class="backorder-product-grid">
@@ -4571,7 +4572,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <script>(()=>{const button=document.querySelector('[data-recurring-custom-toggle]'),form=document.querySelector('[data-recurring-custom-form]');if(button&&form)button.addEventListener('click',()=>form.classList.toggle('open'))})();</script>
 <?php else:?>
 <?php if($ordersSection==='backorders'):?>
-<?php renderBackOrderStockPlan($backOrderDemand,count($backOrders));?>
+<?php $backOrderExpectedIncome=array_sum(array_map(fn($order)=>max(0,(int)$order['total']-(int)($order['paid_amount']??0)),$backOrders));renderBackOrderStockPlan($backOrderDemand,count($backOrders),$backOrderExpectedIncome);?>
 <div class="backorder-section-heading waiting-orders-heading"><div><h2>Waiting orders</h2><p>Waiting for stock · oldest first</p></div></div>
 <?php endif;?>
 <?php if($orderScope!==''):?><div class="order-scope-banner"><div><strong><?=e($orderScopes[$orderScope])?></strong><small><?=count($listedOrders)?> orders · <?=money($listedValue)?><?=$orderScope==='unpaid'?' outstanding':''?></small></div><a class="quick-action quiet" href="?view=orders">All orders →</a></div><?php endif;?>

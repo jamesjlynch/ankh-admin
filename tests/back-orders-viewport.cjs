@@ -22,6 +22,8 @@ const assert=require('node:assert/strict');
    await page.setViewportSize({width,height:844});await page.goto(host+'/?view=orders&section=backorders');
    assert(await page.getByRole('heading',{name:'Waiting customer fixture'}).count());
    assert.equal(await page.locator('.order-view-nav a').count(),6);
+   assert.equal(await page.locator('.backorder-income strong').innerText(),'£295.00');
+   assert(await page.locator('.backorder-income strong').evaluate(el=>el.scrollWidth<=el.clientWidth),'Expected income must fit on mobile');
    assert.equal(await page.locator('.order-view-nav').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),3,'Order navigation must have three clear columns');
    assert.equal(await page.locator('.order-view-nav').evaluate(el=>getComputedStyle(el).position),'static','Filters must sit at the top, not over the bottom app bar');
    assert(await page.locator('.order-view-nav').evaluate(el=>el.getBoundingClientRect().bottom<400),'Order views must be visible near the top');

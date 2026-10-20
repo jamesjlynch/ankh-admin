@@ -30,6 +30,7 @@ try{
  $before=$getOrder($id);$edit=$waiting;$edit['action']='order_edit';$edit['id']=$id;$edit['lines'][0]['quantity']=3;pricingRequest([],$edit);
  pricingCheck((int)$getOrder($id)['back_order']===1&&$available()===4,'Editing waiting order must not reserve');
  $html=pricingRequest(['view'=>'orders','section'=>'backorders']);
+ pricingCheck(preg_match('/class="backorder-income".*?<strong>£220\.00<\/strong>/s',$html)===1,'Expected money must sum outstanding balances after the £30 deposit');
  pricingCheck(str_contains($html,'Waiting for stock')&&str_contains($html,'Stock available')&&str_contains($html,'Second waiting customer'),'Waiting list should render availability and customer');
  pricingCheck(strpos($html,'<h2>Waiting customer fixture</h2>')<strpos($html,'<h2>Second waiting customer</h2>'),'Waiting list must show oldest first');
  $html=pricingRequest(['view'=>'orders']);pricingCheck(!str_contains($html,'<h2>Second waiting customer</h2>'),'Normal order list must exclude waiting orders');
@@ -56,5 +57,9 @@ try{
  // Waiting orders entered before stock tracking starts must reserve on release.
  $waiting['customer']='Historical waiting customer';$waiting['order_date']=date('Y-m-d',strtotime('-3 days'));pricingRequest([],$waiting);$old=(int)$db->query('SELECT MAX(id) FROM orders')->fetchColumn();
  $db->exec("UPDATE products SET stock_tracking_since='".date('Y-m-d')."',stock_jay_qty=5,stock_qty=10 WHERE id=99001");$postMove($old,'0');pricingCheck($available()===3,'Release date must be used when stock tracking began after order date');
+ // Paid and free waiting orders generate no expected incoming money.
+ $db->exec("INSERT INTO orders(id,customer,phone,address,notes,status,created,back_order,back_order_since) VALUES(99010,'Free waiting fixture','','','','New','2026-10-19',1,'2026-10-19'),(99011,'Paid waiting fixture','','','','Paid','2026-10-19',1,'2026-10-19'); INSERT INTO items(order_id,name,price,quantity) VALUES(99010,'Free product',0,1),(99011,'Paid product',10000,1); INSERT INTO payments(order_id,amount,method,created) VALUES(99011,10000,'Other','2026-10-19');");
+ $html=pricingRequest(['view'=>'orders','section'=>'backorders']);
+ pricingCheck(preg_match('/class="backorder-income".*?<strong>£0\.00<\/strong>/s',$html)===1,'Fully paid and free back orders must show no expected money');
  echo "PASS: active default, waiting creation/edit/payment, separate lists, FIFO, stock availability, guarded fulfilment, release/activation idempotency, assigned fridge, retained dates/deposit, cancellation and historical stock tracking.\n";
 }finally{$db=null;foreach(glob($temp.'/*')?:[] as $file)unlink($file);rmdir($temp);}
