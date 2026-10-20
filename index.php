@@ -2105,6 +2105,9 @@ function postedMoneyPence($value,string $label):int{
  return (int)round($number*100);
 }
 function supplyCategories():array{return ['Labels','Printer ink','Envelopes & packaging','Equipment','Other supplies'];}
+function productOrdersReportUrl(string $product,string $range,string $from,string $to,string $source='products'):string{
+ return '?'.http_build_query(['view'=>'reports','type'=>'productorders','product'=>$product,'range'=>$range,'from'=>$from,'to'=>$to,'source'=>$source==='overview'?'overview':'products']);
+}
 function supplyDate(string $value,string $label,bool $required=false,bool $future=false):string{
  $value=trim($value);if($value===''&&!$required)return '';
  $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,new DateTimeZone('Europe/London'));
@@ -4266,7 +4269,7 @@ $notificationCount=count($visibleNotifications);
 if(in_array($view,['reports','reorder'],true)){
 // Shared report filters and datasets. Sales, product and customer views use order date;
 // cash received uses payment date; recurring and stock views use their own event dates.
-$reportTypes=['overview','sales','profit','outgoings','products','customers','recurring','stock','personal'];
+$reportTypes=['overview','sales','profit','outgoings','products','productorders','customers','recurring','stock','personal'];
 $reportType=$view==='reorder'?'reorder':(in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview');
 $reorderWindowDays=in_array((int)($_GET['demand_days']??30),[30,60,90],true)?(int)($_GET['demand_days']??30):30;
 $reportRanges=['today','week','month','quarter','all','custom','next4w','next8w','next12w'];
@@ -4316,18 +4319,28 @@ foreach($orders as $analyticsOrder){
 }
 $reportAverageOrder=$reportOrdersFiltered?intdiv($reportOrderValue,count($reportOrdersFiltered)):0;
 uasort($reportCustomerStats,fn($a,$b)=>$b['paid_recorded']<=>$a['paid_recorded']?:$b['order_value']<=>$a['order_value']?:strcmp($a['name'],$b['name']));
-$reportProducts=[];$reportCustomerProductStats=[];
+$reportProducts=[];$reportCustomerProductStats=[];$reportProductOrderLines=[];
 $reportProductRows=$db->query("SELECT i.order_id,i.name,i.price,i.cost,i.quantity FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status<>'Cancelled' ORDER BY i.name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
 foreach($reportProductRows as $productRow){
  $productOrderId=(int)$productRow['order_id'];if(!isset($reportOrderIds[$productOrderId]))continue;
  $productName=trim((string)$productRow['name']);$productKey=strtolower($productName);$qty=(int)$productRow['quantity'];$lineValue=(int)$productRow['price']*$qty;
  if(!isset($reportProducts[$productKey]))$reportProducts[$productKey]=['name'=>$productName,'units'=>0,'line_value'=>0,'orders'=>[]];
  $reportProducts[$productKey]['units']+=$qty;$reportProducts[$productKey]['line_value']+=$lineValue;$reportProducts[$productKey]['orders'][$productOrderId]=true;
+ if($reportType==='productorders'){
+  $reportProductOrderLines[$productKey][$productOrderId]??=['units'=>0,'line_value'=>0];
+  $reportProductOrderLines[$productKey][$productOrderId]['units']+=$qty;$reportProductOrderLines[$productKey][$productOrderId]['line_value']+=$lineValue;
+ }
  $customerProductKey=$reportOrderCustomerKeys[$productOrderId]??'';if($customerProductKey!=='')$reportCustomerProductStats[$customerProductKey][$productKey]=($reportCustomerProductStats[$customerProductKey][$productKey]??0)+$qty;
 }
 foreach($reportProducts as &$productStats){$productStats['orders']=count($productStats['orders']);$productStats['average_unit_value']=$productStats['units']?intdiv((int)$productStats['line_value'],(int)$productStats['units']):0;}unset($productStats);
 foreach($reportCustomerStats as $customerKey=>&$customerStats){$purchases=$reportCustomerProductStats[$customerKey]??[];arsort($purchases,SORT_NUMERIC);$topKey=array_key_first($purchases);$customerStats['top_product']=$topKey!==null?(string)($reportProducts[$topKey]['name']??$topKey):'';$customerStats['top_product_units']=$topKey!==null?(int)$purchases[$topKey]:0;}unset($customerStats);
 uasort($reportProducts,fn($a,$b)=>$b['units']<=>$a['units']?:$b['line_value']<=>$a['line_value']?:strcmp($a['name'],$b['name']));
+$reportProductName=trim((string)($_GET['product']??''));$reportProductKey=strtolower($reportProductName);$reportProductSource=($_GET['source']??'products')==='overview'?'overview':'products';
+$reportProductOrders=[];$reportSelectedProduct=$reportProducts[$reportProductKey]??['name'=>$reportProductName,'units'=>0,'line_value'=>0,'orders'=>0];
+if($reportType==='productorders'){
+ foreach($reportOrdersFiltered as $o){$line=$reportProductOrderLines[$reportProductKey][(int)$o['id']]??null;if($line)$reportProductOrders[]=$o+['_product_units'=>$line['units'],'_product_value'=>$line['line_value']];}
+ usort($reportProductOrders,static fn($a,$b)=>$b['_report_ts']<=>$a['_report_ts']?:(int)$b['id']<=>(int)$a['id']);
+}
 $reportCycles=[];$reportCycleFrom=$reportFrom!==''?$reportFrom:$reportToday->format('Y-m-d');$reportCycleTo=$reportTo!==''?$reportTo:$reportToday->modify('+12 weeks')->format('Y-m-d');
 foreach($retaCyclesActive as $cycle){
  $dueDate=(string)($cycle['next_due_date']??'');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$dueDate))continue;
@@ -4395,6 +4408,7 @@ if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRange
  elseif($reportType==='profit'){$exportHeaders=['Order','Customer','Status','Payment date','Sales (£)','Product cost (£)','Pen cost (£)','Postage (£)','Gross profit (£)','Cost missing'];foreach($selectedReportOrders as $r)$exportRows[]=['ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),(string)$r['customer'],(string)$r['status'],(string)$r['date'],number_format((int)$r['revenue']/100,2,'.',''),number_format((int)$r['product_cost']/100,2,'.',''),number_format((int)$r['pen_cost']/100,2,'.',''),number_format((int)$r['postage']/100,2,'.',''),number_format((int)$r['profit']/100,2,'.',''),!empty($r['missing_cost'])?'Yes':'No'];}
  elseif(in_array($reportType,['sales','overview'],true)){$exportHeaders=['Order','Order date','Customer','Phone','Status','Assigned to','Order value (£)','Paid recorded (£)','Balance due (£)'];foreach($reportOrdersFiltered as $o)$exportRows[]=['ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),date('Y-m-d',(int)$o['_report_ts']),(string)$o['customer'],(string)$o['phone'],(string)$o['status'],(string)($o['assigned_to']??''),number_format((int)$o['_order_value']/100,2,'.',''),number_format((int)$o['_paid_recorded']/100,2,'.',''),number_format((int)$o['_balance_due']/100,2,'.','')];}
  elseif($reportType==='products'){$exportHeaders=['Product','Units','Orders','Average unit value (£)','Line value (£)'];foreach($reportProducts as $r)$exportRows[]=[(string)$r['name'],(int)$r['units'],(int)$r['orders'],number_format((int)$r['average_unit_value']/100,2,'.',''),number_format((int)$r['line_value']/100,2,'.','')];}
+ elseif($reportType==='productorders'){$exportHeaders=['Product','Order','Order date','Ordered by','For','Status','Back order','Units of product','Product line value (£)'];foreach($reportProductOrders as $o)$exportRows[]=[$reportSelectedProduct['name'],'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),date('Y-m-d',(int)$o['_report_ts']),(string)$o['customer'],orderDisplayName($o),(string)$o['status'],!empty($o['back_order'])?'Yes':'No',(int)$o['_product_units'],number_format((int)$o['_product_value']/100,2,'.','')];}
  elseif($reportType==='customers'){$exportHeaders=['Customer','Phone','Orders','Order value (£)','Paid recorded (£)','Balance due (£)','Most purchased product','Units of top product','Last order'];foreach($reportCustomerStats as $r)$exportRows[]= [(string)$r['name'],(string)$r['phone'],(int)$r['orders'],number_format((int)$r['order_value']/100,2,'.',''),number_format((int)$r['paid_recorded']/100,2,'.',''),number_format((int)$r['balance_due']/100,2,'.',''),(string)$r['top_product'],(int)$r['top_product_units'],(string)$r['last_order']];}
  elseif($reportType==='recurring'){$exportHeaders=['Next due date','Ordered by','For','Phone','Products','Expected value (£)','Expected profit (£)','Cycle days'];foreach($reportCycles as $r)$exportRows[]=[(string)$r['next_due_date'],(string)$r['customer_name'],cycleRecipientName($r),(string)$r['phone'],(string)$r['product_summary'],number_format((int)$r['expected_value']/100,2,'.',''),number_format((int)$r['expected_profit']/100,2,'.',''),(int)$r['cycle_days']];}
  elseif($reportType==='stock'){$exportHeaders=['Product','On hand','Low-stock threshold','Unit retail (£)','Retail stock value (£)','Unit cost (£)','Stock cost value (£)','Potential gross profit (£)','Status'];foreach($reportTrackedStock as $r){$qty=(int)$r['stock_qty'];$retail=(int)$r['price'];$cost=$r['cost']===null?null:(int)$r['cost'];$isLow=$qty<=(int)$r['low_stock_at'];$exportRows[]=[(string)$r['name'],$qty,(int)$r['low_stock_at'],number_format($retail/100,2,'.',''),number_format($qty*$retail/100,2,'.',''),$cost===null?'':number_format($cost/100,2,'.',''),$cost===null?'':number_format($qty*$cost/100,2,'.',''),$cost===null?'':number_format($qty*($retail-$cost)/100,2,'.',''),$isLow?'Low stock':'In stock'];}}
@@ -5508,6 +5522,7 @@ $reportTrendMax=1;foreach($reportTrend as $trendRow)$reportTrendMax=max($reportT
 ksort($reportTrend);
 $reportUpcomingPreview=array_slice(cycleOccurrences($retaCyclesActive,$retaToday,8),0,5);
 $reportExportParams=['view'=>$view==='reorder'?'reorder':'reports','type'=>$reportType,'range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo,'period'=>$reportType==='profit'?$reportPeriodKey:'','export'=>'1'];if($reportType==='reorder')$reportExportParams['demand_days']=$reorderWindowDays;
+if($reportType==='productorders'){$reportExportParams['product']=$reportProductName;$reportExportParams['source']=$reportProductSource;}
 $reportExportUrl='?'.http_build_query($reportExportParams);
 $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['export'=>'stock-movements']));
 ?>
@@ -5515,7 +5530,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php if($view==='reports'):?>
 <nav class="report-tabs" aria-label="Report types">
 <?php foreach($reportTitles as $tabKey=>$tabTitle):$tabRange=$tabKey==='recurring'?($reportType==='recurring'?$reportRange:'next8w'):(str_starts_with($reportRange,'next')?'month':$reportRange);$tabParams=['view'=>'reports','type'=>$tabKey,'range'=>$tabRange];if($tabKey==='recurring'&&!in_array($tabParams['range'],['next4w','next8w','next12w','custom'],true))$tabParams['range']='next8w';if($reportFrom!=='')$tabParams['from']=$reportFrom;if($reportTo!=='')$tabParams['to']=$reportTo;?>
-<a class="<?=$reportType===$tabKey?'selected':''?>" href="?<?=e(http_build_query($tabParams))?>"><?=$tabTitle?></a><?php endforeach;?>
+<a class="<?=$reportType===$tabKey||($reportType==='productorders'&&$tabKey==='products')?'selected':''?>" href="?<?=e(http_build_query($tabParams))?>"><?=$tabTitle?></a><?php endforeach;?>
 </nav>
 <?php endif;?>
 <?php if(!in_array($reportType,['profit','reorder'],true)):?>
@@ -5526,6 +5541,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 </script><summary><span>Dates, filters &amp; exports</span><span aria-hidden="true">⌄</span></summary>
 <form class="report-filter-bar" method="get">
 <input type="hidden" name="view" value="reports"><input type="hidden" name="type" value="<?=e($reportType)?>">
+<?php if($reportType==='productorders'):?><input type="hidden" name="product" value="<?=e($reportProductName)?>"><input type="hidden" name="source" value="<?=e($reportProductSource)?>"><?php endif;?>
 <label>Period<select name="range" id="report-range">
 <?php if($reportType==='recurring'):?>
 <option value="next4w" <?=$reportRange==='next4w'?'selected':''?>>Next 4 weeks</option><option value="next8w" <?=$reportRange==='next8w'?'selected':''?>>Next 8 weeks</option><option value="next12w" <?=$reportRange==='next12w'?'selected':''?>>Next 12 weeks</option><option value="custom" <?=$reportRange==='custom'?'selected':''?>>Custom dates</option>
@@ -5540,7 +5556,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">The target includes your low-stock alert, estimated non-recurring demand during the 7-day supplier wait, and potential repeat orders due in the next 30 days. Current open orders are already reserved out of available stock. Suggested quantities are rounded up to full supplier packs.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
 <div class="report-infographic-actions"><button type="button" id="report-infographic-download">☥&nbsp; Create square infographic</button><span id="report-infographic-status" aria-live="polite"></span></div>
 <section class="report-infographic-preview" id="report-infographic-preview" hidden aria-label="Infographic preview">
-<?php if($reportType==='personal'):?><style>.report-infographic-actions{display:none!important}</style><?php endif;?>
+<?php if(in_array($reportType,['personal','productorders'],true)):?><style>.report-infographic-actions{display:none!important}</style><?php endif;?>
  <div class="report-infographic-preview-head"><div><p class="eyebrow">YOUR ANKH INFOGRAPHIC</p><h2>Ready to share</h2></div><button type="button" class="quiet" id="report-infographic-close">Close</button></div>
  <img id="report-infographic-image" alt="Square ANKH report infographic">
  <div class="report-infographic-preview-actions"><button type="button" id="report-infographic-share">Share / Save image</button><a id="report-infographic-save" class="button quiet" download="ankh-report.png">Save PNG</a></div>
@@ -5801,8 +5817,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">COMING UP</p><h2>Next recurring orders</h2></div><a class="quick-action" href="?view=reports&amp;type=recurring&amp;range=next8w">View report</a></div>
 <?php if($reportUpcomingPreview):foreach($reportUpcomingPreview as $cycle):?><div class="dashboard-row report-list-row"><span><strong><?=e(cycleRecipientName($cycle))?></strong><small><?=e($cycle['product_summary'])?> · Ordered by <?=e($cycle['customer_name'])?></small></span><strong><?=e(date('d M',strtotime((string)$cycle['occurrence_date'])))?></strong></div><?php endforeach;else:?><p class="muted">No upcoming recurring orders are scheduled.</p><?php endif;?>
 </section>
-<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP PRODUCTS</p><h2>Most purchased</h2></div><a class="quick-action" href="?view=reports&amp;type=products&amp;range=<?=e($reportRange)?>">All products</a></div>
-<?php $topProductsPreview=array_slice($reportProducts,0,5,true);if($topProductsPreview):foreach($topProductsPreview as $r):?><div class="dashboard-row"><span><?=e($r['name'])?></span><strong><?=$r['units']?> units</strong></div><?php endforeach;else:?><p class="muted">Product rankings appear when orders are placed.</p><?php endif;?>
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">TOP PRODUCTS</p><h2>Most purchased</h2></div><a class="quick-action" href="?<?=e(http_build_query(['view'=>'reports','type'=>'products','range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo]))?>">All products</a></div>
+<?php $topProductsPreview=array_slice($reportProducts,0,5,true);if($topProductsPreview):foreach($topProductsPreview as $r):?><a class="dashboard-row report-product-summary" href="<?=e(productOrdersReportUrl($r['name'],$reportRange,$reportFrom,$reportTo,'overview'))?>" aria-label="<?=e('View orders for '.$r['name'])?>"><span><?=e($r['name'])?><small><?=$r['orders']?> orders · View orders →</small></span><strong><?=$r['units']?> units</strong></a><?php endforeach;else:?><p class="muted">Product rankings appear when orders are placed.</p><?php endif;?>
 </section>
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CUSTOMERS</p><h2>Highest paid</h2></div><a class="quick-action" href="?view=reports&amp;type=customers&amp;range=<?=e($reportRange)?>">All customers</a></div>
 <?php $topCustomersPreview=array_slice($reportCustomerStats,0,5,true);if($topCustomersPreview):foreach($topCustomersPreview as $r):?><div class="dashboard-row"><span><?=e($r['name'])?><small><?=$r['orders']?> orders</small></span><strong><?=money($r['paid_recorded'])?></strong></div><?php endforeach;else:?><p class="muted">Customer rankings appear when orders are placed.</p><?php endif;?>
@@ -5821,9 +5837,15 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php foreach($reportOrdersFiltered as $o):?><tr><td><a href="?view=edit&amp;id=<?=$o['id']?>">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></a></td><td><?=e(date('d M Y',(int)$o['_report_ts']))?></td><td><?=e($o['customer'])?></td><td><?=e($o['status'])?></td><td><?=money($o['_order_value'])?></td><td><?=money($o['_paid_recorded'])?></td><td><?=money($o['_balance_due'])?></td></tr><?php endforeach;?>
 <?php if(!$reportOrdersFiltered):?><tr><td colspan="7" class="muted">No orders in this date range.</td></tr><?php endif;?></tbody></table></div></section>
 <?php elseif($reportType==='products'):?>
-<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">PRODUCT PERFORMANCE</p><h2>Most purchased products</h2><p class="muted">Ranked by units on non-cancelled orders. Line value uses the price saved on each order.</p></div></div><div class="profit-table-wrap"><table class="profit-table report-table"><thead><tr><th>Product</th><th>Units</th><th>Orders</th><th>Average unit value</th><th>Line value</th></tr></thead><tbody>
-<?php foreach($reportProducts as $r):?><tr><td><?=e($r['name'])?></td><td><?=$r['units']?></td><td><?=$r['orders']?></td><td><?=money($r['average_unit_value'])?></td><td><?=money($r['line_value'])?></td></tr><?php endforeach;?>
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">PRODUCT PERFORMANCE</p><h2>Most purchased products</h2><p class="muted">Tap a product row to see its orders in this period. Ranked by units on non-cancelled orders. Line value uses the price saved on each order.</p></div></div><div class="profit-table-wrap"><table class="profit-table report-table"><thead><tr><th>Product</th><th>Units</th><th>Orders</th><th>Average unit value</th><th>Line value</th></tr></thead><tbody>
+<?php foreach($reportProducts as $r):$productOrdersUrl=productOrdersReportUrl($r['name'],$reportRange,$reportFrom,$reportTo);?><tr class="report-product-row" data-report-product-url="<?=e($productOrdersUrl)?>"><td><a class="report-product-link" href="<?=e($productOrdersUrl)?>" aria-label="<?=e('View orders for '.$r['name'])?>"><?=e($r['name'])?></a></td><td><?=$r['units']?></td><td><?=$r['orders']?></td><td><?=money($r['average_unit_value'])?></td><td><?=money($r['line_value'])?></td></tr><?php endforeach;?>
 <?php if(!$reportProducts):?><tr><td colspan="5" class="muted">No product sales in this date range.</td></tr><?php endif;?></tbody></table></div></section>
+<script>document.addEventListener('click',event=>{const row=event.target.closest('[data-report-product-url]');if(!row||event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey||event.target.closest('a,button,input,select,textarea')||window.getSelection()?.toString())return;window.location.assign(row.dataset.reportProductUrl)});</script>
+<?php elseif($reportType==='productorders'):?>
+<section class="panel report-product-orders-heading"><a class="quick-action" href="?<?=e(http_build_query(['view'=>'reports','type'=>$reportProductSource,'range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo]))?>">← Back to <?=$reportProductSource==='overview'?'overview':'products'?></a><p class="eyebrow">ORDERS FOR THIS PRODUCT</p><h2><?=e($reportSelectedProduct['name']?:'Choose a product')?></h2><p class="muted"><?=count($reportProductOrders)?> orders · <?=(int)$reportSelectedProduct['units']?> units · <?=money((int)$reportSelectedProduct['line_value'])?> product value</p><p class="muted">Orders placed <?=e($reportFrom!==''&&$reportTo!==''?'from '.$reportFrom.' to '.$reportTo:'across all time')?>. Matches the product rankings; cancelled and free personal-use orders are excluded. Tap an order to open it.</p></section>
+<div class="report-product-order-list">
+<?php foreach($reportProductOrders as $o):?><a class="report-product-order" href="?view=edit&amp;id=<?=(int)$o['id']?>"><div class="report-product-order-top"><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span><time datetime="<?=e(date('Y-m-d',(int)$o['_report_ts']))?>"><?=e(date('d M Y',(int)$o['_report_ts']))?></time></div><h3><?=e(orderDisplayName($o))?></h3><?php if(trim((string)($o['recipient_name']??''))!==''):?><p>Ordered by <?=e($o['customer'])?></p><?php endif;?><div class="report-product-order-bottom"><span><?=(int)$o['_product_units']?> units · <?=money((int)$o['_product_value'])?></span><span><?=e($o['status'])?><?=!empty($o['back_order'])?' · Back order':''?></span></div><small>Open order →</small></a><?php endforeach;?>
+<?php if(!$reportProductOrders):?><section class="panel"><p class="empty">No matching orders for this product in the selected period.</p></section><?php endif;?></div>
 <?php elseif($reportType==='customers'):?>
 <section class="report-metrics"><?php $topCustomer=$reportCustomerStats?reset($reportCustomerStats):null;$topOrderCustomer=$reportCustomerStats;uasort($topOrderCustomer,fn($a,$b)=>$b['order_value']<=>$a['order_value']?:$b['paid_recorded']<=>$a['paid_recorded']);$topOrderCustomer=$topOrderCustomer?reset($topOrderCustomer):null;?><article><span>Top customer by payments recorded</span><strong><?=e($topCustomer['name']??'—')?></strong><small><?=money((int)($topCustomer['paid_recorded']??0))?> recorded against their orders</small></article><article><span>Top customer order value</span><strong><?=money((int)($topOrderCustomer['order_value']??0))?></strong><small><?=e($topOrderCustomer['name']??'—')?></small></article><article><span>Customers</span><strong><?=count($reportCustomerStats)?></strong><small>With orders in this date range</small></article><article><span>Most purchased by top customer</span><strong><?=e($topCustomer['top_product']??'—')?></strong><small><?=e((string)($topCustomer['top_product_units']??0))?> units</small></article></section>
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CUSTOMER PERFORMANCE</p><h2>Spend, orders and favourites</h2><p class="muted">Ranked by recorded payments against orders placed in this date range.</p></div></div><div class="profit-table-wrap"><table class="profit-table report-table"><thead><tr><th>Customer</th><th>Orders</th><th>Most purchased</th><th>Order value</th><th>Paid recorded</th><th>Balance due</th><th>Last order</th></tr></thead><tbody>

@@ -33,3 +33,5 @@ jobs:
         run: node tests/supplier-edit-viewport.cjs
       - name: Test shared supplies cupboard workflow
         run: node tests/supply-cupboard-viewport.cjs
+      - name: Test clickable product reports
+        run: node tests/product-order-report-viewport.cjs

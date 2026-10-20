@@ -60,6 +60,8 @@ jobs:
         run: php tests/business-supplies.php
       - name: Test shared supplies cupboard and delivery check-in
         run: php tests/supply-cupboard.php
+      - name: Test product report order drill-down
+        run: php tests/product-order-report.php
       - name: Test office today overview
         run: php tests/today-overview.php
       - name: Render dashboard and customer intelligence with isolated data
