@@ -4270,7 +4270,7 @@ if(in_array($view,['reports','reorder'],true)){
 // Shared report filters and datasets. Sales, product and customer views use order date;
 // cash received uses payment date; recurring and stock views use their own event dates.
 $reportTypes=['overview','sales','profit','outgoings','products','productorders','customers','recurring','stock','personal'];
-$reportType=$view==='reorder'?'reorder':(in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview');
+$reportType=in_array($view,['reorder','shipping'],true)?'reorder':(in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview');
 $reorderWindowDays=in_array((int)($_GET['demand_days']??30),[30,60,90],true)?(int)($_GET['demand_days']??30):30;
 $reportRanges=['today','week','month','quarter','all','custom','next4w','next8w','next12w'];
 $requestedReportRange=(string)($_GET['range']??'');$defaultReportRange=$reportType==='recurring'?'next8w':'month';
