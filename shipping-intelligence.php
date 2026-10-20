@@ -166,6 +166,46 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
 .ship-page .ship-calendar-panel .ship-manage-link{margin-top:15px;display:flex;text-decoration:none!important}
 @media(max-width:600px){.ship-page .ship-calendar-panel{padding:14px}.ship-page a.ship-event-tile{padding:15px}.ship-page .ship-calendar-intro{padding:4px 2px 0}.ship-page .ship-calendar-intro h2{font-size:20px}.ship-page .ship-count{font-size:10px}.ship-page .ship-event-tile-title h3{font-size:17px}.ship-page .ship-event-preview{font-size:13px}}
 @media(prefers-reduced-motion:reduce){.ship-page a.ship-event-tile{transition:none}}
+
+/* Automatic stock-cover planning */
+.ship-page .ship-forecast-card .ship-topline{margin-bottom:12px}
+.ship-page .ship-event-select{margin-top:17px;display:flex;align-items:end;gap:10px}
+.ship-page .ship-event-select label{flex:1;min-width:0;margin:0;font-size:13px;color:#bbb}
+.ship-page .ship-event-select select{margin-top:7px;min-width:0;font-size:15px}
+.ship-page .ship-forecast-choose{flex:none;font-size:13px;padding:11px 13px;min-height:48px}
+.ship-page .ship-forecast-dates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:17px}
+.ship-page .ship-forecast-dates>div{border:1px solid #393a3b;border-radius:12px;background:#242426;padding:12px 11px}
+.ship-page .ship-forecast-dates small{font-size:11px;color:#b8b7b5;display:block;line-height:1.4}
+.ship-page .ship-forecast-dates strong{font-size:13px;color:#f0d290;display:block;margin-top:7px;line-height:1.35}
+.ship-page .ship-result-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:21px 0 14px}
+.ship-page .ship-result-metrics>div{padding:14px 9px;border:1px solid #393a3b;background:#212223;border-radius:13px;text-align:center}
+.ship-page .ship-result-metrics strong{font-size:25px;font-weight:750;display:block;color:#eed49b}
+.ship-page .ship-result-metrics span{font-size:11px;line-height:1.35;color:#bebdb9;display:block;margin-top:4px}
+.ship-page .ship-product-results{display:grid;gap:11px;margin:15px 0}
+.ship-page .ship-product-card{background:#222326;border:1px solid #36383a;border-radius:15px;padding:16px;min-width:0}
+.ship-page .ship-product-heading{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+.ship-page .ship-product-heading h3{margin:0;font-weight:750;line-height:1.35;font-size:17px;color:#f5f0e6;overflow-wrap:anywhere}
+.ship-page .ship-status-tag{font-size:11px;font-weight:700;border-radius:25px;padding:6px 9px;line-height:1.2;white-space:nowrap;background:#303138;color:#eee;flex:none}
+.ship-page .ship-status-tag.order{background:#542c28;color:#ffcebf}
+.ship-page .ship-status-tag.low{background:#473820;color:#f4dbac}
+.ship-page .ship-status-tag.covered{background:#243d31;color:#bbefcc}
+.ship-page .ship-status-tag.uncounted,.ship-page .ship-status-tag.review{background:#34343a;color:#dad5dd}
+.ship-page .ship-product-numbers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.ship-page .ship-product-numbers span{background:#191a1d;border-radius:10px;padding:10px 7px;text-align:center}
+.ship-page .ship-product-numbers small,.ship-page .ship-buy-row small{font-size:10px;line-height:1.3;display:block;color:#aaa}
+.ship-page .ship-product-numbers strong{font-size:22px;color:#f1e8d2;font-weight:700;display:block;margin-top:6px}
+.ship-page .ship-product-desc,.ship-page .ship-history-warning{color:#b5b6b8;font-size:12px;line-height:1.6;margin:12px 0 0}
+.ship-page .ship-history-warning{color:#f3d39a}
+.ship-page .ship-buy-row{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #3b3b3e;margin-top:13px;padding-top:13px}
+.ship-page .ship-buy-row>div{flex:1}
+.ship-page .ship-buy-row strong{display:block;margin-top:4px;color:#f0ce8c;font-size:16px}
+.ship-page .ship-covered-note{font-size:12px;color:#a8d8b9;margin:12px 0 0}
+.ship-page .ship-inline-link{display:inline-block;margin-top:12px;color:#f0ce8c;text-decoration:none}
+.ship-page .ship-forecast-empty{border:1px dashed #5a503a;border-radius:13px;background:#27241f;padding:18px;margin-top:16px}
+.ship-page .ship-forecast-empty strong{font-size:15px}
+.ship-page .ship-forecast-empty p{font-size:13px;color:#bfbcb5;line-height:1.6}
+.ship-page .ship-reorder-link{margin-top:10px;text-decoration:none}
+@media(max-width:600px){.ship-page .ship-event-select{display:block}.ship-page .ship-forecast-choose{width:100%;margin-top:10px}.ship-page .ship-forecast-dates{grid-template-columns:1fr 1fr}.ship-page .ship-forecast-dates>div:last-child{grid-column:1/-1}.ship-page .ship-product-card{padding:14px}.ship-page .ship-product-heading h3{font-size:16px}}
 </style>
 <div class="ship-page">
 <?php if(!in_array((string)($_GET['mode']??''),['manage','event'],true)): ?>
@@ -175,14 +215,62 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
  <div class="ship-primary"><?=e($shipNext['name'])?></div><p class="ship-sub"><?=e(date('j F Y',strtotime($shipNext['date'])))?> – <?=e(date('j F Y',strtotime($shipNext['end'])))?></p>
  <p class="ship-foot"><?=e($shipNext['detail'])?></p><div class="ship-meta"><strong><?=$shipDays?> days until planning-window start</strong><span class="ship-pill"><?=e($shipNext['status'])?></span></div></section>
  <?php endif;?>
- <div class="ship-grid"><section class="ship-card"><span class="ship-sub">Upcoming events</span><div class="ship-num"><?=count($shipUpcoming)?></div><span class="ship-sub">On your shipping calendar</span></section><section class="ship-card"><span class="ship-sub">Potential stock gaps</span><div class="ship-num"><?=$shipAtRisk?></div><span class="ship-sub">Based on <?=$shipProtectionDays?>-day planning cover</span></section></div>
- <section class="ship-card"><div class="ship-topline"><h2>Stock protection forecast</h2><span class="ship-pill">Live app stock</span></div><p class="ship-sub">Uses current available stock and recent delivered sales. Recurring demand is added separately; check the estimates before buying.</p>
- <form class="ship-form" method="get"><input type="hidden" name="view" value="shipping"><label>Stock coverage<select name="cover"><?php foreach([21,28,35,42,56] as $d):?><option value="<?=$d?>" <?=$d===$shipProtectionDays?'selected':''?>><?=$d?> days</option><?php endforeach;?></select></label><label>Sales history<select name="demand_days"><?php foreach([30,60,90] as $d):?><option value="<?=$d?>" <?=$d===$shipLookback?'selected':''?>><?=$d?> days</option><?php endforeach;?></select></label><button type="submit">Recalculate</button></form>
- <?php if(!$shipRows):?><p class="ship-empty">No tracked products yet. Enable stock tracking in Products to see forecasts here.</p><?php endif;?>
- <?php foreach(array_slice($shipRows,0,30) as $sr):$risk=$sr['gap']>0?($sr['available']===0?'high':'medium'):'covered';?>
- <div class="ship-row"><div class="ship-row-info"><div class="ship-topline"><strong><?=e($sr['name'])?></strong><span class="ship-pill <?=$risk?>"><?=$sr['gap']>0?'Review reorder':'Covered'?></span></div><small><?=$sr['available']?> available · <?=$sr['target']?> estimated required · <?=$sr['recent']?> sold in <?=$shipLookback?> days<?php if($sr['recurring']):?> · <?=$sr['recurring']?> upcoming recurring<?php endif;?></small><div class="ship-bar"><span style="width:<?=min(100,$sr['target']>0?100*$sr['available']/$sr['target']:100)?>%"></span></div><small><?=$sr['order']>0?'Consider ordering '.$sr['order'].' units (pack size '.$sr['pack'].')':'No additional units indicated'?></small></div></div>
- <?php endforeach;?>
- <a class="ship-action" href="?view=reorder">Open full Reorder Planner →</a><p class="ship-foot">Planning estimates only. Available stock is already net of reservations; do not subtract reserved quantities twice. Incoming stock and expiry dates must be checked before ordering. Factory shutdown dates and customs holds are not live-tracked.</p></section>
+ <div class="ship-grid"><section class="ship-card"><span class="ship-sub">Upcoming events</span><div class="ship-num"><?=count($shipUpcoming)?></div><span class="ship-sub">On your shipping calendar</span></section><section class="ship-card"><span class="ship-sub">Potential stock gaps</span><div class="ship-num"><?=$shipAtRisk?></div><span class="ship-sub"><?=$shipNeedsCount?> without confirmed stock counts</span></section></div>
+ <section class="ship-card ship-forecast-card">
+  <div class="ship-topline"><h2>Stock protection forecast</h2><span class="ship-pill">Automatic</span></div>
+  <?php if($shipForecastEvent&&$shipCoverEnd):?>
+   <p class="ship-sub">Your stock and existing orders are compared with the next disruption, so you don't need to guess how many days to cover.</p>
+   <form method="get" class="ship-event-select"><input type="hidden" name="view" value="shipping">
+    <label>Disruption to plan around
+    <select name="forecast_event" onchange="this.form.submit()">
+     <?php foreach($shipUpcoming as $event):?><option value="<?=e($event['id'])?>" <?=$shipForecastEvent['id']===$event['id']?'selected':''?>><?=e($event['name'].' · '.date('j M',strtotime($event['date'])))?></option><?php endforeach;?>
+    </select></label>
+    <button type="submit" class="ship-forecast-choose">Update forecast</button>
+   </form>
+   <div class="ship-forecast-dates">
+    <div><small>Disruption starts</small><strong><?=e(date('j M Y',strtotime($shipForecastEvent['date'])))?></strong></div>
+    <div><small>Estimated cover until</small><strong><?=e($shipCoverEnd->format('j M Y'))?></strong></div>
+    <div><small>Suggested order review by</small><strong><?=e($shipLastOrderDate->format('j M Y'))?></strong></div>
+   </div>
+   <p class="ship-foot">Cover through <?=e($shipCoverEnd->format('j M'))?> includes 7 days' normal supplier lead time and 7 days' estimated recovery buffer after the event. These are planning assumptions, not confirmed shutdown or arrival dates.</p>
+   <div class="ship-result-metrics">
+    <div><strong><?=$shipOrderNow?></strong><span>Order now</span></div>
+    <div><strong><?=$shipAtRisk-$shipOrderNow?></strong><span>Running low</span></div>
+    <div><strong><?=$shipNeedsCount?></strong><span>Need a count</span></div>
+   </div>
+   <?php if(!$shipRows):?><div class="ship-forecast-empty"><strong>No product records are available for a reliable forecast.</strong><p>Confirm fridge stock counts in Stock Control. The app will then automatically calculate what might be needed before the disruption.</p><a class="ship-action ship-secondary" href="?view=stock">Open Stock Control →</a></div><?php endif;?>
+   <div class="ship-product-results">
+   <?php foreach($shipRows as $sr):
+     $state=$sr['state'];$stateText=['order'=>'Order now','low'=>'Running low','covered'=>'Covered','uncounted'=>'Needs stock count','review'=>'Review data'][$state]??'Review';
+   ?>
+   <article class="ship-product-card">
+     <div class="ship-product-heading"><h3><?=e($sr['name'])?></h3><span class="ship-status-tag <?=e($state)?>"><?=e($stateText)?></span></div>
+     <?php if(!$sr['tracked']):?>
+       <p class="ship-product-desc">Stock has not been counted in the fridge system. A purchase estimate would be unreliable.</p>
+       <a class="ship-inline-link" href="?view=stock">Confirm stock count →</a>
+     <?php else:?>
+       <div class="ship-product-numbers">
+        <span><small>Available now</small><strong><?=$sr['available']?></strong></span>
+        <span><small>Due in time</small><strong>+<?=$sr['incoming']?></strong></span>
+        <span><small>Estimated needed</small><strong><?=$sr['target']?></strong></span>
+       </div>
+       <p class="ship-product-desc"><?=$sr['recent']?> units delivered in 30 days · <?=$sr['recurring']?> future recurring · <?=$sr['demand']?> forecast demand<?php if($sr['uncertain']>0):?> · <?=$sr['uncertain']?> incoming with unconfirmed/late ETA (excluded)<?php endif;?></p>
+       <?php if($sr['gap']>0):?>
+        <div class="ship-buy-row"><div><small>Estimated shortfall</small><strong><?=$sr['gap']?> units</strong></div><div><small>Supplier pack estimate</small><strong><?=$sr['order']?> units</strong></div></div>
+       <?php elseif($state==='covered'):?>
+        <p class="ship-covered-note">Existing available stock plus expected deliveries covers estimated demand.</p>
+       <?php else:?><p class="ship-product-desc">Not enough recent sales history to confirm a reliable coverage estimate.</p><?php endif;?>
+       <?php if($sr['limited_history']):?><p class="ship-history-warning">Stock tracking started recently. Treat the sales-based forecast as provisional.</p><?php endif;?>
+     <?php endif;?>
+   </article>
+   <?php endforeach;?>
+   </div>
+  <?php else:?>
+   <div class="ship-forecast-empty"><strong>No upcoming calendar disruptions found.</strong><p>Add an event to enable automatic stock coverage planning.</p><a class="ship-action ship-secondary" href="?view=shipping&amp;mode=manage">Manage calendar →</a></div>
+  <?php endif;?>
+  <a class="ship-action ship-secondary ship-reorder-link" href="?view=reorder">Open full Reorder Planner →</a>
+  <p class="ship-foot">Estimates use non-recurring delivered sales (last 30 days), projected recurring orders not already open, fridge balances net of reservations, and only incoming orders with a future ETA within this cover period. Expiry dates, changes in demand and actual customs/carrier delays still require a manual check. Nothing is ordered automatically.</p>
+ </section>
  <?php endif; ?>
 <?php $shipMode=in_array((string)($_GET['mode']??''),['manage','event'],true)?(string)$_GET['mode']:'overview';$shipSelectedId=(string)($_GET['event']??'');$shipSelected=null;foreach($shippingEvents as $candidate){if($candidate['id']===$shipSelectedId)$shipSelected=$candidate;} ?>
 <?php if($shipMode==='event'):?>
