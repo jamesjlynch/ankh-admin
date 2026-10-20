@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS passkeys (id INTEGER PRIMARY KEY, credential_id TEXT NOT NULL UNIQUE, public_key_pem TEXT NOT NULL, sign_count INTEGER NOT NULL DEFAULT 0, name TEXT NOT NULL DEFAULT "Passkey", created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE, amount INTEGER NOT NULL CHECK(amount>0), method TEXT NOT NULL DEFAULT "", note TEXT NOT NULL DEFAULT "", created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS business_supplies (
+ id INTEGER PRIMARY KEY, item TEXT NOT NULL, category TEXT NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0),
+ supplier TEXT NOT NULL, reference TEXT NOT NULL DEFAULT "", ordered_date TEXT NOT NULL, expected_date TEXT NOT NULL DEFAULT "",
+ status TEXT NOT NULL DEFAULT "Ordered", item_cost INTEGER NOT NULL CHECK(item_cost>=0), shipping INTEGER NOT NULL CHECK(shipping>=0),
+ payment_status TEXT NOT NULL DEFAULT "Unpaid", paid_date TEXT NOT NULL DEFAULT "", refunded_date TEXT NOT NULL DEFAULT "",
+ product_url TEXT NOT NULL DEFAULT "", tracking_reference TEXT NOT NULL DEFAULT "", tracking_url TEXT NOT NULL DEFAULT "",
+ notes TEXT NOT NULL DEFAULT "", revision INTEGER NOT NULL DEFAULT 1, request_key TEXT NOT NULL UNIQUE, created TEXT NOT NULL, updated TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS business_supplies_ordered ON business_supplies(ordered_date);
 CREATE TABLE IF NOT EXISTS reta_cycles (
  id INTEGER PRIMARY KEY,
  customer_name TEXT NOT NULL,
@@ -2080,6 +2089,58 @@ function postedMoneyPence($value,string $label):int{
  if($number===false||$number<0||$number>100000)throw new Exception('Check the '.$label.' amount.');
  return (int)round($number*100);
 }
+function supplyCategories():array{return ['Labels','Printer ink','Envelopes & packaging','Equipment','Other supplies'];}
+function supplyDate(string $value,string $label,bool $required=false,bool $future=false):string{
+ $value=trim($value);if($value===''&&!$required)return '';
+ $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,new DateTimeZone('Europe/London'));
+ if(!$date||$date->format('Y-m-d')!==$value)throw new Exception('Enter a valid '.$label.'.');
+ if(!$future&&$value>(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'))throw new Exception(ucfirst($label).' cannot be in the future.');
+ return $value;
+}
+function supplyUrl(string $value):string{
+ $value=trim($value);if($value==='')return '';
+ if(strlen($value)>2000||!filter_var($value,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($value,PHP_URL_SCHEME)),['http','https'],true))throw new Exception('Use a complete http or https link for the product or tracking.');
+ return $value;
+}
+function saveBusinessSupply(PDO $db,array $input):int{
+ $text=static function(string $key,int $limit=200)use($input):string{$value=trim((string)($input[$key]??''));if(strlen($value)>$limit)throw new Exception('The '.str_replace('_',' ',$key).' is too long.');return $value;};
+ $item=$text('item');$supplier=$text('supplier');$category=$text('category');$status=$text('status');$payment=$text('payment_status');
+ if($item===''||$supplier==='')throw new Exception('Enter what you ordered and the supplier.');
+ if(!in_array($category,supplyCategories(),true)||!in_array($status,['Ordered','Dispatched','Received','Cancelled'],true)||!in_array($payment,['Unpaid','Paid','Refunded'],true))throw new Exception('Choose a valid category, delivery status and payment status.');
+ $quantity=filter_var($input['quantity']??'',FILTER_VALIDATE_INT);if($quantity===false||$quantity<1||$quantity>100000)throw new Exception('Enter a quantity between 1 and 100,000.');
+ foreach(['item_cost','shipping'] as $field)if(!preg_match('/^\d{1,6}(?:\.\d{1,2})?$/',trim((string)($input[$field]??''))))throw new Exception('Enter the '.str_replace('_',' ',$field).' in pounds and pence.');
+ $cost=postedMoneyPence($input['item_cost'],'items total');$shipping=postedMoneyPence($input['shipping'],'delivery');
+ $ordered=supplyDate($text('ordered_date'),'order date',true);$expected=supplyDate($text('expected_date'),'expected delivery date',false,true);
+ $paid=$payment==='Unpaid'?'':supplyDate($text('paid_date'),'payment date',true);
+ $refunded=$payment==='Refunded'?supplyDate($text('refunded_date'),'refund date',true):'';
+ if($refunded!==''&&$refunded<$paid)throw new Exception('Refund date cannot be before payment date.');
+ $values=[$item,$category,$quantity,$supplier,$text('reference'),$ordered,$expected,$status,$cost,$shipping,$payment,$paid,$refunded,supplyUrl($text('product_url',2000)),$text('tracking_reference'),supplyUrl($text('tracking_url',2000)),$text('notes',4000)];
+ $id=(int)($input['id']??0);$now=date('c');
+ if($id>0){
+  $q=$db->prepare('UPDATE business_supplies SET item=?,category=?,quantity=?,supplier=?,reference=?,ordered_date=?,expected_date=?,status=?,item_cost=?,shipping=?,payment_status=?,paid_date=?,refunded_date=?,product_url=?,tracking_reference=?,tracking_url=?,notes=?,updated=?,revision=revision+1 WHERE id=? AND revision=?');
+  $q->execute([...$values,$now,$id,(int)($input['revision']??0)]);
+  if($q->rowCount()!==1)throw new Exception('This purchase changed while you were editing. Refresh and reopen it before saving.');
+ }else{
+  $key=(string)($input['request_key']??'');if(!preg_match('/^[a-f0-9]{32}$/',$key))throw new Exception('Please refresh the purchase form and try again.');
+  $q=$db->prepare('INSERT INTO business_supplies(item,category,quantity,supplier,reference,ordered_date,expected_date,status,item_cost,shipping,payment_status,paid_date,refunded_date,product_url,tracking_reference,tracking_url,notes,request_key,created,updated) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(request_key) DO NOTHING');
+  $q->execute([...$values,$key,$now,$now]);
+  $q=$db->prepare('SELECT id FROM business_supplies WHERE request_key=?');$q->execute([$key]);$id=(int)$q->fetchColumn();
+ }
+ return $id;
+}
+function supplySpending(array $rows,string $from='',string $to=''):array{
+ $result=['paid'=>0,'refunded'=>0,'net'=>0,'unpaid'=>0,'ordered'=>0,'events'=>[]];
+ $inRange=static fn(string $date):bool=>$date!==''&&($from===''||$date>=$from)&&($to===''||$date<=$to);
+ foreach($rows as $row){
+  $total=(int)$row['item_cost']+(int)$row['shipping'];
+  if($row['status']!=='Cancelled'&&$inRange($row['ordered_date'])){$result['ordered']+=$total;if($row['payment_status']==='Unpaid')$result['unpaid']+=$total;}
+  // A cancelled purchase is still a cash outflow until a refund is recorded.
+  if($row['payment_status']!=='Unpaid'&&$inRange($row['paid_date'])){$result['paid']+=$total;$result['events'][]=$row+['event'=>'Payment','event_date'=>$row['paid_date'],'amount'=>$total];}
+  if($row['payment_status']==='Refunded'&&$inRange($row['refunded_date'])){$result['refunded']+=$total;$result['events'][]=$row+['event'=>'Refund','event_date'=>$row['refunded_date'],'amount'=>-$total];}
+ }
+ $result['net']=$result['paid']-$result['refunded'];
+ usort($result['events'],static fn($a,$b)=>strcmp($b['event_date'],$a['event_date'])?:$b['id']<=>$a['id']);return $result;
+}
 function orderTotalPence(PDO $db,int $orderId):int{
  $q=$db->prepare("SELECT COALESCE((SELECT SUM(i.price*i.quantity) FROM items i WHERE i.order_id=o.id),0)+COALESCE(o.delivery_charge,0) FROM orders o WHERE o.id=?");$q->execute([$orderId]);$v=$q->fetchColumn();
  if($v===false)throw new Exception('Order could not be found.');return (int)$v;
@@ -2952,6 +3013,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
+  if($action==='business_supply_save')saveBusinessSupply($db,$_POST);
   if($action==='notification_state'){
    $notificationId=preg_replace('/[^a-zA-Z0-9:_\-.]/','',substr((string)($_POST['notification_id']??''),0,180));
    $stateAction=(string)($_POST['state_action']??'');$days=(int)($_POST['days']??1);
@@ -3409,6 +3471,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'order'=>'Order saved.',
   'order_backorder'=>(($_POST['back_order']??'')==='1')?'Order moved to back orders; stock released.':'Order moved to active orders; stock reserved.',
   'order_edit'=>'Order updated.',
+  'business_supply_save'=>'Business supply purchase saved.',
   'profit_settings'=>'Profit settings saved.',
   'order_delete'=>'Order deleted.',
   'order_dates'=>'Order dates updated.',
@@ -3613,7 +3676,8 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
 if(!is_file(__DIR__.'/'.$stylesheet))$stylesheet='style.css';
@@ -4090,7 +4154,7 @@ $notificationCount=count($visibleNotifications);
 if(in_array($view,['reports','reorder'],true)){
 // Shared report filters and datasets. Sales, product and customer views use order date;
 // cash received uses payment date; recurring and stock views use their own event dates.
-$reportTypes=['overview','sales','profit','products','customers','recurring','stock','personal'];
+$reportTypes=['overview','sales','profit','outgoings','products','customers','recurring','stock','personal'];
 $reportType=$view==='reorder'?'reorder':(in_array($_GET['type']??'overview',$reportTypes,true)?(string)($_GET['type']??'overview'):'overview');
 $reorderWindowDays=in_array((int)($_GET['demand_days']??30),[30,60,90],true)?(int)($_GET['demand_days']??30):30;
 $reportRanges=['today','week','month','quarter','all','custom','next4w','next8w','next12w'];
@@ -4116,6 +4180,7 @@ elseif($reportRange==='custom'){
  if($reportFrom!==''&&$reportTo!==''&&$reportFrom>$reportTo){$swap=$reportFrom;$reportFrom=$reportTo;$reportTo=$swap;}
 }
 $reportRangeError=$reportRange==='custom'&&($reportFrom===''||$reportTo==='');
+$reportSupplies=supplySpending($businessSupplies,$reportFrom,$reportTo);
 $reportFromTs=$reportFrom!==''?(new DateTimeImmutable($reportFrom.' 00:00:00',$tz))->getTimestamp():null;
 $reportToTs=$reportTo!==''?(new DateTimeImmutable($reportTo.' 23:59:59',$tz))->getTimestamp():null;
 $reportOrdersFiltered=[];$reportOrderIds=[];$reportOrderCustomerKeys=[];$reportCustomerStats=[];$reportOrderValue=0;$reportPaidRecorded=0;$reportOutstanding=0;$reportStatusTotals=[];$reportTrend=[];
@@ -4211,6 +4276,10 @@ if(in_array($view,['reports','reorder'],true)&&$reportExport!==''&&!$reportRange
   foreach($personalUsage as $r)$exportRows[]=[$r['delivery_date'],'ANK-'.$r['id'],$r['customer'],$r['assigned_to'],$r['name'],$r['presentation'],(int)$r['quantity'],$r['cost']===null?'':number_format(((int)$r['cost']+(int)$r['presentation_cost'])*(int)$r['quantity']/100,2,'.',''),$r['cost']===null?'Yes':'No'];
  }
  if($reportExport==='stock-movements'){$exportType='stock-movements';$exportHeaders=['Date','Product','Location','Movement','Change','Supplier','Batch / lot','Expiry','Unit cost (£)','Note','Order ID'];foreach($reportStockMovements as $m)$exportRows[]=[(string)$m['created'],(string)$m['product_name'],(string)($m['location']??'Unallocated'),(string)$m['movement_type'],(int)$m['quantity_change'],(string)$m['supplier'],(string)$m['batch_reference'],(string)$m['expiry_date'],$m['unit_cost']===null?'':number_format((int)$m['unit_cost']/100,2,'.',''),(string)$m['note'],$m['order_id']===null?'':(int)$m['order_id']];}
+ elseif($reportType==='outgoings'){
+  $exportHeaders=['Date','Type','Purchase ID','Item / purchase','Category','Supplier','Reference','Quantity','Items total (£)','Delivery (£)','Outflow / refund (£)','Delivery status','Product link','Tracking reference','Tracking link','Notes'];
+  foreach($reportSupplies['events'] as $r)$exportRows[]=[$r['event_date'],$r['event'],'SUP-'.$r['id'],$r['item'],$r['category'],$r['supplier'],$r['reference'],(int)$r['quantity'],number_format((int)$r['item_cost']/100,2,'.',''),number_format((int)$r['shipping']/100,2,'.',''),number_format((int)$r['amount']/100,2,'.',''),$r['status'],$r['product_url'],$r['tracking_reference'],$r['tracking_url'],$r['notes']];
+ }
  elseif($reportType==='profit'){$exportHeaders=['Order','Customer','Status','Payment date','Sales (£)','Product cost (£)','Pen cost (£)','Postage (£)','Gross profit (£)','Cost missing'];foreach($selectedReportOrders as $r)$exportRows[]=['ANK-'.str_pad((string)$r['id'],4,'0',STR_PAD_LEFT),(string)$r['customer'],(string)$r['status'],(string)$r['date'],number_format((int)$r['revenue']/100,2,'.',''),number_format((int)$r['product_cost']/100,2,'.',''),number_format((int)$r['pen_cost']/100,2,'.',''),number_format((int)$r['postage']/100,2,'.',''),number_format((int)$r['profit']/100,2,'.',''),!empty($r['missing_cost'])?'Yes':'No'];}
  elseif(in_array($reportType,['sales','overview'],true)){$exportHeaders=['Order','Order date','Customer','Phone','Status','Assigned to','Order value (£)','Paid recorded (£)','Balance due (£)'];foreach($reportOrdersFiltered as $o)$exportRows[]=['ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT),date('Y-m-d',(int)$o['_report_ts']),(string)$o['customer'],(string)$o['phone'],(string)$o['status'],(string)($o['assigned_to']??''),number_format((int)$o['_order_value']/100,2,'.',''),number_format((int)$o['_paid_recorded']/100,2,'.',''),number_format((int)$o['_balance_due']/100,2,'.','')];}
  elseif($reportType==='products'){$exportHeaders=['Product','Units','Orders','Average unit value (£)','Line value (£)'];foreach($reportProducts as $r)$exportRows[]=[(string)$r['name'],(int)$r['units'],(int)$r['orders'],number_format((int)$r['average_unit_value']/100,2,'.',''),number_format((int)$r['line_value']/100,2,'.','')];}
@@ -4396,14 +4465,14 @@ if($view==='reportsboard'){
 <a class="<?=$view==='products'?'selected':''?>" href="?view=products"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="nav-label">Products</span></a>
 <a class="<?=$view==='reports'?'selected':''?>" href="?view=reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></svg></span><span class="nav-label">Reports</span></a>
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
-<a class="<?=in_array($view,['more','supplier','reorder','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['supplies','more','supplier','reorder','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <nav class="mobile-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
-<a class="<?=in_array($view,['more','products','reports','reorder','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['supplies','more','products','reports','reorder','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
@@ -5320,7 +5389,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 
 <?php elseif(in_array($view,['reports','reorder'],true)):?>
 <?php
-$reportTitles=['overview'=>'Overview','sales'=>'Sales','profit'=>'Profit','products'=>'Products','customers'=>'Customers','recurring'=>'Recurring','stock'=>'Stock','personal'=>'Personal stock use'];
+$reportTitles=['overview'=>'Overview','sales'=>'Sales','profit'=>'Profit','outgoings'=>'Supply outgoings','products'=>'Products','customers'=>'Customers','recurring'=>'Recurring','stock'=>'Stock','personal'=>'Personal stock use'];
 $reportRangeLabels=['today'=>'Today','week'=>'This week','month'=>'This month','quarter'=>'This quarter','all'=>'All time','custom'=>'Custom dates','next4w'=>'Next 4 weeks','next8w'=>'Next 8 weeks','next12w'=>'Next 12 weeks'];
 $reportWindowLabel=$reportRangeLabels[$reportRange]??'Selected period';
 $reportTrendMax=1;foreach($reportTrend as $trendRow)$reportTrendMax=max($reportTrendMax,(int)$trendRow['order_value']);
@@ -5538,6 +5607,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 });</script>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
+<?php $supplyProfitFrom=$reportPeriodKey==='all'?'':date('Y-m-d',$reportPeriods[$reportPeriodKey]['start']);$profitSupplySpend=supplySpending($businessSupplies,$supplyProfitFrom);$allSupplySpend=supplySpending($businessSupplies);?>
+<section class="panel"><p class="eyebrow"><?=e($reportPeriods[$reportPeriodKey]['label'])?> · BUSINESS SUPPLIES</p><div class="report-lines"><div><span>Gross profit from sales</span><strong><?=money($reportPeriods[$reportPeriodKey]['profit'])?></strong></div><div><span>Paid supplies, less refunds</span><strong><?=money($profitSupplySpend['net'])?></strong></div><div class="report-profit"><span>After recorded supply spending</span><strong><?=money($reportPeriods[$reportPeriodKey]['profit']-$profitSupplySpend['net'])?></strong></div></div><p class="muted">Supplies use payment and refund dates. This estimate deducts recorded supplies from gross profit; other overheads may still need accounting for.</p><a class="quick-action" href="?view=reports&amp;type=outgoings&amp;range=<?=e($reportPeriodKey)?>">View supply outgoings →</a></section>
 <div class="report-periods">
 <?php foreach(['today','week','month','all'] as $periodKey):$period=$reportPeriods[$periodKey];?><a class="report-period <?=$reportPeriodKey===$periodKey?'selected':''?>" href="?view=reports&amp;type=profit&amp;period=<?=e($periodKey)?>"><span><?=e($period['label'])?></span><strong><small>Profit</small><?=money($period['profit'])?></strong><small><b>Sales <?=money($period['revenue'])?></b> · <?=$period['orders']?> orders</small></a><?php endforeach;?>
 </div>
@@ -5570,6 +5641,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 <div><span>Postage cost</span><strong>− <?=money($reportPeriods['all']['postage'])?></strong></div>
 
 <div class="report-profit"><span>Gross profit</span><strong><?=money($reportPeriods['all']['profit'])?></strong></div>
+<div><span>Paid business supplies, less refunds</span><strong><?=money($allSupplySpend['net'])?></strong></div>
+<div class="report-profit"><span>After recorded supply spending</span><strong><?=money($reportPeriods['all']['profit']-$allSupplySpend['net'])?></strong></div>
 </div>
 <?php if($uncostedSales>0):?><p class="error report-warning"><?=money($uncostedSales)?> of sold item revenue still has no saved cost, so profit is overstated until those costs are entered.</p><?php endif;?>
 </section>
@@ -5596,7 +5669,13 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php foreach($personalTotals as $person=>$r):?><div class="line"><span><?=e($person)?> · <?=$r['units']?> units</span><strong><?=money($r['cost'])?><?=$r['missing']?' + missing costs':''?></strong></div><?php endforeach;?>
 <?php if(!$personalUsage):?><p class="empty">No delivered personal-use orders in this period.</p><?php endif;?>
 <?php foreach($personalUsage as $r):?><article class="panel"><strong><?=e($r['customer'])?> · ANK-<?=(int)$r['id']?></strong><p><?=e($r['delivery_date'].' · '.$r['name'].($r['presentation']?' · '.$r['presentation']:''))?></p><p><?=(int)$r['quantity']?> units · <?=$r['cost']===null?'Cost missing':money(((int)$r['cost']+(int)$r['presentation_cost'])*(int)$r['quantity'])?> stock cost</p></article><?php endforeach;?></section>
+<?php elseif($reportType==='outgoings'):?>
+<section class="report-metrics"><article><span>Supplies paid</span><strong><?=money($reportSupplies['paid'])?></strong><small>By payment date</small></article><article><span>Refunds received</span><strong><?=money($reportSupplies['refunded'])?></strong><small>By refund date</small></article><article><span>Net supply outgoings</span><strong><?=money($reportSupplies['net'])?></strong><small>Payments less refunds</small></article><article><span>Still to pay</span><strong><?=money($reportSupplies['unpaid'])?></strong><small>Unpaid purchases ordered in this period</small></article></section>
+<section class="panel"><div class="heading"><div><p class="eyebrow">BUSINESS SUPPLIES</p><h2>Payments &amp; refunds</h2></div><a class="quick-action" href="?view=supplies">Manage purchases →</a></div><p class="muted">Labels, ink, packaging and other supplies. Amounts include recorded delivery and tax. Sale-stock purchases and other overheads are not included here. Cancelled purchases stay in outgoings until a refund is recorded. Download CSV above for the full breakdown.</p>
+<?php foreach($reportSupplies['events'] as $r):?><article class="supply-report-row"><div><a href="?view=supplies&amp;edit=<?=(int)$r['id']?>"><strong><?=e($r['item'])?></strong></a><small><?=e($r['supplier'].' · '.$r['event_date'].' · '.$r['event'])?></small></div><strong><?=money((int)$r['amount'])?></strong></article><?php endforeach;?>
+<?php if(!$reportSupplies['events']):?><p class="empty">No supply payments or refunds recorded in this period.</p><?php endif;?></section>
 <?php elseif($reportType==='overview'):?>
+<section class="panel"><div class="line"><span>Business supply outgoings · net paid in this period</span><strong><?=money($reportSupplies['net'])?></strong></div><a class="quick-action" href="?<?=e(http_build_query(['view'=>'reports','type'=>'outgoings','range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo]))?>">Supply spending &amp; export →</a></section>
 <section class="report-metrics">
 <article><span>Order value</span><strong><?=money($reportOrderValue)?></strong><small><?=$reportOrdersFiltered?count($reportOrdersFiltered):0?> orders placed</small></article>
 <article><span>Cash received</span><strong><?=money($reportCashReceived)?></strong><small>Payments dated in this period</small></article>
@@ -5789,6 +5868,60 @@ document.addEventListener('DOMContentLoaded',()=>{
 <article class="activity-row"><div><strong><?=e($entry['action'])?></strong><small><?=e($entry['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime($entry['created'])))?></small><?php if($summary=activitySummary($detail)):?><small><?=e($summary)?></small><?php endif;?></div>
 <?php if($orderTarget>0):?><a href="?view=edit&amp;id=<?=$orderTarget?>">Order #<?=$orderTarget?> →</a><?php endif;?></article>
 <?php endforeach;?><?php if(!$activityRows):?><p class="muted">Activity tracking is ready. New changes will appear here.</p><?php endif;?></div></section>
+<?php elseif($view==='supplies'):
+ $supplyToday=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+ $supplyMonth=supplySpending($businessSupplies,substr($supplyToday,0,7).'-01',$supplyToday);$supplyAll=supplySpending($businessSupplies);
+ $supplyOpen=array_filter($businessSupplies,static fn($r)=>in_array($r['status'],['Ordered','Dispatched'],true));
+ $supplyFilter=in_array($_GET['status']??'outstanding',['outstanding','all','Received','Cancelled'],true)?(string)($_GET['status']??'outstanding'):'outstanding';$supplySearch=trim((string)($_GET['q']??''));
+ $supplyRows=array_filter($businessSupplies,static function($r)use($supplyFilter,$supplySearch){if($supplyFilter==='outstanding'&&!in_array($r['status'],['Ordered','Dispatched'],true))return false;if(in_array($supplyFilter,['Received','Cancelled'],true)&&$r['status']!==$supplyFilter)return false;return $supplySearch===''||stripos(implode(' ',[$r['item'],$r['supplier'],$r['category'],$r['reference'],$r['tracking_reference']]),$supplySearch)!==false;});
+ $supplyEditId=(int)($_GET['edit']??0);$supplyForm=null;foreach($businessSupplies as $r)if((int)$r['id']===$supplyEditId)$supplyForm=$r;
+ $supplyFormOpen=isset($_GET['new'])||$supplyEditId>0||($_POST['action']??'')==='business_supply_save';
+ if($supplyFormOpen){
+  $supplyForm??=['id'=>0,'revision'=>0,'item'=>'','category'=>'Other supplies','quantity'=>1,'supplier'=>'','reference'=>'','ordered_date'=>$supplyToday,'expected_date'=>'','status'=>'Ordered','item_cost'=>0,'shipping'=>0,'payment_status'=>'Unpaid','paid_date'=>$supplyToday,'refunded_date'=>'','product_url'=>'','tracking_reference'=>'','tracking_url'=>'','notes'=>'','request_key'=>bin2hex(random_bytes(16))];
+  foreach(['item_cost','shipping'] as $field)$supplyForm[$field]=number_format((int)$supplyForm[$field]/100,2,'.','');
+  if(($_POST['action']??'')==='business_supply_save')foreach(array_keys($supplyForm) as $field)if(isset($_POST[$field])&&is_scalar($_POST[$field]))$supplyForm[$field]=(string)$_POST[$field];
+ }
+?>
+<div class="heading supplies-heading"><div><p class="eyebrow">OPERATING PURCHASES</p><h1>Business Supplies</h1><p class="muted page-description">Labels, ink, envelopes and everything you use to run the business.</p></div><a class="button" href="?view=supplies&amp;new=1#supply-form">+ Add purchase</a></div>
+<div class="supply-top-links"><a class="quick-action" href="?view=more">← More</a><a class="quick-action" href="?view=reports&amp;type=outgoings">Outgoings report →</a></div>
+<?php if($supplyFormOpen&&$supplyEditId>0&&(int)$supplyForm['id']===0):?><p class="error">That purchase could not be found.</p>
+<?php elseif($supplyFormOpen):?>
+<section class="panel" id="supply-form"><div class="heading"><h2><?=(int)$supplyForm['id']>0?'Edit purchase':'Add purchase'?></h2><a class="quick-action" href="?view=supplies">Close</a></div>
+<form method="post" class="supply-form"><input type="hidden" name="action" value="business_supply_save"><input type="hidden" name="return" value="supplies"><?php csrf();?>
+<?php foreach(['id','revision','request_key'] as $field):?><input type="hidden" name="<?=$field?>" value="<?=e($supplyForm[$field])?>"><?php endforeach;?>
+<label class="supply-wide">Item / purchase<input name="item" maxlength="200" value="<?=e($supplyForm['item'])?>" placeholder="e.g. 500 thermal labels" required></label>
+<label>Category<select name="category"><?php foreach(supplyCategories() as $category):?><option <?=$supplyForm['category']===$category?'selected':''?>><?=e($category)?></option><?php endforeach;?></select></label>
+<label>Quantity / packs<input type="number" name="quantity" min="1" max="100000" value="<?=e($supplyForm['quantity'])?>" required></label>
+<label>Ordered from<input name="supplier" maxlength="200" value="<?=e($supplyForm['supplier'])?>" placeholder="Supplier or website" required></label>
+<label>Supplier order reference<input name="reference" maxlength="200" value="<?=e($supplyForm['reference'])?>"></label>
+<label>Order date<input type="date" name="ordered_date" max="<?=$supplyToday?>" value="<?=e($supplyForm['ordered_date'])?>" required></label>
+<label>Expected delivery<input type="date" name="expected_date" value="<?=e($supplyForm['expected_date'])?>"></label>
+<label>Items total (£)<input type="number" name="item_cost" min="0" max="100000" step="0.01" value="<?=e($supplyForm['item_cost'])?>" required><small>Total for the whole quantity, including tax.</small></label>
+<label>Delivery cost (£)<input type="number" name="shipping" min="0" max="100000" step="0.01" value="<?=e($supplyForm['shipping'])?>" required><small>Enter once, separate from the items total.</small></label>
+<label>Delivery status<select name="status"><?php foreach(['Ordered','Dispatched','Received','Cancelled'] as $status):?><option <?=$supplyForm['status']===$status?'selected':''?>><?=$status?></option><?php endforeach;?></select></label>
+<label>Payment status<select name="payment_status"><?php foreach(['Unpaid','Paid','Refunded'] as $status):?><option <?=$supplyForm['payment_status']===$status?'selected':''?>><?=$status?></option><?php endforeach;?></select></label>
+<label>Payment date<input type="date" name="paid_date" max="<?=$supplyToday?>" value="<?=e($supplyForm['paid_date'])?>"><small>Required for Paid or Refunded purchases.</small></label>
+<label>Refund date<input type="date" name="refunded_date" max="<?=$supplyToday?>" value="<?=e($supplyForm['refunded_date'])?>"><small>For a full refund only. Keep the original payment date.</small></label>
+<label class="supply-wide">Product / reorder link<input type="url" name="product_url" maxlength="2000" value="<?=e($supplyForm['product_url'])?>" placeholder="https://…"></label>
+<label class="supply-wide">Courier &amp; tracking number<input name="tracking_reference" maxlength="200" value="<?=e($supplyForm['tracking_reference'])?>" placeholder="e.g. Royal Mail · tracking number"></label>
+<label class="supply-wide">Tracking link<input type="url" name="tracking_url" maxlength="2000" value="<?=e($supplyForm['tracking_url'])?>" placeholder="https://…"></label>
+<label class="supply-wide">Notes<textarea name="notes" maxlength="4000" rows="3" placeholder="Sizes, colours, what is included, or delivery notes"><?=e($supplyForm['notes'])?></textarea></label>
+<p class="muted supply-wide">Save one item or a whole supplier purchase here. Record its total once. Mark it Paid when money leaves the business; it will then appear in supply outgoings. Receiving these supplies does not add sale stock.</p>
+<div class="supply-wide supply-form-actions"><button>Save purchase</button><a class="quick-action" href="?view=supplies">Cancel</a></div>
+</form></section>
+<?php endif;?>
+<section class="report-metrics supply-metrics"><article><span>On the way</span><strong><?=count($supplyOpen)?></strong><small>Purchases awaiting delivery</small></article><article><span>Still to pay</span><strong><?=money($supplyAll['unpaid'])?></strong><small>All non-cancelled unpaid purchases</small></article><article><span>Spent this month</span><strong><?=money($supplyMonth['net'])?></strong><small>Payments less refunds</small></article></section>
+<form method="get" class="supply-filters"><input type="hidden" name="view" value="supplies"><label>Search purchases<input name="q" value="<?=e($supplySearch)?>" placeholder="Item, supplier or tracking"></label><label>Show<select name="status"><?php foreach(['outstanding'=>'On the way','all'=>'All purchases','Received'=>'Received','Cancelled'=>'Cancelled'] as $key=>$label):?><option value="<?=e($key)?>" <?=$supplyFilter===$key?'selected':''?>><?=e($label)?></option><?php endforeach;?></select></label><button>Apply</button></form>
+<p class="muted"><?=count($supplyRows)?> purchase<?=count($supplyRows)===1?'':'s'?> shown</p>
+<div class="supply-list">
+<?php foreach($supplyRows as $r):$total=(int)$r['item_cost']+(int)$r['shipping'];?>
+<article class="panel supply-card"><div class="supply-card-head"><div><p class="eyebrow"><?=e($r['category'])?></p><h2><?=e($r['item'])?></h2><p class="muted"><?=e($r['supplier'])?> · <?=(int)$r['quantity']?> quantity / packs</p></div><strong class="supply-total"><?=money($total)?></strong></div>
+<div class="supply-badges"><span class="badge"><?=e($r['status'])?></span><span class="badge"><?=e($r['payment_status'])?></span></div>
+<dl class="supply-meta"><div><dt>Ordered</dt><dd><?=e($r['ordered_date'])?></dd></div><?php if($r['expected_date']):?><div><dt>Expected</dt><dd><?=e($r['expected_date'])?></dd></div><?php endif;?><div><dt>Items + delivery</dt><dd><?=money((int)$r['item_cost'])?> + <?=money((int)$r['shipping'])?></dd></div><?php if($r['reference']):?><div><dt>Reference</dt><dd><?=e($r['reference'])?></dd></div><?php endif;?><?php if($r['paid_date']):?><div><dt>Paid</dt><dd><?=e($r['paid_date'])?></dd></div><?php endif;?><?php if($r['refunded_date']):?><div><dt>Refunded</dt><dd><?=e($r['refunded_date'])?></dd></div><?php endif;?><?php if($r['tracking_reference']):?><div class="supply-wide"><dt>Tracking</dt><dd><?=e($r['tracking_reference'])?></dd></div><?php endif;?></dl>
+<?php if($r['notes']):?><p class="supply-notes"><?=nl2br(e($r['notes']))?></p><?php endif;?>
+<div class="supply-card-actions"><a class="button" href="?view=supplies&amp;edit=<?=(int)$r['id']?>#supply-form">Edit purchase</a><?php if($r['tracking_url']):?><a class="quick-action" target="_blank" rel="noopener noreferrer" href="<?=e($r['tracking_url'])?>">Track delivery ↗</a><?php endif;?><?php if($r['product_url']):?><a class="quick-action" target="_blank" rel="noopener noreferrer" href="<?=e($r['product_url'])?>">Product / reorder ↗</a><?php endif;?></div></article>
+<?php endforeach;?>
+<?php if(!$supplyRows):?><section class="panel"><h2><?=$businessSupplies?'No matching purchases':'Keep your supplies in one place'?></h2><p class="muted"><?=$businessSupplies?'Try All purchases or a different search.':'Add labels, ink, packaging or equipment with the supplier, total cost and tracking details. Your recorded payments will feed into Reports.'?></p><a class="quick-action" href="?view=supplies&amp;new=1#supply-form">+ Add purchase</a></section><?php endif;?></div>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
@@ -5798,6 +5931,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; Profit Centre</h2><p>Supplier box prices, margins, combined purchases and incoming stock.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2><p>See what’s running low and suggested supplier pack quantities.</p></div><b>›</b></a>
 <a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2><p>Opening counts, receipts, adjustments and movement history.</p></div><b>›</b></a>
+<a class="more-card" href="?view=supplies"><span class="more-icon">▤</span><div><h2>Business Supplies</h2><p>Labels, ink, envelopes and other purchases. Suppliers, tracking and outgoings.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle Planner</h2><p>Recurring order calendar, demand forecast, projected profit and stock needed.</p></div><b>›</b></a>
 <a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
