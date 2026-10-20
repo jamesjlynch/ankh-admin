@@ -1930,6 +1930,81 @@ function backOrderControls(PDO $db,array $order):void{
  <?php else:?><strong>Waiting for stock?</strong><p class="muted">Move this order to Back orders until stock arrives. Its details and payments stay with it.</p><?php endif;?>
  <form method="post" onsubmit="return confirm('<?=$waiting?'Move this order to active and reserve stock?':'Move this order to the waiting list? Stock reservations will be released and preparation reset.'?>')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="<?=$waiting?'0':'1'?>"><input type="hidden" name="return" value="<?=$waiting?'orders':'backorders'?>"><button class="quiet" <?=$waiting&&!$stock['ready']?'disabled':''?>><?=$waiting?'Move to active orders':'Move to back orders'?></button></form></section><?php
 }
+function supplierEditRevision(array $order,array $lines):string{
+ usort($lines,fn($a,$b)=>(int)$a['id']<=>(int)$b['id']);
+ $state=[array_intersect_key($order,array_flip(['id','supplier','expected_date','status','note']))];
+ foreach($lines as $line)$state[]=array_intersect_key($line,array_flip(['id','product_id','packs','pack_size','quantity','unit_cost','received_qty']));
+ return hash('sha256',json_encode($state,JSON_THROW_ON_ERROR));
+}
+function editIncomingSupplierOrder(PDO $db,int $id,array $post):void{
+ $supplier=trim((string)($post['supplier']??''));$expected=trim((string)($post['expected_date']??''));$note=trim((string)($post['note']??''));$posted=$post['lines']??[];
+ if($id<1||$supplier===''||strlen($supplier)>160||strlen($note)>500)throw new Exception('Check the supplier name and notes.');
+ if($expected!==''&&(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expected)||!checkdate((int)substr($expected,5,2),(int)substr($expected,8,2),(int)substr($expected,0,4))))throw new Exception('Enter a valid expected delivery date.');
+ if(!is_array($posted)||count($posted)>200)throw new Exception('Check the products on this supplier order.');
+ $db->beginTransaction();
+ try{
+  $db->prepare('UPDATE supplier_orders SET id=id WHERE id=?')->execute([$id]);
+  $q=$db->prepare('SELECT * FROM supplier_orders WHERE id=?');$q->execute([$id]);$order=$q->fetch(PDO::FETCH_ASSOC);
+  if(!$order||in_array($order['status'],['Received','Cancelled'],true))throw new Exception('Only open incoming supplier orders can be edited.');
+  $q=$db->prepare('SELECT * FROM supplier_order_items WHERE supplier_order_id=? ORDER BY id');$q->execute([$id]);$existing=$q->fetchAll(PDO::FETCH_ASSOC);$byId=array_column($existing,null,'id');
+  if(!hash_equals(supplierEditRevision($order,$existing),(string)($post['revision']??'')))throw new Exception('This supplier order changed while you were editing it. Reload Incoming stock and try again.');
+  $seen=[];$changes=[];$new=[];
+  foreach($posted as $input){
+   if(!is_array($input))throw new Exception('Check the product rows.');
+   $lineId=(int)($input['id']??0);$old=$lineId>0?($byId[$lineId]??null):null;
+   if($lineId>0&&(!$old||isset($seen[$lineId])))throw new Exception('A product row does not belong to this supplier order.');
+   if($old)$seen[$lineId]=true;
+   $received=(int)($old['received_qty']??0);
+   if(($input['remove']??'')==='1'){
+    if($received>0)throw new Exception('A product with received stock cannot be removed.');
+    if($old)$changes[]=['old'=>$old,'remove'=>true];continue;
+   }
+   $pid=(int)($input['product_id']??0);if(!$old&&$pid===0)continue;
+   $packs=filter_var($input['packs']??'',FILTER_VALIDATE_INT);
+   if($pid<1||$packs===false||$packs<1||$packs>999)throw new Exception('Choose a product and between 1 and 999 packs for each row.');
+   $q=$db->prepare('SELECT id,supplier_pack_size,cost FROM products WHERE id=?');$q->execute([$pid]);$p=$q->fetch(PDO::FETCH_ASSOC);if(!$p)throw new Exception('A selected product no longer exists.');
+   if($received>0&&$pid!==(int)$old['product_id'])throw new Exception('A product with received stock cannot be replaced.');
+   $packSize=$old&&$pid===(int)$old['product_id']?(int)$old['pack_size']:max(1,(int)$p['supplier_pack_size']);$quantity=(int)$packs*$packSize;
+   if($quantity<$received)throw new Exception('The ordered quantity cannot be lower than the '.$received.' units already received.');
+   $raw=trim((string)($input['unit_cost']??''));$cost=$raw===''?($old&&$pid===(int)$old['product_id']?$old['unit_cost']:$p['cost']):postedMoneyPence($raw,'unit cost');
+   if($received>0&&$cost!==null&&(int)$cost!==(int)$old['unit_cost'])throw new Exception('Keep the original unit cost for a product with received stock.');
+   if($received>0)$cost=$old['unit_cost'];
+   $line=['product_id'=>$pid,'packs'=>(int)$packs,'pack_size'=>$packSize,'quantity'=>$quantity,'unit_cost'=>$cost];
+   if($old)$changes[]=['old'=>$old,'remove'=>false,'line'=>$line];else$new[]=$line;
+  }
+  if(count($seen)!==count($existing))throw new Exception('Some existing product rows are missing. Reload the order before saving.');
+  if(!count($new)&&!count(array_filter($changes,fn($change)=>!$change['remove'])))throw new Exception('Keep at least one product on the supplier order.');
+  foreach($changes as $change){
+   if($change['remove'])$db->prepare('DELETE FROM supplier_order_items WHERE id=? AND supplier_order_id=? AND received_qty=0')->execute([(int)$change['old']['id'],$id]);
+   else{$line=$change['line'];$db->prepare('UPDATE supplier_order_items SET product_id=?,packs=?,pack_size=?,quantity=?,unit_cost=? WHERE id=? AND supplier_order_id=?')->execute([$line['product_id'],$line['packs'],$line['pack_size'],$line['quantity'],$line['unit_cost'],(int)$change['old']['id'],$id]);}
+  }
+  $q=$db->prepare('INSERT INTO supplier_order_items(supplier_order_id,product_id,packs,pack_size,quantity,unit_cost,received_qty) VALUES(?,?,?,?,?,?,0)');
+  foreach($new as $line)$q->execute([$id,$line['product_id'],$line['packs'],$line['pack_size'],$line['quantity'],$line['unit_cost']]);
+  $q=$db->prepare('SELECT SUM(quantity) quantity,SUM(received_qty) received FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$id]);$totals=$q->fetch(PDO::FETCH_ASSOC);
+  $status=(int)$totals['received']>=(int)$totals['quantity']?'Received':((int)$totals['received']>0?'Part received':'Ordered');
+  $db->prepare('UPDATE supplier_orders SET supplier=?,expected_date=?,note=?,status=? WHERE id=?')->execute([$supplier,$expected,$note,$status,$id]);
+  $db->commit();
+ }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
+}
+function renderSupplierOrderEditor(PDO $db,array $order,array $lines,array $products):void{
+ $renderLine=static function(string $key,?array $line)use($products):void{
+  $received=(int)($line['received_qty']??0);$pid=(int)($line['product_id']??0);$prefix='lines['.$key.']';
+  ?><div class="supplier-edit-line" data-supplier-edit-line><input type="hidden" name="<?=e($prefix)?>[id]" value="<?=(int)($line['id']??0)?>">
+  <label>Product<select name="<?=e($prefix)?>[product_id]" <?=$received>0?'disabled':''?>><option value="">Choose a product to add…</option><?php foreach($products as $p):if(!(int)$p['active']&&(int)$p['id']!==$pid)continue;?><option value="<?=(int)$p['id']?>" <?=(int)$p['id']===$pid?'selected':''?>><?=e($p['name'])?> (<?=(int)$p['supplier_pack_size']?> / pack)</option><?php endforeach;?></select></label>
+  <?php if($received>0):?><input type="hidden" name="<?=e($prefix)?>[product_id]" value="<?=$pid?>"><?php endif;?>
+  <div class="supplier-edit-numbers"><label>Packs<?=$line?' ('.(int)$line['pack_size'].' units each)':''?><input name="<?=e($prefix)?>[packs]" type="number" inputmode="numeric" min="1" max="999" step="1" value="<?=(int)($line['packs']??1)?>" required></label><label>Cost per unit (£)<input name="<?=e($prefix)?>[unit_cost]" type="number" inputmode="decimal" min="0" max="100000" step=".01" value="<?=isset($line['unit_cost'])?e(number_format((int)$line['unit_cost']/100,2,'.','')):''?>" <?=$received>0?'readonly':''?> placeholder="Use product cost"></label></div>
+  <?php if($received>0):?><small class="supplier-edit-received"><?=$received?> units already received · receipt history retained</small><?php elseif($line):?><label class="check supplier-edit-remove"><input type="checkbox" name="<?=e($prefix)?>[remove]" value="1"> Remove this product</label><?php else:?><button type="button" class="quiet" data-remove-edit-line>Remove row</button><?php endif;?></div><?php
+ };
+ ?><details class="supplier-order-editor" id="supplier-edit-<?=(int)$order['id']?>" <?=((int)($_GET['edit_supplier']??0)===(int)$order['id'])?'open':''?>><summary>Edit incoming order <span aria-hidden="true">✎</span></summary>
+ <form method="post" data-supplier-edit-form><?php csrf();?><input type="hidden" name="action" value="supplier_order_edit"><input type="hidden" name="supplier_order_id" value="<?=(int)$order['id']?>"><input type="hidden" name="revision" value="<?=e(supplierEditRevision($order,$lines))?>"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_section" value="incoming">
+ <p>Add missed products or correct the packs on this delivery. Saving updates incoming quantities; use Receive / allocate when stock arrives.</p>
+ <div class="supplier-edit-numbers"><label>Supplier<input name="supplier" maxlength="160" required value="<?=e($order['supplier'])?>"></label><label>Expected arrival<input name="expected_date" type="date" value="<?=e($order['expected_date'])?>"></label></div>
+ <div data-supplier-edit-lines><?php foreach($lines as $line)$renderLine('existing_'.(int)$line['id'],$line);$renderLine('new_initial',null);?></div>
+ <template data-supplier-edit-template><?php $renderLine('NEW_KEY',null);?></template><button type="button" class="quick-action" data-add-edit-line>+ Add another product</button>
+ <label>Notes<input name="note" maxlength="500" value="<?=e($order['note'])?>"></label>
+ <?php $q=$db->prepare('SELECT COUNT(*) FROM supplier_purchase_snapshots WHERE supplier_order_id=?');$q->execute([(int)$order['id']]);if((int)$q->fetchColumn()>0):?><p class="muted">The original supplier quote and currency totals stay as recorded. These corrections update the incoming stock list.</p><?php endif;?>
+ <button class="stock-primary-action">Save incoming changes</button></form></details><?php
+}
 function plannedDeliveryDate(string $value,string $existing='',?DateTimeImmutable $today=null,bool $allowToday=false):string{
  $value=trim($value);if($value==='')return '';
  $tz=new DateTimeZone('Europe/London');$today??=new DateTimeImmutable('today',$tz);
@@ -2980,6 +3055,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(empty($undo['tracking_before']) && array_sum($nextByLocation)===0 && activeReservedStock($db,$productId,'Jay')===0 && activeReservedStock($db,$productId,'Tony')===0)$db->prepare("UPDATE products SET stock_tracking=0,stock_tracking_since='' WHERE id=?")->execute([$productId]);
    $db->commit();unset($_SESSION['stock_undo']);$_SESSION['flash']='Stock change undone.';header('Location: ./?view=stock');exit;
   }
+  if($action==='supplier_order_edit'){
+   editIncomingSupplierOrder($db,(int)($_POST['supplier_order_id']??0),$_POST);
+  }
   if($action==='supplier_order_create'){
    $supplier=trim((string)($_POST['supplier']??''));$expected=trim((string)($_POST['expected_date']??''));$note=trim((string)($_POST['note']??''));$productIds=$_POST['product_id']??[];$packs=$_POST['packs']??[];$costs=$_POST['unit_cost']??[];
    if($supplier===''||strlen($supplier)>160||strlen($note)>500)throw new Exception('Enter a supplier name.');
@@ -2993,8 +3071,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $itemId=(int)($_POST['supplier_item_id']??0);$jay=filter_var($_POST['jay_qty']??0,FILTER_VALIDATE_INT);$tony=filter_var($_POST['tony_qty']??0,FILTER_VALIDATE_INT);$holding=filter_var($_POST['unallocated_qty']??0,FILTER_VALIDATE_INT);
    if($itemId<1||$jay===false||$tony===false||$holding===false||$jay<0||$tony<0||$holding<0)throw new Exception('Enter valid received quantities.');
    $receiveTotal=(int)$jay+(int)$tony+(int)$holding;if($receiveTotal<1)throw new Exception('Enter how many units arrived and where they are going.');
+   $db->beginTransaction();$db->prepare('UPDATE supplier_order_items SET received_qty=received_qty WHERE id=?')->execute([$itemId]);
    $q=$db->prepare('SELECT soi.*,so.supplier,so.id supplier_order_id FROM supplier_order_items soi JOIN supplier_orders so ON so.id=soi.supplier_order_id WHERE soi.id=? AND so.status<>"Cancelled"');$q->execute([$itemId]);$line=$q->fetch(PDO::FETCH_ASSOC);if(!$line)throw new Exception('Incoming stock line could not be found.');$remaining=(int)$line['quantity']-(int)$line['received_qty'];if($receiveTotal>$remaining)throw new Exception('Only '.$remaining.' units remain outstanding on this supplier order.');
-   $db->beginTransaction();$q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([(int)$line['product_id']]);$tracked=(int)$q->fetchColumn();if($tracked!==1)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),(int)$line['product_id']]);
+   $q=$db->prepare('SELECT stock_tracking FROM products WHERE id=?');$q->execute([(int)$line['product_id']]);$tracked=(int)$q->fetchColumn();if($tracked!==1)$db->prepare('UPDATE products SET stock_tracking=1,stock_tracking_since=? WHERE id=?')->execute([(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'),(int)$line['product_id']]);
    foreach(['Jay'=>(int)$jay,'Tony'=>(int)$tony,'Unallocated'=>(int)$holding] as $receiveLocation=>$receiveQty){if($receiveQty<1)continue;adjustProductStockAtLocation($db,(int)$line['product_id'],$receiveLocation,$receiveQty);addStockMovement($db,(int)$line['product_id'],'supplier_received',$receiveQty,'Received from supplier order #'.(int)$line['supplier_order_id'],null,(string)$line['supplier'],'','',null,$receiveLocation);}
    $db->prepare('UPDATE supplier_order_items SET received_qty=received_qty+? WHERE id=?')->execute([$receiveTotal,$itemId]);$orderId=(int)$line['supplier_order_id'];$q=$db->prepare('SELECT SUM(quantity) total_qty,SUM(received_qty) received_qty FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$orderId]);$totals=$q->fetch(PDO::FETCH_ASSOC);$status=(int)$totals['received_qty']>=(int)$totals['total_qty']?'Received':'Part received';$db->prepare('UPDATE supplier_orders SET status=? WHERE id=?')->execute([$status,$orderId]);$db->commit();
   }
@@ -3338,6 +3417,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'stock_quick_adjust'=>'Stock balance updated.',
   'stock_transfer'=>'Stock moved and recorded in both locations.',
   'supplier_order_create'=>'Supplier order added to Incoming Stock.',
+  'supplier_order_edit'=>'Incoming supplier order updated. Received stock was preserved.',
   'supplier_stock_receive'=>'Incoming stock received and allocated.',
   'supplier_order_cancel'=>'Supplier order cancelled.',
   'stock_fridge_counts'=>'Fridge totals saved; reserved orders were preserved.',
@@ -3694,6 +3774,7 @@ function stockIncomingProductBreakdown(array $supplierLines):array{
  }
  $result=[];
  foreach($byProduct as $entry){
+  $entry['order_ids']=array_keys($entry['orders']);
   $entry['orders']=count($entry['orders']);
   $result[]=$entry;
  }
@@ -4757,6 +4838,16 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
   <span class="stock-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="14" cy="12" r="1"/><circle cx="10" cy="18" r="1"/></svg></span><span class="stock-nav-copy"><strong>History</strong><small>Audit trail</small></span>
  </a>
 </nav>
+<script>document.addEventListener('DOMContentLoaded',()=>{
+ let sequence=0;
+ document.querySelectorAll('[data-supplier-edit-form]').forEach(form=>{
+  const lines=form.querySelector('[data-supplier-edit-lines]'),template=form.querySelector('[data-supplier-edit-template]');
+  form.addEventListener('click',event=>{const remove=event.target.closest('[data-remove-edit-line]');if(remove){remove.closest('[data-supplier-edit-line]').remove();return;}if(!event.target.closest('[data-add-edit-line]'))return;
+   const fragment=template.content.cloneNode(true),key='new_'+Date.now()+'_'+(++sequence);fragment.querySelectorAll('[name]').forEach(input=>input.name=input.name.replace('NEW_KEY',key));lines.append(fragment);lines.lastElementChild.querySelector('select').focus();
+  });
+ });
+ const selected=document.querySelector('.supplier-order-editor[open]');if(selected)selected.closest('.supplier-order-card').open=true;
+});</script>
 <?php if($stockSection==='overview'):?>
 <section class="stock-transaction-centre">
  <div class="stock-transaction-head"><div><p class="eyebrow">STOCK ACTIONS</p><h2>Move stock without editing products</h2><p>Supplier packs are 10 units. Use the quick pack buttons or enter any quantity.</p></div></div>
@@ -4828,7 +4919,7 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
  <div class="incoming-by-product-list">
  <?php foreach($incomingProductBreakdown as $dueItem):?>
  <article class="incoming-by-product-row">
-  <div><strong><?=e($dueItem['name'])?></strong><small><?=$dueItem['orders']?> supplier order<?=$dueItem['orders']===1?'':'s'?><?php if($dueItem['expected_date']):?> · Earliest expected <?=e(date('d M Y',strtotime($dueItem['expected_date'])))?><?php else:?> · Date not set<?php endif;?></small><?php $waitingDemand=$backOrderIncomingByProduct[(int)$dueItem['product_id']]??null;if($waitingDemand):?><a class="incoming-backorder-demand" href="?view=orders&amp;section=backorders"><?=(int)$waitingDemand['quantity']?> back ordered<?php if($waitingDemand['shortfall']!==null):?> · <?=$waitingDemand['shortfall']>0?(int)$waitingDemand['shortfall'].' still short':'covered with stock + incoming'?><?php endif;?> →</a><?php endif;?></div>
+  <div><strong><?=e($dueItem['name'])?></strong><small><?=$dueItem['orders']?> supplier order<?=$dueItem['orders']===1?'':'s'?><?php if($dueItem['expected_date']):?> · Earliest expected <?=e(date('d M Y',strtotime($dueItem['expected_date'])))?><?php else:?> · Date not set<?php endif;?></small><?php $waitingDemand=$backOrderIncomingByProduct[(int)$dueItem['product_id']]??null;if($waitingDemand):?><a class="incoming-backorder-demand" href="?view=orders&amp;section=backorders"><?=(int)$waitingDemand['quantity']?> back ordered<?php if($waitingDemand['shortfall']!==null):?> · <?=$waitingDemand['shortfall']>0?(int)$waitingDemand['shortfall'].' still short':'covered with stock + incoming'?><?php endif;?> →</a><?php endif;?><a class="incoming-edit-link" href="<?=$dueItem['orders']===1?'?view=stock&amp;section=incoming&amp;edit_supplier='.(int)$dueItem['order_ids'][0].'#supplier-edit-'.(int)$dueItem['order_ids'][0]:'?view=stock&amp;section=incoming#incoming-supplier-orders'?>"><?=$dueItem['orders']===1?'Edit incoming order':'View / edit supplier orders'?> →</a></div>
   <span class="incoming-by-product-due"><b>+<?=$dueItem['due']?></b><small>units due</small></span>
  </article>
  <?php endforeach;?>
@@ -4851,9 +4942,10 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
    <label>Note <span>(optional)</span><input name="note" maxlength="500"></label><button class="stock-primary-action">Save incoming order</button>
   </form>
  </details>
- <?php $openSupplierOrders=array_values(array_filter($supplierOrders,fn($so)=>!in_array((string)$so['status'],['Received','Cancelled'],true)));if($openSupplierOrders):?><div class="supplier-order-list">
+ <?php $openSupplierOrders=array_values(array_filter($supplierOrders,fn($so)=>!in_array((string)$so['status'],['Received','Cancelled'],true)));if($openSupplierOrders):?><div class="supplier-order-list" id="incoming-supplier-orders">
  <?php foreach($openSupplierOrders as $supplierOrder):?><details class="supplier-order-card ux-incoming-order">
   <summary class="ux-incoming-order-summary"><header><div><span>SUPPLIER #<?=$supplierOrder['id']?> · <?=e(strtoupper($supplierOrder['status']))?></span><h3><?=e($supplierOrder['supplier'])?></h3><small><?=$supplierOrder['expected_date']!==''?'Expected '.e(date('d M Y',strtotime($supplierOrder['expected_date']))):'No expected date'?></small></div><div><strong><?=max(0,(int)$supplierOrder['total_qty']-(int)$supplierOrder['received_qty'])?></strong><span>remaining</span></div></header><b class="ux-incoming-disclosure-icon" aria-hidden="true">⌄</b></summary><div class="ux-incoming-order-content">
+  <?php renderSupplierOrderEditor($db,$supplierOrder,$supplierOrderItems[(int)$supplierOrder['id']]??[],$stockProducts);?>
   <div class="supplier-order-products"><?php foreach(($supplierOrderItems[(int)$supplierOrder['id']]??[]) as $incomingItem):$remaining=max(0,(int)$incomingItem['quantity']-(int)$incomingItem['received_qty']);?>
    <div class="supplier-product-row"><div><strong><?=e($incomingItem['product_name'])?></strong><small><?=$incomingItem['packs']?> pack<?=$incomingItem['packs']==1?'':'s'?> × <?=$incomingItem['pack_size']?> = <?=$incomingItem['quantity']?> units<?=(int)$incomingItem['received_qty']>0?' · '.(int)$incomingItem['received_qty'].' received':''?></small></div><b><?=$remaining?> due</b></div>
    <?php if($remaining>0):?><details class="supplier-receive"><summary>Receive / allocate</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="supplier_stock_receive"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_section" value="incoming"><input type="hidden" name="supplier_item_id" value="<?=$incomingItem['id']?>"><p>Allocate up to <strong><?=$remaining?></strong> units received.</p><div class="supplier-allocation-grid"><label>Jay<input name="jay_qty" type="number" min="0" max="<?=$remaining?>" value="0"></label><label>Tony<input name="tony_qty" type="number" min="0" max="<?=$remaining?>" value="0"></label><label>Holding<input name="unallocated_qty" type="number" min="0" max="<?=$remaining?>" value="<?=$remaining?>"></label></div><button>Receive stock</button></form></details><?php endif;?>

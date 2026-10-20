@@ -54,6 +54,8 @@ jobs:
         run: |
           php tests/back-orders.php
           php tests/back-order-stock-plan.php
+      - name: Test editing incoming supplier orders
+        run: php tests/supplier-order-edit.php
       - name: Test office today overview
         run: php tests/today-overview.php
       - name: Render dashboard and customer intelligence with isolated data

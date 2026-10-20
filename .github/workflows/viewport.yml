@@ -29,3 +29,5 @@ jobs:
         run: node tests/viewport-testmode.mjs
       - name: Test back-order mobile workflow against isolated SQLite data
         run: node tests/back-orders-viewport.cjs
+      - name: Test incoming supplier order editing
+        run: node tests/supplier-edit-viewport.cjs
