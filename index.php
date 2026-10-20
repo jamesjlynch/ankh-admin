@@ -3082,6 +3082,37 @@ if ($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='voice-assistant
  }
 }
 
+// Shipping calendar edits: authenticated, CSRF-protected and stored in private settings.
+if((string)($_GET['view']??'')==='shipping' && $_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??''),['ship_save','ship_delete','ship_reset'],true)){
+ try {
+  if(empty($_SESSION['admin']))throw new Exception('Please sign in to manage the calendar.');
+  if(!hash_equals((string)$_SESSION['csrf'],(string)($_POST['csrf']??'')))throw new Exception('Your session expired. Refresh and try again.');
+  $raw=$db->query("SELECT value FROM settings WHERE key='shipping_calendar_edits'")->fetchColumn();
+  $edits=is_string($raw)?json_decode($raw,true):[];
+  if(!is_array($edits))$edits=[];
+  $action=(string)$_POST['action'];
+  $id=trim((string)($_POST['event_id']??''));
+  if($action==='ship_reset')$edits=[];
+  else {
+   if($id==='new')$id='custom-'.bin2hex(random_bytes(8));
+   if(!preg_match('/^(default-[0-9]{1,2}|custom-[a-f0-9]{16})$/',$id))throw new Exception('Invalid calendar entry.');
+   if($action==='ship_delete')$edits[$id]=['deleted'=>true];
+   else {
+    $start=trim((string)($_POST['date']??''));$end=trim((string)($_POST['end']??''));
+    $validDate=static function(string $d):bool{$dt=DateTimeImmutable::createFromFormat('!Y-m-d',$d);return $dt!==false && $dt->format('Y-m-d')===$d;};
+    if(!$validDate($start)||!$validDate($end)||$end<$start)throw new Exception('Enter valid dates, with the end on or after the start.');
+    $name=trim((string)($_POST['name']??''));$detail=trim((string)($_POST['detail']??''));
+    if($name===''||mb_strlen($name)>100||mb_strlen($detail)>5000)throw new Exception('Use a name up to 100 characters and description up to 5000 characters.');
+    $risk=(string)($_POST['risk']??'medium');if(!in_array($risk,['low','medium','high','critical'],true))throw new Exception('Choose a valid risk level.');
+    $edits[$id]=['date'=>$start,'end'=>$end,'name'=>$name,'detail'=>$detail,'risk'=>$risk,'status'=>'manually managed'];
+   }
+  }
+  if(count($edits)>150)throw new Exception('Calendar limit reached.');
+  saveSetting($db,'shipping_calendar_edits',json_encode($edits,JSON_THROW_ON_ERROR));
+  header('Location: ./?view=shipping&mode=manage&calendar=saved');exit;
+ }catch(Throwable $ex){$error=$ex->getMessage();}
+}
+
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
@@ -3792,36 +3823,6 @@ function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
-// Shipping calendar edits: authenticated, CSRF-protected and stored in private settings.
-if($view==='shipping' && $_SERVER['REQUEST_METHOD']==='POST' && in_array((string)($_POST['action']??''),['ship_save','ship_delete','ship_reset'],true)){
- try {
-  if(empty($_SESSION['admin']))throw new Exception('Please sign in to manage the calendar.');
-  if(!hash_equals((string)$_SESSION['csrf'],(string)($_POST['csrf']??'')))throw new Exception('Your session expired. Refresh and try again.');
-  $raw=$db->query("SELECT value FROM settings WHERE key='shipping_calendar_edits'")->fetchColumn();
-  $edits=is_string($raw)?json_decode($raw,true):[];
-  if(!is_array($edits))$edits=[];
-  $action=(string)$_POST['action'];
-  $id=trim((string)($_POST['event_id']??''));
-  if($action==='ship_reset')$edits=[];
-  else {
-   if($id==='new')$id='custom-'.bin2hex(random_bytes(8));
-   if(!preg_match('/^(default-[0-9]{1,2}|custom-[a-f0-9]{16})$/',$id))throw new Exception('Invalid calendar entry.');
-   if($action==='ship_delete')$edits[$id]=['deleted'=>true];
-   else {
-    $start=trim((string)($_POST['date']??''));$end=trim((string)($_POST['end']??''));
-    $validDate=static function(string $d):bool{$dt=DateTimeImmutable::createFromFormat('!Y-m-d',$d);return $dt!==false && $dt->format('Y-m-d')===$d;};
-    if(!$validDate($start)||!$validDate($end)||$end<$start)throw new Exception('Enter valid dates, with the end on or after the start.');
-    $name=trim((string)($_POST['name']??''));$detail=trim((string)($_POST['detail']??''));
-    if($name===''||mb_strlen($name)>100||mb_strlen($detail)>400)throw new Exception('Use a name up to 100 characters and description up to 400 characters.');
-    $risk=(string)($_POST['risk']??'medium');if(!in_array($risk,['low','medium','high','critical'],true))throw new Exception('Choose a valid risk level.');
-    $edits[$id]=['date'=>$start,'end'=>$end,'name'=>$name,'detail'=>$detail,'risk'=>$risk,'status'=>'manually managed'];
-   }
-  }
-  if(count($edits)>150)throw new Exception('Calendar limit reached.');
-  saveSetting($db,'shipping_calendar_edits',json_encode($edits,JSON_THROW_ON_ERROR));
-  header('Location: ./?view=shipping&calendar=saved#ship-calendar');exit;
- }catch(Throwable $ex){$error=$ex->getMessage();}
-}
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
