@@ -268,35 +268,77 @@ function ankhSendNewOrderNotice(PDO $db,int $orderId,bool $manualRetry=false):st
  }
 }
 function ankhSmtpSend(string $recipient,string $subject,string $body,?string $html=null):void {
- if(!in_array(strtolower($recipient),['info@ankhpeptides.com'],true))throw new RuntimeException('Recipient is not an authorised ANKH administrator.');
- $host='smtp-relay.gmail.com';$port=587;
+ $recipient=strtolower(trim($recipient));
+ if($recipient!=='info@ankhpeptides.com')throw new RuntimeException('Only the internal ANKH inbox may receive business alerts.');
+ $from='admin@ankhpeptides.com';
+ $encodedSubject='=?UTF-8?B?'.base64_encode(str_replace(["\r","\n"],' ',$subject)).'?=';
+ $headers="From: ANKH Admin <{$from}>\r\nTo: <{$recipient}>\r\nSubject: {$encodedSubject}\r\nDate: ".date(DATE_RFC2822)."\r\nMIME-Version: 1.0\r\n";
+ if($html!==null){
+  $boundary='ankh_'.bin2hex(random_bytes(14));
+  $headers.="Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+  $payload=$headers."\r\n--{$boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+   .chunk_split(base64_encode($body),76,"\r\n")."--{$boundary}\r\n"
+   ."Content-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+   .chunk_split(base64_encode($html),76,"\r\n")."--{$boundary}--\r\n";
+ }else{
+  $payload=$headers."Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($body),76,"\r\n");
+ }
+ // Normalize CRLF once, then SMTP dot-stuff. The terminal's proven curl SMTP transport
+ // is preferred; a TLS-verified socket is retained for PHP builds without the cURL extension.
+ $payload=str_replace(["\r\n","\r"],"\n",$payload);
+ $payload=preg_replace('/^\./m','..',rtrim($payload,"\n"));
+ $payload=str_replace("\n","\r\n",$payload)."\r\n";
+ if(function_exists('curl_init')&&defined('CURLOPT_MAIL_FROM')&&defined('CURLOPT_MAIL_RCPT')&&defined('CURLOPT_USE_SSL')){
+  $data=fopen('php://temp','w+');
+  if($data===false)throw new RuntimeException('Cannot stage email message.');
+  try {
+   fwrite($data,$payload);rewind($data);
+   $ch=curl_init('smtp://smtp-relay.gmail.com:587');
+   if($ch===false)throw new RuntimeException('Could not initialize Google SMTP connection.');
+   try{
+    curl_setopt_array($ch,[
+     CURLOPT_UPLOAD=>true,
+     CURLOPT_INFILE=>$data,
+     CURLOPT_INFILESIZE=>strlen($payload),
+     CURLOPT_MAIL_FROM=>$from,
+     CURLOPT_MAIL_RCPT=>[$recipient],
+     CURLOPT_USE_SSL=>CURLUSESSL_ALL,
+     CURLOPT_SSL_VERIFYPEER=>true,
+     CURLOPT_SSL_VERIFYHOST=>2,
+     CURLOPT_CONNECTTIMEOUT=>10,
+     CURLOPT_TIMEOUT=>35,
+     CURLOPT_RETURNTRANSFER=>true
+    ]);
+    $result=curl_exec($ch);
+    if($result===false){
+     $error=curl_error($ch);
+     throw new RuntimeException('Google SMTP delivery failed: '.$error);
+    }
+    $code=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);
+    if($code>=400)throw new RuntimeException('Google SMTP declined the message (SMTP '.$code.').');
+    return;
+   }finally{curl_close($ch);}
+  }finally{fclose($data);}
+ }
+ $host='smtp-relay.gmail.com';
  $context=stream_context_create(['ssl'=>['verify_peer'=>true,'verify_peer_name'=>true,'peer_name'=>$host,'SNI_enabled'=>true]]);
- $socket=@stream_socket_client("tcp://{$host}:{$port}",$errno,$errstr,12,STREAM_CLIENT_CONNECT,$context);
- if(!$socket)throw new RuntimeException('Google SMTP connection failed.');
- stream_set_timeout($socket,15);
- $read=function()use($socket):array {
-  $raw='';$code=0;
-  do{$line=fgets($socket,2048);if($line===false)throw new RuntimeException('Google SMTP connection closed.');$raw.=$line;$code=(int)substr($line,0,3);}while(isset($line[3])&&$line[3]==='-');
-  return [$code,$raw];
+ $socket=@stream_socket_client('tcp://'.$host.':587',$errno,$errstr,12,STREAM_CLIENT_CONNECT,$context);
+ if(!$socket)throw new RuntimeException('Google SMTP connection failed: '.$errstr);
+ stream_set_timeout($socket,20);
+ $expect=static function(array $codes)use($socket):void{
+  $code=0;
+  do{$line=fgets($socket,2048);if($line===false)throw new RuntimeException('Google SMTP connection closed unexpectedly.');$code=(int)substr($line,0,3);}while(isset($line[3])&&$line[3]==='-');
+  if(!in_array($code,$codes,true))throw new RuntimeException('Google SMTP rejected message at stage ('.$code.').');
  };
- $expect=function(array $allowed)use($read):void{$response=$read();if(!in_array($response[0],$allowed,true))throw new RuntimeException('Google SMTP rejected request ('.$response[0].').');};
- $send=function(string $command)use($socket):void{if(fwrite($socket,$command."\r\n")===false)throw new RuntimeException('SMTP write failed.');};
+ $cmd=static function(string $command)use($socket):void{if(fwrite($socket,$command."\r\n")===false)throw new RuntimeException('SMTP connection write failed.');};
  try{
-  $expect([220]);$send('EHLO admin.ankhpeptides.com');$expect([250]);$send('STARTTLS');$expect([220]);
-  if(!stream_socket_enable_crypto($socket,true,STREAM_CRYPTO_METHOD_TLS_CLIENT))throw new RuntimeException('STARTTLS negotiation failed.');
-  $send('EHLO admin.ankhpeptides.com');$expect([250]);
-  $from='admin@ankhpeptides.com';
-  $send('MAIL FROM:<'.$from.'>');$expect([250]);$send('RCPT TO:<'.$recipient.'>');$expect([250,251]);$send('DATA');$expect([354]);
-  $safeSubject=str_replace(["\r","\n"],' ',$subject);
-  $headers="From: ANKH Admin <{$from}>\r\nTo: <{$recipient}>\r\nSubject: {$safeSubject}\r\nDate: ".date(DATE_RFC2822)."\r\nMIME-Version: 1.0\r\n";
-  if($html!==null){
-   $boundary='ankh_'.bin2hex(random_bytes(14));
-   $headers.="Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
-   $payload=$headers."\r\n--{$boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($body),76,"\r\n")."--{$boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($html),76,"\r\n")."--{$boundary}--\r\n";
-  }else{$payload=$headers."Content-Type: text/plain; charset=UTF-8\r\n\r\n".$body;}
-  $payload=preg_replace('/^\./m','..',str_replace(["\r\n","\r"],"\n",$payload));
-  fwrite($socket,str_replace("\n","\r\n",rtrim($payload,"\n"))."\r\n.\r\n");$expect([250]);
-  $send('QUIT');
+  $expect([220]);$cmd('EHLO admin.ankhpeptides.com');$expect([250]);$cmd('STARTTLS');$expect([220]);
+  if(!stream_socket_enable_crypto($socket,true,STREAM_CRYPTO_METHOD_TLS_CLIENT))throw new RuntimeException('Google SMTP STARTTLS failed.');
+  $cmd('EHLO admin.ankhpeptides.com');$expect([250]);
+  $cmd('MAIL FROM:<'.$from.'>');$expect([250]);
+  $cmd('RCPT TO:<'.$recipient.'>');$expect([250,251]);
+  $cmd('DATA');$expect([354]);
+  fwrite($socket,$payload.".\r\n");$expect([250]);$cmd('QUIT');
  }finally{fclose($socket);}
 }
 function ankhAlertDispatch(PDO $db,bool $test=false):array {
