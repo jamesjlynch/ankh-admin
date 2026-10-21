@@ -1865,6 +1865,8 @@ $pinSetupComplete=$savedAdminPinHash!=='';
 $testingNoAuth=false;
 require_once __DIR__.'/auth-users.php';
 ankhAuthSchema($db);
+$passkeyCols=array_column($db->query('PRAGMA table_info(passkeys)')->fetchAll(PDO::FETCH_ASSOC),'name');
+if(!in_array('user_id',$passkeyCols,true))$db->exec('ALTER TABLE passkeys ADD COLUMN user_id INTEGER DEFAULT NULL REFERENCES admin_users(id)');
 $hasIndividualLogins=ankhAuthUserCount($db)>0;
 if($hasIndividualLogins)ankhAuthRestore($db);
 $adminPasswordHash=$pinSetupComplete?$savedAdminPinHash:(string)$config['password_hash'];
@@ -2567,7 +2569,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-register
   $auth=webauthnAuthData($decoded['authData'],true);$rawId=b64urlDecode((string)($body['rawId']??''));
   if(!hash_equals($auth['credential_id'],$rawId))throw new Exception('Passkey credential did not match.');
   $pem=webauthnCoseToPem($auth['cose']);$credential=b64urlEncode($rawId);$name=trim((string)($body['name']??'iPhone / Face ID'))?:'iPhone / Face ID';
-  $q=$db->prepare('INSERT OR REPLACE INTO passkeys(credential_id,public_key_pem,sign_count,name,created) VALUES (?,?,?,?,?)');$q->execute([$credential,$pem,(int)$auth['count'],substr($name,0,80),gmdate('c')]);
+  $q=$db->prepare('INSERT OR REPLACE INTO passkeys(credential_id,public_key_pem,sign_count,name,created,user_id) VALUES (?,?,?,?,?,?)');$q->execute([$credential,$pem,(int)$auth['count'],substr($name,0,80),gmdate('c'),$hasIndividualLogins?(int)$_SESSION['admin_user_id']:null]);
   unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);voiceJson(['ok'=>true]);
  }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey could not be saved.'],500);}
 }
