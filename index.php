@@ -3709,8 +3709,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
  }
  if($action==='order' && $savedOrderId>0){
-  try{require_once __DIR__.'/business-alerts.php';ankhSendNewOrderNotice($db,(int)$savedOrderId);}
-  catch(Throwable $mailError){error_log('ANKH order notification failed #'.(int)$savedOrderId.': '.$mailError->getMessage());}
+  try{
+   require_once __DIR__.'/business-alerts.php';
+   $emailStatus=ankhSendNewOrderNotice($db,(int)$savedOrderId);
+   if($emailStatus==='disabled')$_SESSION['flash'].=' New-order email is switched off in More → Business Alerts.';
+  }catch(Throwable $mailError){
+   error_log('ANKH order notification failed #'.(int)$savedOrderId.': '.$mailError->getMessage());
+   $_SESSION['flash'].=' The order was saved, but the email notification failed. Open More → Business Alerts for its send status and a safe retry.';
+  }
  }
  if($action==='order' && $savedOrderId>0 && (string)($_POST['back_order']??'')==='1'){header('Location: ./?view=orders&section=backorders');exit;}
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
