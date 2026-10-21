@@ -45,6 +45,7 @@ done
 "$php" -l auth-users.php
 "$php" -l index.php
 "$php" tests/delivery-queue.php
+"$php" tests/business-alerts.php
 "$php" -l setup.php
 "$php" -l supplier-centre.php
 "$php" -l shipping-intelligence.php
