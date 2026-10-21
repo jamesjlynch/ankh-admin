@@ -2059,8 +2059,9 @@ function deliveryBoardSection(array $order,string $today):string{
  if(isBackOrder($order))return '';
  if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true) || trim((string)($order['delivery_date']??''))!=='')return '';
  $scheduled=trim((string)($order['scheduled_delivery_date']??''));
- // Undated paid orders remain visible until a date is arranged.
- if($scheduled==='')return in_array((string)($order['status']??''),['Paid','Packed','Dispatched'],true)?'awaiting':'';
+ // Delivery is independent of payment and preparation. Every active, undated
+ // order remains in To deliver until delivery is explicitly confirmed.
+ if($scheduled==='')return 'awaiting';
  $tz=new DateTimeZone('Europe/London');$scheduledDate=DateTimeImmutable::createFromFormat('!Y-m-d',$scheduled,$tz);
  $todayDate=DateTimeImmutable::createFromFormat('!Y-m-d',$today,$tz);
  if(!$scheduledDate||$scheduledDate->format('Y-m-d')!==$scheduled||!$todayDate)return '';
