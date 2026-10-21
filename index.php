@@ -3180,6 +3180,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if(!empty($result['errors']))throw new Exception('Email failed: '.implode('; ',$result['errors']));
     header('Location: ./?view=business_alerts&sent=1');exit;
    }
+   if($action==='business_alert_retry_order'){
+    require_once __DIR__.'/business-alerts.php';
+    $retryId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+    if($retryId===false)throw new Exception('Choose a valid order.');
+    $retryResult=ankhSendNewOrderNotice($db,(int)$retryId,true);
+    if($retryResult!=='accepted')throw new Exception('Google SMTP did not accept the email.');
+    $_SESSION['flash']='Google accepted the ANK-'.str_pad((string)$retryId,4,'0',STR_PAD_LEFT).' order notification for info@ankhpeptides.com.';
+    header('Location: ./?view=business_alerts');exit;
+   }
    if($action==='business_alert_preview_order'){
     require_once __DIR__.'/business-alerts.php';
     $lastOrderId=(int)$db->query('SELECT id FROM orders ORDER BY id DESC LIMIT 1')->fetchColumn();
@@ -6218,7 +6227,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php elseif($view==='shipping'):?>
 <?php require __DIR__.'/shipping-intelligence.php'; ?>
 <?php elseif($view==='business_alerts'):?>
-<?php require_once __DIR__.'/business-alerts.php'; $businessPrefs=ankhAlertPrefs($db); ?>
+<?php require_once __DIR__.'/business-alerts.php'; $businessPrefs=ankhAlertPrefs($db); 
+$alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS email_state FROM orders o LEFT JOIN settings s ON s.key='business_alert_new_order:'||o.id ORDER BY o.id DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
+?>
 <div class="heading"><div><h1>Business Alerts</h1><p class="muted page-description">Private email notifications for Jay and Tony, through Google Workspace.</p></div></div>
 <?php if(isset($_GET['saved'])):?><p class="notice">Alert preferences saved.</p><?php endif;?>
 <?php if(isset($_GET['sent'])):?><p class="notice">Test emails accepted by Google. Check your inboxes.</p><?php endif;?>
@@ -6238,6 +6249,29 @@ document.addEventListener('DOMContentLoaded',()=>{
 <form method="post" style="margin-top:18px"><?php csrf();?><input type="hidden" name="action" value="business_alert_test"><button class="quiet" type="submit">Send branded test email</button></form>
 <form method="post" style="margin-top:12px"><?php csrf();?><input type="hidden" name="action" value="business_alert_preview_order"><button class="quiet" type="submit">Preview latest order email</button></form>
 <p class="muted" style="margin-top:10px">Preview uses the most recent saved order without creating a new order or changing stock. The email subject says PREVIEW. Daily sending requires a scheduled task on Krystal. No customer emails are sent.</p>
+</section>
+<section class="panel" style="max-width:720px;padding:20px;margin-top:16px">
+<h2>New-order email history</h2>
+<p class="muted">The 12 most recent orders. “Accepted” means Google SMTP accepted the message; it does not guarantee delivery to Gmail. Failed messages show the reason and can be retried. No orders or stock are changed.</p>
+<?php if(empty($businessPrefs['new_order'])):?><p role="status" style="padding:12px;border-radius:9px;background:rgba(178,124,36,.12)">New-order notifications are currently switched off. Tick “Email me immediately when a new order is added” above, then Save.</p><?php endif;?>
+<?php foreach($alertRows as $mailRow):
+ $mailId=(int)$mailRow['id'];$mailState=(string)$mailRow['email_state'];
+ $mailFailed=str_starts_with($mailState,'failed:');$mailBusy=str_starts_with($mailState,'sending');
+ $mailAccepted=($mailState!==''&&!$mailFailed&&!$mailBusy);
+ $mailLabel=$mailFailed?'Failed':($mailBusy?'Sending / uncertain':($mailAccepted?'Accepted by Google':'Not recorded'));
+ $mailDetails=$mailFailed?substr($mailState,8):($mailAccepted?'Google accepted the SMTP submission.':($mailBusy?'Do not resend until the previous attempt has been investigated.':'No automatic send attempt is recorded for this order.'));
+?>
+<div style="border-top:1px solid var(--border);padding:15px 0">
+<div style="display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
+<div><strong>ANK-<?=str_pad((string)$mailId,4,'0',STR_PAD_LEFT)?> · <?=e($mailRow['customer'])?></strong><div class="muted" style="font-size:12px;margin-top:3px"><?=e(date('d M Y, H:i',strtotime((string)$mailRow['created'])))?></div></div>
+<strong style="font-size:13px"><?=e($mailLabel)?></strong>
+</div>
+<p class="muted" style="font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin:8px 0"><?=e($mailDetails)?></p>
+<?php if($mailFailed||$mailState===''):?>
+<form method="post" onsubmit="return confirm('Send the ANK-<?=str_pad((string)$mailId,4,'0',STR_PAD_LEFT)?> email to info@ankhpeptides.com now? This does not create another order.');"><?php csrf();?><input type="hidden" name="action" value="business_alert_retry_order"><input type="hidden" name="id" value="<?=$mailId?>"><button type="submit" class="quiet"><?=$mailFailed?'Retry failed email':'Send missing email'?></button></form>
+<?php endif;?>
+</div>
+<?php endforeach;?>
 </section>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
