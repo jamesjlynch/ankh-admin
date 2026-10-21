@@ -3846,7 +3846,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
