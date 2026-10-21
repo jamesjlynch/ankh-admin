@@ -3754,21 +3754,25 @@ function dashboardOneTapActions(array $order,?DateTimeImmutable $today=null):voi
  $todayValue=$today->format('Y-m-d');
  $planned=trim((string)($order['scheduled_delivery_date']??''));
  $stage=$state==='pending'?'reconstituted':($state==='reconstituted'?'packaged':'');
- if($stage!==''){
-  ?><form method="post" class="operations-next-form"><?php csrf();?>
-   <input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=(int)$order['id']?>">
-   <input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'all')?>">
-   <input type="hidden" name="stage" value="<?=e($stage)?>"><input type="hidden" name="complete" value="1">
-   <button class="operations-next-button" type="submit"><?=$stage==='reconstituted'?'✓ Mark reconstituted':'✓ Mark packaged'?></button></form><?php
- }elseif($state==='packaged'){
-  if($planned!=='' && $planned>$todayValue){?><p class="operations-planned-note">Delivery planned for <?=e(date('D d M',strtotime($planned)))?>. Keep this order in To deliver until manually completed.</p><?php return;}
-  ?><form method="post" class="operations-next-form" onsubmit="return confirm('Confirm this order has actually been delivered today?')"><?php csrf();?>
-   <input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=(int)$order['id']?>">
-   <input type="hidden" name="delivery_date" value="<?=e($todayValue)?>"><input type="hidden" name="return" value="dashboard">
-   <input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'all')?>">
-   <button class="operations-next-button" type="submit">✓ Mark delivered today</button></form><?php
+ if($stage!==''){?>
+ <form method="post" class="operations-next-form"><?php csrf();?>
+  <input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=(int)$order['id']?>">
+  <input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'all')?>">
+  <input type="hidden" name="stage" value="<?=e($stage)?>"><input type="hidden" name="complete" value="1">
+  <button class="operations-next-button" type="submit"><?=$stage==='reconstituted'?'✓ Mark reconstituted':'✓ Mark packaged'?></button>
+ </form><?php
  }
+ if(isBackOrder($order)){?><p class="operations-planned-note">This order is awaiting stock. Move it to Active orders before recording delivery.</p><?php return;}
+ if($planned!==''&&$planned>$todayValue){?><p class="operations-planned-note">Delivery planned for <?=e(date('D d M',strtotime($planned)))?>. Only mark delivered if it was actually handed over.</p><?php }
+ ?>
+ <form method="post" class="operations-next-form" onsubmit="return confirm('Confirm this order was actually delivered today? Any unpaid balance stays outstanding.');"><?php csrf();?>
+  <input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=(int)$order['id']?>">
+  <input type="hidden" name="delivery_date" value="<?=e($todayValue)?>"><input type="hidden" name="return" value="dashboard">
+  <input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'all')?>">
+  <button class="operations-next-button" type="submit">✓ Mark delivered today</button>
+ </form><?php
 }
+
 function futureDeliveryPaymentLabel(array $order):string{
  $total=max(0,(int)($order['total']??0));$paid=max(0,(int)($order['paid_amount']??0));
  return $total===0?'No payment required':($paid>=$total?'Paid':($paid>0?'Part paid':'Unpaid'));
