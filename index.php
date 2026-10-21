@@ -2549,7 +2549,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-options'
     'authenticatorSelection'=>['authenticatorAttachment'=>'platform','residentKey'=>'preferred','userVerification'=>'required']
    ]]);
   }
-  $rows=$db->query('SELECT credential_id FROM passkeys ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+  $rows=$db->query($hasIndividualLogins?'SELECT credential_id FROM passkeys WHERE user_id IS NOT NULL ORDER BY id':'SELECT credential_id FROM passkeys ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
   if(!$rows)voiceJson(['ok'=>false,'error'=>'No passkey has been set up yet. Use your PIN, then add Face ID / Passkey from More.'],404);
   voiceJson(['ok'=>true,'publicKey'=>[
    'challenge'=>$challenge,'rpId'=>webauthnRpId(),'timeout'=>60000,'userVerification'=>'required',
@@ -2585,7 +2585,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-login'){
   $oldCount=(int)$passkey['sign_count'];$newCount=(int)$auth['count'];if($oldCount>0&&$newCount>0&&$newCount<=$oldCount)throw new Exception('Passkey counter check failed.');
   if($hasIndividualLogins && empty($passkey['user_id']))throw new Exception('Re-register this passkey from your own ANKH account.');
    $db->prepare('UPDATE passkeys SET sign_count=? WHERE id=?')->execute([$newCount,(int)$passkey['id']]);
-  unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();if($hasIndividualLogins)$_SESSION['admin_user_id']=(int)$passkey['user_id'];
   voiceJson(['ok'=>true]);
  }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey sign-in failed.'],500);}
 }
@@ -3155,7 +3155,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    throw new Exception('Password not recognised.');
   }
   $db->prepare('DELETE FROM attempts WHERE ip=?')->execute([$ip]);
-  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
+  if($hasIndividualLogins)ankhAuthPasswordLogin($db,(string)($_POST['username']??''),(string)($_POST['password']??''),!empty($_POST['remember']));
+  else{session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();}
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='logout'){if($hasIndividualLogins)ankhAuthClearRemember($db);$_SESSION=[];session_destroy();header('Location: ./');exit;}
@@ -3688,7 +3689,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  exit;
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();}
 }
-$passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
+$passkeyCount=(int)$db->query($hasIndividualLogins?'SELECT COUNT(*) FROM passkeys WHERE user_id IS NOT NULL':'SELECT COUNT(*) FROM passkeys')->fetchColumn();
 $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600 && (!$hasIndividualLogins||!empty($_SESSION['admin_user_id']));
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
