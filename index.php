@@ -1868,7 +1868,10 @@ ankhAuthSchema($db);
 $passkeyCols=array_column($db->query('PRAGMA table_info(passkeys)')->fetchAll(PDO::FETCH_ASSOC),'name');
 if(!in_array('user_id',$passkeyCols,true))$db->exec('ALTER TABLE passkeys ADD COLUMN user_id INTEGER DEFAULT NULL REFERENCES admin_users(id)');
 $hasIndividualLogins=ankhAuthUserCount($db)>0;
-if($hasIndividualLogins)ankhAuthRestore($db);
+if($hasIndividualLogins){
+ if(empty($_SESSION['admin_user_id']))unset($_SESSION['admin'],$_SESSION['last']);
+ ankhAuthRestore($db);
+}
 $adminPasswordHash=$pinSetupComplete?$savedAdminPinHash:(string)$config['password_hash'];
 $openAiKey=trim((string)($config['openai_api_key']??(getenv('OPENAI_API_KEY')?:'')));
 $voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
