@@ -116,7 +116,7 @@ function ankhNewOrderBody(PDO $db,int $orderId):array {
    $jay=(int)$item['stock_jay_qty'];$tony=(int)$item['stock_tony_qty'];
    $stock=$available.' combined available (Jay '.$jay.', Tony '.$tony.')';
    if($available<=$threshold){$alerts[]=$name.' at/below stock threshold';$actions[]='Check stock for '.$name;}
-   if($available<$qty){$alerts[]=$name.' has fewer available than ordered';$actions[]='Resolve stock shortage for '.$name;}
+   if($available<0||(int)$item['stock_jay_qty']<0||(int)$item['stock_tony_qty']<0){$alerts[]=$name.' has a stock reservation shortage';$actions[]='Resolve stock reservation shortage for '.$name;}
    $color=$available<=$threshold?'#f6ae7c':'#c8d9b9';
    $stockHtml='<span style="color:'.$color.';font-weight:bold">'.$available.' available</span><br><span style="color:#b5b1a7;font-size:12px">Jay: '.$jay.' &nbsp;·&nbsp; Tony: '.$tony.' &nbsp;·&nbsp; Alert at: '.$threshold.'</span>';
   }
@@ -138,9 +138,96 @@ function ankhNewOrderBody(PDO $db,int $orderId):array {
  $plain.="\n".$historyLabel."\n".$prepLabel."\nNext actions:\n".implode("\n",array_unique($actions))."\n";
  $notes=trim((string)($order['notes']??''))!==''?'<div style="padding:15px;border:1px solid #55452b;border-radius:9px;color:#e6d2a3;font-size:12px;white-space:pre-wrap;margin-top:15px"><b>Order notes</b><br>'.$escape($order['notes']).'</div>':'';
  $html='<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0f110e;margin:0;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#eee9db"><table role="presentation" style="max-width:620px;margin:auto;background:#191b18;border:1px solid #48402e;border-radius:16px" cellspacing="0" cellpadding="0" width="100%"><tr><td style="background:#111410;padding:28px 23px;text-align:center;border-bottom:1px solid #473d2c"><div style="font-size:34px;color:#e3bf75">☥</div><div style="font-size:24px;color:#e8c982;font-weight:bold;letter-spacing:2px">ANKH ADMIN</div><div style="color:#a6a296;font-size:11px;letter-spacing:2px;margin-top:9px">NEW ORDER RECEIVED</div></td></tr><tr><td style="padding:25px"><div style="display:inline-block;background:#393423;color:#f4d794;border-radius:15px;padding:6px 12px;font-size:12px">'.$escape($ref).'</div><h1 style="font-size:23px;color:#fbf3dc;margin:17px 0 6px">'.$escape($actor).' has added an order</h1>'.$info.'<p style="font-size:13px;color:#c7c1b2;margin:0">A new order has been entered into ANKH Admin.</p><div style="margin:22px 0;padding:20px;background:#25261f;border:1px solid #504630;border-radius:12px"><div style="font-size:12px;color:#bbb5a6">ORDER VALUE</div><div style="font-size:32px;font-weight:bold;color:#edcd88;margin-top:6px">'.$money($total).'</div><div style="color:#b6b4a9;font-size:12px;margin-top:4px">'.count($items).' product line'.(count($items)===1?'':'s').'</div></div><h2 style="font-size:16px;color:#e8c982;margin:0 0 12px">Customer & delivery</h2><table width="100%" cellspacing="0">'.$details.'</table>'.$notes.'<h2 style="font-size:16px;color:#e8c982;margin:24px 0 8px">Products ordered & stock remaining</h2><table width="100%" cellspacing="0">'.$rows.'</table><table width="100%" style="margin-top:19px;border-top:1px solid #514730"><tr><td style="padding:13px 4px;color:#aaa89e;font-size:12px">Delivery charge</td><td align="right" style="color:#f0e6d2;font-size:13px">'.$money((int)($order['delivery_charge']??0)).'</td></tr><tr><td style="padding:8px 4px;font-weight:bold">ORDER TOTAL</td><td align="right" style="padding:8px 4px;color:#edcd88;font-weight:bold;font-size:20px">'.$money($total).'</td></tr></table>'.$warnings.$nextHtml.'<p style="text-align:center;margin:26px 0 12px"><a href="https://admin.ankhpeptides.com/?view=edit&amp;id='.$orderId.'" style="display:inline-block;background:#dab66e;color:#19140b;text-decoration:none;border-radius:10px;padding:14px 26px;font-weight:bold;font-size:13px">View order in ANKH Admin →</a></p></td></tr><tr><td style="text-align:center;border-top:1px solid #3c382d;padding:20px;color:#8f9288;font-size:11px">Private operational alert · ANKH Admin<br>From admin@ankhpeptides.com · Internal use only</td></tr></table></body></html>';
- $html=str_replace('<tr><td style="padding:25px">',$quick.'<tr><td style="padding:25px">',$html);
+ $html=ankhMobileOrderHtml($orderId,$order,$items,$total,$actor,$paid,$outstanding,$paymentLabel,$historyLabel,$prepLabel,$deliveryCountdown);
  return [$subject,$plain,$html];
 }
+
+/** iPhone-first order email. Keep a deliberately light, single-column layout:
+ * Gmail iOS can auto-invert dark HTML emails into low-contrast beige. */
+function ankhMobileOrderHtml(int $orderId,array $order,array $items,int $total,string $actor,int $paid,int $outstanding,string $paymentLabel,string $historyLabel,string $prepLabel,string $deliveryCountdown):string {
+ $e=static fn($v):string=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+ $money=static fn(int $p):string=>'£'.number_format($p/100,2);
+ $url='https://admin.ankhpeptides.com/?view=edit&id='.$orderId;
+ $ref='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
+ $customer=(string)($order['customer']??'');
+ $date=(new DateTimeImmutable('now',new DateTimeZone('Europe/London')))->format('D j M · g:i A');
+ $products='';$alerts=[];$actions=[];$units=0;$recurring=false;
+ foreach($items as $item){
+  $qty=max(0,(int)$item['quantity']);$units+=$qty;
+  $name=$e($item['name']);$presentation=$e(trim((string)($item['presentation']??''))?:'Standard');
+  $line=$money((int)$item['price']*$qty);
+  $stock='<span style="color:#777d75">Stock not tracked</span>';
+  if((int)($item['stock_tracking']??0)===1){
+   // Product fridge quantities are available balances AFTER active reservations.
+   // Never subtract the newly saved order a second time.
+   $jay=(int)($item['stock_jay_qty']??0);$tony=(int)($item['stock_tony_qty']??0);
+   $balance=$jay+$tony;$available=max(0,$balance);
+   $low=$balance<=(int)($item['low_stock_at']??0);
+   $short=$jay<0||$tony<0||$balance<0;
+   $stock='<span style="font-weight:700;color:'.($short||$low?'#96622a':'#315b45').'">'.$available.' left</span>'
+    .' <span style="color:#6c746b">· Jay '.max(0,$jay).' / Tony '.max(0,$tony).'</span>';
+   if($short)$alerts[]=(string)$item['name'].' — reservation shortage';
+   elseif($low)$alerts[]=(string)$item['name'].' — low stock ('.$available.' left)';
+  }
+  if((int)($item['recurring']??0)===1)$recurring=true;
+  $products.='<tr><td style="padding:14px 0;border-bottom:1px solid #e7e8e3;vertical-align:top;word-break:break-word">'
+   .'<div style="font-size:15px;font-weight:700;color:#242a23;line-height:1.4">'.$name.'</div>'
+   .'<div style="font-size:13px;color:#626960;margin-top:4px">'.$qty.' × '.$presentation.'</div>'
+   .'<div style="font-size:12px;line-height:1.6;margin-top:7px">'.$stock.'</div></td>'
+   .'<td align="right" valign="top" style="padding:15px 0 12px 8px;border-bottom:1px solid #e7e8e3;color:#252b24;white-space:nowrap;font-weight:700;font-size:14px">'.$line.'</td></tr>';
+ }
+ $detail=static function(string $label,string $value)use($e):string{
+  if(trim($value)==='')return '';
+  return '<tr><td valign="top" style="padding:6px 0;font-size:12px;line-height:1.6;color:#70766d;width:32%">'.$e($label).'</td>'
+   .'<td valign="top" style="padding:6px 0 6px 8px;font-size:14px;line-height:1.5;color:#252c25;font-weight:600;overflow-wrap:anywhere;word-break:break-word">'.$e($value).'</td></tr>';
+ };
+ $recipient=trim((string)($order['recipient_name']??''));
+ $customerDetails=$detail('Customer',$customer).$detail('History',$historyLabel);
+ if($recipient!==''&&strcasecmp($recipient,$customer)!==0)$customerDetails.=$detail('For',$recipient);
+ $customerDetails.=$detail('Phone',(string)($order['phone']??''));
+ $customerDetails.=$detail('Method',(string)($order['delivery_method']??''));
+ $customerDetails.=$detail('Delivery date',(string)($order['scheduled_delivery_date']??''));
+ $customerDetails.=$detail('Address',(string)($order['address']??''));
+ $customerDetails.=$detail('Assigned to',(string)($order['assigned_to']??''));
+ $customerDetails.=$detail('Payment via',(string)($order['payment_method']??''));
+ $notes=trim((string)($order['notes']??''));
+ $notesHtml=$notes!==''?'<div style="padding:12px;margin-top:12px;background:#f6f5f0;border-left:3px solid #c0a068"><div style="font-size:11px;letter-spacing:.5px;font-weight:bold;color:#6b5834">ORDER NOTES</div><div style="margin-top:5px;font-size:13px;line-height:1.55;color:#363b34;white-space:pre-wrap;overflow-wrap:anywhere">'.$e($notes).'</div></div>':'';
+ $warnHtml='';
+ if($alerts){
+  $warnHtml='<tr><td style="padding:2px 18px 13px"><div style="padding:12px;background:#fff7eb;border-left:3px solid #b78745"><div style="font-size:13px;font-weight:700;color:#7e511f">Stock attention</div>';
+  foreach(array_unique($alerts) as $alert)$warnHtml.='<div style="font-size:13px;line-height:1.5;color:#664520;margin-top:5px">'.$e($alert).'</div>';
+  $warnHtml.='</div></td></tr>';
+ }
+ if($outstanding>0)$actions[]='Collect '.$money($outstanding).' outstanding';
+ $status=(string)($order['status']??'');
+ if(!in_array($status,['Cancelled','Delivered','Dispatched'],true)){
+  if(empty($order['reconstituted']))$actions[]='Prepare products';
+  if(empty($order['packaged']))$actions[]='Package order';
+ }
+ if(trim((string)($order['scheduled_delivery_date']??''))!=='')$actions[]='Check delivery arrangements';
+ if($recurring)$actions[]='Review recurring order';
+ if($alerts)$actions[]='Review flagged stock';
+ $actionRows='';
+ foreach($actions as $action)$actionRows.='<tr><td style="width:18px;padding:5px 0;font-size:15px;color:#ab8546;vertical-align:top">•</td><td style="padding:5px 0;color:#353c34;font-size:14px;line-height:1.4">'.$e($action).'</td></tr>';
+ $actionSection=$actionRows!==''?'<tr><td style="padding:9px 18px 13px"><div style="font-size:16px;font-weight:700;color:#262d25;margin-bottom:8px">Next actions</div><table role="presentation" cellspacing="0" cellpadding="0" width="100%">'.$actionRows.'</table></td></tr>':'';
+ $html='<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+ .'<body style="margin:0;padding:0;background:#f3f4f1;color:#252b24;font-family:Arial,Helvetica,sans-serif;-webkit-text-size-adjust:100%">'
+ .'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;background:#f3f4f1"><tr><td align="center" style="padding:10px 6px">'
+ .'<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;max-width:540px;table-layout:fixed;background:#ffffff;border:1px solid #e1e4df;border-radius:10px">'
+ .'<tr><td style="padding:18px 18px 16px;border-bottom:3px solid #b9914e"><div style="font-size:19px;font-weight:800;letter-spacing:1px;color:#1c241b">☥ ANKH <span style="color:#ae8641">ADMIN</span></div><div style="font-size:11px;color:#737b70;letter-spacing:1.1px;font-weight:700;margin-top:5px">NEW ORDER</div></td></tr>'
+ .'<tr><td style="padding:18px 18px 10px"><div style="font-size:12px;font-weight:700;color:#987643">'.$e($ref).'</div><h1 style="font-size:21px;font-weight:800;color:#202820;line-height:1.3;margin:7px 0">'.$e($actor).' added an order</h1><div style="font-size:12px;color:#6e756d">'.$e($date).'</div></td></tr>'
+ .'<tr><td style="padding:5px 18px 16px"><div style="padding:15px;background:#f7f6f1;border:1px solid #e7e3d8;border-radius:8px"><div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#737971">ORDER TOTAL</div><div style="font-size:27px;font-weight:800;color:#232b23;line-height:1.4">'.$money($total).'</div><div style="font-size:13px;color:#6a7169">'.$units.' item'.($units===1?'':'s').' · '.$e($paymentLabel).'</div>'.($outstanding>0?'<div style="font-weight:700;color:#805b28;font-size:13px;margin-top:5px">'.$money($outstanding).' to collect</div>':'').'</div></td></tr>'
+ .'<tr><td style="padding:7px 18px 17px"><h2 style="font-size:16px;color:#252e25;margin:0 0 8px">Customer & delivery</h2><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;table-layout:fixed">'.$customerDetails.'</table>'.$notesHtml.'</td></tr>'
+ .'<tr><td style="padding:15px 18px 7px;border-top:1px solid #ebebe7"><h2 style="font-size:16px;color:#252e25;margin:0 0 5px">Products</h2><div style="font-size:12px;line-height:1.5;color:#6f786e">Stock available after existing reservations</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;table-layout:fixed">'.$products.'</table></td></tr>'
+ .$warnHtml
+ .'<tr><td style="padding:7px 18px 14px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-top:1px solid #e7e9e3"><tr><td style="padding:13px 0 5px;color:#6a736a;font-size:13px">Delivery</td><td align="right" style="padding:13px 0 5px;font-size:13px;color:#292e28">'.$money((int)($order['delivery_charge']??0)).'</td></tr><tr><td style="padding:5px 0;color:#6a736a;font-size:13px">Paid</td><td align="right" style="padding:5px 0;color:#292e28;font-size:13px">'.$money($paid).'</td></tr><tr><td style="padding:8px 0;color:#282e28;font-weight:700;font-size:13px">Outstanding</td><td align="right" style="padding:8px 0;color:#85622c;font-size:15px;font-weight:700">'.$money($outstanding).'</td></tr></table></td></tr>'
+ .$actionSection
+ .'<tr><td style="padding:5px 18px 23px"><a href="'.$e($url).'" style="display:block;background:#202820;border-radius:8px;padding:14px 10px;text-align:center;color:#ffffff;text-decoration:none;font-size:15px;line-height:22px;font-weight:700">View order in ANKH Admin &#8594;</a></td></tr>'
+ .'<tr><td style="padding:15px 18px;border-top:1px solid #e7e9e3;text-align:center;font-size:11px;line-height:1.6;color:#808780">ANKH Admin · Internal business notification<br>admin@ankhpeptides.com → info@ankhpeptides.com</td></tr>'
+ .'</table></td></tr></table></body></html>';
+ return $html;
+}
+
 function ankhSendNewOrderNotice(PDO $db,int $orderId):void {
  $prefs=ankhAlertPrefs($db);if(empty($prefs['new_order']))return;
  $key='business_alert_new_order:'.$orderId;
