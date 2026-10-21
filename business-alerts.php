@@ -228,21 +228,42 @@ function ankhMobileOrderHtml(int $orderId,array $order,array $items,int $total,s
  return $html;
 }
 
-function ankhSendNewOrderNotice(PDO $db,int $orderId):void {
- $prefs=ankhAlertPrefs($db);if(empty($prefs['new_order']))return;
+function ankhNewOrderMailState(PDO $db,int $orderId):string {
+ $q=$db->prepare('SELECT value FROM settings WHERE key=?');
+ $q->execute(['business_alert_new_order:'.$orderId]);
+ $value=$q->fetchColumn();
+ return $value===false?'':(string)$value;
+}
+// One message per order. Failed attempts may only be retried deliberately through the
+// authenticated settings page. A prior SMTP 250 is never automatically resent.
+function ankhSendNewOrderNotice(PDO $db,int $orderId,bool $manualRetry=false):string {
+ $prefs=ankhAlertPrefs($db);
+ if(!$manualRetry&&empty($prefs['new_order']))return 'disabled';
+ if($orderId<1)throw new RuntimeException('Choose a valid order.');
  $key='business_alert_new_order:'.$orderId;
  $db->beginTransaction();
  try{
-  $q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$key]);if($q->fetchColumn()!==false){$db->rollBack();return;}
-  $db->prepare('INSERT INTO settings(key,value) VALUES(?,?)')->execute([$key,'sending']);$db->commit();
+  $q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$key]);$previous=$q->fetchColumn();
+  if($previous!==false){
+   if(!$manualRetry){$db->rollBack();return 'already_handled';}
+   if(!str_starts_with((string)$previous,'failed:')){
+    throw new RuntimeException(str_starts_with((string)$previous,'sending')?'An email may already be in progress. Contact support before retrying to avoid duplicates.':'Google previously accepted this order email. A duplicate will not be sent.');
+   }
+   $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute(['sending:'.gmdate('c'),$key]);
+  }else{
+   $exists=$db->prepare('SELECT id FROM orders WHERE id=?');$exists->execute([$orderId]);
+   if(!$exists->fetchColumn())throw new RuntimeException('This order does not exist.');
+   $db->prepare('INSERT INTO settings(key,value) VALUES(?,?)')->execute([$key,'sending:'.gmdate('c')]);
+  }
+  $db->commit();
  }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
  try{
   [$subject,$plain,$html]=ankhNewOrderBody($db,$orderId);
   ankhSmtpSend('info@ankhpeptides.com',$subject,$plain,$html);
-  $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute([gmdate('c'),$key]);
+  $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute(['accepted:'.gmdate('c'),$key]);
+  return 'accepted';
  }catch(Throwable $e){
-  // Keep a failed status to avoid accidental duplicates; retry can be handled separately.
-  $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute(['failed: '.substr($e->getMessage(),0,140),$key]);
+  $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute(['failed: '.substr($e->getMessage(),0,220),$key]);
   throw $e;
  }
 }
