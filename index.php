@@ -1490,7 +1490,10 @@ CREATE INDEX IF NOT EXISTS idx_ankh_activity_created ON activity_events(created 
 function recordActivity(PDO $db,string $entity,int $entityId,string $action,array $details=[]):void{
  if($entity!=='order'||$entityId<1)throw new InvalidArgumentException('Invalid audit event target.');
  $q=$db->prepare('INSERT INTO activity_events(entity_type,entity_id,action,actor_id,actor_name,details_json,created) VALUES (?,?,?,?,?,?,?)');
- $q->execute([$entity,$entityId,$action,null,'Test mode',json_encode($details,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('c')]);
+ $actorId=(int)($_SESSION['admin_user_id']??0);
+ $actorName='System';
+ if($actorId>0){$aq=$db->prepare('SELECT username FROM admin_users WHERE id=?');$aq->execute([$actorId]);$username=strtolower((string)($aq->fetchColumn()?:''));$actorName=match($username){'jay','james'=>'James','tony','anthony'=>'Tony',default=>$username!==''?ucfirst($username):'System'};}
+ $q->execute([$entity,$entityId,$action,$actorId?:null,$actorName,json_encode($details,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('c')]);
 }
 function activityForOrder(PDO $db,int $orderId,int $limit=40):array{
  $q=$db->prepare('SELECT actor_name,action,details_json,created FROM activity_events WHERE entity_type=? AND entity_id=? ORDER BY id DESC LIMIT ?');
