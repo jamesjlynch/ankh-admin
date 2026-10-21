@@ -5,6 +5,11 @@ set -Eeuo pipefail
 umask 077
 
 home=${ANKH_DEPLOY_HOME:-/home/lynchde1}
+# Keep the original hosting account frozen during the new-server authentication migration.
+if [[ "$home" == "/home/lynchde1" ]]; then
+  echo "ANKH: old hosting account deployment intentionally disabled; original installation unchanged." >&2
+  exit 0
+fi
 log="$home/ankh-admin-deploy.log"
 exec >> "$log" 2>&1
 trap 'code=$?; echo "[ERROR] Publish failed (exit $code) at line $LINENO" >&2' ERR
