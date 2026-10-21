@@ -42,3 +42,9 @@ function ankhAuthPasswordLogin(PDO $db,string $username,string $password,bool $r
  ankhAuthClearRemember($db);if($remember)ankhAuthRemember($db,(int)$row['id']);
  return true;
 }
+
+function ankhAuthCredentialsValid(PDO $db,string $username,string $password):bool {
+ $q=$db->prepare('SELECT password_hash FROM admin_users WHERE username=? AND active=1');$q->execute([trim($username)]);$hash=$q->fetchColumn();
+ // Constant-time password check also for unknown users.
+ return password_verify($password,$hash===false?'$2y$10$abcdefghijklmnopqrstuu9nOCyCReBJD27VyRbmbWZGE/1QNaUqG':(string)$hash);
+}
