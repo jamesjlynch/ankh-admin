@@ -32,7 +32,41 @@ function ankhAlertSummary(PDO $db,array $prefs):string {
  $out[]='';$out[]='Open ANKH Admin: https://admin.ankhpeptides.com/';$out[]='Internal business notification — not for customers.';
  return implode("\n",$out)."\n";
 }
-function ankhSmtpSend(string $recipient,string $subject,string $body):void {
+function ankhAlertHtml(PDO $db,array $prefs,bool $test=false):string {
+ $today=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));
+ $date=htmlspecialchars($today->format('l j F Y'),ENT_QUOTES,'UTF-8');
+ $rows=[];$delivery=null;$lowCount=null;
+ if(!empty($prefs['delivery'])){
+  $tomorrow=$today->modify('+1 day')->format('Y-m-d');
+  $q=$db->prepare("SELECT COUNT(*) FROM orders WHERE scheduled_delivery_date=? AND status NOT IN ('Cancelled','Delivered','Dispatched') AND COALESCE(delivery_date,'')=''");
+  $q->execute([$tomorrow]);$delivery=(int)$q->fetchColumn();
+ }
+ if(!empty($prefs['stock'])){
+  $q=$db->query("SELECT name,COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0) AS qty,low_stock_at FROM products WHERE active=1 AND stock_tracking=1 AND COALESCE(stock_jay_qty,0)+COALESCE(stock_tony_qty,0)<=low_stock_at ORDER BY qty,name LIMIT 25");
+  $rows=$q->fetchAll(PDO::FETCH_ASSOC);$lowCount=count($rows);
+ }
+ $block='';
+ if($test)$block.='<tr><td style="padding:14px 24px;background:#263324;color:#cce7bc;font-size:13px">TEST PREVIEW — figures below come from your current ANKH database. Daily sending is unchanged.</td></tr>';
+ $tiles='';
+ if($delivery!==null)$tiles.='<td style="width:50%;padding:8px"><div style="padding:18px;border:1px solid #39362d;border-radius:12px;background:#20211f"><span style="font-size:12px;color:#aaa69b">DUE TOMORROW</span><div style="color:#f5e4b6;font-size:30px;font-weight:700;margin-top:7px">'.$delivery.'</div><div style="font-size:12px;color:#c7c3b8">Scheduled deliveries</div></div></td>';
+ if($lowCount!==null)$tiles.='<td style="width:50%;padding:8px"><div style="padding:18px;border:1px solid #39362d;border-radius:12px;background:#20211f"><span style="font-size:12px;color:#aaa69b">STOCK WATCH</span><div style="color:#f5e4b6;font-size:30px;font-weight:700;margin-top:7px">'.$lowCount.'</div><div style="font-size:12px;color:#c7c3b8">Products at or below threshold</div></div></td>';
+ if($tiles!=='')$block.='<tr><td style="padding:15px 16px 5px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr>'.$tiles.'</tr></table></td></tr>';
+ if($lowCount!==null){
+  $block.='<tr><td style="padding:18px 24px 6px"><h2 style="margin:0;font-size:17px;color:#f4d891">Low-stock watchlist</h2><p style="color:#b4b0a8;font-size:13px;line-height:1.6;margin:8px 0">Stock across Jay and Tony’s fridges.</p></td></tr>';
+  if(!$rows)$block.='<tr><td style="padding:6px 24px 18px;color:#c6d9bc;font-size:13px">No tracked products are below their alert threshold.</td></tr>';
+  else foreach($rows as $row){
+   $name=htmlspecialchars((string)$row['name'],ENT_QUOTES,'UTF-8');$qty=(int)$row['qty'];$threshold=(int)$row['low_stock_at'];
+   $block.='<tr><td style="padding:7px 24px"><table role="presentation" width="100%" style="border-bottom:1px solid #363731;padding-bottom:10px"><tr><td style="color:#efede5;font-size:13px;font-weight:600">'.$name.'</td><td align="right" style="color:#ebc27a;font-size:12px">'.$qty.' available / alert at '.$threshold.'</td></tr></table></td></tr>';
+  }
+ }
+ if(!empty($prefs['payment'])||!empty($prefs['recurring'])){
+  $block.='<tr><td style="padding:20px 24px 8px"><h2 style="font-size:17px;color:#f4d891;margin:0">Your business checklist</h2></td></tr>';
+  if(!empty($prefs['payment']))$block.='<tr><td style="padding:8px 24px;color:#e3e0d5;font-size:13px">• Review outstanding balances <a style="color:#e9c777" href="https://admin.ankhpeptides.com/?view=balances">View payments →</a></td></tr>';
+  if(!empty($prefs['recurring']))$block.='<tr><td style="padding:8px 24px;color:#e3e0d5;font-size:13px">• Check recurring demand <a style="color:#e9c777" href="https://admin.ankhpeptides.com/?view=reta">Cycle planner →</a> and <a style="color:#e9c777" href="https://admin.ankhpeptides.com/?view=reorder">Reorder planner →</a></td></tr>';
+ }
+ return '<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ANKH Admin Daily Brief</title></head><body style="margin:0;padding:24px 12px;background:#0c0e0c;color:#ece9df;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;margin:0 auto;background:#171a17;border:1px solid #3e382b;border-radius:16px"><tr><td style="padding:32px 24px 26px;background:#121410;text-align:center;border-bottom:1px solid #383426"><div style="font-size:36px;color:#dcb96d">☥</div><div style="font-size:24px;letter-spacing:3px;color:#e7c780;font-weight:bold">ANKH ADMIN</div><div style="font-size:12px;color:#aaa69a;letter-spacing:2px;margin-top:8px">PRIVATE BUSINESS BRIEF</div></td></tr><tr><td style="padding:26px 24px 8px"><h1 style="font-size:23px;line-height:1.3;color:#faf2dd;margin:0">Your daily overview</h1><p style="font-size:13px;color:#aba99f;margin-top:8px">'.$date.'</p></td></tr>'.$block.'<tr><td style="padding:28px 24px 18px;text-align:center"><a href="https://admin.ankhpeptides.com/" style="display:inline-block;background:#d7b369;color:#17130c;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 23px;border-radius:10px">Open ANKH Admin →</a></td></tr><tr><td style="text-align:center;padding:18px 22px 26px;border-top:1px solid #39362d;color:#8f9188;font-size:11px;line-height:1.7">Internal business notification for Jay and Tony only.<br>Sent by admin@ankhpeptides.com · ANKH Admin</td></tr></table></body></html>';
+}
+function ankhSmtpSend(string $recipient,string $subject,string $body,?string $html=null):void {
  if(!in_array(strtolower($recipient),['james@ankhpeptides.com','anthony@ankhpeptides.com'],true))throw new RuntimeException('Recipient is not an authorised ANKH administrator.');
  $host='smtp-relay.gmail.com';$port=587;
  $context=stream_context_create(['ssl'=>['verify_peer'=>true,'verify_peer_name'=>true,'peer_name'=>$host,'SNI_enabled'=>true]]);
@@ -53,8 +87,13 @@ function ankhSmtpSend(string $recipient,string $subject,string $body):void {
   $from='admin@ankhpeptides.com';
   $send('MAIL FROM:<'.$from.'>');$expect([250]);$send('RCPT TO:<'.$recipient.'>');$expect([250,251]);$send('DATA');$expect([354]);
   $safeSubject=str_replace(["\r","\n"],' ',$subject);
-  $headers="From: ANKH Admin <{$from}>\r\nTo: <{$recipient}>\r\nSubject: {$safeSubject}\r\nDate: ".date(DATE_RFC2822)."\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n";
-  $payload=$headers."\r\n".preg_replace('/^\./m','..',str_replace(["\r\n","\r"],"\n",$body));
+  $headers="From: ANKH Admin <{$from}>\r\nTo: <{$recipient}>\r\nSubject: {$safeSubject}\r\nDate: ".date(DATE_RFC2822)."\r\nMIME-Version: 1.0\r\n";
+  if($html!==null){
+   $boundary='ankh_'.bin2hex(random_bytes(14));
+   $headers.="Content-Type: multipart/alternative; boundary=\"{$boundary}\"\r\n";
+   $payload=$headers."\r\n--{$boundary}\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($body),76,"\r\n")."--{$boundary}\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n".chunk_split(base64_encode($html),76,"\r\n")."--{$boundary}--\r\n";
+  }else{$payload=$headers."Content-Type: text/plain; charset=UTF-8\r\n\r\n".$body;}
+  $payload=preg_replace('/^\./m','..',str_replace(["\r\n","\r"],"\n",$payload));
   fwrite($socket,str_replace("\n","\r\n",rtrim($payload,"\n"))."\r\n.\r\n");$expect([250]);
   $send('QUIT');
  }finally{fclose($socket);}
@@ -76,7 +115,7 @@ function ankhAlertDispatch(PDO $db,bool $test=false):array {
    $db->commit();
   }
   try{
-   ankhSmtpSend($address,$test?'ANKH Admin — Test Email':'ANKH Admin — Daily Business Summary', $test?"Test successful. ANKH Admin can send business emails through Google Workspace.\n":ankhAlertSummary($db,$prefs));
+   ankhSmtpSend($address,$test?'ANKH Admin — Branded Email Preview':'ANKH Admin — Daily Business Summary',ankhAlertSummary($db,$prefs),ankhAlertHtml($db,$prefs,$test));
    $sent[]=$address;
    if(!$test)$db->prepare("UPDATE settings SET value=? WHERE key=?")->execute([gmdate('c'),$key]);
   }catch(Throwable $e){
