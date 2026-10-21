@@ -5,6 +5,11 @@ set -Eeuo pipefail
 umask 077
 
 home=${ANKH_DEPLOY_HOME:-/home/lynchde1}
+# Keep the original hosting account frozen during the new-server authentication migration.
+if [[ "$home" == "/home/lynchde1" ]]; then
+  echo "ANKH: old hosting account deployment intentionally disabled; original installation unchanged." >&2
+  exit 0
+fi
 log="$home/ankh-admin-deploy.log"
 exec >> "$log" 2>&1
 trap 'code=$?; echo "[ERROR] Publish failed (exit $code) at line $LINENO" >&2' ERR
@@ -21,7 +26,7 @@ release="$(git rev-parse HEAD)"
 target="$home/public_html/ankh-admin"
 marker="$home/.ankh-admin-last-deployed-sha"
 php=${ANKH_DEPLOY_PHP:-/opt/cpanel/ea-php82/root/usr/bin/php}
-files=(.htaccess index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
+files=(.htaccess auth-users.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
 
 # A successful commit is not a successful deployment; compare the actual live files.
 if [[ -f "$marker" && "$(cat "$marker")" == "$release" ]]; then
@@ -36,6 +41,7 @@ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Publishing ${release:0:12}"
 for file in "${files[@]}"; do
   [[ -f "$file" ]] || { echo "Missing required file: $file" >&2; exit 1; }
 done
+"$php" -l auth-users.php
 "$php" -l index.php
 "$php" -l setup.php
 "$php" -l supplier-centre.php
