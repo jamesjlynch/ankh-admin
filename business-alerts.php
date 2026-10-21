@@ -3,14 +3,11 @@ declare(strict_types=1);
 // ANKH business-only email: no customer recipients and no public entrypoint.
 function ankhAlertPrefs(PDO $db):array {
  $q=$db->prepare("SELECT value FROM settings WHERE key='business_alert_prefs'");$q->execute();$saved=json_decode((string)($q->fetchColumn()?:'{}'),true);
- $defaults=['jay'=>true,'tony'=>true,'daily'=>true,'stock'=>true,'payment'=>true,'delivery'=>true,'recurring'=>true];
+ $defaults=['daily'=>true,'new_order'=>true,'stock'=>true,'payment'=>true,'delivery'=>true,'recurring'=>true];
  return array_replace($defaults,is_array($saved)?array_intersect_key($saved,$defaults):[]);
 }
 function ankhAlertRecipients(array $prefs):array {
- $list=[];
- if(!empty($prefs['jay']))$list[]='james@ankhpeptides.com';
- if(!empty($prefs['tony']))$list[]='anthony@ankhpeptides.com';
- return $list;
+ return ['info@ankhpeptides.com'];
 }
 function ankhAlertSummary(PDO $db,array $prefs):string {
  $today=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));
@@ -66,8 +63,73 @@ function ankhAlertHtml(PDO $db,array $prefs,bool $test=false):string {
  }
  return '<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ANKH Admin Daily Brief</title></head><body style="margin:0;padding:24px 12px;background:#0c0e0c;color:#ece9df;font-family:Arial,Helvetica,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;margin:0 auto;background:#171a17;border:1px solid #3e382b;border-radius:16px"><tr><td style="padding:32px 24px 26px;background:#121410;text-align:center;border-bottom:1px solid #383426"><div style="font-size:36px;color:#dcb96d">☥</div><div style="font-size:24px;letter-spacing:3px;color:#e7c780;font-weight:bold">ANKH ADMIN</div><div style="font-size:12px;color:#aaa69a;letter-spacing:2px;margin-top:8px">PRIVATE BUSINESS BRIEF</div></td></tr><tr><td style="padding:26px 24px 8px"><h1 style="font-size:23px;line-height:1.3;color:#faf2dd;margin:0">Your daily overview</h1><p style="font-size:13px;color:#aba99f;margin-top:8px">'.$date.'</p></td></tr>'.$block.'<tr><td style="padding:28px 24px 18px;text-align:center"><a href="https://admin.ankhpeptides.com/" style="display:inline-block;background:#d7b369;color:#17130c;text-decoration:none;font-weight:bold;font-size:13px;padding:14px 23px;border-radius:10px">Open ANKH Admin →</a></td></tr><tr><td style="text-align:center;padding:18px 22px 26px;border-top:1px solid #39362d;color:#8f9188;font-size:11px;line-height:1.7">Internal business notification for Jay and Tony only.<br>Sent by admin@ankhpeptides.com · ANKH Admin</td></tr></table></body></html>';
 }
+function ankhOrderNotice(PDO $db,int $orderId):array {
+ $q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);
+ if(!$order)throw new RuntimeException('Order no longer exists.');
+ $q=$db->prepare('SELECT i.*,p.stock_jay_qty,p.stock_tony_qty,p.stock_unallocated_qty,p.stock_tracking,p.low_stock_at FROM items i LEFT JOIN products p ON p.id=i.product_id WHERE i.order_id=? ORDER BY i.id');
+ $q->execute([$orderId]);$items=$q->fetchAll(PDO::FETCH_ASSOC);
+ $total=(int)($order['delivery_charge']??0);
+ foreach($items as $item)$total+=(int)$item['quantity']*(int)$item['price'];
+ $q=$db->prepare('SELECT username FROM admin_users WHERE id=?');$q->execute([(int)($_SESSION['admin_user_id']??0)]);
+ $username=strtolower((string)($q->fetchColumn()?:''));
+ // Creator comes from authenticated account, not order assignee.
+ $actor=match($username){'jay','james'=>'James','tony','anthony'=>'Tony',default=>'An ANKH administrator'};
+ return [$order,$items,$total,$actor];
+}
+function ankhNewOrderBody(PDO $db,int $orderId):array {
+ [$order,$items,$total,$actor]=ankhOrderNotice($db,$orderId);
+ $money=static fn(int $p):string=>'£'.number_format($p/100,2);
+ $escape=static fn($s):string=>htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+ $ref='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
+ $subject='New order '.$ref.' — added by '.$actor;
+ $plain=$actor." has added a new order to the ANKH Admin App.\nOrder: ".$ref."\nCustomer: ".$order['customer']."\n";
+ if(trim((string)($order['recipient_name']??''))!=='')$plain.="For: ".$order['recipient_name']."\n";
+ $plain.="Phone: ".($order['phone']?:'Not provided')."\nDelivery method: ".($order['delivery_method']?:'Not set')."\nAddress: ".($order['address']?:'Not recorded')."\n";
+ if(!empty($order['scheduled_delivery_date']))$plain.="Scheduled delivery: ".$order['scheduled_delivery_date']."\n";
+ $plain.="Payment method: ".($order['payment_method']?:'Not set')."\nAssigned to: ".($order['assigned_to']?:'Not assigned')."\n";
+ $plain.="\nProducts:\n";
+ $rows='';
+ foreach($items as $item){
+  $qty=(int)$item['quantity'];$name=(string)$item['name'];$presentation=trim((string)($item['presentation']??''));$line=$qty*(int)$item['price'];
+  $stock='Not tracked';$stockHtml='<span style="color:#91958c">Not tracked</span>';
+  if((int)($item['stock_tracking']??0)===1){
+   $available=(int)$item['stock_jay_qty']+(int)$item['stock_tony_qty'];$threshold=(int)($item['low_stock_at']??0);
+   $stock=$available.' available across both fridges';
+   $color=$available<=$threshold?'#f6ae7c':'#c8d9b9';
+   $stockHtml='<span style="color:'.$color.';font-weight:bold">'.$available.' available</span> <span style="color:#8e9188;font-size:11px">(alert at '.$threshold.')</span>';
+  }
+  $plain.=$qty.' × '.$name.($presentation?' ('.$presentation.')':'').' — '.$money($line).' | '.$stock."\n";
+  $rows.='<tr><td style="padding:12px 4px;border-bottom:1px solid #36362e"><div style="color:#f4ede0;font-weight:bold;font-size:14px">'.$escape($name).'</div><div style="font-size:12px;color:#a8a69d;margin-top:4px">'.$qty.' × '.$escape($presentation?:'Standard').'</div><div style="margin-top:8px;font-size:12px">Remaining stock: '.$stockHtml.'</div></td><td align="right" valign="top" style="padding:12px 4px;border-bottom:1px solid #36362e;white-space:nowrap;color:#e8ca8a;font-weight:bold">'.$money($line).'</td></tr>';
+ }
+ $plain.="\nDelivery charge: ".$money((int)($order['delivery_charge']??0))."\nOrder total: ".$money($total)."\n";
+ if(trim((string)($order['notes']??''))!=='')$plain.="Order notes: ".$order['notes']."\n";
+ $plain.="\nOpen order: https://admin.ankhpeptides.com/?view=edit&id=".$orderId."\n";
+ $label=static fn(string $key,$val):string=>'<tr><td style="font-size:12px;color:#aaa89e;padding:7px 0;vertical-align:top;width:135px">'.$escape($key).'</td><td style="font-size:13px;color:#f2eee3;padding:7px 0;white-space:pre-wrap">'.$escape($val?:'Not provided').'</td></tr>';
+ $details=$label('Customer',(string)$order['customer']).$label('Ordered for',(string)($order['recipient_name']??'')).$label('Phone',(string)$order['phone']).$label('Delivery method',(string)($order['delivery_method']??'')).$label('Delivery address',(string)$order['address']).$label('Delivery date',(string)($order['scheduled_delivery_date']??'')).$label('Assigned to',(string)($order['assigned_to']??'')).$label('Payment method',(string)($order['payment_method']??''));
+ $notes=trim((string)($order['notes']??''))!==''?'<div style="padding:15px;border:1px solid #55452b;border-radius:9px;color:#e6d2a3;font-size:12px;white-space:pre-wrap;margin-top:15px"><b>Order notes</b><br>'.$escape($order['notes']).'</div>':'';
+ $html='<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="background:#0f110e;margin:0;padding:24px 12px;font-family:Arial,Helvetica,sans-serif;color:#eee9db"><table role="presentation" style="max-width:620px;margin:auto;background:#191b18;border:1px solid #48402e;border-radius:16px" cellspacing="0" cellpadding="0" width="100%"><tr><td style="background:#111410;padding:28px 23px;text-align:center;border-bottom:1px solid #473d2c"><div style="font-size:34px;color:#e3bf75">☥</div><div style="font-size:24px;color:#e8c982;font-weight:bold;letter-spacing:2px">ANKH ADMIN</div><div style="color:#a6a296;font-size:11px;letter-spacing:2px;margin-top:9px">NEW ORDER RECEIVED</div></td></tr><tr><td style="padding:25px"><div style="display:inline-block;background:#393423;color:#f4d794;border-radius:15px;padding:6px 12px;font-size:12px">'.$escape($ref).'</div><h1 style="font-size:23px;color:#fbf3dc;margin:17px 0 6px">'.$escape($actor).' has added an order</h1><p style="font-size:13px;color:#c7c1b2;margin:0">A new order has been entered into ANKH Admin.</p><div style="margin:22px 0;padding:20px;background:#25261f;border:1px solid #504630;border-radius:12px"><div style="font-size:12px;color:#bbb5a6">ORDER VALUE</div><div style="font-size:32px;font-weight:bold;color:#edcd88;margin-top:6px">'.$money($total).'</div><div style="color:#b6b4a9;font-size:12px;margin-top:4px">'.count($items).' product line'.(count($items)===1?'':'s').'</div></div><h2 style="font-size:16px;color:#e8c982;margin:0 0 12px">Customer & delivery</h2><table width="100%" cellspacing="0">'.$details.'</table>'.$notes.'<h2 style="font-size:16px;color:#e8c982;margin:24px 0 8px">Products ordered & stock remaining</h2><table width="100%" cellspacing="0">'.$rows.'</table><table width="100%" style="margin-top:19px;border-top:1px solid #514730"><tr><td style="padding:13px 4px;color:#aaa89e;font-size:12px">Delivery charge</td><td align="right" style="color:#f0e6d2;font-size:13px">'.$money((int)($order['delivery_charge']??0)).'</td></tr><tr><td style="padding:8px 4px;font-weight:bold">ORDER TOTAL</td><td align="right" style="padding:8px 4px;color:#edcd88;font-weight:bold;font-size:20px">'.$money($total).'</td></tr></table><p style="text-align:center;margin:26px 0 12px"><a href="https://admin.ankhpeptides.com/?view=edit&amp;id='.$orderId.'" style="display:inline-block;background:#dab66e;color:#19140b;text-decoration:none;border-radius:10px;padding:14px 26px;font-weight:bold;font-size:13px">View order in ANKH Admin →</a></p></td></tr><tr><td style="text-align:center;border-top:1px solid #3c382d;padding:20px;color:#8f9288;font-size:11px">Private operational alert · ANKH Admin<br>From admin@ankhpeptides.com · Internal use only</td></tr></table></body></html>';
+ return [$subject,$plain,$html];
+}
+function ankhSendNewOrderNotice(PDO $db,int $orderId):void {
+ $prefs=ankhAlertPrefs($db);if(empty($prefs['new_order']))return;
+ $key='business_alert_new_order:'.$orderId;
+ $db->beginTransaction();
+ try{
+  $q=$db->prepare('SELECT value FROM settings WHERE key=?');$q->execute([$key]);if($q->fetchColumn()!==false){$db->rollBack();return;}
+  $db->prepare('INSERT INTO settings(key,value) VALUES(?,?)')->execute([$key,'sending']);$db->commit();
+ }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+ try{
+  [$subject,$plain,$html]=ankhNewOrderBody($db,$orderId);
+  ankhSmtpSend('info@ankhpeptides.com',$subject,$plain,$html);
+  $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute([gmdate('c'),$key]);
+ }catch(Throwable $e){
+  // Keep a failed status to avoid accidental duplicates; retry can be handled separately.
+  $db->prepare('UPDATE settings SET value=? WHERE key=?')->execute(['failed: '.substr($e->getMessage(),0,140),$key]);
+  throw $e;
+ }
+}
 function ankhSmtpSend(string $recipient,string $subject,string $body,?string $html=null):void {
- if(!in_array(strtolower($recipient),['james@ankhpeptides.com','anthony@ankhpeptides.com'],true))throw new RuntimeException('Recipient is not an authorised ANKH administrator.');
+ if(!in_array(strtolower($recipient),['info@ankhpeptides.com'],true))throw new RuntimeException('Recipient is not an authorised ANKH administrator.');
  $host='smtp-relay.gmail.com';$port=587;
  $context=stream_context_create(['ssl'=>['verify_peer'=>true,'verify_peer_name'=>true,'peer_name'=>$host,'SNI_enabled'=>true]]);
  $socket=@stream_socket_client("tcp://{$host}:{$port}",$errno,$errstr,12,STREAM_CLIENT_CONNECT,$context);
@@ -100,7 +162,7 @@ function ankhSmtpSend(string $recipient,string $subject,string $body,?string $ht
 }
 function ankhAlertDispatch(PDO $db,bool $test=false):array {
  $prefs=ankhAlertPrefs($db);$recipients=ankhAlertRecipients($prefs);
- if(!$recipients)throw new RuntimeException('Enable at least one recipient in Business Alerts.');
+ if(!$recipients)throw new RuntimeException('No business alerts recipient configured.');
  if(!$test&&!$prefs['daily'])return ['skipped'=>'Daily summary disabled'];
  // Use a date key and reserve it transactionally before attempting delivery to prevent duplicates.
  $day=(new DateTimeImmutable('now',new DateTimeZone('Europe/London')))->format('Y-m-d');
