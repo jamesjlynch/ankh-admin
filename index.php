@@ -3931,7 +3931,7 @@ if($reportDownloadBuffer)ob_start();
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1><?= $hasIndividualLogins ? 'Welcome back.' : 'Enter your PIN.' ?></h1><p class="muted"><?= $hasIndividualLogins ? 'Sign in to your ANKH account.' : 'Use your existing ANKH Admin PIN.' ?></p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="login">
 <?php if($hasIndividualLogins):?>
-<label>Username<input type="text" name="username" autocomplete="username" maxlength="32" required></label>
+<label>Username or email<input type="text" name="username" autocomplete="username" maxlength="32" required></label>
 <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
 <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" name="remember" value="1" style="width:auto"> Remember this device for 30 days</label>
 <?php else:?>
