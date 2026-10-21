@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-/** CLI-only consistent ANKH SQLite backup using VACUUM INTO. */
+/** CLI-only consistent ANKH SQLite backup (supports older SQLite via backup API). */
 if(PHP_SAPI!=='cli'){http_response_code(403);exit("CLI only\n");}
 umask(0077);
 $explicitConfig=trim((string)(getenv('ANKH_ADMIN_CONFIG')?:''));
@@ -33,7 +33,21 @@ if((string)$sourceDb->query('PRAGMA integrity_check')->fetchColumn()!=='ok')thro
 $stamp=gmdate('Ymd\THis\Z');$base='ankh-'.$stamp.'-'.bin2hex(random_bytes(3)).'.sqlite';
 $temp=$destination.'/.' . $base.'.tmp';$final=$destination.'/'.$base;
 try{
- $sourceDb->exec('VACUUM INTO '.$sourceDb->quote($temp));
+ $sqliteVersion=(string)$sourceDb->query('SELECT sqlite_version()')->fetchColumn();
+ if(version_compare($sqliteVersion,'3.27.0','>=')){
+  $sourceDb->exec('VACUUM INTO '.$sourceDb->quote($temp));
+ }elseif(class_exists('SQLite3') && method_exists('SQLite3','backup')){
+  // SQLite online backup API supports live writes and SQLite versions older than VACUUM INTO.
+  $original=new SQLite3($sourceReal,SQLITE3_OPEN_READONLY);
+  try{
+   $backupTarget=new SQLite3($temp,SQLITE3_OPEN_READWRITE|SQLITE3_OPEN_CREATE);
+   try{
+    if(!$original->backup($backupTarget))throw new RuntimeException('SQLite online backup failed.');
+   }finally{$backupTarget->close();}
+  }finally{$original->close();}
+ }else{
+  throw new RuntimeException('SQLite '.$sqliteVersion.' lacks VACUUM INTO and PHP SQLite3::backup is unavailable. Enable the sqlite3 PHP extension or update SQLite.');
+ }
  chmod($temp,0600);
  $copy=new PDO('sqlite:'.$temp,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
  if((string)$copy->query('PRAGMA integrity_check')->fetchColumn()!=='ok')throw new RuntimeException('Backup integrity check failed.');
