@@ -26,7 +26,7 @@ release="$(git rev-parse HEAD)"
 target="$home/public_html/ankh-admin"
 marker="$home/.ankh-admin-last-deployed-sha"
 php=${ANKH_DEPLOY_PHP:-/opt/cpanel/ea-php82/root/usr/bin/php}
-files=(.htaccess auth-users.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
+files=(.htaccess business-alerts.php auth-users.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
 
 # A successful commit is not a successful deployment; compare the actual live files.
 if [[ -f "$marker" && "$(cat "$marker")" == "$release" ]]; then
@@ -41,6 +41,7 @@ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] Publishing ${release:0:12}"
 for file in "${files[@]}"; do
   [[ -f "$file" ]] || { echo "Missing required file: $file" >&2; exit 1; }
 done
+"$php" -l business-alerts.php
 "$php" -l auth-users.php
 "$php" -l index.php
 "$php" -l setup.php
