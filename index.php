@@ -1862,7 +1862,11 @@ $pinSetupTokenHash='64a1ea8550f3bb078a15088090d021b056d8bdad6ee24d1346e7603693b1
 $savedAdminPinHash=setting($db,'admin_pin_hash','');
 $pinSetupComplete=$savedAdminPinHash!=='';
 // TEMPORARY PUBLIC TEST MODE: set false before the app is used with real data.
-$testingNoAuth=true;
+$testingNoAuth=false;
+require_once __DIR__.'/auth-users.php';
+ankhAuthSchema($db);
+$hasIndividualLogins=ankhAuthUserCount($db)>0;
+if($hasIndividualLogins)ankhAuthRestore($db);
 $adminPasswordHash=$pinSetupComplete?$savedAdminPinHash:(string)$config['password_hash'];
 $openAiKey=trim((string)($config['openai_api_key']??(getenv('OPENAI_API_KEY')?:'')));
 $voiceOrderReady=$pinSetupComplete && $openAiKey!=='';
@@ -2577,7 +2581,8 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-login'){
   $signed=$authData.hash('sha256',$client['raw'],true);$verified=openssl_verify($signed,$signature,(string)$passkey['public_key_pem'],OPENSSL_ALGO_SHA256);
   if($verified!==1)throw new Exception('Passkey signature could not be verified.');
   $oldCount=(int)$passkey['sign_count'];$newCount=(int)$auth['count'];if($oldCount>0&&$newCount>0&&$newCount<=$oldCount)throw new Exception('Passkey counter check failed.');
-  $db->prepare('UPDATE passkeys SET sign_count=? WHERE id=?')->execute([$newCount,(int)$passkey['id']]);
+  if($hasIndividualLogins && empty($passkey['user_id']))throw new Exception('Re-register this passkey from your own ANKH account.');
+   $db->prepare('UPDATE passkeys SET sign_count=? WHERE id=?')->execute([$newCount,(int)$passkey['id']]);
   unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
   voiceJson(['ok'=>true]);
  }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey sign-in failed.'],500);}
@@ -3142,7 +3147,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if ($action==='login') {
   $ip=hash('sha256',$_SERVER['REMOTE_ADDR']??'unknown');$q=$db->prepare('SELECT * FROM attempts WHERE ip=?');$q->execute([$ip]);$a=$q->fetch(PDO::FETCH_ASSOC);
   if($a && $a['failures']>=5 && time()-(int)$a['started']<900) throw new Exception('Too many attempts. Please wait 15 minutes.');
-  if(!password_verify((string)($_POST['password']??''),$adminPasswordHash)){
+  if($hasIndividualLogins ? !ankhAuthCredentialsValid($db,(string)($_POST['username']??''),(string)($_POST['password']??'')) : !password_verify((string)($_POST['password']??''),$adminPasswordHash)){
    if(!$a || time()-(int)$a['started']>=900){$q=$db->prepare('INSERT OR REPLACE INTO attempts VALUES (?,1,?)');$q->execute([$ip,time()]);}
    else{$q=$db->prepare('UPDATE attempts SET failures=failures+1 WHERE ip=?');$q->execute([$ip]);}
    throw new Exception('Password not recognised.');
@@ -3151,7 +3156,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
-  if($action==='logout'){$_SESSION=[];session_destroy();header('Location: ./');exit;}
+  if($action==='logout'){if($hasIndividualLogins)ankhAuthClearRemember($db);$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='business_supply_save')saveBusinessSupply($db,$_POST);
   if($action==='supply_item_save')saveSupplyItemWithSource($db,$_POST);
   if($action==='supply_item_change')changeSupplyCupboard($db,$_POST);
@@ -3682,7 +3687,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();}
 }
 $passkeyCount=(int)$db->query('SELECT COUNT(*) FROM passkeys')->fetchColumn();
-$auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600;
+$auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600 && (!$hasIndividualLogins||!empty($_SESSION['admin_user_id']));
 if($auth)$_SESSION['last']=time();
 function csrf(){echo '<input type="hidden" name="csrf" value="'.e($_SESSION['csrf']).'">';}
 function orderPreparationBadge(array $order):void{
@@ -3917,8 +3922,15 @@ if($reportDownloadBuffer)ob_start();
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
 <?php elseif(!$auth): ?>
-<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1>Enter your PIN.</h1><p class="muted">Use your 4-digit ANKH Admin PIN.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
-<form method="post"><?php csrf();?><input type="hidden" name="action" value="login"><label>4-digit PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password"></label><button>Sign in →</button></form>
+<main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / PRIVATE ACCESS</p><h1><?= $hasIndividualLogins ? 'Welcome back.' : 'Enter your PIN.' ?></h1><p class="muted"><?= $hasIndividualLogins ? 'Sign in to your ANKH account.' : 'Use your existing ANKH Admin PIN.' ?></p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="login">
+<?php if($hasIndividualLogins):?>
+<label>Username<input type="text" name="username" autocomplete="username" maxlength="32" required></label>
+<label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+<label style="display:flex;align-items:center;gap:10px"><input type="checkbox" name="remember" value="1" style="width:auto"> Remember this device for 30 days</label>
+<?php else:?>
+<label>4-digit PIN<input type="password" name="password" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="current-password"></label>
+<?php endif;?><button>Sign in →</button></form>
 <?php if($passkeyCount>0):?><div class="login-divider"><span>or</span></div><button type="button" id="passkey-login" class="passkey-login">◎ Use Face ID / Passkey</button><p id="passkey-login-status" class="muted passkey-status"></p><?php endif;?>
 <script>
 function ankhB64ToBuffer(value){value=value.replace(/-/g,'+').replace(/_/g,'/');while(value.length%4)value+='=';const raw=atob(value),out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out.buffer}
