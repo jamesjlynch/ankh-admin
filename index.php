@@ -3166,7 +3166,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='business_alert_save'){
     require_once __DIR__.'/business-alerts.php';
     $prefs=[];foreach(['daily','new_order','stock','payment','delivery','recurring'] as $key)$prefs[$key]=isset($_POST['alert_'.$key]);
-    if(!$prefs['jay']&&!$prefs['tony'])throw new Exception('Choose at least one recipient.');
+    // All notifications use the fixed shared business inbox.
     saveSetting($db,'business_alert_prefs',json_encode($prefs,JSON_THROW_ON_ERROR));
     header('Location: ./?view=business_alerts&saved=1');exit;
    }
