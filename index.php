@@ -3687,6 +3687,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    recordActivity($db,'order',$auditOrderId,$labels[$action],$meta);
   }
  }
+ if($action==='order' && $savedOrderId>0){
+  try{require_once __DIR__.'/business-alerts.php';ankhSendNewOrderNotice($db,(int)$savedOrderId);}
+  catch(Throwable $mailError){error_log('ANKH order notification failed #'.(int)$savedOrderId.': '.$mailError->getMessage());}
+ }
  if($action==='order' && $savedOrderId>0 && (string)($_POST['back_order']??'')==='1'){header('Location: ./?view=orders&section=backorders');exit;}
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
  $returnView=(string)($_POST['return']??'orders');$returnSection=(string)($_POST['return_section']??'');
