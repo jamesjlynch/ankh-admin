@@ -3179,6 +3179,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if(!empty($result['errors']))throw new Exception('Email failed: '.implode('; ',$result['errors']));
     header('Location: ./?view=business_alerts&sent=1');exit;
    }
+   if($action==='business_alert_preview_order'){
+    require_once __DIR__.'/business-alerts.php';
+    $lastOrderId=(int)$db->query('SELECT id FROM orders ORDER BY id DESC LIMIT 1')->fetchColumn();
+    if($lastOrderId<1)throw new Exception('No existing order is available for an email preview.');
+    [$previewSubject,$previewText,$previewHtml]=ankhNewOrderBody($db,$lastOrderId);
+    ankhSmtpSend('info@ankhpeptides.com','PREVIEW — '.$previewSubject,$previewText,$previewHtml);
+    header('Location: ./?view=business_alerts&order_preview_sent=1');exit;
+   }
    if($action==='business_supply_save')saveBusinessSupply($db,$_POST);
   if($action==='supply_item_save')saveSupplyItemWithSource($db,$_POST);
   if($action==='supply_item_change')changeSupplyCupboard($db,$_POST);
@@ -6205,6 +6213,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <div class="heading"><div><h1>Business Alerts</h1><p class="muted page-description">Private email notifications for Jay and Tony, through Google Workspace.</p></div></div>
 <?php if(isset($_GET['saved'])):?><p class="notice">Alert preferences saved.</p><?php endif;?>
 <?php if(isset($_GET['sent'])):?><p class="notice">Test emails accepted by Google. Check your inboxes.</p><?php endif;?>
+<?php if(isset($_GET['order_preview_sent'])):?><p class="notice">New-order preview sent to info@ankhpeptides.com. Check it in Gmail on your iPhone.</p><?php endif;?>
 <section class="panel" style="max-width:720px;padding:22px">
 <h2>Email recipients</h2><p class="muted">Business notifications go to a single shared inbox. Sender: admin@ankhpeptides.com</p>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="business_alert_save">
@@ -6218,7 +6227,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php endforeach;?>
 <button type="submit">Save alert preferences</button></form>
 <form method="post" style="margin-top:18px"><?php csrf();?><input type="hidden" name="action" value="business_alert_test"><button class="quiet" type="submit">Send branded test email</button></form>
-<p class="muted" style="margin-top:15px">Daily sending requires a scheduled task on your Krystal account. No customer emails are sent. Immediate alerts are not yet enabled.</p>
+<form method="post" style="margin-top:12px"><?php csrf();?><input type="hidden" name="action" value="business_alert_preview_order"><button class="quiet" type="submit">Preview latest order email</button></form>
+<p class="muted" style="margin-top:10px">Preview uses the most recent saved order without creating a new order or changing stock. The email subject says PREVIEW. Daily sending requires a scheduled task on Krystal. No customer emails are sent.</p>
 </section>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
