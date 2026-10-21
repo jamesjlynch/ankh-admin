@@ -6300,6 +6300,14 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 <section class="saved-order">
 <div class="saved-check">✓</div><p class="eyebrow">ORDER SAVED</p><h1><?=$savedOrder['reference']?></h1><p class="saved-customer"><?=e($savedOrder['customer'])?></p>
 <div class="saved-total"><?=money($savedOrder['total_pence'])?></div><span class="badge status-<?=e(statusClass($savedOrder['status']))?>"><?=e($savedOrder['status'])?></span>
+<?php
+require_once __DIR__.'/business-alerts.php';
+$savedEmailState=ankhNewOrderMailState($db,(int)($savedOrder['id']??0));
+$savedEmailFailed=str_starts_with($savedEmailState,'failed:');
+$savedEmailAccepted=$savedEmailState!==''&&!$savedEmailFailed&&!str_starts_with($savedEmailState,'sending');
+$savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedEmailState,8):($savedEmailAccepted?'Order email accepted by Google SMTP for info@ankhpeptides.com.':(empty(ankhAlertPrefs($db)['new_order'])?'New-order notifications are disabled.':'No completed email submission recorded for this order.'));
+?>
+<p role="status" class="muted" style="margin-top:10px;font-size:13px;line-height:1.5"><?=e($savedEmailStatus)?> <a href="?view=business_alerts">Check email status →</a></p>
 <div class="saved-items"><?php foreach($savedOrder['items'] as $savedItem):?><div class="line"><span><?=e($savedItem['quantity'].' × '.$savedItem['name'].(!empty($savedItem['presentation'])?' · '.$savedItem['presentation']:'').((int)($savedItem['discount_pence']??0)>0?' · Family & Friends':''))?></span><strong><?=money($savedItem['unit_price_pence']*$savedItem['quantity'])?></strong></div><?php endforeach;?><?php if((int)$savedOrder['delivery_charge_pence']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($savedOrder['delivery_charge_pence'])?></strong></div><?php endif;?></div><div class="saved-meta"><span>Paid: <?=money((int)($savedOrder['paid_amount_pence']??0))?></span><span>Balance: <?=money((int)($savedOrder['balance_due_pence']??0))?></span><?php if($savedOrder['payment_method']):?><span>Payment: <?=e($savedOrder['payment_method'])?></span><?php endif;?><?php if($savedOrder['delivery_method']):?><span>Delivery: <?=e($savedOrder['delivery_method'])?></span><?php endif;?><?php if($savedOrder['assigned_to']):?><span>Assigned: <?=e($savedOrder['assigned_to'])?></span><?php endif;?></div>
 <div class="saved-actions"><a class="button" href="?view=dashboard">Dashboard</a><a class="button" href="?view=new">+ New order</a><a class="quick-action" href="?view=orders">View orders</a><a class="quick-action" href="?view=new&amp;repeat_order=<?=$savedOrder['id']?>">Repeat order</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$savedOrder['id']?>&amp;type=invoice">Invoice PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$savedOrder['id']?>" data-document-type="receipt">Share receipt</button></div>
 </section>
