@@ -3165,7 +3165,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='logout'){if($hasIndividualLogins)ankhAuthClearRemember($db);$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='business_alert_save'){
     require_once __DIR__.'/business-alerts.php';
-    $prefs=[];foreach(['jay','tony','daily','stock','payment','delivery','recurring'] as $key)$prefs[$key]=isset($_POST['alert_'.$key]);
+    $prefs=[];foreach(['daily','new_order','stock','payment','delivery','recurring'] as $key)$prefs[$key]=isset($_POST['alert_'.$key]);
     if(!$prefs['jay']&&!$prefs['tony'])throw new Exception('Choose at least one recipient.');
     saveSetting($db,'business_alert_prefs',json_encode($prefs,JSON_THROW_ON_ERROR));
     header('Location: ./?view=business_alerts&saved=1');exit;
@@ -6199,11 +6199,10 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php if(isset($_GET['saved'])):?><p class="notice">Alert preferences saved.</p><?php endif;?>
 <?php if(isset($_GET['sent'])):?><p class="notice">Test emails accepted by Google. Check your inboxes.</p><?php endif;?>
 <section class="panel" style="max-width:720px;padding:22px">
-<h2>Email recipients</h2><p class="muted">Only these two addresses can receive alerts. Sender: admin@ankhpeptides.com</p>
+<h2>Email recipients</h2><p class="muted">Business notifications go to a single shared inbox. Sender: admin@ankhpeptides.com</p>
 <form method="post"><?php csrf();?><input type="hidden" name="action" value="business_alert_save">
-<?php foreach(['jay'=>'James · james@ankhpeptides.com','tony'=>'Tony · anthony@ankhpeptides.com'] as $key=>$description):?>
-<label style="display:flex;gap:12px;align-items:center;margin:14px 0"><input type="checkbox" name="alert_<?=e($key)?>" value="1" style="width:auto" <?=$businessPrefs[$key]?'checked':''?>><?=e($description)?></label>
-<?php endforeach;?>
+<div style="padding:14px 16px;border:1px solid var(--border);border-radius:12px;margin:12px 0"><strong>info@ankhpeptides.com</strong><p class="muted" style="margin:6px 0 0">All business alerts go to this inbox once. Emails are sent from admin@ankhpeptides.com.</p></div>
+<label style="display:flex;gap:12px;align-items:center;margin:14px 0"><input type="checkbox" name="alert_new_order" value="1" style="width:auto" <?=$businessPrefs['new_order']?'checked':''?>>Email me immediately when a new order is added</label>
 <h2>Daily digest</h2>
 <label style="display:flex;gap:12px;align-items:center;margin:14px 0"><input type="checkbox" name="alert_daily" value="1" style="width:auto" <?=$businessPrefs['daily']?'checked':''?>>Send one daily morning email</label>
 <p class="muted">Include these sections in the daily summary:</p>
@@ -6211,7 +6210,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <label style="display:flex;gap:12px;align-items:center;margin:12px 0"><input type="checkbox" name="alert_<?=e($key)?>" value="1" style="width:auto" <?=$businessPrefs[$key]?'checked':''?>><?=e($description)?></label>
 <?php endforeach;?>
 <button type="submit">Save alert preferences</button></form>
-<form method="post" style="margin-top:18px"><?php csrf();?><input type="hidden" name="action" value="business_alert_test"><button class="quiet" type="submit">Send test email to selected recipients</button></form>
+<form method="post" style="margin-top:18px"><?php csrf();?><input type="hidden" name="action" value="business_alert_test"><button class="quiet" type="submit">Send branded test email</button></form>
 <p class="muted" style="margin-top:15px">Daily sending requires a scheduled task on your Krystal account. No customer emails are sent. Immediate alerts are not yet enabled.</p>
 </section>
 <?php elseif($view==='more'):?>
