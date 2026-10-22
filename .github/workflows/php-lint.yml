@@ -27,6 +27,10 @@ jobs:
       - name: Lint PHP
         run: |
           php -l auth-users.php
+          php -l customer-portal/lib.php
+          php -l customer-portal/index.php
+          php -l scripts/customer-portal-accounts.php
+          php -l tests/customer-portal.php
           php -l scripts/create-admin-user.php
           php -l tests/auth-users.php
           php -l index.php
@@ -55,6 +59,8 @@ jobs:
           php -l scripts/backup-sqlite.php
           php -l tests/operations-testmode.php
           php -l tests/backup-sqlite.php
+      - name: Test customer portal identity isolation and order access
+        run: php tests/customer-portal.php
       - name: Test individual admin authentication
         run: php tests/auth-users.php
       - name: Test automated shipping stock forecast
@@ -120,6 +126,7 @@ jobs:
       - name: Check Bash rollback helpers
         run: |
           bash -n deploy-krystal.sh
+          bash -n scripts/publish-customer-portal.sh
           bash -n scripts/publish-live.sh
           bash -n tests/publish-live.sh
           bash -n scripts/snapshot-live.sh

@@ -1,0 +1,75 @@
+name: ANKH customer portal checks
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'customer-portal/**'
+      - 'customer-catalogue.php'
+      - 'tests/customer-catalogue*'
+      - 'scripts/customer-portal-accounts.php'
+      - 'scripts/publish-customer-portal.sh'
+      - 'tests/customer-portal*.php'
+      - 'tests/customer-statement.php'
+      - 'tests/customer-portal-catalogue-http.py'
+      - '.github/workflows/customer-portal-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portal:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: pdo_sqlite, curl
+      - name: Lint portal and management scripts
+        run: |
+          php -l customer-portal/index.php
+          php -l customer-portal/statement.php
+          php -l customer-portal/lib.php
+          php -l customer-portal/view.php
+          php -l customer-portal/customer-experience.php
+          php -l customer-portal/catalogue-demo.php
+          php -l customer-portal/catalogue-view.php
+          php -l customer-portal/live-catalogue.php
+          php -l customer-catalogue.php
+          php -l tests/customer-portal-catalogue.php
+          php -l tests/customer-portal-navigation.php
+          php -l customer-portal/preview.php
+          php -l customer-portal/preview-live.php
+          php -l scripts/configure-customer-preview.php
+          php -l scripts/customer-portal-accounts.php
+          php -l tests/customer-statement.php
+          php -l tests/customer-portal.php
+          php -l tests/customer-portal-render.php
+          bash -n scripts/publish-customer-portal.sh
+      - name: Verify private order isolation, read-only DB and rate limiting
+        run: |
+          php tests/customer-statement.php
+          php tests/customer-portal.php
+      - name: Prevent accidental raw PHP controller leakage in customer HTML
+        run: php tests/customer-portal-render.php
+      - name: Verify five customer screens and drill-down interactions
+        run: |
+          for tab in home orders vault support account recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
+          php tests/customer-portal-navigation.php orders 104
+          php tests/customer-portal-navigation.php vault 103
+      - name: Verify accessory preview pricing, checkout and isolation
+        run: |
+          php tests/customer-portal-catalogue.php
+          php tests/customer-catalogue-visibility.php
+      - name: Verify accessory flow over HTTP without real data
+        run: python3 tests/customer-portal-catalogue-http.py
+      - name: Smoke test fictional dashboard without production secrets
+        run: |
+          php -r '$_SERVER["HTTPS"]="on"; $_SERVER["REQUEST_METHOD"]="GET"; $_GET["screen"]="account"; include "customer-portal/preview.php";' > /tmp/ankh-customer-preview.html
+          grep -q 'Good to see you' /tmp/ankh-customer-preview.html
+          grep -q 'ANK-0104' /tmp/ankh-customer-preview.html
+          grep -q 'DEMO PREVIEW' /tmp/ankh-customer-preview.html
