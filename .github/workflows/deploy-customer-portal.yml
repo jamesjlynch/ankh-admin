@@ -28,11 +28,13 @@ jobs:
       - name: Block release on customer privacy and interaction regressions
         run: |
           set -euo pipefail
-          php -l customer-portal/statement.php\n          php -l customer-portal/lib.php
+          php -l customer-portal/statement.php
+          php -l customer-portal/lib.php
           php -l customer-portal/customer-experience.php
           php -l customer-catalogue.php
           node --check customer-portal/account.js
-          php tests/customer-statement.php\n          php tests/customer-portal.php
+          php tests/customer-statement.php
+          php tests/customer-portal.php
           php tests/customer-catalogue-visibility.php
           php tests/customer-portal-render.php
           for tab in home orders vault support account recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
