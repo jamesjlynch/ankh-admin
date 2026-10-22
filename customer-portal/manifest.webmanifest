@@ -1,0 +1,46 @@
+{
+  "name": "ANKH Private Customer Portal",
+  "short_name": "ANKH",
+  "description": "Private ANKH customer workspace",
+  "start_url": "./?tab=home",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0d0e",
+  "theme_color": "#0b0d0e",
+  "orientation": "portrait-primary",
+  "lang": "en-GB",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "My account",
+      "short_name": "Account",
+      "url": "./?tab=account",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    },
+    {
+      "name": "My request list",
+      "short_name": "Request list",
+      "url": "./?tab=request-list",
+      "icons": [
+        {
+          "src": "./icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}
