@@ -33,7 +33,8 @@ for file in "${files[@]}"; do
   [[ -f "$(source_for "$file")" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
 done
 echo "STEP 2/4: Running portal checks"
-"$php" -l customer-portal/statement.php\n"$php" -l customer-portal/lib.php
+"$php" -l customer-portal/statement.php
+"$php" -l customer-portal/lib.php
 "$php" -l customer-portal/index.php
 "$php" -l customer-portal/view.php
 "$php" -l customer-portal/customer-experience.php
@@ -45,7 +46,8 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
-"$php" tests/customer-statement.php\n"$php" tests/customer-portal.php
+"$php" tests/customer-statement.php
+"$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
 "$php" tests/customer-portal-catalogue.php
 "$php" tests/customer-catalogue-visibility.php
