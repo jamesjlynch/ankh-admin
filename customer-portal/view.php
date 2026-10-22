@@ -119,7 +119,7 @@ $active = array_values(array_filter($orders, fn(array $o): bool => !in_array(por
 <?php endif; ?>
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
 <header class="site-header">
-  <a class="brand" href="./" aria-label="ANKH home"><span class="brand-icon">☥</span><span>ANKH<span class="brand-sub">CUSTOMER PORTAL</span></span></a>
+  <a class="brand" href="<?=!empty($isDemo)?'./preview.php':'./'?>" aria-label="ANKH home"><span class="brand-icon">☥</span><span>ANKH<span class="brand-sub">CUSTOMER PORTAL</span></span></a>
   <?php if ($customer): ?>
   <form method="post" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit">Sign out <span aria-hidden="true">↗</span></button></form>
   <?php else: ?><span class="header-note"><span class="status-pip"></span> PRIVATE ACCESS</span><?php endif; ?>
