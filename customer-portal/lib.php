@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // The standalone portal receives the same policy module as Admin during publishing.
 require_once is_file(__DIR__.'/customer-catalogue.php')?__DIR__.'/customer-catalogue.php':dirname(__DIR__).'/customer-catalogue.php';
+require_once __DIR__.'/account-features.php';
 
 /**
  * ANKH Customer Portal — isolated public application.
