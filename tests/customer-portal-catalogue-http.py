@@ -27,16 +27,21 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
     portal = temp / 'portal.sqlite'
     with sqlite3.connect(admin) as db:
         db.executescript("""
-        CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER);
+        CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER,pricing_type TEXT DEFAULT 'standard');
         CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,price INTEGER,active INTEGER,cost INTEGER,stock_tracking INTEGER,stock_qty INTEGER,family_friends_price INTEGER);
         INSERT INTO products VALUES(1,'Case',2000,1,700,1,4,1500),(2,'Retatrutide 10mg',6500,1,2000,1,8,NULL),(3,'Reference sample A',1200,1,300,1,9,NULL);
         CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER,updated_at TEXT);
         INSERT INTO customer_catalogue_visibility VALUES(1,1,'test'),(2,0,'test'),(3,1,'test');
-        INSERT INTO customers VALUES(1,'Sample One','07123456789','Fictional Address',0),(2,'Sample Two','07999000000','Other Fictional Address',0);
+        INSERT INTO customers(id,name,phone,address,archived) VALUES(1,'Sample One','07123456789','Fictional Address',0),(2,'Sample Two','07999000000','Other Fictional Address',0);
+        UPDATE customers SET pricing_type='family_friends' WHERE id=2;
         CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,created TEXT,delivery_date TEXT,scheduled_delivery_date TEXT,delivery_charge INTEGER,packaged INTEGER,reconstituted INTEGER,delivery_method TEXT,tracking_reference TEXT);
         CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER);
         CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT,method TEXT);
         """)
+    image_bytes=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
+    with sqlite3.connect(admin) as db:
+        db.execute('CREATE TABLE customer_catalogue_content(product_id INTEGER PRIMARY KEY,description TEXT,image_data BLOB,image_mime TEXT,image_width INTEGER,image_height INTEGER,updated_at TEXT)')
+        for product_id in [1,2]:db.execute('INSERT INTO customer_catalogue_content VALUES(?,?,?,?,?,?,?)',(product_id,'Existing research description <script>example</script>',image_bytes,'image/png',1,1,'test'))
     with sqlite3.connect(portal) as db:
         db.execute('CREATE TABLE portal_rate_limits(rate_key TEXT PRIMARY KEY,attempts INTEGER,started_at INTEGER)')
     before = hashlib.sha256(admin.read_bytes()).hexdigest()
@@ -114,15 +119,25 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         token = csrf(html)
         request('/preview-live.php', {'csrf': token, 'action': 'staff_login', 'password': 'test-password'})
         html = request('/preview-live.php?customer_id=1&tab=catalogue')
-        assert '<h2>Case</h2>' in html and '£20.00' in html and 'Available · 4' in html
+        assert '>Case</a></h2>' in html and '£20.00' in html and 'Available · 4' in html
         assert 'Retatrutide' not in html and '£65.00' not in html
-        assert '<h2>Reference sample A</h2>' in html and 'Laboratory research only' in html
+        assert '>Reference sample A</a></h2>' in html and 'Laboratory research only' in html
         assert 'Not for human or animal consumption' in html
         assert 'catalogue_action' not in html and 'cost' not in html.lower()
         html = request('/preview-live.php?customer_id=2&tab=catalogue')
-        assert '<h2>Case</h2>' in html
+        assert '>Case</a></h2>' in html
+        html=request('/preview-live.php?customer_id=2&tab=catalogue')
+        assert '£15.00' in html and 'Your Family & Friends price' in html
+        html=request('/preview-live.php?customer_id=2&tab=catalogue&product=1')
+        assert '<h1>Case</h1>' in html and '£15.00' in html and 'Enquire about this product' in html
+        assert '&lt;script&gt;example&lt;/script&gt;' in html and '<script>example</script>' not in html
+        photo=opener.open(base+'/preview-live.php?customer_id=2&catalogue_image=1')
+        assert photo.headers['Content-Type']=='image/png' and photo.read()==image_bytes
+        request('/preview-live.php?customer_id=2&catalogue_image=2',status=404)
+        html=request('/preview-live.php?customer_id=2&tab=catalogue&product=2')
+        assert 'Product not available' in html and '<h1>Retatrutide' not in html
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
-        print('HTTP accessory flow passed: forms, CSRF, server pricing, validation, duplicate submission, escaped notes, logout, staff gate, customer isolation and unchanged Admin database.')
+        print('HTTP catalogue flow passed: Family & Friends pricing, descriptions, protected photos, hidden products, enquiries and unchanged Admin database; separate demo checkout also passed.')
     finally:
         process.terminate()
         process.wait(timeout=5)

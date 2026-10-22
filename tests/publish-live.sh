@@ -10,7 +10,7 @@ cd "$temp/repo"
 git init -q
 git config user.email "tests@ankh.invalid"
 git config user.name "ANKH CI"
-for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
+for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-admin.js index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
   case "$file" in
     *.php) printf '%s\n' '<?php echo "ok";' > "$file" ;;
     *) printf '%s\n' "fixture $file" > "$file" ;;

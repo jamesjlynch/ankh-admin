@@ -2,10 +2,10 @@ name: Customer catalogue visibility
 on:
   push:
     branches: [main]
-    paths: ['index.php', 'customer-catalogue.php', 'tests/customer-catalogue*', '.github/workflows/customer-catalogue-visibility.yml']
+    paths: ['index.php', 'customer-catalogue.php', 'catalogue-admin.js', 'tests/customer-catalogue*', '.github/workflows/customer-catalogue-visibility.yml']
   pull_request:
     branches: [main]
-    paths: ['index.php', 'customer-catalogue.php', 'tests/customer-catalogue*', '.github/workflows/customer-catalogue-visibility.yml']
+    paths: ['index.php', 'customer-catalogue.php', 'catalogue-admin.js', 'tests/customer-catalogue*', '.github/workflows/customer-catalogue-visibility.yml']
 permissions:
   contents: read
 jobs:
@@ -23,5 +23,6 @@ jobs:
       - run: |
           php -l index.php
           php -l customer-catalogue.php
+          node --check catalogue-admin.js
           php tests/customer-catalogue-visibility.php
           python3 tests/customer-catalogue-admin-http.py

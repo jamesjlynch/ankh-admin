@@ -18,6 +18,66 @@ function ankhCatalogueInit(PDO $db): void {
         visible INTEGER NOT NULL DEFAULT 0 CHECK(visible IN (0,1)),
         updated_at TEXT NOT NULL
     )');
+    $db->exec('CREATE TABLE IF NOT EXISTS customer_catalogue_content (
+        product_id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,
+        description TEXT NOT NULL DEFAULT "", image_data BLOB, image_mime TEXT NOT NULL DEFAULT "",
+        image_width INTEGER NOT NULL DEFAULT 0,image_height INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL
+    )');
+}
+function ankhCatalogueContent(PDO $db): array {
+    if(!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_content'")->fetchColumn())return [];
+    $out=[];
+    foreach($db->query('SELECT product_id,description,image_mime,image_width,image_height,updated_at,CASE WHEN image_data IS NULL THEN 0 ELSE length(image_data) END AS image_bytes FROM customer_catalogue_content') as $row)$out[(int)$row['product_id']]=$row;
+    return $out;
+}
+function ankhCatalogueValidateImage(string $bytes): array {
+    if($bytes===''||strlen($bytes)>8*1024*1024)throw new InvalidArgumentException('Choose a photo smaller than 8 MB.');
+    $info=@getimagesizefromstring($bytes);
+    if(!$info || !in_array($info['mime']??'', ['image/jpeg','image/png','image/webp'],true))throw new InvalidArgumentException('Choose a JPG, PNG or WebP photograph.');
+    if($info[0]<1||$info[1]<1||$info[0]>12000||$info[1]>12000||$info[0]*$info[1]>32000000)throw new InvalidArgumentException('Choose a smaller photograph, up to 32 megapixels.');
+    return ['data'=>$bytes,'mime'=>$info['mime'],'width'=>$info[0],'height'=>$info[1]];
+}
+function ankhCataloguePhotoUpload(array $file): ?array {
+    $error=$file['error']??UPLOAD_ERR_NO_FILE;
+    if($error===UPLOAD_ERR_NO_FILE)return null;
+    if($error!==UPLOAD_ERR_OK)throw new InvalidArgumentException('The photo could not be uploaded. Try a smaller JPG, PNG or WebP photograph.');
+    if(!is_string($file['tmp_name']??null)||!is_uploaded_file($file['tmp_name']))throw new InvalidArgumentException('Choose a photograph to upload.');
+    if((int)($file['size']??0)>8*1024*1024)throw new InvalidArgumentException('Choose a photo smaller than 8 MB.');
+    $bytes=file_get_contents($file['tmp_name']);
+    if($bytes===false)throw new InvalidArgumentException('The uploaded photo could not be read.');
+    return ankhCatalogueValidateImage($bytes);
+}
+function ankhCatalogueSaveContent(PDO $db,int $id,string $description,?array $photo,bool $remove,bool $visible):void {
+    $description=trim($description);
+    if(strlen($description)>20000 || !preg_match('//u',$description) || preg_match_all('/./us',$description)>5000)throw new InvalidArgumentException('Use a description of up to 5,000 characters.');
+    if($photo!==null && $remove)throw new InvalidArgumentException('Choose a new photo or remove the existing photo, rather than both.');
+    if($photo!==null)$photo=ankhCatalogueValidateImage($photo['data']);
+    $q=$db->prepare('SELECT id FROM products WHERE id=?');$q->execute([$id]);
+    if(!$q->fetchColumn())throw new InvalidArgumentException('Product could not be found.');
+    ankhCatalogueInit($db);$db->beginTransaction();
+    try{
+        $db->prepare('INSERT INTO customer_catalogue_content(product_id,description,updated_at) VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET description=excluded.description,updated_at=excluded.updated_at')->execute([$id,$description,gmdate('c')]);
+        if($photo!==null){
+            $q=$db->prepare('UPDATE customer_catalogue_content SET image_data=?,image_mime=?,image_width=?,image_height=? WHERE product_id=?');
+            $q->bindValue(1,$photo['data'],PDO::PARAM_LOB);$q->bindValue(2,$photo['mime']);$q->bindValue(3,$photo['width'],PDO::PARAM_INT);$q->bindValue(4,$photo['height'],PDO::PARAM_INT);$q->bindValue(5,$id,PDO::PARAM_INT);$q->execute();
+        }elseif($remove){$db->prepare('UPDATE customer_catalogue_content SET image_data=NULL,image_mime="",image_width=0,image_height=0 WHERE product_id=?')->execute([$id]);}
+        ankhCatalogueSetVisibility($db,$id,$visible);$db->commit();
+    }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+}
+function ankhCatalogueOutputImage(PDO $db,int $id,bool $publishedOnly):never {
+    if($id<1||!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_content'")->fetchColumn()){http_response_code(404);exit;}
+    if($publishedOnly && !ankhCatalogueVisibility($db)){http_response_code(404);exit;}
+    $sql='SELECT c.image_data,c.image_mime FROM customer_catalogue_content c JOIN products p ON p.id=c.product_id ';
+    if($publishedOnly)$sql.='JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 ';
+    $sql.='WHERE c.product_id=? AND c.image_data IS NOT NULL'.($publishedOnly?' AND p.active=1':'');
+    $q=$db->prepare($sql);$q->execute([$id]);$photo=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$photo || !in_array($photo['image_mime'],['image/jpeg','image/png','image/webp'],true)){http_response_code(404);exit;}
+    $bytes=is_resource($photo['image_data'])?stream_get_contents($photo['image_data']):(string)$photo['image_data'];
+    header('Content-Type: '.$photo['image_mime']);header('Content-Length: '.strlen($bytes));
+    header('Cache-Control: private, no-store, max-age=0');header('X-Content-Type-Options: nosniff');
+    header("Content-Security-Policy: default-src 'none'; sandbox");
+    header('Content-Disposition: inline; filename="catalogue-product-'.$id.'.'.(['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'][$photo['image_mime']]).'"');
+    echo $bytes;exit;
 }
 function ankhCatalogueVisibility(PDO $db): array {
     if(!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_visibility'")->fetchColumn())return [];
@@ -37,6 +97,7 @@ function ankhCatalogueProducts(PDO $db,int $customerId): array {
         $q=$db->prepare('SELECT pricing_type FROM customers WHERE id=? AND archived=0');$q->execute([$customerId]);$pricing=(string)($q->fetchColumn()?:'standard');
     }
     $out=[];
+    $content=ankhCatalogueContent($db);
     foreach($db->query('SELECT * FROM products WHERE active=1 ORDER BY name COLLATE NOCASE') as $p){
         $category=ankhCatalogueKind((string)$p['name']);
         if((int)($visibility[(int)$p['id']]??0)!==1)continue;
@@ -45,11 +106,12 @@ function ankhCatalogueProducts(PDO $db,int $customerId): array {
         if($pricing==='free')$price=0;
         $tracked=(int)($p['stock_tracking']??0)===1;
         // Explicit public fields: never return costs, supplier data or fridge ownership.
-        $out[]=['id'=>(int)$p['id'],'name'=>(string)$p['name'],'description'=>(string)($p['description']??''),'category'=>$category,'price'=>max(0,$price),'pricing'=>$pricing,'available_qty'=>$tracked?max(0,(int)($p['stock_qty']??0)):null];
+        $meta=$content[(int)$p['id']]??[];
+        $out[]=['id'=>(int)$p['id'],'name'=>(string)$p['name'],'description'=>(string)($meta['description']??$p['description']??''),'category'=>$category,'price'=>max(0,$price),'retail_price'=>max(0,(int)$p['price']),'pricing'=>$pricing,'has_photo'=>(int)($meta['image_bytes']??0)>0,'available_qty'=>$tracked?max(0,(int)($p['stock_qty']??0)):null];
     }
     return $out;
 }
-function ankhCatalogueAdminControl(array $p,array $visibility): void {
+function ankhCatalogueAdminControl(array $p,array $visibility,array $content=[]): void {
     $visible=(int)($visibility[(int)$p['id']]??0)===1;
-    ?><form method="post" class="detail product-settings-form customer-catalogue-control"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_visibility"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue visibility. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue visibility</button></form><?php
+    ?><form method="post" enctype="multipart/form-data" class="detail product-settings-form customer-catalogue-control"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_content"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><h3>Customer catalogue</h3><label>Product photograph<input type="file" name="catalogue_photo" accept="image/jpeg,image/png,image/webp" data-catalogue-photo></label><small class="muted" data-photo-status role="status">Choose a JPG, PNG or WebP photo. Large phone photos are resized before upload.</small><img data-photo-preview src="<?=(int)($content['image_bytes']??0)>0?'?api=catalogue-image&amp;id='.(int)$p['id']:''?>" alt="Product photograph preview" width="160" height="160" style="object-fit:contain;border-radius:12px;max-width:100%;background:#f1eee5" <?=(int)($content['image_bytes']??0)>0?'':'hidden'?>><?php if((int)($content['image_bytes']??0)>0):?><label class="check"><input type="checkbox" name="remove_catalogue_photo" value="1"> Remove current photograph</label><?php endif;?><label>Customer description<textarea name="catalogue_description" maxlength="5000" rows="5" placeholder="Add the product information customers should see"><?=e((string)($content['description']??$p['description']??''))?></textarea></label><p class="muted">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form><?php
 }
