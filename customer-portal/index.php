@@ -49,13 +49,14 @@ $orders = [];
 if (isset($_SESSION['portal_account_id'])) {
     $last = (int)($_SESSION['portal_last_activity'] ?? 0);
     if ($last < time() - 1800) {
-        unset($_SESSION['portal_account_id'], $_SESSION['portal_last_activity']);
+        unset($_SESSION['portal_account_id'], $_SESSION['portal_last_activity'], $_SESSION['portal_auth_version'], $_SESSION['portal_phone']);
         $notice = 'Your session expired. Please sign in again.';
     } else {
         $account = portalAccountForId($portal, (int)$_SESSION['portal_account_id']);
+        if ($account && ((int)($_SESSION['portal_auth_version'] ?? 0) !== (int)$account['auth_version'] || (string)($_SESSION['portal_phone'] ?? '') !== (string)$account['phone_e164'])) $account=null;
         $customer = $account ? portalCustomer($admin,$account) : null;
         if (!$customer) {
-            unset($_SESSION['portal_account_id'], $_SESSION['portal_last_activity']);
+            unset($_SESSION['portal_account_id'], $_SESSION['portal_last_activity'], $_SESSION['portal_auth_version'], $_SESSION['portal_phone']);
             $account = null;
             $notice = 'Account access needs to be confirmed. Please contact ANKH.';
         } else {
@@ -109,6 +110,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if ($verified && $login && portalCustomer($admin,$login)) {
                 session_regenerate_id(true);
                 $_SESSION['portal_account_id'] = (int)$login['id'];
+                $_SESSION['portal_auth_version'] = (int)$login['auth_version'];
+                $_SESSION['portal_phone'] = (string)$login['phone_e164'];
                 $_SESSION['portal_last_activity'] = time();
                 unset($_SESSION['portal_pending_phone'],$_SESSION['portal_pending_until']);
                 $portal->prepare('UPDATE portal_accounts SET verified_at=? WHERE id=?')->execute([time(),(int)$login['id']]);
