@@ -16,7 +16,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 </head>
 <body><a class="pc-skip-link" href="#customer-main">Skip to account content</a>
 <?php if (!empty($isStaffPreview)): ?>
-<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Staff access · live Admin records are read-only; portal requests can be reviewed separately.</span><a href="./preview.php">Fictional demo</a></div>
+<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Staff access · live Admin records are read-only; portal requests can be reviewed separately.</span><a href="./preview-live.php?manage=portal">Customer controls</a><a href="./preview.php">Fictional demo</a></div>
 <?php endif; ?>
 <?php if (!empty($isDemo)): ?>
 <div class="demo-strip" role="note"><strong>DEMO PREVIEW</strong><span>Fictional customer and orders. No real SMS or customer data.</span><nav aria-label="Demo screens"><a href="./preview.php?screen=login">Login</a><a href="./preview.php?screen=account">Customer dashboard</a></nav></div>
