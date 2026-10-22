@@ -11,12 +11,12 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <meta name="description" content="Secure ANKH customer account and order history.">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
-<link rel="stylesheet" href="./account.css?v=experience-11">
+<link rel="stylesheet" href="./account.css?v=experience-12">
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body><a class="pc-skip-link" href="#customer-main">Skip to account content</a>
 <?php if (!empty($isStaffPreview)): ?>
-<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Private read-only inspection — SMS customer login is not enabled.</span><a href="./preview.php">Fictional demo</a></div>
+<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Staff access · live Admin records are read-only; portal requests can be reviewed separately.</span><a href="./preview.php">Fictional demo</a></div>
 <?php endif; ?>
 <?php if (!empty($isDemo)): ?>
 <div class="demo-strip" role="note"><strong>DEMO PREVIEW</strong><span>Fictional customer and orders. No real SMS or customer data.</span><nav aria-label="Demo screens"><a href="./preview.php?screen=login">Login</a><a href="./preview.php?screen=account">Customer dashboard</a></nav></div>
