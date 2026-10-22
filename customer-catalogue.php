@@ -391,3 +391,133 @@ function ankhReminderRequestsInbox(PDO $admin,PDO $store):void {
     $rows=$store->query("SELECT * FROM customer_reminder_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END,id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
     ?><section id="reminder-requests"><h2>Reminder change requests</h2><p class="muted">Approve or decline requested dates and intervals. Customer snoozes only silence their personal reminders.</p><?php if(!$rows):?><p>No reminder change requests yet.</p><?php endif;?><?php foreach($rows as $row):$q=$admin->prepare('SELECT name FROM customers WHERE id=?');$q->execute([$row['customer_id']]);$name=$q->fetchColumn()?:'Customer #'.$row['customer_id'];?><details class="panel" style="margin-bottom:16px"><summary style="cursor:pointer"><strong><?=e($row['product_name'])?></strong> · <?=e($row['status'])?><?php if($row['preview']):?> · STAFF TEST — approval will not change the live reminder<?php endif;?><p><?=e($name)?> · Request #<?=(int)$row['id']?></p></summary><p>Recorded: every <?=(int)$row['original_weeks']?> weeks · <?=e($row['original_due_date'])?></p><p>Requested: every <?=(int)$row['requested_weeks']?> weeks · <?=e($row['requested_date'])?></p><p style="white-space:pre-wrap"><?=e($row['note'])?></p><?php if($row['status']==='Pending'):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="reminder_request_review"><input type="hidden" name="request_id" value="<?=(int)$row['id']?>"><label>Response to customer<textarea name="admin_note" maxlength="2000" rows="3"></textarea></label><label>Decision<select name="decision"><option value="approve">Approve requested date and interval</option><option value="decline">Decline request</option></select></label><button type="submit">Save decision</button></form><?php else:?><p style="white-space:pre-wrap"><?=e($row['admin_note'])?></p><?php endif;?></details><?php endforeach;?></section><?php
 }
+
+
+/** Private, time-bound announcements shared by Admin and verified customer accounts. */
+function ankhAnnouncementsInit(PDO $store):void {
+    $store->exec("CREATE TABLE IF NOT EXISTS portal_announcements (
+        id INTEGER PRIMARY KEY,
+        type TEXT NOT NULL CHECK(type IN ('Service','Delivery','Holiday')),
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        state TEXT NOT NULL CHECK(state IN ('Draft','Published','Hidden')),
+        starts_at INTEGER NOT NULL DEFAULT 0,
+        ends_at INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS portal_announcements_current ON portal_announcements(state,starts_at,ends_at);");
+}
+function ankhAnnouncementDate(string $input):?int {
+    if($input==='')return null;
+    $zone=new DateTimeZone('Europe/London');
+    $dt=DateTimeImmutable::createFromFormat('!Y-m-d\TH:i',$input,$zone);
+    $errors=DateTimeImmutable::getLastErrors();
+    if(!$dt || ($errors!==false && ($errors['warning_count']>0 || $errors['error_count']>0)) || $dt->format('Y-m-d\TH:i')!==$input)
+        throw new InvalidArgumentException('Enter a valid UK date and time.');
+    return $dt->getTimestamp();
+}
+function ankhAnnouncementLocal(int $timestamp):string {
+    if($timestamp<=0)return '';
+    return (new DateTimeImmutable('@'.$timestamp))->setTimezone(new DateTimeZone('Europe/London'))->format('Y-m-d\TH:i');
+}
+function ankhAnnouncementSave(PDO $store,array $input,?int $now=null):int {
+    ankhAnnouncementsInit($store);
+    $now??=time();
+    $id=filter_var($input['announcement_id']??0,FILTER_VALIDATE_INT);
+    if($id===false || $id<0)throw new InvalidArgumentException('Choose a valid announcement.');
+    $type=(string)($input['announcement_type']??'Service');
+    $state=(string)($input['announcement_state']??'Draft');
+    if(!in_array($type,['Service','Delivery','Holiday'],true)||!in_array($state,['Draft','Published'],true))throw new InvalidArgumentException('Choose a valid announcement type and state.');
+    $title=trim((string)($input['announcement_title']??''));
+    $message=trim((string)($input['announcement_message']??''));
+    if($title===''||$message===''||!preg_match('//u',$title.$message)
+        ||preg_match_all('/./us',$title)>90 ||preg_match_all('/./us',$message)>1200)
+        throw new InvalidArgumentException('Enter a heading (up to 90 characters) and message (up to 1,200 characters).');
+    $start=ankhAnnouncementDate(trim((string)($input['announcement_start']??'')))??$now;
+    $end=ankhAnnouncementDate(trim((string)($input['announcement_end']??'')))??0;
+    if($state==='Published' && $end===0)throw new InvalidArgumentException('Published announcements require an expiry date.');
+    if($end!==0 && ($end<=$start || $end<=$now))throw new InvalidArgumentException('Expiry must be after the start date and in the future.');
+    if($start>$now+86400*365*2 || $end>$now+86400*365*3)throw new InvalidArgumentException('Choose a date within the next three years.');
+    $store->beginTransaction();
+    try {
+        if($id){
+            $q=$store->prepare('UPDATE portal_announcements SET type=?,title=?,message=?,state=?,starts_at=?,ends_at=?,updated_at=? WHERE id=?');
+            $q->execute([$type,$title,$message,$state,$start,$end,$now,$id]);
+            if($q->rowCount()!==1)throw new InvalidArgumentException('Announcement was not found or has already changed.');
+        }else{
+            $store->prepare('INSERT INTO portal_announcements(type,title,message,state,starts_at,ends_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)')
+                ->execute([$type,$title,$message,$state,$start,$end,$now,$now]);
+            $id=(int)$store->lastInsertId();
+        }
+        $store->commit();
+        return $id;
+    }catch(Throwable $e){$store->rollBack();throw $e;}
+}
+function ankhAnnouncementHide(PDO $store,int $id,?int $now=null):void {
+    if($id<1)throw new InvalidArgumentException('Choose an announcement to hide.');
+    ankhAnnouncementsInit($store);
+    $q=$store->prepare("UPDATE portal_announcements SET state='Hidden',updated_at=? WHERE id=? AND state<>'Hidden'");
+    $q->execute([$now??time(),$id]);
+    if($q->rowCount()!==1)throw new InvalidArgumentException('Announcement is no longer available.');
+}
+function ankhAnnouncementLive(PDO $store,?int $at=null):?array {
+    ankhAnnouncementsInit($store);
+    $at??=time();
+    $q=$store->prepare("SELECT id,type,title,message,starts_at,ends_at FROM portal_announcements
+        WHERE state='Published' AND starts_at<=? AND ends_at>? ORDER BY starts_at DESC,id DESC LIMIT 1");
+    $q->execute([$at,$at]);
+    return $q->fetch(PDO::FETCH_ASSOC)?:null;
+}
+function ankhAnnouncementHistory(PDO $store):array {
+    ankhAnnouncementsInit($store);
+    return $store->query('SELECT * FROM portal_announcements ORDER BY updated_at DESC,id DESC LIMIT 50')->fetchAll(PDO::FETCH_ASSOC);
+}
+function ankhAnnEscape(string $value):string {return htmlspecialchars($value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
+function ankhAnnouncementAdmin(PDO $store):void {
+    $rows=ankhAnnouncementHistory($store);
+    $now=time();
+    ?>
+    <div class="heading"><div><p class="eyebrow">CUSTOMER PORTAL</p><h1>Announcements</h1>
+      <p class="muted page-description">Publish one clear message across customer accounts. Scheduled notices appear automatically and vanish when their expiry time passes.</p></div>
+      <a href="?view=enquiries" class="quick-action">Customer enquiries &rarr;</a>
+    </div>
+    <?php if(isset($_GET['saved'])):?><p class="feedback success" role="status">Announcement updated.</p><?php endif;?>
+    <section class="ann-admin-layout">
+     <article class="ann-admin-editor">
+      <span class="eyebrow">CREATE AN UPDATE</span><h2>New announcement</h2>
+      <form method="post"><?php csrf();?><input type="hidden" name="action" value="announcement_save">
+       <label>Category<select name="announcement_type"><option>Service</option><option>Delivery</option><option>Holiday</option></select></label>
+       <label>Short heading<input name="announcement_title" maxlength="90" required placeholder="e.g. October deliveries"></label>
+       <label>Message<textarea name="announcement_message" maxlength="1200" rows="5" required placeholder="What customers need to know, and when normal service resumes."></textarea></label>
+       <div class="ann-admin-dates"><label>Visible from (UK time)<input type="datetime-local" name="announcement_start"><small>Leave empty to begin now</small></label>
+       <label>Hide automatically (UK time)<input type="datetime-local" name="announcement_end" required><small>Required when publishing</small></label></div>
+       <label>Status<select name="announcement_state"><option value="Draft">Save as draft</option><option value="Published">Publish / schedule</option></select></label>
+       <button type="submit">Save announcement</button>
+      </form>
+     </article>
+     <section class="ann-admin-list"><div class="ann-admin-head"><span class="eyebrow">MANAGE UPDATES</span><h2>Saved announcements</h2></div>
+     <?php if(!$rows):?><p class="muted">No announcements saved yet.</p><?php endif;?>
+     <?php foreach($rows as $row):
+        $current=$row['state']==='Published' && (int)$row['starts_at']<=$now && (int)$row['ends_at']>$now;
+        $state=$current?'Live':($row['state']==='Published' && (int)$row['starts_at']>$now?'Scheduled':($row['state']==='Published'?'Expired':$row['state']));
+     ?>
+     <details class="ann-admin-card"><summary><span class="ann-admin-kind"><?=ankhAnnEscape((string)$row['type'])?></span><span><strong><?=ankhAnnEscape((string)$row['title'])?></strong><small><?=ankhAnnEscape($state)?><?php if((int)$row['ends_at']>0):?> · Expires <?=ankhAnnEscape(ankhAnnouncementLocal((int)$row['ends_at']))?><?php endif;?></small></span><b aria-hidden="true">⌄</b></summary>
+     <p class="ann-admin-message"><?=nl2br(ankhAnnEscape((string)$row['message']))?></p>
+     <?php if($row['state']!=='Hidden'):?>
+     <form method="post" class="ann-admin-edit"><?php csrf();?><input type="hidden" name="action" value="announcement_save"><input type="hidden" name="announcement_id" value="<?=(int)$row['id']?>">
+       <label>Category<select name="announcement_type"><?php foreach(['Service','Delivery','Holiday'] as $type):?><option <?=$row['type']===$type?'selected':''?>><?=$type?></option><?php endforeach;?></select></label>
+       <label>Heading<input name="announcement_title" maxlength="90" value="<?=ankhAnnEscape((string)$row['title'])?>" required></label>
+       <label>Message<textarea name="announcement_message" maxlength="1200" rows="4" required><?=ankhAnnEscape((string)$row['message'])?></textarea></label>
+       <div class="ann-admin-dates"><label>Visible from (UK time)<input type="datetime-local" name="announcement_start" value="<?=ankhAnnEscape(ankhAnnouncementLocal((int)$row['starts_at']))?>"></label>
+       <label>Hide automatically (UK time)<input type="datetime-local" name="announcement_end" value="<?=ankhAnnEscape(ankhAnnouncementLocal((int)$row['ends_at']))?>"></label></div>
+       <label>Status<select name="announcement_state"><option value="Draft" <?=$row['state']==='Draft'?'selected':''?>>Draft</option><option value="Published" <?=$row['state']==='Published'?'selected':''?>>Published</option></select></label>
+       <button type="submit">Save changes</button></form>
+     <form method="post" class="ann-admin-hide"><?php csrf();?><input type="hidden" name="action" value="announcement_hide"><input type="hidden" name="announcement_id" value="<?=(int)$row['id']?>"><button type="submit" class="quiet">Hide immediately</button></form>
+     <?php else:?><p class="muted">This announcement has been hidden and is archived.</p><?php endif;?>
+     </details>
+     <?php endforeach;?>
+     </section>
+    </section>
+    <?php
+}
