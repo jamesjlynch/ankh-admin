@@ -223,7 +223,7 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
   ?>
     <a class="pc-back" href="<?=portalEscape(pcHref('account',$staff,$customerId))?>">← My account</a>
     <section class="pc-page-heading"><span class="pc-eyebrow">PLAN YOUR NEXT ENQUIRY</span><h1>Recurring orders<span class="pc-dot">.</span></h1><p>Your saved order reminders and expected reorder dates.</p></section>
-    <div class="pcr-notice"><?=pcIcon('calendar')?><p>These dates reflect the repeat intervals recorded by ANKH. They are order reminders, not product-use instructions. No order or payment is created automatically.</p></div>
+    <div class="pcr-notice"><?=pcIcon('calendar')?><p>These dates reflect the repeat intervals recorded by ANKH. No order or payment is created automatically.</p></div>
     <?php if($recurringError):?><div class="pc-panel pc-empty" role="alert"><h2>Reminders temporarily unavailable</h2><p>Please try again later or contact ANKH.</p></div>
     <?php elseif(!$recurringOrders):?><div class="pc-panel pc-empty"><h2>No recurring orders set up</h2><p>When ANKH records a recurring order for your account, its expected reorder date will appear here.</p><a class="pc-primary-link" href="<?=portalEscape(pcHref('support',$staff,$customerId))?>">Ask ANKH about a reminder <?=pcIcon('right')?></a></div>
     <?php else:?><div class="pcr-summary"><span><?=count($recurringOrders)?> active reminder<?=count($recurringOrders)===1?'':'s'?></span><span><?=$dueSoon?> to review within 7 days or earlier</span></div><div class="pcr-grid">
