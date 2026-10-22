@@ -2,6 +2,8 @@
 declare(strict_types=1);
 if(!defined('ANKH_PORTAL_VIEW') || empty($customer) || !empty($isDemo)){http_response_code(404);exit;}
 $catalogueError=false;
+$portalAvailability=[];
+try{$portalAvailability=portalExtrasAvailabilityMap($portal);}catch(Throwable $e){error_log('ANKH availability labels: '.$e->getMessage());}
 try{$catalogueProducts=ankhCatalogueProducts($admin,(int)$customer['id']);}
 catch(Throwable $e){error_log('ANKH customer catalogue: '.$e->getMessage());$catalogueProducts=[];$catalogueError=true;}
 $interactionReady=true;$savedIds=[];$myEnquiries=[];
@@ -25,7 +27,8 @@ function pcsEnquiry(array $p):string {
 function pcsFavourite(array $p,array $savedIds,bool $ready,bool $savedOnly,bool $detail=false):void {
     if(!$ready)return;$saved=in_array($p['id'],$savedIds,true);?><form method="post" class="pcs-favourite"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="catalogue_favourite"><input type="hidden" name="product_id" value="<?=$p['id']?>"><input type="hidden" name="return_product" value="<?=$detail?$p['id']:0?>"><input type="hidden" name="save" value="<?=$saved?'0':'1'?>"><input type="hidden" name="saved" value="<?=$savedOnly?'1':'0'?>"><button type="submit" class="<?=$saved?'is-saved':''?>" aria-pressed="<?=$saved?'true':'false'?>" aria-label="<?=$saved?'Remove':'Save'?> <?=portalEscape($p['name'])?> <?=$saved?'from':'to'?> favourites"><svg viewBox="0 0 24 24" width="19" height="19" fill="<?=$saved?'currentColor':'none'?>" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg></button></form><?php
 }
-function pcsStock(array $p):string {return $p['available_qty']===null?'Availability on enquiry':($p['available_qty']>0?'Available · '.$p['available_qty']:'Currently unavailable');}
+function pcsStock(array $p):string {return portalExtrasAvailability($p,$GLOBALS['portalAvailability']??[])['label'];}
+function pcsStockTone(array $p):string {return portalExtrasAvailability($p,$GLOBALS['portalAvailability']??[])['tone'];}
 function pcsExcerpt(string $text):string {
     $text=ankhCatalogueSummary($text);
     preg_match('/^.{0,110}/us',$text,$match);$short=$match[0]??'';
@@ -53,7 +56,7 @@ function pcsExcerpt(string $text):string {
  <div class="pcs-detail-photo pcs-photo">
  <?php if($p['has_photo']):?><a class="pcs-photo-zoom" data-product-zoom href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['catalogue_image'=>$p['id']]))?>" aria-label="Enlarge photograph of <?=portalEscape($p['name'])?>"><img src="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['catalogue_image'=>$p['id']]))?>" alt="<?=portalEscape($p['name'])?>" width="800" height="900"><span>Tap to enlarge ↗</span></a><?php else:?><div class="pcs-placeholder"><span aria-hidden="true">☥</span><small>ANKH / THE COLLECTION</small><span class="pcs-photo-soon">Photograph coming soon</span></div><?php endif;?>
  </div>
- <div class="pcs-detail-copy"><?php pcsFavourite($p,$savedIds,$interactionReady,$catalogueSavedOnly,true);?><span class="pc-eyebrow"><?=portalEscape($p['category'])?></span><h1><?=portalEscape($p['name'])?></h1><span class="pcs-availability <?=$p['available_qty']===0?'pcs-unavailable':''?>"><span aria-hidden="true"></span><?=portalEscape(pcsStock($p))?></span>
+ <div class="pcs-detail-copy"><?php pcsFavourite($p,$savedIds,$interactionReady,$catalogueSavedOnly,true);?><span class="pc-eyebrow"><?=portalEscape($p['category'])?></span><h1><?=portalEscape($p['name'])?></h1><span class="pcs-availability <?='pcs-status-'.pcsStockTone($p)?>"><span aria-hidden="true"></span><?=portalEscape(pcsStock($p))?></span>
  <div class="pcs-detail-price"><strong><?=portalEscape(portalMoney($p['price']))?></strong><?php if($p['pricing']==='family_friends' && $p['price']<$p['retail_price']):?><del><?=portalEscape(portalMoney($p['retail_price']))?></del><?php endif;?></div><p class="pcs-price-caption"><?=$p['pricing']==='family_friends'?'Your Family & Friends price':($p['pricing']==='free'?'Your account price':'Your product price')?></p>
  <div class="pcs-intro"><p><?=portalEscape($p['description']!==''?pcsExcerpt($p['description']):'Contact the ANKH team for further product information and documentation.')?></p><a href="#pcs-product-information">Read product information ↓</a></div>
  <a class="pcs-enquire" href="<?=portalEscape(pcsEnquiry($p))?>"><?=pcIcon('mail')?> Enquire about this product <?=pcIcon('right')?></a><p class="pcs-enquiry-note">Send a question securely through your account. Read the response in My enquiries.</p>
@@ -85,7 +88,7 @@ function pcsExcerpt(string $text):string {
  <article class="pcs-card"><?php pcsFavourite($p,$savedIds,$interactionReady,$catalogueSavedOnly);?><a class="pcs-photo" href="<?=portalEscape($productHref)?>" aria-label="View <?=portalEscape($p['name'])?>">
  <?php if($p['has_photo']):?><img src="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['catalogue_image'=>$p['id']]))?>" alt="<?=portalEscape($p['name'])?>" width="500" height="580" loading="lazy" decoding="async"><?php else:?><div class="pcs-placeholder"><span aria-hidden="true">☥</span><small>ANKH / RESEARCH</small><span class="pcs-photo-soon">Photograph coming soon</span></div><?php endif;?>
  <?php if($p['pricing']==='family_friends'):?><span class="pcs-photo-badge">Family &amp; Friends</span><?php endif;?></a>
- <div class="pcs-card-copy"><span class="pc-eyebrow"><?=portalEscape($p['category'])?></span><h2><a href="<?=portalEscape($productHref)?>"><?=portalEscape($p['name'])?></a></h2><span class="pcs-availability <?=$p['available_qty']===0?'pcs-unavailable':''?>"><span aria-hidden="true"></span><?=portalEscape(pcsStock($p))?></span>
+ <div class="pcs-card-copy"><span class="pc-eyebrow"><?=portalEscape($p['category'])?></span><h2><a href="<?=portalEscape($productHref)?>"><?=portalEscape($p['name'])?></a></h2><span class="pcs-availability <?='pcs-status-'.pcsStockTone($p)?>"><span aria-hidden="true"></span><?=portalEscape(pcsStock($p))?></span>
  <?php if($p['description']!==''):?><p class="pcs-card-description"><?=portalEscape(pcsExcerpt($p['description']))?></p><?php endif;?>
  <div class="pcs-card-price"><strong><?=portalEscape(portalMoney($p['price']))?></strong><?php if($p['pricing']==='family_friends' && $p['price']<$p['retail_price']):?><del><?=portalEscape(portalMoney($p['retail_price']))?></del><?php endif;?></div><small class="pcs-price-caption"><?=$p['pricing']==='family_friends'?'Your Family & Friends price':($p['pricing']==='free'?'Your account price':'Retail price')?></small>
  <div class="pcs-card-actions"><a class="pcs-card-view" href="<?=portalEscape($productHref)?>">View product <?=pcIcon('right')?></a><a class="pcs-card-enquiry" href="<?=portalEscape(pcsEnquiry($p))?>" aria-label="Enquire about <?=portalEscape($p['name'])?>" title="Enquire about this product"><?=pcIcon('mail')?></a></div>
