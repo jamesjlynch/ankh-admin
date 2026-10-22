@@ -193,7 +193,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'Other customer reminder' not in reminders and 'Paused reminder' not in reminders and '987654' not in reminders
         assert 'No order or payment is created automatically' in reminders
         account_page=request('/preview-live.php?customer_id=2&tab=account');assert 'tab=recurring' in account_page
-        home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Recurring order reminders' in home_page
+        home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Next Order Centre' in home_page
         other=request('/preview-live.php?customer_id=1&tab=recurring');assert 'No recurring orders set up' in other and '19 Nov 2026' not in other
         notices_path='/preview-live.php?customer_id=2&tab=notifications'
         notices=request(notices_path)
