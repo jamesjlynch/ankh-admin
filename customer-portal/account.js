@@ -52,3 +52,31 @@ window.addEventListener('pageshow', () => {
   });
   document.querySelectorAll('[data-pc-submitting]').forEach(form => { delete form.dataset.pcSubmitting; });
 });
+
+
+// Home Screen installation without caching any private account data.
+document.addEventListener('DOMContentLoaded', () => {
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('./sw.js', {scope:'./'}).catch(() => {});
+  }
+  const button = document.getElementById('pc-install-app');
+  if (!button) return;
+  let installPrompt = null;
+  window.addEventListener('beforeinstallprompt', event => {
+    event.preventDefault();
+    installPrompt = event;
+    button.hidden = false;
+  });
+  button.addEventListener('click', async () => {
+    if (!installPrompt) return;
+    const prompt = installPrompt;
+    installPrompt = null;
+    button.hidden = true;
+    await prompt.prompt();
+  });
+  window.addEventListener('appinstalled', () => { button.hidden = true; });
+  if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+    const help = document.getElementById('pc-install-help');
+    if (help) help.hidden = true;
+  }
+});
