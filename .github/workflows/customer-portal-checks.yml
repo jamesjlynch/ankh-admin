@@ -27,6 +27,8 @@ jobs:
           php -l customer-portal/index.php
           php -l customer-portal/lib.php
           php -l customer-portal/view.php
+          php -l customer-portal/customer-experience.php
+          php -l tests/customer-portal-navigation.php
           php -l customer-portal/preview.php
           php -l customer-portal/preview-live.php
           php -l scripts/configure-customer-preview.php
@@ -38,6 +40,11 @@ jobs:
         run: php tests/customer-portal.php
       - name: Prevent accidental raw PHP controller leakage in customer HTML
         run: php tests/customer-portal-render.php
+      - name: Verify five customer screens and drill-down interactions
+        run: |
+          for tab in home orders vault support account; do php tests/customer-portal-navigation.php "$tab"; done
+          php tests/customer-portal-navigation.php orders 104
+          php tests/customer-portal-navigation.php vault 103
       - name: Smoke test fictional dashboard without production secrets
         run: |
           php -r '$_SERVER["HTTPS"]="on"; $_SERVER["REQUEST_METHOD"]="GET"; $_GET["screen"]="account"; include "customer-portal/preview.php";' > /tmp/ankh-customer-preview.html
