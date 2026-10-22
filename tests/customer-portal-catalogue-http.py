@@ -279,7 +279,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         combined=request(repeat_path,repeat_payload);assert 'Your combined enquiry has been sent' in combined and 'Fixture combined question' in combined
         request(repeat_path,repeat_payload)
         with sqlite3.connect(portal) as saved_db:
-            parents=saved_db.execute('SELECT id,customer_id,preview,price FROM catalogue_enquiries WHERE product_id=0').fetchall()
+            parents=saved_db.execute('SELECT id,customer_id,preview,price FROM catalogue_enquiries WHERE product_id=0 AND product_name LIKE \'Enquire again%\'').fetchall()
             assert len(parents)==1 and parents[0][1:]==(2,1,6600),parents
             lines=saved_db.execute('SELECT product_id,quantity,unit_price FROM catalogue_enquiry_lines WHERE enquiry_id=? ORDER BY position',(parents[0][0],)).fetchall()
             assert lines==[(1,2,1500),(3,3,1200)],lines
