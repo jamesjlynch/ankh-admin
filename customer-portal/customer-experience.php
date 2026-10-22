@@ -77,7 +77,7 @@ $staff=!empty($isStaffPreview);
 $customerId=(int)$customer['id'];
 $catalogueEnabled=true;
 $tab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
-$allowedTabs=['home','orders','vault','support','account'];
+$allowedTabs=['home','orders','vault','support','account','recurring'];
 if($catalogueEnabled)$allowedTabs[]='catalogue';
 if(!empty($isDemo))$allowedTabs=array_merge($allowedTabs,['basket','checkout','confirmation','test-orders']);
 if(!in_array($tab,$allowedTabs,true))$tab='home';
@@ -105,7 +105,12 @@ $outstanding=array_sum(array_map('pcBalance',$orders));
 $recent=$currentOrders[0]??($orders[0]??null);
 $events=pcEvents($orders);
 $menu=$catalogueEnabled?[['home','Home'],['catalogue','Catalogue'],['orders','Orders'],['vault','Vault'],['account','Account']]:[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Support'],['account','Account']];
-$activeNav=in_array($tab,['basket','checkout','confirmation','test-orders'],true)?'catalogue':$tab;
+$activeNav=$tab==='recurring'?'account':(in_array($tab,['basket','checkout','confirmation','test-orders'],true)?'catalogue':$tab);
+$recurringOrders=[];$recurringError=false;
+if(empty($isDemo) && isset($admin) && !empty($account['phone_e164'])){
+    try{$recurringOrders=portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders);}catch(Throwable $e){error_log('ANKH customer reminders: '.$e->getMessage());$recurringError=true;}
+}
+$dueSoon=count(array_filter($recurringOrders,static fn(array $r):bool=>$r['days_until']<=7));
 $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer account support');
 ?>
 <div class="pc-app">
@@ -121,6 +126,7 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
     <div class="pc-welcome-symbol" aria-hidden="true">☥</div>
   </section>
   <?php if($catalogueEnabled):?><a class="pcd-home-banner" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>"><span class="pcd-home-icon"><?=pcIcon('catalogue')?></span><span><small><?=!empty($isDemo)?'ACCESSORY PREVIEW':'RESEARCH CATALOGUE'?></small><strong>Explore the collection</strong><span><?=!empty($isDemo)?'Try the catalogue, basket and checkout with sample accessories.':'See published products, your prices and availability.'?></span></span><?=pcIcon('right')?></a><?php endif;?>
+  <?php if($recurringOrders):?><a class="pcr-home-reminder" href="<?=portalEscape(pcHref('recurring',$staff,$customerId))?>"><?=pcIcon('calendar')?><span><strong>Recurring order reminders</strong><small><?=$dueSoon?$dueSoon.' to review in the next 7 days or earlier':'Next expected date: '.portalEscape(portalDate($recurringOrders[0]['due_date']))?></small></span><?=pcIcon('right')?></a><?php endif;?>
   <div class="pc-stat-grid">
     <a class="pc-stat pc-stat-gold" href="<?=portalEscape(pcHref('orders',$staff,$customerId,['filter'=>'active']))?>"><span><?=pcIcon('orders')?> Active orders</span><strong><?=count($currentOrders)?></strong><small>See what’s in progress <?=pcIcon('right')?></small></a>
     <a class="pc-stat" href="<?=portalEscape(pcHref('orders',$staff,$customerId))?>"><span><?=pcIcon('check')?> Total orders</span><strong><?=count($orders)?></strong><small>Complete order history <?=pcIcon('right')?></small></a>
@@ -212,8 +218,22 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
     </div>
     <?php if($orders):?><section class="pc-section-block"><div class="pc-section-header"><div><span class="pc-eyebrow">MAKE IT EASIER</span><h2>Ask about an order</h2></div></div><?php foreach(array_slice($orders,0,5) as $order):?><a class="pc-document-row" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Question about '.pcOrderRef($order))?>"><span><?=pcIcon('orders')?></span><div><strong><?=portalEscape(pcOrderRef($order))?></strong><small><?=portalEscape(portalDate((string)$order['created']))?> · <?=portalEscape(portalStatus($order))?></small></div><?=pcIcon('right')?></a><?php endforeach;?></section><?php endif;?>
 
+  <?php elseif($tab==='recurring'):
+    $recurringCatalogue=[];if(empty($isDemo)){try{$recurringCatalogue=ankhCatalogueProducts($admin,$customerId);}catch(Throwable $e){error_log('ANKH reminder product links: '.$e->getMessage());}}
+  ?>
+    <a class="pc-back" href="<?=portalEscape(pcHref('account',$staff,$customerId))?>">← My account</a>
+    <section class="pc-page-heading"><span class="pc-eyebrow">PLAN YOUR NEXT ENQUIRY</span><h1>Recurring orders<span class="pc-dot">.</span></h1><p>Your saved order reminders and expected reorder dates.</p></section>
+    <div class="pcr-notice"><?=pcIcon('calendar')?><p>These dates reflect the repeat intervals recorded by ANKH. They are order reminders, not product-use instructions. No order or payment is created automatically.</p></div>
+    <?php if($recurringError):?><div class="pc-panel pc-empty" role="alert"><h2>Reminders temporarily unavailable</h2><p>Please try again later or contact ANKH.</p></div>
+    <?php elseif(!$recurringOrders):?><div class="pc-panel pc-empty"><h2>No recurring orders set up</h2><p>When ANKH records a recurring order for your account, its expected reorder date will appear here.</p><a class="pc-primary-link" href="<?=portalEscape(pcHref('support',$staff,$customerId))?>">Ask ANKH about a reminder <?=pcIcon('right')?></a></div>
+    <?php else:?><div class="pcr-summary"><span><?=count($recurringOrders)?> active reminder<?=count($recurringOrders)===1?'':'s'?></span><span><?=$dueSoon?> to review within 7 days or earlier</span></div><div class="pcr-grid">
+    <?php foreach($recurringOrders as $reminder):$days=$reminder['days_until'];$linkedProduct=null;foreach($recurringCatalogue as $candidate)if(strcasecmp(trim($candidate['name']),$reminder['product'])===0){$linkedProduct=$candidate;break;}$dueLabel=$days===0?'Expected today':($days<0?'Date passed':($days===1?'In 1 day':'In '.$days.' days'));?>
+    <article class="pcr-card"><div class="pcr-card-top"><span class="pcr-state <?=$days<=7?'pcr-soon':''?>"><?=pcIcon('clock')?> <?=portalEscape($dueLabel)?></span><small><?=$reminder['weeks']?'Every '.$reminder['weeks'].' week'.($reminder['weeks']===1?'':'s'):'Repeat interval not recorded'?></small></div><h2><?=portalEscape($reminder['product'])?></h2><p class="pcr-format"><?=$reminder['quantity']?> × <?=portalEscape($reminder['product'])?><?=$reminder['presentation']!==''?' · '.portalEscape($reminder['presentation']):''?></p><div class="pcr-date"><small>Expected reorder date</small><strong><?=portalEscape(portalDate($reminder['due_date']))?></strong></div><div class="pcr-last"><span>Last delivery</span><strong><?=portalEscape(portalDate($reminder['last_delivery_date']))?></strong></div><?php if($days<0):?><p class="pcr-date-note">This reminder date has passed. Contact ANKH to review it.</p><?php endif;?><div class="pcr-actions"><?php if($linkedProduct):?><a class="pc-primary-link" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['product'=>$linkedProduct['id'],'enquire'=>1]))?>#product-enquiry">Enquire about next order <?=pcIcon('right')?></a><?php else:?><a class="pc-primary-link" href="<?=portalEscape(pcHref('support',$staff,$customerId))?>">Contact ANKH <?=pcIcon('right')?></a><?php endif;?><a class="pcr-order-link" href="<?=portalEscape(pcHref('orders',$staff,$customerId,['order'=>$reminder['last_order_id']]))?>">View previous order <?=pcIcon('right')?></a></div></article>
+    <?php endforeach;?></div><?php endif;?>
+    <p class="pcr-footer-note">Need to change or stop a reminder? Contact ANKH so the account record can be updated.</p>
   <?php elseif($tab==='account'): ?>
     <section class="pc-page-heading"><span class="pc-eyebrow">YOUR INFORMATION</span><h1>My account<span class="pc-dot">.</span></h1><p>Review the contact details ANKH has recorded for you.</p></section>
+    <a class="pcr-account-link" href="<?=portalEscape(pcHref('recurring',$staff,$customerId))?>"><span class="pcr-link-icon"><?=pcIcon('calendar')?></span><span><strong>Recurring orders</strong><small><?=count($recurringOrders)?> active reminder<?=count($recurringOrders)===1?'':'s'?> · See expected reorder dates</small></span><?=pcIcon('right')?></a>
     <div class="pc-account-grid">
       <section class="pc-panel pc-account-card"><div class="pc-section-header"><div><span class="pc-eyebrow">PERSONAL PROFILE</span><h2>My details</h2></div><?=pcIcon('account')?></div><div class="pc-profile-big"><span class="pc-profile-avatar"><?=portalEscape(strtoupper(substr((string)$firstName,0,1)))?></span><div><strong><?=portalEscape((string)$customer['name'])?></strong><small>ANKH customer · Account #<?=$customerId?></small></div></div><div class="pc-info-row"><span>Mobile number on file</span><strong><?=portalEscape((string)($customer['phone']?:'Not recorded'))?></strong></div><div class="pc-info-row"><span>Postal / delivery address</span><strong><?=trim((string)$customer['address'])!==''?nl2br(portalEscape((string)$customer['address'])):'No address saved'?></strong></div><div class="pc-info-row"><span>Order history</span><strong><?=count($orders)?> recorded</strong></div><a class="pc-outline-button" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Update my ANKH account details')?>"><?=pcIcon('mail')?> Request a change</a></section>
       <section class="pc-panel pc-account-card"><div class="pc-section-header"><div><span class="pc-eyebrow">SECURITY & PRIVACY</span><h2>Your data</h2></div><?=pcIcon('shield')?></div><div class="pc-privacy-list"><p><?=pcIcon('shield')?> Your order records are private to this account after enrolment and verification.</p><p><?=pcIcon('clock')?> Order details reflect the latest information recorded in ANKH Admin.</p><p><?=pcIcon('mail')?> To access, correct or discuss your personal information, contact the ANKH team.</p></div><a class="pc-outline-button" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('ANKH personal data request')?>"><?=pcIcon('mail')?> Request my personal data</a></section>

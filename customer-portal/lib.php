@@ -212,3 +212,33 @@ function portalDate(string $date): string {
     catch (Throwable $e) { return 'Date unavailable'; }
 }
 
+
+/** Saved order reminders only. Never infer schedules from product names or expose forecasts/costs. */
+function portalRecurringOrders(PDO $admin,array $customer,string $verifiedPhone,array $orders,?DateTimeImmutable $today=null):array {
+    if(portalMobile((string)($customer['phone']??''))!==$verifiedPhone)return [];
+    if(!$admin->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='reta_cycles'")->fetchColumn())return [];
+    $columns=array_column($admin->query('PRAGMA table_info(reta_cycles)')->fetchAll(PDO::FETCH_ASSOC),'name');
+    foreach(['id','customer_name','phone','last_order_id','next_due_date','active','product_name'] as $required)if(!in_array($required,$columns,true))return [];
+    $owned=[];foreach($orders as $order){
+        if(portalStatus($order)==='Delivered' && trim((string)($order['delivery_date']??''))!=='')$owned[(int)$order['id']]=$order;
+    }
+    if(!$owned)return [];
+    $fields=['id','customer_name','phone','last_order_id','next_due_date','product_name'];
+    foreach(['presentation','quantity','cycle_weeks','cycle_days'] as $field)$fields[]=in_array($field,$columns,true)?$field:($field==='presentation'?"''":"0").' AS '.$field;
+    $q=$admin->prepare('SELECT '.implode(',',$fields).' FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) ORDER BY next_due_date,id');$q->execute([trim((string)$customer['name'])]);
+    $zone=new DateTimeZone('Europe/London');$today=($today??new DateTimeImmutable('today',$zone))->setTimezone($zone)->setTime(0,0);
+    $out=[];
+    foreach($q as $cycle){
+        if(portalMobile((string)$cycle['phone'])!==$verifiedPhone || !isset($owned[(int)$cycle['last_order_id']]))continue;
+        $name=trim((string)$cycle['product_name']);if($name==='')continue;
+        $source=$owned[(int)$cycle['last_order_id']];
+        // Require the named product to exist in the independently authorised source order.
+        if(!array_filter($source['lines'],static fn(array $line):bool=>strcasecmp(trim((string)$line['name']),$name)===0))continue;
+        $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$zone);
+        if(!$due || $due->format('Y-m-d')!==(string)$cycle['next_due_date'])continue;
+        $days=(int)$today->diff($due)->format('%r%a');$weeks=(int)$cycle['cycle_weeks'];$interval=(int)$cycle['cycle_days'];
+        if($weeks<1||$weeks>52)$weeks=($interval>=7&&$interval<=364&&$interval%7===0)?intdiv($interval,7):0;
+        $out[]=['id'=>(int)$cycle['id'],'product'=>$name,'presentation'=>(string)$cycle['presentation'],'quantity'=>max(1,(int)$cycle['quantity']),'weeks'=>$weeks,'due_date'=>$due->format('Y-m-d'),'days_until'=>$days,'last_order_id'=>(int)$source['id'],'last_delivery_date'=>(string)$source['delivery_date']];
+    }
+    return $out;
+}

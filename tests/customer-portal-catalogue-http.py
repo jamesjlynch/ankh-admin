@@ -38,6 +38,13 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER);
         CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT,method TEXT);
         """)
+    with sqlite3.connect(admin) as db:
+        db.executescript("""
+        INSERT INTO orders(id,customer,phone,status,created,delivery_date,delivery_charge) VALUES(10,'Sample Two','07999000000','Delivered','2026-10-01','2026-10-22',0),(11,'Sample One','07123456789','Delivered','2026-10-01','2026-10-22',0);
+        INSERT INTO items VALUES(10,10,'Case','Vial',1500,1),(11,11,'Reference sample A','Vial',1200,1);
+        CREATE TABLE reta_cycles(id INTEGER PRIMARY KEY,customer_name TEXT,phone TEXT,last_order_id INTEGER,product_name TEXT,next_due_date TEXT,active INTEGER,cycle_weeks INTEGER,cycle_days INTEGER,presentation TEXT,quantity INTEGER,expected_cost INTEGER);
+        INSERT INTO reta_cycles VALUES(1,'Sample Two','07999000000',10,'Case','2026-11-19',1,4,28,'Vial',1,987654),(2,'Sample One','07999000000',11,'Other customer reminder','2026-11-20',1,4,28,'Vial',1,987654),(3,'Sample Two','07999000000',10,'Paused reminder','2026-11-20',0,4,28,'Vial',1,987654);
+        """)
     image_bytes=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
     with sqlite3.connect(admin) as db:
         db.execute('CREATE TABLE customer_catalogue_content(product_id INTEGER PRIMARY KEY,description TEXT,image_data BLOB,image_mime TEXT,image_width INTEGER,image_height INTEGER,updated_at TEXT)')
@@ -180,6 +187,14 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         other=request('/preview-live.php?customer_id=1&tab=catalogue&view_enquiries=1');assert 'No enquiries yet' in other and 'Question &lt;script&gt;' not in other
         request(path,{'csrf':token,'action':'catalogue_favourite','product_id':1,'save':'0'})
         assert 'No favourites yet' in request(path+'&saved=1')
+        reminders=request('/preview-live.php?customer_id=2&tab=recurring')
+        assert 'Recurring orders' in reminders and '19 Nov 2026' in reminders and 'Every 4 weeks' in reminders
+        assert '22 Oct 2026' in reminders and 'Enquire about next order' in reminders and 'order=10' in reminders
+        assert 'Other customer reminder' not in reminders and 'Paused reminder' not in reminders and '987654' not in reminders
+        assert 'No order or payment is created automatically' in reminders
+        account_page=request('/preview-live.php?customer_id=2&tab=account');assert 'tab=recurring' in account_page
+        home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Recurring order reminders' in home_page
+        other=request('/preview-live.php?customer_id=1&tab=recurring');assert 'No recurring orders set up' in other and '19 Nov 2026' not in other
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
         print('HTTP catalogue flow passed: Family & Friends pricing, descriptions, protected photos, hidden products, enquiries and unchanged Admin database; separate demo checkout also passed.')
     finally:

@@ -12,6 +12,7 @@ $expected = [
   'orders' => ['My orders','Find an order or product','ANK-0104'],
   'vault' => ['My vault','Order summaries','Batch documents'],
   'support' => ['Support centre','Email ANKH support','Delivery question'],
+  'recurring' => ['Recurring orders','No recurring orders set up','No order or payment is created automatically'],
   'account' => ['My account','My details','Sampletown','Request my personal data'],
 ];
 if(!isset($expected[$tab]))exit(2);
