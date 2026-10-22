@@ -45,7 +45,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     $action = (string)($_POST['action'] ?? '');
     if ($action === 'logout' || $action === 'change_phone') {
         $_SESSION['demo_screen'] = 'login';
-        unset($_SESSION['demo_phone']);
+        unset($_SESSION['demo_phone'],$_SESSION['catalogue_demo']);
     } elseif ($action === 'send') {
         $phone = portalMobile((string)($_POST['phone'] ?? ''));
         if (!$phone) $error = 'Enter a valid UK mobile number to continue.';
@@ -108,5 +108,9 @@ if ($_SESSION['demo_screen'] === 'account') {
     $firstName = 'Alex';
 }
 $active = array_values(array_filter($orders, static fn(array $o): bool => !in_array(portalStatus($o), ['Delivered','Cancelled'],true)));
+
+require_once __DIR__.'/catalogue-demo.php';
+if($customer) pcdHandle($customer,false,true);
 define('ANKH_PORTAL_VIEW',true);
 require __DIR__.'/view.php';
+

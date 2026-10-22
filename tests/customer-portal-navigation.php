@@ -4,6 +4,10 @@ declare(strict_types=1);
 $tab = $argv[1] ?? 'home';
 $requestedOrderId = (string)($argv[2] ?? '');
 $expected = [
+  'catalogue' => ['Considered essentials','Everyday carry case','Add to test basket','Fictional products'],
+  'basket' => ['Your basket','Your basket is waiting','Explore accessories'],
+  'checkout' => ['Checkout','Add an accessory first'],
+  'test-orders' => ['Your test requests','No test requests here yet'],
   'home' => ['At your fingertips','Recent activity','Payments recorded','Your order in focus'],
   'orders' => ['My orders','Find an order or product','ANK-0104'],
   'vault' => ['My vault','Order summaries','Batch documents'],
@@ -30,3 +34,4 @@ if(!str_starts_with(ltrim(strtolower($html)),'<!doctype html>'))throw new Runtim
 if(str_contains($html,'portalAllowAttempt(')||str_contains($html,'$_SESSION'))throw new RuntimeException('Raw PHP code leaked to response');
 if(!str_contains($html,'DEMO PREVIEW'))throw new RuntimeException('Fictional preview notice missing');
 echo "Customer {$tab}".($requestedOrderId!==''?' order '.$requestedOrderId:'')." rendering passed.\n";
+

@@ -26,7 +26,7 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(index.php lib.php view.php customer-experience.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess)
+files=(index.php lib.php view.php customer-experience.php catalogue-demo.php catalogue-view.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess)
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
   [[ -f "customer-portal/$file" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
@@ -36,13 +36,16 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/index.php
 "$php" -l customer-portal/view.php
 "$php" -l customer-portal/customer-experience.php
+"$php" -l customer-portal/catalogue-demo.php
+"$php" -l customer-portal/catalogue-view.php
 "$php" -l customer-portal/preview-live.php
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
 "$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
-for tab in home orders vault support account; do "$php" tests/customer-portal-navigation.php "$tab"; done
+"$php" tests/customer-portal-catalogue.php
+for tab in home orders vault support account catalogue basket checkout test-orders; do "$php" tests/customer-portal-navigation.php "$tab"; done
 "$php" tests/customer-portal-navigation.php orders 104
 "$php" tests/customer-portal-navigation.php vault 103
 echo "STEP 3/4: Backing up current portal code"
@@ -64,6 +67,7 @@ for file in "${files[@]}"; do
   cmp -s "$source" "$target/$file"
   printf 'VERIFIED: %s\n' "$file"
 done
-printf 'SUCCESS: All 11 customer portal files match the tested release.\n'
+printf 'SUCCESS: All 13 customer portal files match the tested release.\n'
 printf 'Destination: %s\nPrivate code backup: %s\n' "$target" "$backup"
 printf 'This confirms files on disk. Check the web preview to confirm the served page.\n'
+

@@ -6,7 +6,8 @@ on:
       - 'customer-portal/**'
       - 'scripts/customer-portal-accounts.php'
       - 'scripts/publish-customer-portal.sh'
-      - 'tests/customer-portal.php'
+      - 'tests/customer-portal*.php'
+      - 'tests/customer-portal-catalogue-http.py'
       - '.github/workflows/customer-portal-checks.yml'
   workflow_dispatch:
 
@@ -16,11 +17,14 @@ permissions:
 jobs:
   portal:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.1', '8.2']
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '${{ matrix.php }}'
           extensions: pdo_sqlite, curl
       - name: Lint portal and management scripts
         run: |
@@ -28,6 +32,9 @@ jobs:
           php -l customer-portal/lib.php
           php -l customer-portal/view.php
           php -l customer-portal/customer-experience.php
+          php -l customer-portal/catalogue-demo.php
+          php -l customer-portal/catalogue-view.php
+          php -l tests/customer-portal-catalogue.php
           php -l tests/customer-portal-navigation.php
           php -l customer-portal/preview.php
           php -l customer-portal/preview-live.php
@@ -42,9 +49,13 @@ jobs:
         run: php tests/customer-portal-render.php
       - name: Verify five customer screens and drill-down interactions
         run: |
-          for tab in home orders vault support account; do php tests/customer-portal-navigation.php "$tab"; done
+          for tab in home orders vault support account catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
           php tests/customer-portal-navigation.php orders 104
           php tests/customer-portal-navigation.php vault 103
+      - name: Verify accessory preview pricing, checkout and isolation
+        run: php tests/customer-portal-catalogue.php
+      - name: Verify accessory flow over HTTP without real data
+        run: python3 tests/customer-portal-catalogue-http.py
       - name: Smoke test fictional dashboard without production secrets
         run: |
           php -r '$_SERVER["HTTPS"]="on"; $_SERVER["REQUEST_METHOD"]="GET"; $_GET["screen"]="account"; include "customer-portal/preview.php";' > /tmp/ankh-customer-preview.html

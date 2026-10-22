@@ -6,6 +6,7 @@ if (!defined('ANKH_PORTAL_VIEW') || empty($customer)) { http_response_code(404);
 function pcIcon(string $key): string {
     $paths = [
       'home'=>'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+      'catalogue'=>'<rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 7V5a4 4 0 0 1 8 0v2M8 11v1M16 11v1"/>',
       'orders'=>'<path d="M3 7 12 3l9 4v10l-9 4-9-4z"/><path d="m3 7 9 4 9-4M12 11v10"/>',
       'vault'=>'<path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9l-6-6z"/><path d="M15 3v6h6M8 14h8M8 18h6"/>',
       'support'=>'<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8A8.5 8.5 0 0 1 12.5 20a8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 12.5 3H13a8.5 8.5 0 0 1 8 8.5z"/>',
@@ -28,7 +29,8 @@ function pcIcon(string $key): string {
 }
 function pcHref(string $tab, bool $staff, int $customerId, array $params=[]): string {
     $params=array_merge($staff?['customer_id'=>$customerId]:[],['tab'=>$tab],$params);
-    return ($staff?'./preview-live.php':'./').'?'.http_build_query($params,'','&',PHP_QUERY_RFC3986);
+    if(!$staff && !empty($GLOBALS['isDemo'])) $params=['screen'=>'account']+$params;
+    return ($staff?'./preview-live.php':(!empty($GLOBALS['isDemo'])?'./preview.php':'./')).'?'.http_build_query($params,'','&',PHP_QUERY_RFC3986);
 }
 function pcOrderRef(array $o): string { return 'ANK-'.str_pad((string)$o['id'],4,'0',STR_PAD_LEFT); }
 function pcBalance(array $o): int {
@@ -73,8 +75,11 @@ function pcOrderTimeline(array $o): array {
 }
 $staff=!empty($isStaffPreview);
 $customerId=(int)$customer['id'];
-$tab=(string)($_GET['tab']??'home');
-if(!in_array($tab,['home','orders','vault','support','account'],true))$tab='home';
+$catalogueEnabled=$staff || !empty($isDemo);
+$tab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
+$allowedTabs=['home','orders','vault','support','account'];
+if($catalogueEnabled)$allowedTabs=array_merge($allowedTabs,['catalogue','basket','checkout','confirmation','test-orders']);
+if(!in_array($tab,$allowedTabs,true))$tab='home';
 $selectedId=filter_var($_GET['order']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
 $selected=null;
 foreach($orders as $candidate) if((int)$candidate['id']===$selectedId) {$selected=$candidate;break;}
@@ -98,19 +103,23 @@ $paidTotal=array_sum(array_map(static fn(array $o):int=>($o['status']??'')==='Ca
 $outstanding=array_sum(array_map('pcBalance',$orders));
 $recent=$currentOrders[0]??($orders[0]??null);
 $events=pcEvents($orders);
-$menu=[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Support'],['account','Account']];
+$menu=$catalogueEnabled?[['home','Home'],['catalogue','Catalogue'],['orders','Orders'],['vault','Vault'],['account','Account']]:[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Support'],['account','Account']];
+$activeNav=in_array($tab,['basket','checkout','confirmation','test-orders'],true)?'catalogue':$tab;
 $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer account support');
 ?>
 <div class="pc-app">
-  <div class="pc-overline"><span><?=pcIcon('shield')?> Secure customer workspace</span><span>ANKH / MY ACCOUNT</span></div>
+  <div class="pc-overline"><span><?=pcIcon('shield')?> Secure customer workspace</span><a href="<?=portalEscape(pcHref('support',$staff,$customerId))?>">Get support <?=pcIcon('support')?></a></div>
   <nav class="pc-top-nav" aria-label="Customer account navigation">
-    <?php foreach($menu as [$key,$label]): ?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" <?=($tab===$key?'aria-current="page"':'')?> class="<?=$tab===$key?'selected':''?>"><?=pcIcon($key)?><span><?=portalEscape($label)?></span></a><?php endforeach;?>
+    <?php foreach($menu as [$key,$label]): ?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" <?=($activeNav===$key?'aria-current="page"':'')?> class="<?=$activeNav===$key?'selected':''?>"><?=pcIcon($key)?><span><?=portalEscape($label)?></span></a><?php endforeach;?>
   </nav>
-  <?php if($tab==='home'): ?>
+  <?php if($catalogueEnabled && in_array($tab,['catalogue','basket','checkout','confirmation','test-orders'],true)): ?>
+    <?php require __DIR__.'/catalogue-view.php'; ?>
+  <?php elseif($tab==='home'): ?>
   <section class="pc-welcome">
     <div><span class="pc-eyebrow">YOUR PRIVATE ANKH SPACE</span><h1>Good to see you, <em><?=portalEscape((string)$firstName)?></em><span class="pc-dot">.</span></h1><p>Everything about your orders, documents and account in one place.</p></div>
     <div class="pc-welcome-symbol" aria-hidden="true">☥</div>
   </section>
+  <?php if($catalogueEnabled):?><a class="pcd-home-banner" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>"><span class="pcd-home-icon"><?=pcIcon('catalogue')?></span><span><small>NEW · ACCESSORY PREVIEW</small><strong>Explore the collection</strong><span>Try the catalogue, basket and checkout with sample accessories.</span></span><?=pcIcon('right')?></a><?php endif;?>
   <div class="pc-stat-grid">
     <a class="pc-stat pc-stat-gold" href="<?=portalEscape(pcHref('orders',$staff,$customerId,['filter'=>'active']))?>"><span><?=pcIcon('orders')?> Active orders</span><strong><?=count($currentOrders)?></strong><small>See what’s in progress <?=pcIcon('right')?></small></a>
     <a class="pc-stat" href="<?=portalEscape(pcHref('orders',$staff,$customerId))?>"><span><?=pcIcon('check')?> Total orders</span><strong><?=count($orders)?></strong><small>Complete order history <?=pcIcon('right')?></small></a>
@@ -211,6 +220,7 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
   <?php endif; ?>
 </div>
 <nav class="pc-bottom-nav" aria-label="Mobile account navigation">
-<?php foreach($menu as [$key,$label]):?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" class="<?=$tab===$key?'selected':''?>" <?=$tab===$key?'aria-current="page"':''?>><?=pcIcon($key)?><span><?=$label?></span></a><?php endforeach;?>
+<?php foreach($menu as [$key,$label]):?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" class="<?=$activeNav===$key?'selected':''?>" <?=$activeNav===$key?'aria-current="page"':''?>><?=pcIcon($key)?><span><?=$label?></span></a><?php endforeach;?>
 </nav>
 <?php if($tab==='vault' && $selected):?><script src="./account.js" defer></script><?php endif;?>
+
