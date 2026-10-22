@@ -29,7 +29,7 @@ cd "$repo"
 "$php" -l customer-portal/index.php
 "$php" -l scripts/customer-portal-accounts.php
 "$php" tests/customer-portal.php
-for file in index.php lib.php style.css icon.svg .htaccess; do
+for file in index.php lib.php view.php preview.php style.css icon.svg .htaccess; do
   source="customer-portal/$file"
   [[ -f "$source" ]] || { echo "Missing $source" >&2; exit 1; }
   tmp="$target/.$file.deploy.$$"
