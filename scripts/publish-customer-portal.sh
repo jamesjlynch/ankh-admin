@@ -3,6 +3,7 @@
 # Does not publish or modify ANKH Admin, its configuration or its live orders DB.
 set -Eeuo pipefail
 umask 077
+trap 'code=$?; printf "PORTAL PUBLISH FAILED at line %s (exit %s). No success has been confirmed.\\n" "$LINENO" "$code" >&2; exit "$code"' ERR
 repo="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 root="${ANKH_CUSTOMER_PORTAL_ROOT:-}"
 php="${ANKH_DEPLOY_PHP:-php}"
@@ -25,6 +26,12 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
+files=(index.php lib.php view.php customer-experience.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess)
+echo "STEP 1/4: Checking complete portal release"
+for file in "${files[@]}"; do
+  [[ -f "customer-portal/$file" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
+done
+echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/lib.php
 "$php" -l customer-portal/index.php
 "$php" -l customer-portal/view.php
@@ -38,11 +45,25 @@ cd "$repo"
 for tab in home orders vault support account; do "$php" tests/customer-portal-navigation.php "$tab"; done
 "$php" tests/customer-portal-navigation.php orders 104
 "$php" tests/customer-portal-navigation.php vault 103
-for file in index.php lib.php view.php customer-experience.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess; do
+echo "STEP 3/4: Backing up current portal code"
+backup="$(dirname "$config")/ankh-customer-portal-backups/$(date -u +%Y%m%dT%H%M%SZ)-$$"
+mkdir -p "$backup"
+chmod 700 "$(dirname "$backup")" "$backup"
+for file in "${files[@]}"; do
+  if [[ -f "$target/$file" ]]; then
+    cp -p -- "$target/$file" "$backup/$file"
+    chmod 600 "$backup/$file"
+  fi
+done
+echo "STEP 4/4: Installing and verifying portal files"
+for file in "${files[@]}"; do
   source="customer-portal/$file"
-  [[ -f "$source" ]] || { echo "Missing $source" >&2; exit 1; }
   tmp="$target/.$file.deploy.$$"
   install -m 644 "$source" "$tmp"
   mv -f "$tmp" "$target/$file"
+  cmp -s "$source" "$target/$file"
+  printf 'VERIFIED: %s\n' "$file"
 done
-printf 'Published ANKH Customer Portal to %s. Admin unchanged.\n' "$target"
+printf 'SUCCESS: All 11 customer portal files match the tested release.\n'
+printf 'Destination: %s\nPrivate code backup: %s\n' "$target" "$backup"
+printf 'This confirms files on disk. Check the web preview to confirm the served page.\n'
