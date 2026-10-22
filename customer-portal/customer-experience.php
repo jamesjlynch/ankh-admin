@@ -223,5 +223,5 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
 <nav class="pc-bottom-nav" aria-label="Mobile account navigation">
 <?php foreach($menu as [$key,$label]):?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" class="<?=$activeNav===$key?'selected':''?>" <?=$activeNav===$key?'aria-current="page"':''?>><?=pcIcon($key)?><span><?=$label?></span></a><?php endforeach;?>
 </nav>
-<?php if($tab==='vault' && $selected):?><script src="./account.js" defer></script><?php endif;?>
+<?php if(($tab==='vault' && $selected)||($tab==='catalogue' && empty($isDemo))):?><script src="./account.js?v=interactions-1" defer></script><?php endif;?>
 

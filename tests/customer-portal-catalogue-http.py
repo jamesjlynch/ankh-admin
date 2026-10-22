@@ -159,6 +159,27 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         request('/preview-live.php?customer_id=2&catalogue_image=2',status=404)
         html=request('/preview-live.php?customer_id=2&tab=catalogue&product=2')
         assert 'Product not available' in html and '<h1>Retatrutide' not in html
+        path='/preview-live.php?customer_id=2&tab=catalogue'
+        html=request(path); token=csrf(html)
+        request(path,{'csrf':'bad','action':'catalogue_favourite','product_id':1,'save':'1'},status=400)
+        html=request(path,{'csrf':token,'action':'catalogue_favourite','product_id':1,'save':'1','customer_id':1})
+        assert 'Product saved to favourites' in html
+        saved=request(path+'&saved=1');assert '>Case</a></h2>' in saved and '>Reference sample A</a></h2>' not in saved
+        other=request('/preview-live.php?customer_id=1&tab=catalogue&saved=1');assert 'No favourites yet' in other
+        hidden=request(path,{'csrf':token,'action':'catalogue_favourite','product_id':2,'save':'1'});assert 'no longer available' in hidden
+        html=request(path+'&product=1&enquire=1');assert 'product-enquiry' in html and 'data-product-zoom' in html
+        nonce=re.search(r'name="request_token" value="([a-f0-9]+)"',html).group(1)
+        payload={'csrf':token,'action':'catalogue_enquire','product_id':1,'message':'Question <script>unsafe()</script>','request_token':nonce,'price':1,'customer_id':1}
+        html=request(path,payload);assert 'Your enquiry has been sent' in html and '&lt;script&gt;unsafe()&lt;/script&gt;' in html
+        request(path,payload)
+        with sqlite3.connect(portal) as saved_db:
+            row=saved_db.execute('SELECT id,customer_id,price,preview FROM catalogue_enquiries').fetchall()
+            assert len(row)==1 and row[0][1:]==(2,1500,1),row
+            saved_db.execute('UPDATE catalogue_enquiries SET reply=?,status=? WHERE id=?',('Response <script>reply()</script>','Answered',row[0][0]))
+        html=request(path+'&view_enquiries=1');assert 'Answered' in html and 'Response &lt;script&gt;reply()&lt;/script&gt;' in html and '<script>reply()' not in html
+        other=request('/preview-live.php?customer_id=1&tab=catalogue&view_enquiries=1');assert 'No enquiries yet' in other and 'Question &lt;script&gt;' not in other
+        request(path,{'csrf':token,'action':'catalogue_favourite','product_id':1,'save':'0'})
+        assert 'No favourites yet' in request(path+'&saved=1')
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
         print('HTTP catalogue flow passed: Family & Friends pricing, descriptions, protected photos, hidden products, enquiries and unchanged Admin database; separate demo checkout also passed.')
     finally:

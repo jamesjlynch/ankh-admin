@@ -223,3 +223,78 @@ foreach($guideGroups as $groupIndex=>$group):$completed=count(array_filter($grou
 </div></details><?php endforeach;?>
 <p class="catalogue-guide-price">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form><?php
 }
+
+/** Customer interactions live in the private portal database, never the order database. */
+function ankhCustomerInteractionInit(PDO $db):void {
+    $db->exec("CREATE TABLE IF NOT EXISTS catalogue_favourites(customer_id INTEGER NOT NULL,product_id INTEGER NOT NULL,preview INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,PRIMARY KEY(customer_id,product_id,preview));
+    CREATE TABLE IF NOT EXISTS catalogue_enquiries(id INTEGER PRIMARY KEY,customer_id INTEGER NOT NULL,product_id INTEGER NOT NULL,preview INTEGER NOT NULL DEFAULT 0,product_name TEXT NOT NULL,price INTEGER NOT NULL,message TEXT NOT NULL,reply TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'Open',created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,request_token TEXT NOT NULL,UNIQUE(customer_id,preview,request_token));
+    CREATE INDEX IF NOT EXISTS catalogue_enquiries_customer ON catalogue_enquiries(customer_id,preview,created_at);");
+}
+function ankhCustomerInteractionStore():PDO {
+    $adminConfig=getenv('ANKH_ADMIN_CONFIG')?:dirname(__DIR__,2).'/ankh-admin-config.php';
+    $path=getenv('ANKH_PORTAL_CONFIG')?:dirname($adminConfig).'/ankh-customer-portal-config.php';
+    $config=is_file($path)?require $path:null;
+    if(!is_array($config)||!is_string($config['portal_database_path']??null)||!is_file($config['portal_database_path']))throw new RuntimeException('Customer inbox is unavailable.');
+    $db=new PDO('sqlite:'.$config['portal_database_path'],null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+    $db->exec('PRAGMA busy_timeout=5000');ankhCustomerInteractionInit($db);return $db;
+}
+function ankhCustomerFavourites(PDO $db,int $customerId,bool $preview):array {
+    $q=$db->prepare('SELECT product_id FROM catalogue_favourites WHERE customer_id=? AND preview=?');$q->execute([$customerId,(int)$preview]);return array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
+}
+function ankhCustomerEnquiries(PDO $db,int $customerId,bool $preview):array {
+    $q=$db->prepare('SELECT * FROM catalogue_enquiries WHERE customer_id=? AND preview=? ORDER BY created_at DESC,id DESC LIMIT 100');$q->execute([$customerId,(int)$preview]);return $q->fetchAll(PDO::FETCH_ASSOC);
+}
+function ankhCustomerSaveFavourite(PDO $store,array $product,int $customerId,bool $preview,bool $save):void {
+    if($save)$store->prepare('INSERT OR IGNORE INTO catalogue_favourites(customer_id,product_id,preview,created_at) VALUES(?,?,?,?)')->execute([$customerId,$product['id'],(int)$preview,time()]);
+    else $store->prepare('DELETE FROM catalogue_favourites WHERE customer_id=? AND product_id=? AND preview=?')->execute([$customerId,$product['id'],(int)$preview]);
+}
+function ankhCustomerCreateEnquiry(PDO $store,array $product,int $customerId,bool $preview,string $message,string $token):int {
+    $message=trim($message);
+    if($message===''||strlen($message)>20000||!preg_match('//u',$message)||preg_match_all('/./us',$message)>5000)throw new InvalidArgumentException('Enter a question of up to 5,000 characters.');
+    if(!preg_match('/^[a-f0-9]{64}$/D',$token))throw new InvalidArgumentException('Refresh the page before sending your enquiry.');
+    $store->exec('BEGIN IMMEDIATE');
+    try{
+        $q=$store->prepare('SELECT id FROM catalogue_enquiries WHERE customer_id=? AND preview=? AND request_token=?');$q->execute([$customerId,(int)$preview,$token]);
+        if($id=$q->fetchColumn()){$store->exec('COMMIT');return (int)$id;}
+        $q=$store->prepare('SELECT COUNT(*) FROM catalogue_enquiries WHERE customer_id=? AND preview=? AND created_at>?');$q->execute([$customerId,(int)$preview,time()-3600]);
+        if((int)$q->fetchColumn()>=10)throw new InvalidArgumentException('You have sent several enquiries. Please try again later.');
+        $store->prepare('INSERT INTO catalogue_enquiries(customer_id,product_id,preview,product_name,price,message,created_at,updated_at,request_token) VALUES(?,?,?,?,?,?,?,?,?)')->execute([$customerId,$product['id'],(int)$preview,$product['name'],$product['price'],$message,time(),time(),$token]);
+        $id=(int)$store->lastInsertId();$store->exec('COMMIT');return $id;
+    }catch(Throwable $e){$store->exec('ROLLBACK');throw $e;}
+}
+function ankhCustomerReply(PDO $store,int $id,string $reply,string $status):void {
+    $reply=trim($reply);
+    if(!in_array($status,['Open','Answered','Closed'],true)||strlen($reply)>20000||!preg_match('//u',$reply)||preg_match_all('/./us',$reply)>5000||($status==='Answered'&&$reply===''))throw new InvalidArgumentException('Choose a status and enter a reply of up to 5,000 characters. Answered enquiries need a reply.');
+    $q=$store->prepare('UPDATE catalogue_enquiries SET reply=?,status=?,updated_at=? WHERE id=?');$q->execute([$reply,$status,time(),$id]);
+    if(!$q->rowCount())throw new InvalidArgumentException('Enquiry could not be found.');
+}
+function ankhPortalCatalogueActions(PDO $store,PDO $admin,array $customer,bool $preview):void {
+    if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!in_array($_POST['action']??null,['catalogue_favourite','catalogue_enquire'],true))return;
+    if(!is_string($_POST['csrf']??null)||!hash_equals((string)($_SESSION['portal_csrf']??''),$_POST['csrf'])){http_response_code(400);exit('Invalid request.');}
+    try{
+        ankhCustomerInteractionInit($store);
+        $product=null;$id=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT);
+        foreach(ankhCatalogueProducts($admin,(int)$customer['id']) as $p)if($p['id']===$id){$product=$p;break;}
+        if(!$product)throw new InvalidArgumentException('This product is no longer available in the catalogue.');
+        if($_POST['action']==='catalogue_favourite'){
+            ankhCustomerSaveFavourite($store,$product,(int)$customer['id'],$preview,($_POST['save']??'')==='1');
+            $_SESSION['catalogue_flash']=($_POST['save']??'')==='1'?'Product saved to favourites.':'Product removed from favourites.';
+            $extra=($_POST['saved']??'')==='1'?'&saved=1':'';
+            if((int)($_POST['return_product']??0)===$product['id'])$extra.='&product='.$product['id'];
+        }else{
+            if(!is_string($_POST['message']??null)||!is_string($_POST['request_token']??null))throw new InvalidArgumentException('Enter your question.');
+            ankhCustomerCreateEnquiry($store,$product,(int)$customer['id'],$preview,$_POST['message'],$_POST['request_token']);
+            $_SESSION['catalogue_flash']='Your enquiry has been sent. You can read the response here when ANKH replies.';$extra='&view_enquiries=1';
+        }
+        $url=($preview?'./preview-live.php?customer_id='.(int)$customer['id'].'&':'./?').'tab=catalogue'.$extra;
+        header('Location: '.$url,true,303);exit;
+    }catch(InvalidArgumentException $e){$GLOBALS['catalogueInteractionError']=$e->getMessage();}
+    catch(Throwable $e){error_log('ANKH catalogue interaction: '.$e->getMessage());$GLOBALS['catalogueInteractionError']='Your request could not be saved. Please try again.';}
+}
+function ankhCustomerInbox(PDO $admin):void {
+    ?><div class="heading"><div><h1>Customer enquiries</h1><p class="muted">Product questions and replies. Staff preview tests are labelled separately.</p></div><a class="quick-action" href="?view=more">← More</a></div><?php
+    try{$store=ankhCustomerInteractionStore();$rows=$store->query('SELECT * FROM catalogue_enquiries ORDER BY CASE status WHEN "Open" THEN 0 WHEN "Answered" THEN 1 ELSE 2 END,created_at DESC LIMIT 100')->fetchAll();}
+    catch(Throwable $e){error_log('ANKH customer inbox: '.$e->getMessage());?><div class="panel"><p>The customer inbox is temporarily unavailable. Please try again later.</p></div><?php return;}
+    if(!$rows){?><div class="panel"><h2>No enquiries yet</h2><p>Customer product questions will appear here.</p></div><?php }
+    foreach($rows as $row){$q=$admin->prepare('SELECT name FROM customers WHERE id=?');$q->execute([$row['customer_id']]);$name=$q->fetchColumn()?:'Customer #'.$row['customer_id'];?><details class="panel" style="margin-bottom:16px"><summary style="cursor:pointer;list-style:none"><small><?=e($row['status'])?> · <?=e(date('d M Y H:i',$row['created_at']))?> <?=$row['preview']?' · STAFF TEST':''?></small><h2><?=e($row['product_name'])?></h2><p><?=e($name)?> · Enquiry #<?=(int)$row['id']?> · Displayed price £<?=number_format($row['price']/100,2)?></p></summary><p style="white-space:pre-wrap;overflow-wrap:anywhere"><?=e($row['message'])?></p><form method="post"><?php csrf();?><input type="hidden" name="action" value="catalogue_enquiry_reply"><input type="hidden" name="enquiry_id" value="<?=(int)$row['id']?>"><label>Reply shown to the customer<textarea name="reply" maxlength="5000" rows="5"><?=e($row['reply'])?></textarea></label><label>Status<select name="enquiry_status"><?php foreach(['Open','Answered','Closed'] as $state):?><option <?=$state===$row['status']?'selected':''?>><?=$state?></option><?php endforeach;?></select></label><button type="submit">Save reply &amp; status</button></form></details><?php }
+}
