@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once is_file(__DIR__.'/customer-catalogue.php')?__DIR__.'/customer-catalogue.php':dirname(__DIR__).'/customer-catalogue.php';
 require_once __DIR__.'/account-features.php';
 require_once __DIR__.'/request-watch.php';
+require_once __DIR__.'/contact-settings.php';
 
 /**
  * ANKH Customer Portal — isolated public application.
