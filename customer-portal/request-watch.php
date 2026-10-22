@@ -187,14 +187,14 @@ function portalCollectionController(PDO $store,PDO $admin,array $customer,bool $
             if($qty===false||$qty===null)throw new InvalidArgumentException('Choose between 0 and 99 items.');
             portalCollectionSet($store,(int)$customer['id'],$preview,$id,(int)$qty,$products,$availability);
             $_SESSION['collection_flash']=$qty===0?'Product removed from your request list.':'Request list updated.';
-            $target=(($_POST['return_to']??'')==='list')?'request-list':'catalogue';
+            $target=match((string)($_POST['return_to']??'')){'list'=>'basket','home'=>'home',default=>'catalogue'};
             if($target==='catalogue' && (int)($_POST['return_product']??0)===$id)$target='catalogue&product='.$id;
         }elseif($action==='collection_send'){
             $target='request-list';
             if(!is_string($_POST['revision']??null)||!is_string($_POST['request_token']??null)||!is_string($_POST['message']??null))throw new InvalidArgumentException('Refresh the request list and try again.');
-            portalCollectionSend($store,(int)$customer['id'],$preview,$products,$availability,$_POST['revision'],$_POST['request_token'],$_POST['message']);
+            $enquiryId=portalCollectionSend($store,(int)$customer['id'],$preview,$products,$availability,$_POST['revision'],$_POST['request_token'],$_POST['message']);
             $_SESSION['collection_flash']='Your combined request has been sent to ANKH. No order or payment has been created.';
-            $target='catalogue&view_enquiries=1';
+            $target='order-requested&enquiry='.(int)$enquiryId;
         }else{
             $id=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
             $product=portalCollectionProduct($products,$id);
