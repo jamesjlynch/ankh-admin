@@ -3337,6 +3337,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='supplier_order_cancel'){
    $supplierOrderId=(int)($_POST['supplier_order_id']??0);$q=$db->prepare('SELECT COALESCE(SUM(received_qty),0) FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$supplierOrderId]);if((int)$q->fetchColumn()>0)throw new Exception('This supplier order has already been partly received and cannot be cancelled.');$db->prepare("UPDATE supplier_orders SET status='Cancelled' WHERE id=?")->execute([$supplierOrderId]);
   }
+  if($action==='announcement_save'){
+   ankhAnnouncementSave(ankhCustomerInteractionStore(),$_POST);
+   header('Location: ./?view=announcements&saved=1',true,303);exit;
+  }
+  if($action==='announcement_hide'){
+   ankhAnnouncementHide(ankhCustomerInteractionStore(),(int)($_POST['announcement_id']??0));
+   header('Location: ./?view=announcements&saved=1',true,303);exit;
+  }
   if($action==='reminder_request_review'){
    if(!is_string($_POST['decision']??null)||!is_string($_POST['admin_note']??''))throw new Exception('Check the reminder decision.');
    ankhReviewReminderRequest($db,ankhCustomerInteractionStore(),(int)($_POST['request_id']??0),$_POST['decision'],(string)($_POST['admin_note']??''));
@@ -3911,7 +3919,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['announcements','enquiries','supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
@@ -5124,6 +5132,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </div></details>
 <?php endif;?>
 
+<?php elseif($view==='announcements'):ankhAnnouncementAdmin(ankhCustomerInteractionStore());?>
 <?php elseif($view==='enquiries'):ankhCustomerInbox($db);?>
 <?php elseif($view==='products'): ankhCatalogueInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
@@ -6318,6 +6327,7 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 <a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping Intelligence</h2><p>China holidays, disruption countdowns and mobile-friendly stock protection forecasts.</p></div><b>›</b></a>
 <a class="more-card" href="?view=activity"><span class="more-icon">≡</span><div><h2>Order &amp; payment activity</h2><p>Review recent changes to orders, payments, preparation and deliveries.</p></div><b>›</b></a>
 <a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
+<a class="more-card" href="?view=announcements"><span class="more-icon">◉</span><div><h2>Customer announcements</h2><p>Publish service, holiday and delivery updates with automatic expiry.</p></div><b>›</b></a>
 <a class="more-card" href="?view=enquiries"><span class="more-icon">✉</span><div><h2>Customer enquiries</h2><p>Read product questions, reply and manage their status.</p></div><b>›</b></a>
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
 <a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; Profit Centre</h2><p>Supplier box prices, margins, combined purchases and incoming stock.</p></div><b>›</b></a>
