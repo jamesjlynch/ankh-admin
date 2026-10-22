@@ -134,6 +134,10 @@ if ($requestedId) {
         $active=array_values(array_filter($orders,static fn(array $o): bool => !in_array(portalStatus($o),['Delivered','Cancelled'],true)));
     } else $notice='That customer record is not available.';
 }
+if($customer && $account && ($_GET['download']??'')==='statement') {
+    require_once __DIR__.'/statement.php';
+    portalStatementDownload($orders,$customer);
+}
 if($customer && $account)portalOrderRequestController($portal,$admin,$customer,$account,$orders,true);
 if($customer && $account)portalNotificationController($portal,$admin,$customer,$account,$orders,true);
 if($customer)ankhPortalCatalogueActions($portal,$admin,$customer,true);
