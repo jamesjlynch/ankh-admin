@@ -107,6 +107,12 @@ try {
     error_log('ANKH staff preview DB: '.$e->getMessage());
     http_response_code(503);exit('Order history is temporarily unavailable.');
 }
+// Staff-only portal management; the live Admin connection remains read-only.
+portalExtrasStaffController($portal,$admin);
+if(($_GET['manage']??'')==='portal'){
+    portalExtrasStaffPage($portal,$admin);
+    exit;
+}
 $search=trim((string)($_GET['q'] ?? ''));
 if (strlen($search)>80) $search=substr($search,0,80);
 if ($search !== '') {
@@ -140,6 +146,7 @@ if($customer && $account && ($_GET['download']??'')==='statement') {
 }
 if($customer && $account)portalOrderRequestController($portal,$admin,$customer,$account,$orders,true);
 if($customer && $account)portalNotificationController($portal,$admin,$customer,$account,$orders,true);
+if($customer && $account)portalExtrasController($portal,$admin,$customer,$account,$orders,true);
 if($customer)ankhPortalCatalogueActions($portal,$admin,$customer,true);
 if(isset($_GET['catalogue_image'])){
  if(!$customer){http_response_code(404);exit;}
