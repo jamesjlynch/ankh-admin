@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 if(!defined('ANKH_PORTAL_VIEW')||empty($customer)){http_response_code(404);exit;}
-$shopProducts=[];$shopAvailability=[];
+$shopProducts=[];$shopAvailability=[];$shopBasketQuantities=[];
 if(empty($isDemo)&&isset($admin,$portal)){
     try{
         $shopProducts=array_slice(ankhCatalogueProducts($admin,$customerId),0,4);
         $shopAvailability=portalExtrasAvailabilityMap($portal);
+        foreach(portalCollectionForCustomer($portal,$customerId,$staff,$shopProducts,$shopAvailability) as $entry)$shopBasketQuantities[(int)$entry['product']['id']]=(int)$entry['quantity'];
     }catch(Throwable $e){error_log('ANKH home catalogue: '.$e->getMessage());}
 }
 ?>
@@ -44,7 +45,7 @@ if(empty($isDemo)&&isset($admin,$portal)){
     </a>
     <div class="pc-shop-featured-content"><small><?=portalEscape($p['category'])?></small><h3><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['product'=>$p['id']]))?>"><?=portalEscape($p['name'])?></a></h3>
     <span class="pcs-availability pcs-status-<?=$availability['tone']?>"><?=portalEscape($availability['label'])?></span><div class="pc-shop-featured-foot"><strong><?=portalEscape(portalMoney($p['price']))?></strong>
-    <?php if($canAdd):?><form method="post"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="collection_set"><input type="hidden" name="product_id" value="<?=$p['id']?>"><input type="hidden" name="quantity" value="1"><input type="hidden" name="return_to" value="home"><button type="submit" aria-label="Add <?=portalEscape($p['name'])?> to basket"><?=pcIcon('basket')?> Add</button></form><?php else:?><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['product'=>$p['id']]))?>">View <?=pcIcon('right')?></a><?php endif;?>
+    <?php if($canAdd):?><form method="post"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="collection_set"><input type="hidden" name="product_id" value="<?=$p['id']?>"><input type="hidden" name="quantity" value="<?=min(99,1+(int)($shopBasketQuantities[$p['id']]??0))?>"><input type="hidden" name="return_to" value="home"><button type="submit" aria-label="Add <?=portalEscape($p['name'])?> to basket"><?=pcIcon('basket')?> <?=!empty($shopBasketQuantities[$p['id']])?'Add another':'Add'?></button></form><?php else:?><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['product'=>$p['id']]))?>">View <?=pcIcon('right')?></a><?php endif;?>
     </div></div>
   </article>
   <?php endforeach;?></div><?php endif;?>
