@@ -10,6 +10,7 @@ on:
       - 'scripts/publish-customer-portal.sh'
       - 'tests/customer-portal*.php'
       - 'tests/customer-statement.php'
+      - 'tests/customer-announcements.php'
       - 'tests/customer-portal-catalogue-http.py'
       - '.github/workflows/customer-portal-checks.yml'
   workflow_dispatch:
@@ -47,12 +48,14 @@ jobs:
           php -l scripts/configure-customer-preview.php
           php -l scripts/customer-portal-accounts.php
           php -l tests/customer-statement.php
+          php -l tests/customer-announcements.php
           php -l tests/customer-portal.php
           php -l tests/customer-portal-render.php
           bash -n scripts/publish-customer-portal.sh
       - name: Verify private order isolation, read-only DB and rate limiting
         run: |
           php tests/customer-statement.php
+          php tests/customer-announcements.php
           php tests/customer-portal.php
       - name: Prevent accidental raw PHP controller leakage in customer HTML
         run: php tests/customer-portal-render.php
