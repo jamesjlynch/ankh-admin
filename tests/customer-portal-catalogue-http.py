@@ -123,10 +123,20 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         request('/preview-live.php', {'csrf': token, 'action': 'staff_login', 'password': 'test-password'})
         html = request('/preview-live.php?customer_id=1&tab=catalogue')
         assert '>Case</a></h2>' in html and '£20.00' in html and 'Available · 4' in html
+        assert 'pcs-collection' in html and 'pcs-category-tabs' in html and 'pcs-card-actions' in html
+        assert 'aria-label="Enquire about Case"' in html and 'View product' in html
+        assert 'Stationery</a>' not in html
+        qa_path=os.environ.get('ANKH_CATALOGUE_QA_HTML')
+        if qa_path:Path(qa_path).write_text(html)
         assert 'Retatrutide' not in html and '£65.00' not in html
         assert '>Reference sample A</a></h2>' in html and 'Laboratory research only' in html
         assert 'Not for human or animal consumption' in html
         assert 'catalogue_action' not in html and 'cost' not in html.lower()
+        filtered=request('/preview-live.php?customer_id=1&tab=catalogue&category=Storage&sort=price-low&search=Case')
+        assert '>Case</a></h2>' in filtered and '>Reference sample A</a></h2>' not in filtered
+        assert 'category=Storage' in filtered and 'search=Case' in filtered and 'sort=price-low' in filtered
+        empty=request('/preview-live.php?customer_id=1&tab=catalogue&category=Storage&search=missing')
+        assert 'No matching products' in empty
         html = request('/preview-live.php?customer_id=2&tab=catalogue')
         assert '>Case</a></h2>' in html
         html=request('/preview-live.php?customer_id=2&tab=catalogue')
