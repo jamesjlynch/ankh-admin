@@ -327,3 +327,11 @@ a.pc-stat:hover{transform:translateY(-2px);border-color:rgba(231,197,130,.5)}
 .pc-statement-banner p{margin:0;max-width:650px;font-size:12px;line-height:1.7;color:#c0bfb5}
 .pc-statement-banner .pc-primary-link{flex:none;white-space:nowrap}
 @media(max-width:740px){.pc-statement-banner{flex-wrap:wrap;gap:15px;padding:21px}.pc-statement-banner .pc-statement-symbol{width:46px;height:46px}.pc-statement-banner h2{font-size:24px}.pc-statement-banner .pc-primary-link{width:100%;justify-content:center}}
+
+/* Staff-published account announcement. Content is HTML-escaped before display. */
+.pc-announcement{display:flex;align-items:flex-start;gap:19px;margin:-30px 0 36px;padding:22px 26px;border:1px solid rgba(232,196,124,.38);border-left:4px solid #d7af67;border-radius:16px;background:linear-gradient(110deg,#27231c,#161b1a 66%);box-shadow:0 10px 35px rgba(0,0,0,.15)}
+.pc-announcement-symbol{width:46px;height:46px;flex:none;display:grid;place-items:center;background:linear-gradient(145deg,#e9ca86,#bd9351);color:#241d12;border-radius:13px;font:27px Georgia,serif}
+.pc-announcement-content{min-width:0;flex:1}
+.pc-announcement h2{font:400 24px/1.25 Georgia,serif;color:#f5e7cb;margin:7px 0}
+.pc-announcement p{margin:0;color:#cbc9bf;font-size:13px;line-height:1.75;overflow-wrap:anywhere}
+@media(max-width:720px){.pc-announcement{margin:-22px 0 24px;padding:17px;gap:12px}.pc-announcement-symbol{width:37px;height:37px;font-size:22px}.pc-announcement h2{font-size:21px}}
