@@ -9,6 +9,7 @@ on:
       - 'scripts/customer-portal-accounts.php'
       - 'scripts/publish-customer-portal.sh'
       - 'tests/customer-portal*.php'
+      - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
       - 'tests/customer-statement.php'
       - 'tests/customer-announcements.php'
@@ -34,6 +35,9 @@ jobs:
       - name: Lint portal and management scripts
         run: |
           php -l customer-portal/index.php
+          php -l customer-portal/request-watch.php
+          php -l customer-portal/request-list-view.php
+          php -l customer-portal/watchlist-view.php
           php -l customer-portal/account-features.php
           php -l customer-portal/statement.php
           php -l customer-portal/lib.php
@@ -53,9 +57,12 @@ jobs:
           php -l tests/customer-announcements.php
           php -l tests/customer-portal.php
           php -l tests/customer-portal-render.php
+          node --check customer-portal/sw.js
+          python3 -m json.tool customer-portal/manifest.webmanifest >/dev/null
           bash -n scripts/publish-customer-portal.sh
       - name: Verify private order isolation, read-only DB and rate limiting
         run: |
+          php tests/customer-collection.php
           php tests/customer-account-features.php
           php tests/customer-statement.php
           php tests/customer-announcements.php
