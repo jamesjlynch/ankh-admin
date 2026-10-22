@@ -45,6 +45,7 @@ function portalAdminDb(array $config): PDO {
 function portalInitDb(PDO $db): void {
     $db->exec("CREATE TABLE IF NOT EXISTS portal_accounts (
         id INTEGER PRIMARY KEY,
+        auth_version INTEGER NOT NULL DEFAULT 1,
         customer_id INTEGER NOT NULL UNIQUE,
         phone_e164 TEXT NOT NULL UNIQUE,
         active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)),
@@ -56,6 +57,8 @@ function portalInitDb(PDO $db): void {
         attempts INTEGER NOT NULL,
         started_at INTEGER NOT NULL
     );");
+    $columns = array_column($db->query('PRAGMA table_info(portal_accounts)')->fetchAll(PDO::FETCH_ASSOC),'name');
+    if (!in_array('auth_version',$columns,true)) $db->exec('ALTER TABLE portal_accounts ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 1');
 }
 
 function portalMobile(string $raw): ?string {
@@ -70,13 +73,13 @@ function portalMobile(string $raw): ?string {
 }
 
 function portalAccountForPhone(PDO $db, string $phone): ?array {
-    $q = $db->prepare('SELECT id,customer_id,phone_e164,active FROM portal_accounts WHERE phone_e164=? AND active=1');
+    $q = $db->prepare('SELECT id,customer_id,phone_e164,active,auth_version FROM portal_accounts WHERE phone_e164=? AND active=1');
     $q->execute([$phone]);
     return $q->fetch() ?: null;
 }
 
 function portalAccountForId(PDO $db, int $id): ?array {
-    $q = $db->prepare('SELECT id,customer_id,phone_e164,active FROM portal_accounts WHERE id=? AND active=1');
+    $q = $db->prepare('SELECT id,customer_id,phone_e164,active,auth_version FROM portal_accounts WHERE id=? AND active=1');
     $q->execute([$id]);
     return $q->fetch() ?: null;
 }
