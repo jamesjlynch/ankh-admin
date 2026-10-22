@@ -242,3 +242,69 @@ function portalRecurringOrders(PDO $admin,array $customer,string $verifiedPhone,
     }
     return $out;
 }
+
+/** Current, account-scoped events. No mail, push or writes to the Admin database. */
+function portalNotificationEvents(array $orders,array $enquiries,array $reminders,?DateTimeImmutable $today=null):array {
+    $today=($today??new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->setTimezone(new DateTimeZone('Europe/London'));
+    $events=[];
+    foreach($enquiries as $row){
+        if(trim((string)$row['reply'])==='')continue;
+        $key=hash('sha256','reply:'.$row['id'].':'.$row['reply']);
+        $events[]=['key'=>$key,'kind'=>'reply','title'=>'ANKH replied to your enquiry','body'=>(string)$row['product_name'].' · Enquiry #'.(int)$row['id'],'tab'=>'catalogue','params'=>['view_enquiries'=>1],'priority'=>0,'sort'=>(int)$row['updated_at'],'label'=>'Reply available'];
+    }
+    foreach(array_slice($orders,0,30) as $order){
+        $date=(string)(trim((string)$order['delivery_date'])!==''?$order['delivery_date']:$order['created']);
+        try{$when=new DateTimeImmutable($date,new DateTimeZone('Europe/London'));}catch(Throwable $e){continue;}
+        if($when<$today->modify('-90 days'))continue;
+        $status=portalStatus($order);$balance=max(0,(int)$order['total']-(int)$order['paid']);
+        $state=[$order['id'],$status,$order['delivery_date'],$order['scheduled_delivery_date'],$order['tracking_reference'],$order['packaged'],$order['reconstituted'],$order['total'],$order['paid']];
+        $body=$status;
+        if(!in_array($status,['Delivered','Cancelled'],true)){if((int)$order['packaged']===1)$body.=' · Packaged';elseif((int)$order['reconstituted']===1)$body.=' · Prepared';}
+        if(trim((string)$order['scheduled_delivery_date'])!=='' && $status!=='Delivered' && $status!=='Cancelled')$body.=' · Planned delivery '.portalDate((string)$order['scheduled_delivery_date']);
+        if(trim((string)$order['tracking_reference'])!=='')$body.=' · Tracking available';
+        if($status!=='Cancelled')$body.=$balance>0?' · '.portalMoney($balance).' outstanding':' · No outstanding balance';
+        $events[]=['key'=>hash('sha256','order:'.json_encode($state)),'kind'=>'order','title'=>'Order ANK-'.str_pad((string)$order['id'],4,'0',STR_PAD_LEFT),'body'=>$body,'tab'=>'orders','params'=>['order'=>(int)$order['id']],'priority'=>2,'sort'=>$when->getTimestamp(),'label'=>'Current order update'];
+    }
+    foreach($reminders as $row){
+        if($row['days_until']>7)continue;
+        $phase=$row['days_until']<0?'passed':($row['days_until']===0?'today':'soon');
+        $title=$phase==='today'?'Reorder reminder: expected today':($phase==='passed'?'Review your reorder reminder':'Reorder reminder approaching');
+        $events[]=['key'=>hash('sha256','reminder:'.$row['id'].':'.$row['due_date'].':'.$phase),'kind'=>'reminder','title'=>$title,'body'=>$row['product'].' · Expected '.portalDate($row['due_date']),'tab'=>'recurring','params'=>[],'priority'=>1,'sort'=>strtotime($row['due_date'].' 00:00:00 Europe/London'),'label'=>'Saved order reminder'];
+    }
+    usort($events,static fn(array $a,array $b):int=>($a['priority']<=>$b['priority'])?:($b['sort']<=>$a['sort']));
+    return $events;
+}
+function portalNotificationInit(PDO $store):void {
+    $store->exec('CREATE TABLE IF NOT EXISTS portal_notification_state(customer_id INTEGER NOT NULL,preview INTEGER NOT NULL,event_key TEXT NOT NULL,read_at INTEGER NOT NULL DEFAULT 0,dismissed INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(customer_id,preview,event_key))');
+}
+function portalNotificationList(PDO $store,int $customerId,bool $preview,array $events):array {
+    $q=$store->prepare('SELECT event_key,read_at,dismissed FROM portal_notification_state WHERE customer_id=? AND preview=?');$q->execute([$customerId,(int)$preview]);
+    $states=[];foreach($q as $state)$states[$state['event_key']]=$state;
+    $out=[];foreach($events as $event){$state=$states[$event['key']]??[];if((int)($state['dismissed']??0)===1)continue;$event['read']=(int)($state['read_at']??0)>0;$out[]=$event;}
+    usort($out,static fn(array $a,array $b):int=>((int)$a['read']<=>(int)$b['read'])?:($a['priority']<=>$b['priority'])?:($b['sort']<=>$a['sort']));return $out;
+}
+function portalNotificationUpdate(PDO $store,int $customerId,bool $preview,array $events,string $action,string $key=''):void {
+    if(!in_array($action,['notification_read','notification_dismiss','notification_read_all'],true))throw new InvalidArgumentException('Invalid notification action.');
+    $owned=array_column($events,null,'key');
+    if($action!=='notification_read_all'&&!isset($owned[$key]))throw new InvalidArgumentException('This notification is no longer available.');
+    $keys=$action==='notification_read_all'?array_keys($owned):[$key];
+    $store->beginTransaction();
+    try{
+        $q=$store->prepare('INSERT INTO portal_notification_state(customer_id,preview,event_key,read_at,dismissed) VALUES(?,?,?,?,?) ON CONFLICT(customer_id,preview,event_key) DO UPDATE SET read_at=excluded.read_at,dismissed=MAX(portal_notification_state.dismissed,excluded.dismissed)');
+        foreach($keys as $eventKey)$q->execute([$customerId,(int)$preview,$eventKey,time(),$action==='notification_dismiss'?1:0]);
+        $store->commit();
+    }catch(Throwable $e){$store->rollBack();throw $e;}
+}
+function portalNotificationController(PDO $store,PDO $admin,array $customer,array $account,array $orders,bool $preview):void {
+    if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!in_array($_POST['action']??null,['notification_read','notification_dismiss','notification_read_all'],true))return;
+    if(!is_string($_POST['csrf']??null)||!hash_equals((string)($_SESSION['portal_csrf']??''),$_POST['csrf'])){http_response_code(400);exit('Invalid request.');}
+    try{
+        ankhCustomerInteractionInit($store);portalNotificationInit($store);
+        $events=portalNotificationEvents($orders,ankhCustomerEnquiries($store,(int)$customer['id'],$preview),portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders));
+        if(!is_string($_POST['event_key']??''))throw new InvalidArgumentException('Invalid notification.');
+        portalNotificationUpdate($store,(int)$customer['id'],$preview,$events,$_POST['action'],(string)($_POST['event_key']??''));
+        $_SESSION['notification_flash']=$_POST['action']==='notification_dismiss'?'Notification dismissed.':($_POST['action']==='notification_read_all'?'All current notifications marked as read.':'Notification marked as read.');
+    }catch(InvalidArgumentException $e){http_response_code(400);exit('This notification is no longer available. Refresh and try again.');}
+    catch(Throwable $e){error_log('ANKH notification action: '.$e->getMessage());$_SESSION['notification_flash']='Your changes could not be saved. Please try again.';}
+    header('Location: '.($preview?'./preview-live.php?customer_id='.(int)$customer['id'].'&':'./?').'tab=notifications',true,303);exit;
+}

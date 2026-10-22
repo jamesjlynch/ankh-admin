@@ -195,6 +195,25 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         account_page=request('/preview-live.php?customer_id=2&tab=account');assert 'tab=recurring' in account_page
         home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Recurring order reminders' in home_page
         other=request('/preview-live.php?customer_id=1&tab=recurring');assert 'No recurring orders set up' in other and '19 Nov 2026' not in other
+        notices_path='/preview-live.php?customer_id=2&tab=notifications'
+        notices=request(notices_path)
+        assert 'ANKH replied to your enquiry' in notices and 'Order ANK-0010' in notices
+        assert 'notification_read_all' in notices and 'pc-notification-bell' in notices and 'View reply' in notices
+        event_keys=re.findall(r'name="event_key" value="([a-f0-9]+)"',notices)
+        assert event_keys
+        request(notices_path,{'csrf':'wrong','action':'notification_read','event_key':event_keys[0]},status=400)
+        request(notices_path,{'csrf':token,'action':'notification_read','event_key':'f'*64},status=400)
+        marked=request(notices_path,{'csrf':token,'action':'notification_read_all','customer_id':1})
+        assert 'All current notifications marked as read' in marked
+        unread=request(notices_path+'&unread=1');assert 'You’re all caught up' in unread
+        other_notices=request('/preview-live.php?customer_id=1&tab=notifications')
+        assert 'ANKH replied to your enquiry' not in other_notices and 'Order ANK-0010' not in other_notices
+        dismissed=request(notices_path,{'csrf':token,'action':'notification_dismiss','event_key':event_keys[0]})
+        assert 'Notification dismissed' in dismissed and 'ANKH replied to your enquiry' not in dismissed
+        with sqlite3.connect(portal) as saved_db:
+            saved_db.execute('UPDATE catalogue_enquiries SET reply=? WHERE customer_id=2',('A newer answer',))
+            assert saved_db.execute('SELECT COUNT(*) FROM portal_notification_state WHERE customer_id=1').fetchone()[0]==0
+        fresh=request(notices_path+'&unread=1');assert 'ANKH replied to your enquiry' in fresh and 'is-unread' in fresh
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
         print('HTTP catalogue flow passed: Family & Friends pricing, descriptions, protected photos, hidden products, enquiries and unchanged Admin database; separate demo checkout also passed.')
     finally:

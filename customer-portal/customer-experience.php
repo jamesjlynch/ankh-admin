@@ -77,7 +77,7 @@ $staff=!empty($isStaffPreview);
 $customerId=(int)$customer['id'];
 $catalogueEnabled=true;
 $tab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
-$allowedTabs=['home','orders','vault','support','account','recurring'];
+$allowedTabs=['home','orders','vault','support','account','recurring','notifications'];
 if($catalogueEnabled)$allowedTabs[]='catalogue';
 if(!empty($isDemo))$allowedTabs=array_merge($allowedTabs,['basket','checkout','confirmation','test-orders']);
 if(!in_array($tab,$allowedTabs,true))$tab='home';
@@ -105,16 +105,22 @@ $outstanding=array_sum(array_map('pcBalance',$orders));
 $recent=$currentOrders[0]??($orders[0]??null);
 $events=pcEvents($orders);
 $menu=$catalogueEnabled?[['home','Home'],['catalogue','Catalogue'],['orders','Orders'],['vault','Vault'],['account','Account']]:[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Support'],['account','Account']];
-$activeNav=$tab==='recurring'?'account':(in_array($tab,['basket','checkout','confirmation','test-orders'],true)?'catalogue':$tab);
+$activeNav=in_array($tab,['recurring','notifications'],true)?'account':(in_array($tab,['basket','checkout','confirmation','test-orders'],true)?'catalogue':$tab);
 $recurringOrders=[];$recurringError=false;
 if(empty($isDemo) && isset($admin) && !empty($account['phone_e164'])){
     try{$recurringOrders=portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders);}catch(Throwable $e){error_log('ANKH customer reminders: '.$e->getMessage());$recurringError=true;}
 }
+$notifications=[];$notificationError=false;$unreadNotifications=0;
+if(empty($isDemo) && isset($portal)){
+    try{ankhCustomerInteractionInit($portal);portalNotificationInit($portal);$notifications=portalNotificationList($portal,$customerId,$staff,portalNotificationEvents($orders,ankhCustomerEnquiries($portal,$customerId,$staff),$recurringOrders));$unreadNotifications=count(array_filter($notifications,static fn(array $event):bool=>!$event['read']));}
+    catch(Throwable $e){error_log('ANKH notification centre: '.$e->getMessage());$notificationError=true;}
+}
+$notificationFlash=(string)($_SESSION['notification_flash']??'');unset($_SESSION['notification_flash']);
 $dueSoon=count(array_filter($recurringOrders,static fn(array $r):bool=>$r['days_until']<=7));
 $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer account support');
 ?>
 <div class="pc-app">
-  <div class="pc-overline"><span><?=pcIcon('shield')?> Secure customer workspace</span><a href="<?=portalEscape(pcHref('support',$staff,$customerId))?>">Get support <?=pcIcon('support')?></a></div>
+  <div class="pc-overline"><span><?=pcIcon('shield')?> Secure customer workspace</span><div class="pc-header-actions"><a class="pc-notification-bell" href="<?=portalEscape(pcHref('notifications',$staff,$customerId))?>" aria-label="Notifications<?=$unreadNotifications?', '.$unreadNotifications.' unread':''?>" <?=$tab==='notifications'?'aria-current="page"':''?>><?=pcIcon('bell')?><?php if($unreadNotifications):?><span><?=$unreadNotifications>99?'99+':$unreadNotifications?></span><?php endif;?></a><a href="<?=portalEscape(pcHref('support',$staff,$customerId))?>">Get support <?=pcIcon('support')?></a></div></div>
   <nav class="pc-top-nav" aria-label="Customer account navigation">
     <?php foreach($menu as [$key,$label]): ?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" <?=($activeNav===$key?'aria-current="page"':'')?> class="<?=$activeNav===$key?'selected':''?>"><?=pcIcon($key)?><span><?=portalEscape($label)?></span></a><?php endforeach;?>
   </nav>
@@ -127,6 +133,7 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
   </section>
   <?php if($catalogueEnabled):?><a class="pcd-home-banner" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>"><span class="pcd-home-icon"><?=pcIcon('catalogue')?></span><span><small><?=!empty($isDemo)?'ACCESSORY PREVIEW':'RESEARCH CATALOGUE'?></small><strong>Explore the collection</strong><span><?=!empty($isDemo)?'Try the catalogue, basket and checkout with sample accessories.':'See published products, your prices and availability.'?></span></span><?=pcIcon('right')?></a><?php endif;?>
   <?php if($recurringOrders):?><a class="pcr-home-reminder" href="<?=portalEscape(pcHref('recurring',$staff,$customerId))?>"><?=pcIcon('calendar')?><span><strong>Recurring order reminders</strong><small><?=$dueSoon?$dueSoon.' to review in the next 7 days or earlier':'Next expected date: '.portalEscape(portalDate($recurringOrders[0]['due_date']))?></small></span><?=pcIcon('right')?></a><?php endif;?>
+  <?php if($unreadNotifications):?><a class="pc-notification-home" href="<?=portalEscape(pcHref('notifications',$staff,$customerId))?>"><?=pcIcon('bell')?><span><?=$unreadNotifications?> unread update<?=$unreadNotifications===1?'':'s'?> <small>View your notifications</small></span><?=pcIcon('right')?></a><?php endif;?>
   <div class="pc-stat-grid">
     <a class="pc-stat pc-stat-gold" href="<?=portalEscape(pcHref('orders',$staff,$customerId,['filter'=>'active']))?>"><span><?=pcIcon('orders')?> Active orders</span><strong><?=count($currentOrders)?></strong><small>See what’s in progress <?=pcIcon('right')?></small></a>
     <a class="pc-stat" href="<?=portalEscape(pcHref('orders',$staff,$customerId))?>"><span><?=pcIcon('check')?> Total orders</span><strong><?=count($orders)?></strong><small>Complete order history <?=pcIcon('right')?></small></a>
@@ -218,6 +225,12 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
     </div>
     <?php if($orders):?><section class="pc-section-block"><div class="pc-section-header"><div><span class="pc-eyebrow">MAKE IT EASIER</span><h2>Ask about an order</h2></div></div><?php foreach(array_slice($orders,0,5) as $order):?><a class="pc-document-row" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Question about '.pcOrderRef($order))?>"><span><?=pcIcon('orders')?></span><div><strong><?=portalEscape(pcOrderRef($order))?></strong><small><?=portalEscape(portalDate((string)$order['created']))?> · <?=portalEscape(portalStatus($order))?></small></div><?=pcIcon('right')?></a><?php endforeach;?></section><?php endif;?>
 
+  <?php elseif($tab==='notifications'):$notificationUnreadOnly=($_GET['unread']??'')==='1';$shownNotifications=$notificationUnreadOnly?array_values(array_filter($notifications,static fn(array $event):bool=>!$event['read'])):$notifications;?>
+    <section class="pc-page-heading"><span class="pc-eyebrow">YOUR ACCOUNT, UP TO DATE</span><h1>Notifications<span class="pc-dot">.</span></h1><p>Enquiry replies, current order updates and approaching reorder dates.</p></section>
+    <?php if($notificationFlash!==''):?><p class="pc-notification-feedback" role="status"><?=portalEscape($notificationFlash)?></p><?php endif;?>
+    <?php if($notificationError):?><div class="pc-panel pc-empty" role="alert"><h2>Notifications temporarily unavailable</h2><p>Please try again later.</p></div><?php else:?>
+    <div class="pc-notification-toolbar"><nav aria-label="Filter notifications"><a href="<?=portalEscape(pcHref('notifications',$staff,$customerId))?>" <?=!$notificationUnreadOnly?'aria-current="page"':''?>>All updates</a><a href="<?=portalEscape(pcHref('notifications',$staff,$customerId,['unread'=>1]))?>" <?=$notificationUnreadOnly?'aria-current="page"':''?>>Unread <span><?=$unreadNotifications?></span></a></nav><?php if($unreadNotifications):?><form method="post"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="notification_read_all"><button type="submit">Mark all as read</button></form><?php endif;?></div>
+    <?php if(!$shownNotifications):?><div class="pc-panel pc-empty"><h2><?=$notificationUnreadOnly?'You’re all caught up':'No notifications to show'?></h2><p>Updates will appear here when there is something to review.</p></div><?php else:?><div class="pc-notification-list"><?php foreach($shownNotifications as $event):?><article class="pc-notification-card <?=$event['read']?'is-read':'is-unread'?>"><span class="pc-notification-icon"><?=pcIcon($event['kind']==='reply'?'mail':($event['kind']==='reminder'?'calendar':'orders'))?></span><div class="pc-notification-content"><small><?=portalEscape($event['label'])?><?=$event['read']?' · Read':' · Unread'?></small><h2><?=portalEscape($event['title'])?></h2><p><?=portalEscape($event['body'])?></p><a class="pc-notification-open" href="<?=portalEscape(pcHref($event['tab'],$staff,$customerId,$event['params']))?>">View <?=$event['kind']==='reply'?'reply':($event['kind']==='reminder'?'reminder':'order')?> <?=pcIcon('right')?></a><div class="pc-notification-actions"><?php foreach($event['read']?['notification_dismiss'=>'Dismiss']:['notification_read'=>'Mark as read','notification_dismiss'=>'Dismiss'] as $action=>$label):?><form method="post"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="<?=$action?>"><input type="hidden" name="event_key" value="<?=portalEscape($event['key'])?>"><button type="submit"><?=$label?></button></form><?php endforeach;?></div></div><?php if(!$event['read']):?><span class="pc-notification-dot" aria-hidden="true"></span><?php endif;?></article><?php endforeach;?></div><?php endif;?><p class="pc-notification-footnote">Updates refresh when you open the portal. Read and dismissed states are saved to your account.</p><?php endif;?>
   <?php elseif($tab==='recurring'):
     $recurringCatalogue=[];if(empty($isDemo)){try{$recurringCatalogue=ankhCatalogueProducts($admin,$customerId);}catch(Throwable $e){error_log('ANKH reminder product links: '.$e->getMessage());}}
   ?>
@@ -233,6 +246,7 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
     <p class="pcr-footer-note">Need to change or stop a reminder? Contact ANKH so the account record can be updated.</p>
   <?php elseif($tab==='account'): ?>
     <section class="pc-page-heading"><span class="pc-eyebrow">YOUR INFORMATION</span><h1>My account<span class="pc-dot">.</span></h1><p>Review the contact details ANKH has recorded for you.</p></section>
+    <a class="pcr-account-link" href="<?=portalEscape(pcHref('notifications',$staff,$customerId))?>"><span class="pcr-link-icon"><?=pcIcon('bell')?></span><span><strong>Notifications</strong><small><?=$unreadNotifications?> unread update<?=$unreadNotifications===1?'':'s'?></small></span><?=pcIcon('right')?></a>
     <a class="pcr-account-link" href="<?=portalEscape(pcHref('recurring',$staff,$customerId))?>"><span class="pcr-link-icon"><?=pcIcon('calendar')?></span><span><strong>Recurring orders</strong><small><?=count($recurringOrders)?> active reminder<?=count($recurringOrders)===1?'':'s'?> · See expected reorder dates</small></span><?=pcIcon('right')?></a>
     <div class="pc-account-grid">
       <section class="pc-panel pc-account-card"><div class="pc-section-header"><div><span class="pc-eyebrow">PERSONAL PROFILE</span><h2>My details</h2></div><?=pcIcon('account')?></div><div class="pc-profile-big"><span class="pc-profile-avatar"><?=portalEscape(strtoupper(substr((string)$firstName,0,1)))?></span><div><strong><?=portalEscape((string)$customer['name'])?></strong><small>ANKH customer · Account #<?=$customerId?></small></div></div><div class="pc-info-row"><span>Mobile number on file</span><strong><?=portalEscape((string)($customer['phone']?:'Not recorded'))?></strong></div><div class="pc-info-row"><span>Postal / delivery address</span><strong><?=trim((string)$customer['address'])!==''?nl2br(portalEscape((string)$customer['address'])):'No address saved'?></strong></div><div class="pc-info-row"><span>Order history</span><strong><?=count($orders)?> recorded</strong></div><a class="pc-outline-button" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Update my ANKH account details')?>"><?=pcIcon('mail')?> Request a change</a></section>

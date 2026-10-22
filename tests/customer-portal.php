@@ -73,3 +73,31 @@ $portal->exec("UPDATE portal_accounts SET active=0,auth_version=auth_version+1 W
 expectPortal(portalAccountForPhone($portal,'+447123456789')===null,'Revoke immediately');
 echo "Customer portal privacy, order reconciliation and throttling tests passed.\n";
 
+
+$notificationsStore=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+portalNotificationInit($notificationsStore);
+$noticeOrder=['id'=>44,'status'=>'New','created'=>'2026-10-22','delivery_date'=>'','scheduled_delivery_date'=>'','tracking_reference'=>'','packaged'=>0,'reconstituted'=>0,'total'=>2000,'paid'=>0];
+$noticeReply=['id'=>5,'reply'=>'Saved answer','product_name'=>'Fixture item','updated_at'=>1700000000];
+$noticeReminder=['id'=>1,'product'=>'Fixture product','due_date'=>'2026-10-28','days_until'=>6];
+$noticeToday=new DateTimeImmutable('2026-10-22',new DateTimeZone('Europe/London'));
+$generated=portalNotificationEvents([$noticeOrder],[$noticeReply],[$noticeReminder],$noticeToday);
+expectPortal(count($generated)===3,'Replies, current orders and due-soon reminders create notifications');
+$visible=portalNotificationList($notificationsStore,1,false,$generated);
+expectPortal(count(array_filter($visible,fn($row)=>!$row['read']))===3,'New notifications start unread');
+portalNotificationUpdate($notificationsStore,1,false,$generated,'notification_read',$generated[0]['key']);
+$visible=portalNotificationList($notificationsStore,1,false,$generated);
+expectPortal(count(array_filter($visible,fn($row)=>!$row['read']))===2,'Read state persists across regeneration');
+expectPortal(count(array_filter(portalNotificationList($notificationsStore,2,false,$generated),fn($row)=>!$row['read']))===3,'Notification state belongs to one customer');
+expectPortal(count(array_filter(portalNotificationList($notificationsStore,1,true,$generated),fn($row)=>!$row['read']))===3,'Preview state is separate from real customer state');
+portalNotificationUpdate($notificationsStore,1,false,$generated,'notification_dismiss',$generated[0]['key']);
+portalNotificationUpdate($notificationsStore,1,false,$generated,'notification_read_all');
+$visible=portalNotificationList($notificationsStore,1,false,$generated);
+expectPortal(count($visible)===2 && !array_filter($visible,fn($row)=>!$row['read']),'Mark all read preserves dismissed state');
+$changed=portalNotificationEvents([array_replace($noticeOrder,['packaged'=>1])],[$noticeReply],[$noticeReminder],$noticeToday);
+expectPortal(count(array_filter(portalNotificationList($notificationsStore,1,false,$changed),fn($row)=>!$row['read']))===1,'A real order change creates a fresh unread update');
+$newReply=portalNotificationEvents([$noticeOrder],[array_replace($noticeReply,['reply'=>'Updated answer'])],[$noticeReminder],$noticeToday);
+expectPortal(count(array_filter(portalNotificationList($notificationsStore,1,false,$newReply),fn($row)=>!$row['read']))===1,'A changed reply creates a fresh notification');
+expectPortal(portalNotificationEvents([],[],[array_replace($noticeReminder,['days_until'=>8])],$noticeToday)===[],'Reminders beyond seven days do not notify');
+expectPortal(portalNotificationEvents([array_replace($noticeOrder,['created'=>'2020-01-01'])],[],[],$noticeToday)===[],'Old order history does not flood notifications');
+try{portalNotificationUpdate($notificationsStore,1,false,$generated,'notification_read',str_repeat('f',64));throw new RuntimeException('Unknown event accepted');}catch(InvalidArgumentException $e){}
+echo "Customer notification generation, persistence, isolation, read/dismiss controls and refresh checks passed.\n";
