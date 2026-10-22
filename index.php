@@ -3339,7 +3339,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    if(!$catalogueProductId || !is_string($_POST['catalogue_description']??''))throw new Exception('Check the catalogue product details.');
    $cataloguePhoto=ankhCataloguePhotoUpload($_FILES['catalogue_photo']??[]);
-   ankhCatalogueSaveContent($db,(int)$catalogueProductId,(string)($_POST['catalogue_description']??''),$cataloguePhoto,($_POST['remove_catalogue_photo']??'')==='1',($_POST['catalogue_visible']??'')==='1',isset($_POST['catalogue_information'])?(is_array($_POST['catalogue_information'])?$_POST['catalogue_information']:throw new Exception('Check product information.')):null);
+   ankhCatalogueSaveContent($db,(int)$catalogueProductId,(string)($_POST['catalogue_description']??''),$cataloguePhoto,($_POST['remove_catalogue_photo']??'')==='1',($_POST['catalogue_visible']??'')==='1',($_POST['catalogue_editor']??'')==='unified'?[]:(isset($_POST['catalogue_information'])?(is_array($_POST['catalogue_information'])?$_POST['catalogue_information']:throw new Exception('Check product information.')):null));
   }
   if($action==='product_catalogue_visibility'){
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
@@ -5112,7 +5112,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php endif;?>
 
 <?php elseif($view==='products'): ankhCatalogueInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);?>
-<script src="catalogue-admin.js?v=1" defer></script>
+<script src="catalogue-admin.js?v=unified-2" defer></script>
 <div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><a class="quick-action" href="?view=stock">Stock control →</a></div>
 <div class="product-history-note"><strong>Historical prices are protected</strong><span>Changing retail, Family &amp; Friends or cost prices here only affects future orders. Reports keep the selling price and cost saved on each original order.</span></div>
 <label class="product-search"><span>Find a product</span><input id="product-filter" type="search" placeholder="Search by name or strength" autocomplete="off" aria-label="Search products by name or strength"><span class="product-search-icon" aria-hidden="true">⌕</span></label>
