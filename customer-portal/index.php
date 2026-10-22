@@ -87,7 +87,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $_SESSION['portal_pending_phone'] = $phone;
             $_SESSION['portal_pending_until'] = time() + 600;
             // Deliberately show the same confirmation to unregistered numbers.
-            if (portalAccountForPhone($portal, $phone)) {
+            if (($eligible = portalAccountForPhone($portal, $phone)) && portalCustomer($admin, $eligible)) {
                 try { portalSendCode($config,$phone); }
                 catch (Throwable $e) { error_log('ANKH portal SMS delivery failed: ' . $e->getMessage()); }
             }
