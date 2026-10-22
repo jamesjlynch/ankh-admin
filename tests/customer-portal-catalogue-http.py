@@ -159,7 +159,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'Original research &lt;script&gt;unsafe&lt;/script&gt;' in html
         assert 'https://example.org/fixture-analysis.pdf' in html and 'noopener noreferrer' in html
         assert '<script>unsafe</script>' not in html
-        assert '<h1>Case</h1>' in html and '£15.00' in html and 'Enquire about this product' in html
+        assert '<h1>Case</h1>' in html and '£15.00' in html and 'Add to request list' in html
         assert '&lt;script&gt;example&lt;/script&gt;' in html and '<script>example</script>' not in html
         photo=opener.open(base+'/preview-live.php?customer_id=2&catalogue_image=1')
         assert photo.headers['Content-Type']=='image/png' and photo.read()==image_bytes
