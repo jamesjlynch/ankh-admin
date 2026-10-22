@@ -229,6 +229,13 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
         <div class="pc-detail-actions pc-print-hide"><button type="button" id="pc-print-action" class="pc-outline-button"><?=pcIcon('print')?> Print or save as PDF</button><a href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Documents for '.pcOrderRef($selected))?>" class="pc-outline-button"><?=pcIcon('mail')?> Request documents</a></div>
       </article>
     <?php else:?>
+      <?php if(empty($isDemo)):?>
+      <section class="pc-statement-banner" aria-labelledby="pc-statement-heading">
+        <div class="pc-statement-symbol" aria-hidden="true"><?=pcIcon('vault')?></div>
+        <div><span class="pc-eyebrow">YOUR ACCOUNT IN ONE DOCUMENT</span><h2 id="pc-statement-heading">Download your statement</h2><p>All recorded orders, payments and outstanding balances in one private PDF. Cancelled orders are excluded from totals.</p></div>
+        <a class="pc-primary-link" href="<?=portalEscape(pcHref('vault',$staff,$customerId,['download'=>'statement']))?>">Download PDF <?=pcIcon('right')?></a>
+      </section>
+      <?php endif;?>
       <div class="pc-vault-note"><?=pcIcon('shield')?><div><strong>Private, accurate records</strong><p>These summaries use your actual orders. Batch certificates and laboratory reports will only appear here once ANKH has matched and uploaded verified documentation.</p></div></div>
       <section class="pc-section-block"><div class="pc-section-header"><div><span class="pc-eyebrow">AVAILABLE NOW</span><h2>Order summaries</h2></div><span class="pc-count"><?=count($orders)?> records</span></div>
       <?php foreach($orders as $order):?><a class="pc-document-row" href="<?=portalEscape(pcHref('vault',$staff,$customerId,['order'=>(int)$order['id']]))?>"><span><?=pcIcon('vault')?></span><div><strong><?=portalEscape(pcOrderRef($order))?> · Order summary</strong><small><?=portalEscape(portalDate((string)$order['created']))?> · <?=portalEscape(pcLines($order))?></small></div><?=pcIcon('right')?></a><?php endforeach;?>
