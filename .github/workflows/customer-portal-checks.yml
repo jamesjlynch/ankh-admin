@@ -9,6 +9,7 @@ on:
       - 'scripts/customer-portal-accounts.php'
       - 'scripts/publish-customer-portal.sh'
       - 'tests/customer-portal*.php'
+      - 'tests/customer-account-features.php'
       - 'tests/customer-statement.php'
       - 'tests/customer-announcements.php'
       - 'tests/customer-portal-catalogue-http.py'
@@ -33,6 +34,7 @@ jobs:
       - name: Lint portal and management scripts
         run: |
           php -l customer-portal/index.php
+          php -l customer-portal/account-features.php
           php -l customer-portal/statement.php
           php -l customer-portal/lib.php
           php -l customer-portal/view.php
@@ -54,6 +56,7 @@ jobs:
           bash -n scripts/publish-customer-portal.sh
       - name: Verify private order isolation, read-only DB and rate limiting
         run: |
+          php tests/customer-account-features.php
           php tests/customer-statement.php
           php tests/customer-announcements.php
           php tests/customer-portal.php
@@ -61,7 +64,7 @@ jobs:
         run: php tests/customer-portal-render.php
       - name: Verify five customer screens and drill-down interactions
         run: |
-          for tab in home orders vault support account recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
+          for tab in home orders vault support account insights recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
           php tests/customer-portal-navigation.php orders 104
           php tests/customer-portal-navigation.php vault 103
       - name: Verify accessory preview pricing, checkout and isolation
