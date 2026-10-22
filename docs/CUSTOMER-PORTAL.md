@@ -107,3 +107,33 @@ Save the one-time randomly generated password privately. **Never paste it into C
 Then deploy with the dedicated `scripts/publish-customer-portal.sh` script and open **https://order.ankhpeptides.com/preview-live.php** to sign in as staff. The folder must be `/home/devcouk/public_html/ankh-order`.
 
 **Before giving customers the domain:** disable or remove the staff preview (delete the published `preview-live.php` and remove `preview_password_hash` from private config) once staff review finishes.
+
+## October 2026 — Premium customer workspace (five tabs)
+
+Once signed in, **Home**, **Orders**, **Vault**, **Support** and **Account** use a unified black-and-gold responsive design. On iPhone there is a fixed five-tab bottom navigation; on wider screens navigation is horizontal. The protected live-data staff preview uses the same views as the eventual customer account.
+
+- **Home:** active order count, total order count, recorded payments, outstanding balances, latest order progress and dated activity derived from actual order creation/payment/delivery records.
+- **Orders:** customer-scoped search and status filters, expandable individual order journeys, item prices/quantities, delivery method/reference if present, recorded payment events, outstanding balance and a link to a printable summary. Stages are based on existing order status and preparation flags; only created and delivered dates are shown as verified event timestamps. Planned delivery is not proof of delivery.
+- **Vault:** printable order summaries generated from the authenticated customer's actual order data; not VAT invoices and not automatically-issued batch certificates. Laboratory and batch documents are clearly labelled as not yet online; links request documents by email.
+- **Support:** working mailto links for different types of enquiry and individual order references. This does **not** falsely claim to provide live chat, unread messages or support-ticket tracking.
+- **Account:** name, mobile, address, recorded order count and email-based change / personal-data requests. No direct customer-editing yet.
+
+All views are server-rendered PHP with escaped customer content, and order drill-down selection is constrained to the current verified customer's already-filtered order array. There are no new public database write permissions and no sales/checkout, reordering, discounts or dosing features.
+
+### Safe deployment to the existing protected Krystal staff preview
+
+Keep the main Admin checkout on `main`. Update staging **without switching branches**:
+
+```sh
+bash -lc 'set -euo pipefail; R=/home/devcouk/repositories/ankh-admin-git; S=/home/devcouk/ankh-customer-portal-staging; git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal; git -C "$R" archive origin/feature/ankh-customer-portal customer-portal scripts/customer-portal-accounts.php scripts/configure-customer-preview.php scripts/publish-customer-portal.sh tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php | tar -x -C "$S"; php "$S/tests/customer-portal.php"; php "$S/tests/customer-portal-render.php"; for tab in home orders vault support account; do php "$S/tests/customer-portal-navigation.php" "$tab"; done'
+```
+
+After all tests pass, publish to the isolated Krystal subdomain only:
+
+```sh
+ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash /home/devcouk/ankh-customer-portal-staging/scripts/publish-customer-portal.sh
+```
+
+Then visit `https://order.ankhpeptides.com/preview-live.php`, unlock with the existing private staff preview password and select a real customer. The actual customer login at `/` remains gated until a valid SMS provider is installed and tested.
+
+CI contains isolated fixtures covering identity matching, payment and delivery totals, the rendered template (no raw PHP leakage), the five tabs and order-detail/print views. A PHP render/lint test cannot replace an end-to-end iPhone check with an authenticated account.
