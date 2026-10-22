@@ -6,8 +6,8 @@ $portalAvailability=[];
 try{$portalAvailability=portalExtrasAvailabilityMap($portal);}catch(Throwable $e){error_log('ANKH availability labels: '.$e->getMessage());}
 try{$catalogueProducts=ankhCatalogueProducts($admin,(int)$customer['id']);}
 catch(Throwable $e){error_log('ANKH customer catalogue: '.$e->getMessage());$catalogueProducts=[];$catalogueError=true;}
-$interactionReady=true;$savedIds=[];$myEnquiries=[];
-try{ankhCustomerInteractionInit($portal);$savedIds=ankhCustomerFavourites($portal,(int)$customer['id'],$staff);$myEnquiries=ankhCustomerEnquiries($portal,(int)$customer['id'],$staff);}catch(Throwable $e){error_log('ANKH catalogue workspace: '.$e->getMessage());$interactionReady=false;}
+$interactionReady=true;$savedIds=[];$myEnquiries=[];$requestProducts=[];$watchedIds=[];$requestQuantity=[];
+try{ankhCustomerInteractionInit($portal);portalCollectionInit($portal);$savedIds=ankhCustomerFavourites($portal,(int)$customer['id'],$staff);$myEnquiries=ankhCustomerEnquiries($portal,(int)$customer['id'],$staff);$requestProducts=portalCollectionForCustomer($portal,(int)$customer['id'],$staff,$catalogueProducts,$portalAvailability);foreach($requestProducts as $line)$requestQuantity[(int)$line['product']['id']]=(int)$line['quantity'];$watchedIds=array_column(portalWatches($portal,(int)$customer['id'],$staff),'product_id');}catch(Throwable $e){error_log('ANKH catalogue workspace: '.$e->getMessage());$interactionReady=false;}
 $catalogueSavedOnly=($_GET['saved']??'')==='1';$catalogueShowEnquiries=($_GET['view_enquiries']??'')==='1';
 $interactionFlash=(string)($_SESSION['catalogue_flash']??'');unset($_SESSION['catalogue_flash']);
 $catalogueSearch=is_string($_GET['search']??null)?substr(trim($_GET['search']),0,80):'';
@@ -29,6 +29,36 @@ function pcsFavourite(array $p,array $savedIds,bool $ready,bool $savedOnly,bool 
 }
 function pcsStock(array $p):string {return portalExtrasAvailability($p,$GLOBALS['portalAvailability']??[])['label'];}
 function pcsStockTone(array $p):string {return portalExtrasAvailability($p,$GLOBALS['portalAvailability']??[])['tone'];}
+function pcsCollectionAction(array $p,bool $compact=false):void {
+    if(empty($GLOBALS['interactionReady'])||!empty($GLOBALS['isDemo']))return;
+    $state=portalExtrasAvailability($p,$GLOBALS['portalAvailability']??[]);
+    $watched=in_array((int)$p['id'],$GLOBALS['watchedIds']??[],true);
+    $quantity=(int)(($GLOBALS['requestQuantity']??[])[$p['id']]??0);
+    ?>
+    <div class="pc-collection-actions <?=$compact?'is-compact':''?>">
+    <?php if(!in_array($state['tone'],['unavailable','coming'],true)):?>
+      <form method="post" class="pc-collection-add">
+        <input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>">
+        <input type="hidden" name="action" value="collection_set">
+        <input type="hidden" name="product_id" value="<?=$p['id']?>">
+        <input type="hidden" name="return_product" value="<?=$compact?0:$p['id']?>">
+        <?php if(!$compact):?><label class="pc-collection-qty">Quantity <input type="number" min="1" max="99" name="quantity" value="<?=$quantity?:1?>" required></label><?php else:?><input type="hidden" name="quantity" value="<?=$quantity?:1?>"><?php endif;?>
+        <button type="submit"><?=pcIcon('catalogue')?> <?=$quantity?'Update request list':'Add to request list'?></button>
+      </form>
+      <?php if($quantity):?><a class="pc-collection-view-list" href="<?=portalEscape(pcHref('request-list',(bool)$GLOBALS['staff'],(int)$GLOBALS['customerId']))?>">Review list</a><?php endif;?>
+    <?php endif;?>
+    <?php if($watched||in_array($state['tone'],['unavailable','coming','enquire'],true)):?>
+      <form method="post" class="pc-collection-watch">
+        <input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>">
+        <input type="hidden" name="action" value="watch_set">
+        <input type="hidden" name="product_id" value="<?=$p['id']?>">
+        <input type="hidden" name="enabled" value="<?=$watched?'0':'1'?>">
+        <button type="submit"><?=pcIcon('bell')?> <?=$watched?'Stop watching':'Notify me when available'?></button>
+      </form>
+    <?php endif;?>
+    </div>
+    <?php
+}
 function pcsExcerpt(string $text):string {
     $text=ankhCatalogueSummary($text);
     preg_match('/^.{0,110}/us',$text,$match);$short=$match[0]??'';
@@ -41,8 +71,10 @@ function pcsExcerpt(string $text):string {
 <?php elseif($catalogueSelected):?><a class="pc-back" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,$catalogueParams))?>">← Back to the collection</a><?php endif;?>
 <details class="pcs-policy"><summary><?=pcIcon('shield')?><span>Laboratory research only · 18+ <small>Not for human or animal consumption</small></span><span aria-hidden="true">⌄</span></summary><p>For laboratory research, in-vitro testing and academic evaluation only. Not intended to diagnose, treat, cure or prevent disease.</p></details>
 <?php if($staff):?><details class="pcs-staff-note"><summary>Staff preview · Connected to Admin</summary><p>Photos and descriptions are edited under Products → Customer catalogue. Only active products ticked “Visible on customer's dashboard” are shown. Enquiries and favourites created here are marked as staff tests and kept separate from customer activity.</p></details><?php endif;?>
-<nav class="pcs-workspace-nav" aria-label="Catalogue workspace"><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>" <?=!$catalogueShowEnquiries&&!$catalogueSavedOnly?'aria-current="page"':''?>>Collection</a><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['saved'=>1]))?>" <?=$catalogueSavedOnly?'aria-current="page"':''?>>Favourites <span><?=count(array_intersect($savedIds,array_column($catalogueProducts,'id')))?></span></a><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['view_enquiries'=>1]))?>" <?=$catalogueShowEnquiries?'aria-current="page"':''?>>My enquiries <span><?=count($myEnquiries)?></span></a></nav>
+<nav class="pcs-workspace-nav" aria-label="Catalogue workspace"><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>" <?=!$catalogueShowEnquiries&&!$catalogueSavedOnly?'aria-current="page"':''?>>Collection</a><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['saved'=>1]))?>" <?=$catalogueSavedOnly?'aria-current="page"':''?>>Favourites <span><?=count(array_intersect($savedIds,array_column($catalogueProducts,'id')))?></span></a><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['view_enquiries'=>1]))?>" <?=$catalogueShowEnquiries?'aria-current="page"':''?>>My enquiries <span><?=count($myEnquiries)?></span></a><a href="<?=portalEscape(pcHref('request-list',$staff,$customerId))?>">Request list <span><?=count($requestProducts)?></span></a><a href="<?=portalEscape(pcHref('watchlist',$staff,$customerId))?>">Watchlist <span><?=count($watchedIds)?></span></a></nav>
 <?php if($interactionFlash!==''):?><p class="pcs-feedback" role="status"><?=portalEscape($interactionFlash)?></p><?php endif;?>
+<?php if(($collectionFlash=(string)($_SESSION['collection_flash']??''))!==''):unset($_SESSION['collection_flash']);?><p class="pcs-feedback" role="status"><?=portalEscape($collectionFlash)?></p><?php endif;?>
+<?php if(!empty($GLOBALS['collectionError'])):?><p class="pcs-feedback pcs-feedback-error" role="alert"><?=portalEscape($GLOBALS['collectionError'])?></p><?php endif;?>
 <?php if(!empty($catalogueInteractionError)):?><p class="pcs-feedback pcs-feedback-error" role="alert"><?=portalEscape($catalogueInteractionError)?></p><?php endif;?>
 <?php if(!$interactionReady):?><p class="pcs-feedback" role="alert">Favourites and enquiries are temporarily unavailable. Please try again later.</p><?php endif;?>
 <?php if($catalogueShowEnquiries):?>
@@ -59,7 +91,7 @@ function pcsExcerpt(string $text):string {
  <div class="pcs-detail-copy"><?php pcsFavourite($p,$savedIds,$interactionReady,$catalogueSavedOnly,true);?><span class="pc-eyebrow"><?=portalEscape($p['category'])?></span><h1><?=portalEscape($p['name'])?></h1><span class="pcs-availability <?='pcs-status-'.pcsStockTone($p)?>"><span aria-hidden="true"></span><?=portalEscape(pcsStock($p))?></span>
  <div class="pcs-detail-price"><strong><?=portalEscape(portalMoney($p['price']))?></strong><?php if($p['pricing']==='family_friends' && $p['price']<$p['retail_price']):?><del><?=portalEscape(portalMoney($p['retail_price']))?></del><?php endif;?></div><p class="pcs-price-caption"><?=$p['pricing']==='family_friends'?'Your Family & Friends price':($p['pricing']==='free'?'Your account price':'Your product price')?></p>
  <div class="pcs-intro"><p><?=portalEscape($p['description']!==''?pcsExcerpt($p['description']):'Contact the ANKH team for further product information and documentation.')?></p><a href="#pcs-product-information">Read product information ↓</a></div>
- <a class="pcs-enquire" href="<?=portalEscape(pcsEnquiry($p))?>"><?=pcIcon('mail')?> Enquire about this product <?=pcIcon('right')?></a><p class="pcs-enquiry-note">Send a question securely through your account. Read the response in My enquiries.</p>
+ <?php pcsCollectionAction($p);?><a class="pcs-enquire" href="<?=portalEscape(pcsEnquiry($p))?>"><?=pcIcon('mail')?> Ask a product question <?=pcIcon('right')?></a><p class="pcs-enquiry-note">Choose Add to request list to include this item in one combined enquiry. Nothing is ordered or charged until ANKH confirms your request separately.</p>
  <dl class="pcs-facts"><div><dt>Product reference</dt><dd>#<?=$p['id']?></dd></div><div><dt>Intended use</dt><dd>Laboratory research only · 18+</dd></div><div><dt>Supply enquiries</dt><dd>Contact the ANKH team</dd></div></dl>
  </div>
 </article>
@@ -91,9 +123,9 @@ function pcsExcerpt(string $text):string {
  <div class="pcs-card-copy"><span class="pc-eyebrow"><?=portalEscape($p['category'])?></span><h2><a href="<?=portalEscape($productHref)?>"><?=portalEscape($p['name'])?></a></h2><span class="pcs-availability <?='pcs-status-'.pcsStockTone($p)?>"><span aria-hidden="true"></span><?=portalEscape(pcsStock($p))?></span>
  <?php if($p['description']!==''):?><p class="pcs-card-description"><?=portalEscape(pcsExcerpt($p['description']))?></p><?php endif;?>
  <div class="pcs-card-price"><strong><?=portalEscape(portalMoney($p['price']))?></strong><?php if($p['pricing']==='family_friends' && $p['price']<$p['retail_price']):?><del><?=portalEscape(portalMoney($p['retail_price']))?></del><?php endif;?></div><small class="pcs-price-caption"><?=$p['pricing']==='family_friends'?'Your Family & Friends price':($p['pricing']==='free'?'Your account price':'Retail price')?></small>
- <div class="pcs-card-actions"><a class="pcs-card-view" href="<?=portalEscape($productHref)?>">View product <?=pcIcon('right')?></a><a class="pcs-card-enquiry" href="<?=portalEscape(pcsEnquiry($p))?>" aria-label="Enquire about <?=portalEscape($p['name'])?>" title="Enquire about this product"><?=pcIcon('mail')?></a></div>
+ <?php pcsCollectionAction($p,true);?><div class="pcs-card-actions"><a class="pcs-card-view" href="<?=portalEscape($productHref)?>">View product <?=pcIcon('right')?></a><a class="pcs-card-enquiry" href="<?=portalEscape(pcsEnquiry($p))?>" aria-label="Enquire about <?=portalEscape($p['name'])?>" title="Enquire about this product"><?=pcIcon('mail')?></a></div>
  </div></article>
-<?php endforeach;?></div><p class="pcs-enquiry-note pcs-collection-note">Explore a product for full specifications and research information. Use the heart to save a favourite, or the envelope to ask ANKH a question.</p><?php endif;?>
+<?php endforeach;?></div><p class="pcs-enquiry-note pcs-collection-note">Browse products, add items to your private request list, or watch an unavailable product. ANKH confirms enquiries individually; no automatic orders or payments.</p><?php endif;?>
 <?php endif;?>
 </div>
 
