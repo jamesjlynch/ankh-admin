@@ -26,13 +26,14 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(customer-catalogue.php lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+files=(customer-catalogue.php account-features.php lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
 source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
   [[ -f "$(source_for "$file")" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
 done
 echo "STEP 2/4: Running portal checks"
+"$php" -l customer-portal/account-features.php
 "$php" -l customer-portal/statement.php
 "$php" -l customer-portal/lib.php
 "$php" -l customer-portal/index.php
@@ -46,13 +47,14 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
+"$php" tests/customer-account-features.php
 "$php" tests/customer-statement.php
 "$php" tests/customer-announcements.php
 "$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
 "$php" tests/customer-portal-catalogue.php
 "$php" tests/customer-catalogue-visibility.php
-for tab in home orders vault support account recurring notifications catalogue basket checkout test-orders; do "$php" tests/customer-portal-navigation.php "$tab"; done
+for tab in home orders vault support account insights recurring notifications catalogue basket checkout test-orders; do "$php" tests/customer-portal-navigation.php "$tab"; done
 "$php" tests/customer-portal-navigation.php orders 104
 "$php" tests/customer-portal-navigation.php vault 103
 echo "STEP 3/4: Backing up current portal code"
