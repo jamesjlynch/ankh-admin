@@ -28,6 +28,8 @@ jobs:
           php -l customer-portal/lib.php
           php -l customer-portal/view.php
           php -l customer-portal/preview.php
+          php -l customer-portal/preview-live.php
+          php -l scripts/configure-customer-preview.php
           php -l scripts/customer-portal-accounts.php
           php -l tests/customer-portal.php
           bash -n scripts/publish-customer-portal.sh
