@@ -93,7 +93,7 @@ if (!$loggedIn) {
     <input type="hidden" name="csrf" value="<?=portalEscape((string)$_SESSION['portal_csrf'])?>">
     <input type="hidden" name="action" value="staff_login">
     <label for="preview_password">Preview password</label>
-    <input id="preview_password" class="code-input" name="password" type="password" autocomplete="current-password" style="letter-spacing:normal;text-align:left;font-size:16px;margin-bottom:22px" required>
+    <input id="preview_password" class="code-input staff-password-input" name="password" type="password" autocomplete="current-password" required>
     <button class="primary-button" type="submit">Unlock staff preview <span>→</span></button></form>
     <div class="privacy-note"><p>Access expires after 20 minutes of inactivity. No real customer can sign in here.</p></div>
     </section></div></main></body></html>
