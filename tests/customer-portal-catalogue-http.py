@@ -254,7 +254,9 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         unread=request(notices_path+'&unread=1');assert 'You’re all caught up' in unread
         other_notices=request('/preview-live.php?customer_id=1&tab=notifications')
         assert 'ANKH replied to your enquiry' not in other_notices and 'Order ANK-0010' not in other_notices
-        dismissed=request(notices_path,{'csrf':token,'action':'notification_dismiss','event_key':event_keys[0]})
+        # A restock can be the first notification; explicitly dismiss the reply event.
+        reply_key=re.search(r'ANKH replied to your enquiry.*?name="event_key" value="([a-f0-9]+)"',notices,re.S).group(1)
+        dismissed=request(notices_path,{'csrf':token,'action':'notification_dismiss','event_key':reply_key})
         assert 'Notification dismissed' in dismissed and 'ANKH replied to your enquiry' not in dismissed
         with sqlite3.connect(portal) as saved_db:
             saved_db.execute('UPDATE catalogue_enquiries SET reply=? WHERE customer_id=2',('A newer answer',))
