@@ -129,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         token = csrf(html)
         request('/preview-live.php', {'csrf': token, 'action': 'staff_login', 'password': 'test-password'})
         html = request('/preview-live.php?customer_id=1&tab=catalogue')
-        assert '>Case</a></h2>' in html and '£20.00' in html and 'Available · 4' in html
+        assert '>Case</a></h2>' in html and '£20.00' in html and 'Limited availability' in html && 'Available · 4' not in html
         assert 'pcs-collection' in html and 'pcs-category-tabs' in html and 'pcs-card-actions' in html
         assert 'aria-label="Enquire about Case"' in html and 'View product' in html
         assert 'Stationery</a>' not in html
