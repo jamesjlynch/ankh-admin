@@ -29,9 +29,9 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         db.executescript("""
         CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER);
         CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,price INTEGER,active INTEGER,cost INTEGER,stock_tracking INTEGER,stock_qty INTEGER,family_friends_price INTEGER);
-        INSERT INTO products VALUES(1,'Case',2000,1,700,1,4,1500),(2,'Retatrutide 10mg',6500,1,2000,1,8,NULL);
+        INSERT INTO products VALUES(1,'Case',2000,1,700,1,4,1500),(2,'Retatrutide 10mg',6500,1,2000,1,8,NULL),(3,'Reference sample A',1200,1,300,1,9,NULL);
         CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER,updated_at TEXT);
-        INSERT INTO customer_catalogue_visibility VALUES(1,1,'test'),(2,1,'test');
+        INSERT INTO customer_catalogue_visibility VALUES(1,1,'test'),(2,0,'test'),(3,1,'test');
         INSERT INTO customers VALUES(1,'Sample One','07123456789','Fictional Address',0),(2,'Sample Two','07999000000','Other Fictional Address',0);
         CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,created TEXT,delivery_date TEXT,scheduled_delivery_date TEXT,delivery_charge INTEGER,packaged INTEGER,reconstituted INTEGER,delivery_method TEXT,tracking_reference TEXT);
         CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER);
@@ -116,6 +116,8 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         html = request('/preview-live.php?customer_id=1&tab=catalogue')
         assert '<h2>Case</h2>' in html and '£20.00' in html and 'Available · 4' in html
         assert 'Retatrutide' not in html and '£65.00' not in html
+        assert '<h2>Reference sample A</h2>' in html and 'Laboratory research only' in html
+        assert 'Not for human or animal consumption' in html
         assert 'catalogue_action' not in html and 'cost' not in html.lower()
         html = request('/preview-live.php?customer_id=2&tab=catalogue')
         assert '<h2>Case</h2>' in html
