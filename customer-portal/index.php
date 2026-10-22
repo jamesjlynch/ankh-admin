@@ -152,6 +152,7 @@ if($customer && $account && ($_GET['download']??'')==='statement') {
 if($customer && $account)portalOrderRequestController($portal,$admin,$customer,$account,$orders,false);
 if($customer && $account)portalNotificationController($portal,$admin,$customer,$account,$orders,false);
 if($customer && $account)portalExtrasController($portal,$admin,$customer,$account,$orders,false);
+if($customer && $account)portalCollectionController($portal,$admin,$customer,false);
 if($customer)ankhPortalCatalogueActions($portal,$admin,$customer,false);
 if(isset($_GET['catalogue_image'])){
  if(!$customer){http_response_code(404);exit;}
