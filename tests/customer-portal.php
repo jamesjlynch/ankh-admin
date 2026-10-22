@@ -35,6 +35,7 @@ expectPortal((int)$orders[1]['total']===3098,'Totals include items and delivery'
 expectPortal((int)$orders[1]['paid']===1000,'Show actual payments');
 expectPortal(portalStatus($orders[0])==='Delivered','Delivered status');
 expectPortal(portalStatus($orders[1])==='Received','New status');
+expectPortal(portalStatus(['status'=>'Dispatched','delivery_date'=>''])==='On its way','Dispatch must not imply delivered');
 try {$admin->exec('DELETE FROM orders');throw new RuntimeException('Admin DB must be read-only');}
 catch(PDOException $e) { /* Expected */ }
 } finally {unset($admin);@unlink($private);}
