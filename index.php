@@ -3337,6 +3337,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='supplier_order_cancel'){
    $supplierOrderId=(int)($_POST['supplier_order_id']??0);$q=$db->prepare('SELECT COALESCE(SUM(received_qty),0) FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$supplierOrderId]);if((int)$q->fetchColumn()>0)throw new Exception('This supplier order has already been partly received and cannot be cancelled.');$db->prepare("UPDATE supplier_orders SET status='Cancelled' WHERE id=?")->execute([$supplierOrderId]);
   }
+  if($action==='reminder_request_review'){
+   if(!is_string($_POST['decision']??null)||!is_string($_POST['admin_note']??''))throw new Exception('Check the reminder decision.');
+   ankhReviewReminderRequest($db,ankhCustomerInteractionStore(),(int)($_POST['request_id']??0),$_POST['decision'],(string)($_POST['admin_note']??''));
+   header('Location: ./?view=enquiries#reminder-requests',true,303);exit;
+  }
   if($action==='catalogue_enquiry_reply'){
    if(!is_string($_POST['reply']??null)||!is_string($_POST['enquiry_status']??null))throw new Exception('Check the reply and status.');
    ankhCustomerReply(ankhCustomerInteractionStore(),(int)($_POST['enquiry_id']??0),$_POST['reply'],$_POST['enquiry_status']);

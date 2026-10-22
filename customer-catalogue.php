@@ -228,7 +228,11 @@ foreach($guideGroups as $groupIndex=>$group):$completed=count(array_filter($grou
 function ankhCustomerInteractionInit(PDO $db):void {
     $db->exec("CREATE TABLE IF NOT EXISTS catalogue_favourites(customer_id INTEGER NOT NULL,product_id INTEGER NOT NULL,preview INTEGER NOT NULL DEFAULT 0,created_at INTEGER NOT NULL,PRIMARY KEY(customer_id,product_id,preview));
     CREATE TABLE IF NOT EXISTS catalogue_enquiries(id INTEGER PRIMARY KEY,customer_id INTEGER NOT NULL,product_id INTEGER NOT NULL,preview INTEGER NOT NULL DEFAULT 0,product_name TEXT NOT NULL,price INTEGER NOT NULL,message TEXT NOT NULL,reply TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'Open',created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,request_token TEXT NOT NULL,UNIQUE(customer_id,preview,request_token));
-    CREATE INDEX IF NOT EXISTS catalogue_enquiries_customer ON catalogue_enquiries(customer_id,preview,created_at);");
+    CREATE INDEX IF NOT EXISTS catalogue_enquiries_customer ON catalogue_enquiries(customer_id,preview,created_at);
+    CREATE TABLE IF NOT EXISTS catalogue_enquiry_lines(enquiry_id INTEGER NOT NULL REFERENCES catalogue_enquiries(id) ON DELETE CASCADE,position INTEGER NOT NULL,product_id INTEGER NOT NULL,name TEXT NOT NULL,quantity INTEGER NOT NULL,unit_price INTEGER NOT NULL,PRIMARY KEY(enquiry_id,position));
+    CREATE TABLE IF NOT EXISTS customer_reminder_preferences(customer_id INTEGER NOT NULL,preview INTEGER NOT NULL,cycle_id INTEGER NOT NULL,due_date TEXT NOT NULL,snoozed_until TEXT NOT NULL,PRIMARY KEY(customer_id,preview,cycle_id,due_date));
+    CREATE TABLE IF NOT EXISTS customer_reminder_requests(id INTEGER PRIMARY KEY,customer_id INTEGER NOT NULL,preview INTEGER NOT NULL,cycle_id INTEGER NOT NULL,product_name TEXT NOT NULL,original_due_date TEXT NOT NULL,original_weeks INTEGER NOT NULL,source_order_id INTEGER NOT NULL,revision TEXT NOT NULL,requested_weeks INTEGER NOT NULL,requested_date TEXT NOT NULL,note TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'Pending',admin_note TEXT NOT NULL DEFAULT '',created_at INTEGER NOT NULL,reviewed_at INTEGER NOT NULL DEFAULT 0,request_token TEXT NOT NULL,UNIQUE(customer_id,preview,request_token));
+    CREATE UNIQUE INDEX IF NOT EXISTS customer_reminder_request_pending ON customer_reminder_requests(customer_id,preview,cycle_id) WHERE status='Pending';");
 }
 function ankhCustomerInteractionStore():PDO {
     $adminConfig=getenv('ANKH_ADMIN_CONFIG')?:dirname(__DIR__,2).'/ankh-admin-config.php';
@@ -242,16 +246,18 @@ function ankhCustomerFavourites(PDO $db,int $customerId,bool $preview):array {
     $q=$db->prepare('SELECT product_id FROM catalogue_favourites WHERE customer_id=? AND preview=?');$q->execute([$customerId,(int)$preview]);return array_map('intval',$q->fetchAll(PDO::FETCH_COLUMN));
 }
 function ankhCustomerEnquiries(PDO $db,int $customerId,bool $preview):array {
-    $q=$db->prepare('SELECT * FROM catalogue_enquiries WHERE customer_id=? AND preview=? ORDER BY created_at DESC,id DESC LIMIT 100');$q->execute([$customerId,(int)$preview]);return $q->fetchAll(PDO::FETCH_ASSOC);
+    $q=$db->prepare('SELECT * FROM catalogue_enquiries WHERE customer_id=? AND preview=? ORDER BY created_at DESC,id DESC LIMIT 100');$q->execute([$customerId,(int)$preview]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);foreach($rows as &$row)$row['lines']=ankhCustomerEnquiryLines($db,(int)$row['id']);unset($row);return $rows;
 }
 function ankhCustomerSaveFavourite(PDO $store,array $product,int $customerId,bool $preview,bool $save):void {
     if($save)$store->prepare('INSERT OR IGNORE INTO catalogue_favourites(customer_id,product_id,preview,created_at) VALUES(?,?,?,?)')->execute([$customerId,$product['id'],(int)$preview,time()]);
     else $store->prepare('DELETE FROM catalogue_favourites WHERE customer_id=? AND product_id=? AND preview=?')->execute([$customerId,$product['id'],(int)$preview]);
 }
-function ankhCustomerCreateEnquiry(PDO $store,array $product,int $customerId,bool $preview,string $message,string $token):int {
+function ankhCustomerCreateEnquiry(PDO $store,array $product,int $customerId,bool $preview,string $message,string $token,array $lines=[]):int {
     $message=trim($message);
     if($message===''||strlen($message)>20000||!preg_match('//u',$message)||preg_match_all('/./us',$message)>5000)throw new InvalidArgumentException('Enter a question of up to 5,000 characters.');
     if(!preg_match('/^[a-f0-9]{64}$/D',$token))throw new InvalidArgumentException('Refresh the page before sending your enquiry.');
+    if(count($lines)>25)throw new InvalidArgumentException('Select up to 25 products per enquiry.');
+    foreach($lines as $line)if(!is_array($line)||!is_int($line['product_id']??null)||$line['product_id']<1||!is_string($line['name']??null)||!is_int($line['quantity']??null)||$line['quantity']<1||$line['quantity']>999||!is_int($line['unit_price']??null)||$line['unit_price']<0)throw new InvalidArgumentException('Check the selected products.');
     $store->exec('BEGIN IMMEDIATE');
     try{
         $q=$store->prepare('SELECT id FROM catalogue_enquiries WHERE customer_id=? AND preview=? AND request_token=?');$q->execute([$customerId,(int)$preview,$token]);
@@ -259,7 +265,9 @@ function ankhCustomerCreateEnquiry(PDO $store,array $product,int $customerId,boo
         $q=$store->prepare('SELECT COUNT(*) FROM catalogue_enquiries WHERE customer_id=? AND preview=? AND created_at>?');$q->execute([$customerId,(int)$preview,time()-3600]);
         if((int)$q->fetchColumn()>=10)throw new InvalidArgumentException('You have sent several enquiries. Please try again later.');
         $store->prepare('INSERT INTO catalogue_enquiries(customer_id,product_id,preview,product_name,price,message,created_at,updated_at,request_token) VALUES(?,?,?,?,?,?,?,?,?)')->execute([$customerId,$product['id'],(int)$preview,$product['name'],$product['price'],$message,time(),time(),$token]);
-        $id=(int)$store->lastInsertId();$store->exec('COMMIT');return $id;
+        $id=(int)$store->lastInsertId();
+        if($lines){$insert=$store->prepare('INSERT INTO catalogue_enquiry_lines(enquiry_id,position,product_id,name,quantity,unit_price) VALUES(?,?,?,?,?,?)');foreach(array_values($lines) as $position=>$line)$insert->execute([$id,$position,$line['product_id'],$line['name'],$line['quantity'],$line['unit_price']]);}
+        $store->exec('COMMIT');return $id;
     }catch(Throwable $e){$store->exec('ROLLBACK');throw $e;}
 }
 function ankhCustomerReply(PDO $store,int $id,string $reply,string $status):void {
@@ -293,10 +301,11 @@ function ankhPortalCatalogueActions(PDO $store,PDO $admin,array $customer,bool $
 }
 function ankhCustomerInbox(PDO $admin):void {
     ?><div class="heading"><div><h1>Customer enquiries</h1><p class="muted">Product questions and replies. Staff preview tests are labelled separately.</p></div><a class="quick-action" href="?view=more">← More</a></div><?php
-    try{$store=ankhCustomerInteractionStore();$rows=$store->query('SELECT * FROM catalogue_enquiries ORDER BY CASE status WHEN "Open" THEN 0 WHEN "Answered" THEN 1 ELSE 2 END,created_at DESC LIMIT 100')->fetchAll();}
+    try{$store=ankhCustomerInteractionStore();$rows=$store->query('SELECT * FROM catalogue_enquiries ORDER BY CASE status WHEN "Open" THEN 0 WHEN "Answered" THEN 1 ELSE 2 END,created_at DESC LIMIT 100')->fetchAll();foreach($rows as &$row)$row['lines']=ankhCustomerEnquiryLines($store,(int)$row['id']);unset($row);}
     catch(Throwable $e){error_log('ANKH customer inbox: '.$e->getMessage());?><div class="panel"><p>The customer inbox is temporarily unavailable. Please try again later.</p></div><?php return;}
     if(!$rows){?><div class="panel"><h2>No enquiries yet</h2><p>Customer product questions will appear here.</p></div><?php }
-    foreach($rows as $row){$q=$admin->prepare('SELECT name FROM customers WHERE id=?');$q->execute([$row['customer_id']]);$name=$q->fetchColumn()?:'Customer #'.$row['customer_id'];?><details class="panel" style="margin-bottom:16px"><summary style="cursor:pointer;list-style:none"><small><?=e($row['status'])?> · <?=e(date('d M Y H:i',$row['created_at']))?> <?=$row['preview']?' · STAFF TEST':''?></small><h2><?=e($row['product_name'])?></h2><p><?=e($name)?> · Enquiry #<?=(int)$row['id']?> · Displayed price £<?=number_format($row['price']/100,2)?></p></summary><p style="white-space:pre-wrap;overflow-wrap:anywhere"><?=e($row['message'])?></p><form method="post"><?php csrf();?><input type="hidden" name="action" value="catalogue_enquiry_reply"><input type="hidden" name="enquiry_id" value="<?=(int)$row['id']?>"><label>Reply shown to the customer<textarea name="reply" maxlength="5000" rows="5"><?=e($row['reply'])?></textarea></label><label>Status<select name="enquiry_status"><?php foreach(['Open','Answered','Closed'] as $state):?><option <?=$state===$row['status']?'selected':''?>><?=$state?></option><?php endforeach;?></select></label><button type="submit">Save reply &amp; status</button></form></details><?php }
+    foreach($rows as $row){$q=$admin->prepare('SELECT name FROM customers WHERE id=?');$q->execute([$row['customer_id']]);$name=$q->fetchColumn()?:'Customer #'.$row['customer_id'];?><details class="panel" style="margin-bottom:16px"><summary style="cursor:pointer;list-style:none"><small><?=e($row['status'])?> · <?=e(date('d M Y H:i',$row['created_at']))?> <?=$row['preview']?' · STAFF TEST':''?></small><h2><?=e($row['product_name'])?></h2><p><?=e($name)?> · Enquiry #<?=(int)$row['id']?> · <?=empty($row['lines'])?'Displayed price':'Displayed product total'?> £<?=number_format($row['price']/100,2)?></p></summary><?php ankhCustomerEnquiryLinesView($row['lines']);?><p style="white-space:pre-wrap;overflow-wrap:anywhere"><?=e($row['message'])?></p><form method="post"><?php csrf();?><input type="hidden" name="action" value="catalogue_enquiry_reply"><input type="hidden" name="enquiry_id" value="<?=(int)$row['id']?>"><label>Reply shown to the customer<textarea name="reply" maxlength="5000" rows="5"><?=e($row['reply'])?></textarea></label><label>Status<select name="enquiry_status"><?php foreach(['Open','Answered','Closed'] as $state):?><option <?=$state===$row['status']?'selected':''?>><?=$state?></option><?php endforeach;?></select></label><button type="submit">Save reply &amp; status</button></form></details><?php }
+    ankhReminderRequestsInbox($admin,$store);
 }
 
 /** Add durable links only for unambiguous legacy identities; keep original business records intact. */
@@ -322,4 +331,63 @@ function ankhCatalogueLinkIdentities(PDO $db):void {
         }
         $db->commit();
     }catch(Throwable $e){$db->rollBack();throw $e;}
+}
+
+function ankhCustomerEnquiryLines(PDO $db,int $id):array {
+    $q=$db->prepare('SELECT product_id,name,quantity,unit_price FROM catalogue_enquiry_lines WHERE enquiry_id=? ORDER BY position');$q->execute([$id]);return $q->fetchAll(PDO::FETCH_ASSOC);
+}
+function ankhCustomerEnquiryLinesView(array $lines):void {
+    if(!$lines)return;$escape=static fn(string $v):string=>htmlspecialchars($v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+    ?><div class="customer-enquiry-lines"><table><thead><tr><th>Product</th><th>Quantity</th><th>Unit price</th><th>Total</th></tr></thead><tbody><?php foreach($lines as $line):?><tr><td><?=$escape($line['name'])?></td><td><?=(int)$line['quantity']?></td><td>£<?=number_format($line['unit_price']/100,2)?></td><td>£<?=number_format($line['quantity']*$line['unit_price']/100,2)?></td></tr><?php endforeach;?></tbody></table></div><?php
+}
+function ankhReminderSignature(array $cycle,array $order):string {
+    return hash('sha256',json_encode([(int)$cycle['id'],(string)$cycle['product_name'],(string)$cycle['next_due_date'],(int)($cycle['cycle_weeks']??0),(int)($cycle['cycle_days']??0),(int)$cycle['last_order_id'],(string)$order['delivery_date'],(string)($cycle['presentation']??''),max(1,(int)($cycle['quantity']??0))],JSON_THROW_ON_ERROR));
+}
+function ankhReminderDate(string $value):bool {
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,new DateTimeZone('Europe/London'));return $date && $date->format('Y-m-d')===$value;
+}
+function ankhReminderRequest(PDO $store,int $customerId,bool $preview,array $reminder,int $weeks,string $date,string $note,string $token):int {
+    $today=new DateTimeImmutable('today',new DateTimeZone('Europe/London'));$note=trim($note);
+    if($weeks<1||$weeks>52||!ankhReminderDate($date)||$date<$today->format('Y-m-d')||$date>$today->modify('+366 days')->format('Y-m-d'))throw new InvalidArgumentException('Choose a repeat interval of 1–52 weeks and a next date within the coming year.');
+    if(strlen($note)>8000||!preg_match('//u',$note)||preg_match_all('/./us',$note)>2000||!preg_match('/^[a-f0-9]{64}$/D',$token))throw new InvalidArgumentException('Use a note of up to 2,000 characters and refresh the page if needed.');
+    $store->exec('BEGIN IMMEDIATE');
+    try{
+        $q=$store->prepare('SELECT id FROM customer_reminder_requests WHERE customer_id=? AND preview=? AND request_token=?');$q->execute([$customerId,(int)$preview,$token]);if($id=$q->fetchColumn()){$store->exec('COMMIT');return (int)$id;}
+        $q=$store->prepare("SELECT id FROM customer_reminder_requests WHERE customer_id=? AND preview=? AND cycle_id=? AND status='Pending'");$q->execute([$customerId,(int)$preview,$reminder['id']]);if($q->fetchColumn())throw new InvalidArgumentException('A change request for this reminder is already awaiting review.');
+        $q=$store->prepare('SELECT COUNT(*) FROM customer_reminder_requests WHERE customer_id=? AND preview=? AND created_at>?');$q->execute([$customerId,(int)$preview,time()-3600]);if((int)$q->fetchColumn()>=5)throw new InvalidArgumentException('Please wait before sending another reminder request.');
+        $store->prepare('INSERT INTO customer_reminder_requests(customer_id,preview,cycle_id,product_name,original_due_date,original_weeks,source_order_id,revision,requested_weeks,requested_date,note,created_at,request_token) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$customerId,(int)$preview,$reminder['id'],$reminder['product'],$reminder['due_date'],$reminder['weeks'],$reminder['last_order_id'],$reminder['revision'],$weeks,$date,$note,time(),$token]);
+        $id=(int)$store->lastInsertId();$store->exec('COMMIT');return $id;
+    }catch(Throwable $e){$store->exec('ROLLBACK');throw $e;}
+}
+function ankhReviewReminderRequest(PDO $admin,PDO $store,int $id,string $decision,string $note):void {
+    $note=trim($note);
+    if(!in_array($decision,['approve','decline'],true)||strlen($note)>8000||!preg_match('//u',$note)||preg_match_all('/./us',$note)>2000)throw new InvalidArgumentException('Check the decision and use a note of up to 2,000 characters.');
+    if($admin->inTransaction())throw new RuntimeException('Finish the current change before reviewing a reminder.');
+    $file=(string)$store->query('PRAGMA database_list')->fetch(PDO::FETCH_ASSOC)['file'];if($file===''||!is_file($file))throw new RuntimeException('The private request database is unavailable.');
+    // Keep the attachment for this request: Admin can have active read cursors that prevent DETACH.
+    $attached=false;foreach($admin->query('PRAGMA database_list')->fetchAll(PDO::FETCH_ASSOC) as $database){if($database['name']!=='reminder_requests')continue;if($database['file']!==$file)throw new RuntimeException('Unexpected reminder database attachment.');$attached=true;}
+    if(!$attached){$attach=$admin->prepare('ATTACH DATABASE ? AS reminder_requests');$attach->execute([$file]);$attach=null;}
+    try{
+        $admin->exec('BEGIN IMMEDIATE');
+        try{
+            $q=$admin->prepare('SELECT * FROM reminder_requests.customer_reminder_requests WHERE id=?');$q->execute([$id]);$request=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();
+            if(!$request||$request['status']!=='Pending')throw new InvalidArgumentException('This request has already been reviewed or is unavailable.');
+            if($decision==='approve'){
+                $q=$admin->prepare('SELECT * FROM reta_cycles WHERE id=? AND active=1');$q->execute([$request['cycle_id']]);$cycle=$q->fetch(PDO::FETCH_ASSOC);
+                $q=$admin->prepare('SELECT * FROM orders WHERE id=?');$q->execute([(int)($cycle['last_order_id']??0)]);$order=$q->fetch(PDO::FETCH_ASSOC);
+                $q=$admin->prepare('SELECT * FROM customers WHERE id=? AND archived=0');$q->execute([$request['customer_id']]);$customer=$q->fetch(PDO::FETCH_ASSOC);
+                if(!$cycle||!$order||!$customer||$order['status']==='Cancelled'||trim((string)$order['delivery_date'])==='')throw new InvalidArgumentException('This reminder is no longer eligible. Decline the request and ask the customer to submit a new one.');
+                $q=$admin->prepare('SELECT customer_id FROM customer_order_links WHERE order_id=?');$q->execute([$order['id']]);$owner=$q->fetchColumn();$q->closeCursor();
+                if((int)$owner!==(int)$request['customer_id']||!hash_equals($request['revision'],ankhReminderSignature($cycle,$order)))throw new InvalidArgumentException('The reminder or order ownership has changed. Decline this stale request and ask for a new one.');
+                if(!ankhReminderDate($request['requested_date'])||$request['requested_date']<(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d'))throw new InvalidArgumentException('The requested date has passed. Ask the customer for a new date.');
+                if(!(int)$request['preview'])$admin->prepare('UPDATE reta_cycles SET cycle_weeks=?,cycle_days=?,next_due_date=?,updated=? WHERE id=?')->execute([$request['requested_weeks'],$request['requested_weeks']*7,$request['requested_date'],gmdate('c'),$request['cycle_id']]);
+            }
+            $admin->prepare('UPDATE reminder_requests.customer_reminder_requests SET status=?,admin_note=?,reviewed_at=? WHERE id=?')->execute([$decision==='approve'?'Approved':'Declined',$note,time(),$id]);
+            $admin->exec('COMMIT');
+        }catch(Throwable $e){$admin->exec('ROLLBACK');error_log('ANKH reminder review: '.$e->getMessage());throw $e;}
+    }finally{$q=null;}
+}
+function ankhReminderRequestsInbox(PDO $admin,PDO $store):void {
+    $rows=$store->query("SELECT * FROM customer_reminder_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END,id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+    ?><section id="reminder-requests"><h2>Reminder change requests</h2><p class="muted">Approve or decline requested dates and intervals. Customer snoozes only silence their personal reminders.</p><?php if(!$rows):?><p>No reminder change requests yet.</p><?php endif;?><?php foreach($rows as $row):$q=$admin->prepare('SELECT name FROM customers WHERE id=?');$q->execute([$row['customer_id']]);$name=$q->fetchColumn()?:'Customer #'.$row['customer_id'];?><details class="panel" style="margin-bottom:16px"><summary style="cursor:pointer"><strong><?=e($row['product_name'])?></strong> · <?=e($row['status'])?><?php if($row['preview']):?> · STAFF TEST — approval will not change the live reminder<?php endif;?><p><?=e($name)?> · Request #<?=(int)$row['id']?></p></summary><p>Recorded: every <?=(int)$row['original_weeks']?> weeks · <?=e($row['original_due_date'])?></p><p>Requested: every <?=(int)$row['requested_weeks']?> weeks · <?=e($row['requested_date'])?></p><p style="white-space:pre-wrap"><?=e($row['note'])?></p><?php if($row['status']==='Pending'):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="reminder_request_review"><input type="hidden" name="request_id" value="<?=(int)$row['id']?>"><label>Response to customer<textarea name="admin_note" maxlength="2000" rows="3"></textarea></label><label>Decision<select name="decision"><option value="approve">Approve requested date and interval</option><option value="decline">Decline request</option></select></label><button type="submit">Save decision</button></form><?php else:?><p style="white-space:pre-wrap"><?=e($row['admin_note'])?></p><?php endif;?></details><?php endforeach;?></section><?php
 }
