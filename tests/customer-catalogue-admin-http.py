@@ -54,24 +54,25 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
         token=re.search(r'name="csrf" value="([a-f0-9]+)"',html).group(1)
         html=request({'csrf':token,'action':'login','password':'fixture-password','return':'products'})
         with sqlite3.connect(database) as db:
-            db.execute("INSERT INTO products(name,price,cost,active) VALUES('Case',2000,700,1)")
+            db.execute("INSERT INTO products(name,price,cost,active) VALUES('Case',2000,700,1),('Reference sample A',1200,300,1)")
         html=request()
         assert 'Save catalogue visibility' in html, re.findall(r'<h[12][^>]*>.*?</h[12]>|<div class="error".*?</div>',html,re.S)[:20]
         token=re.search(r'name="csrf" value="([a-f0-9]+)"',html).group(1)
         with sqlite3.connect(database) as db:
             case=db.execute("SELECT id FROM products WHERE name='Case'").fetchone()[0]
-            excluded=db.execute("SELECT id FROM products WHERE name LIKE 'Retatrutide%' LIMIT 1").fetchone()[0]
+            excluded=db.execute("SELECT id FROM products WHERE name='Reference sample A'").fetchone()[0]
         before=snapshot()
         html=request({'csrf':token,'action':'product_catalogue_visibility','product_id':case,'catalogue_visible':'1','return':'products'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(1,)
         assert before==snapshot(),'Visibility changed an existing record'
         html=request({'csrf':token,'action':'product_catalogue_visibility','product_id':excluded,'catalogue_visible':'1','return':'products'})
-        assert 'supported unrestricted accessories' in html
+        with sqlite3.connect(database) as db:
+            assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(excluded,)).fetchone()==(1,)
         html=request({'csrf':'bad','action':'product_catalogue_visibility','product_id':case,'return':'products'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(1,)
-            assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(excluded,)).fetchone() is None
+            assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(excluded,)).fetchone()==(1,)
         anonymous=client();anon_html=request(connection=anonymous)
         anon_token=re.search(r'name="csrf" value="([a-f0-9]+)"',anon_html).group(1)
         request({'csrf':anon_token,'action':'product_catalogue_visibility','product_id':case,'return':'products'},connection=anonymous)
@@ -81,6 +82,6 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(0,)
         assert before==snapshot()
-        print('Admin catalogue checkbox HTTP checks passed: sign-in, CSRF, show/hide, exclusions and unchanged product/customer/order/payment records.')
+        print('Admin catalogue checkbox HTTP checks passed: sign-in, CSRF, show/hide for arbitrary names and unchanged product/customer/order/payment records.')
     finally:
         process.terminate();process.wait(timeout=5);log.close()

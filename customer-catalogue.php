@@ -1,16 +1,16 @@
 <?php
 declare(strict_types=1);
-/** Shared rules for the unrestricted accessory catalogue. No product data is rewritten. */
-function ankhCatalogueKind(string $name): ?string {
+/** Shared customer catalogue metadata. No product data is rewritten. */
+function ankhCatalogueKind(string $name): string {
     $name=strtolower(trim(preg_replace('/\s+/u',' ',$name)??''));
-    // An explicit accessory list, never a default that exposes unknown products.
+    // Display categories only. Visibility is always an explicit per-product choice.
     $allowed=[
         'case'=>'Storage','carry case'=>'Storage','storage case'=>'Storage','everyday carry case'=>'Storage',
         'desk organiser'=>'Storage','desk organizer'=>'Storage','storage organiser'=>'Storage',
         'blank label sheets'=>'Stationery','label sheets'=>'Stationery','labels'=>'Stationery',
         'notebook'=>'Stationery','pocket notebook'=>'Stationery',
     ];
-    return $allowed[$name]??null;
+    return $allowed[$name]??'Research materials';
 }
 function ankhCatalogueInit(PDO $db): void {
     $db->exec('CREATE TABLE IF NOT EXISTS customer_catalogue_visibility (
@@ -26,7 +26,6 @@ function ankhCatalogueVisibility(PDO $db): array {
 function ankhCatalogueSetVisibility(PDO $db,int $id,bool $visible): void {
     $q=$db->prepare('SELECT id,name FROM products WHERE id=?');$q->execute([$id]);$p=$q->fetch(PDO::FETCH_ASSOC);
     if(!$p)throw new InvalidArgumentException('Product could not be found.');
-    if($visible && ankhCatalogueKind((string)$p['name'])===null)throw new InvalidArgumentException('Customer catalogue visibility is available only for the supported unrestricted accessories.');
     ankhCatalogueInit($db);
     $db->prepare('INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES (?,?,?) ON CONFLICT(product_id) DO UPDATE SET visible=excluded.visible,updated_at=excluded.updated_at')->execute([$id,$visible?1:0,gmdate('c')]);
 }
@@ -40,7 +39,7 @@ function ankhCatalogueProducts(PDO $db,int $customerId): array {
     $out=[];
     foreach($db->query('SELECT * FROM products WHERE active=1 ORDER BY name COLLATE NOCASE') as $p){
         $category=ankhCatalogueKind((string)$p['name']);
-        if($category===null || (int)($visibility[(int)$p['id']]??0)!==1)continue;
+        if((int)($visibility[(int)$p['id']]??0)!==1)continue;
         $price=(int)$p['price'];
         if($pricing==='family_friends' && isset($p['family_friends_price']))$price=(int)$p['family_friends_price'];
         if($pricing==='free')$price=0;
@@ -51,7 +50,6 @@ function ankhCatalogueProducts(PDO $db,int $customerId): array {
     return $out;
 }
 function ankhCatalogueAdminControl(array $p,array $visibility): void {
-    $eligible=ankhCatalogueKind((string)$p['name'])!==null;
-    $visible=$eligible && (int)($visibility[(int)$p['id']]??0)===1;
-    ?><form method="post" class="detail product-settings-form customer-catalogue-control"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_visibility"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?> <?=$eligible?'':'disabled'?>> Visible on customer's dashboard</label><p class="muted"><?=$eligible?((int)$p['active']===1?'Only changes catalogue visibility. Product details and stock stay as they are.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'):'Not enabled for the customer catalogue. Existing Admin records and order history are unchanged.'?></p><?php if($eligible):?><button class="quiet" type="submit">Save catalogue visibility</button><?php endif;?></form><?php
+    $visible=(int)($visibility[(int)$p['id']]??0)===1;
+    ?><form method="post" class="detail product-settings-form customer-catalogue-control"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_visibility"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue visibility. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue visibility</button></form><?php
 }

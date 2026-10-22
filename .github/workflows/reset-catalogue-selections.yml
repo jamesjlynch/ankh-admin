@@ -49,5 +49,5 @@ jobs:
           trap 'rm -f -- "$task_file"' EXIT
           git -C "$R" show "$release:scripts/reset-catalogue-visibility.php" > "$task_file"
           php -l "$task_file"
-          ANKH_ADMIN_CONFIG=/home/devcouk/ankh-admin-config.php php "$task_file" visibility-reset-20261022-01
+          ANKH_ADMIN_CONFIG=/home/devcouk/ankh-admin-config.php php "$task_file" visibility-reset-20261022-02
           REMOTE
