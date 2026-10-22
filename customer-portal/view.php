@@ -23,8 +23,8 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
 <header class="site-header">
   <a class="brand" href="<?=!empty($isStaffPreview)?'./preview-live.php':(!empty($isDemo)?'./preview.php':'./')?>" aria-label="ANKH home"><span class="brand-icon">☥</span><span>ANKH<span class="brand-sub">CUSTOMER PORTAL</span></span></a>
-  <?php if ($customer): ?>
-  <form method="post" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit">Sign out <span aria-hidden="true">↗</span></button></form>
+  <?php if ($customer || !empty($isStaffPreview)): ?>
+  <form method="post" action="<?=!empty($isStaffPreview)?'./preview-live.php':'./'?>" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit"><?=!empty($isStaffPreview)?'Exit staff preview':'Sign out'?> <span aria-hidden="true">↗</span></button></form>
   <?php else: ?><span class="header-note"><span class="status-pip"></span> PRIVATE ACCESS</span><?php endif; ?>
 </header>
 <main class="page <?= $customer ? 'account' : 'auth' ?>">
