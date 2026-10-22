@@ -29,7 +29,7 @@ testInvalid(static fn()=>portalCollectionSend($db,4,false,$changed,$availability
 $id=portalCollectionSend($db,4,false,$products,$availability,$revision,str_repeat('a',64),'Please confirm packaging');
 testOK($id>0,'Enquiry not saved');
 $q=$db->query('SELECT * FROM catalogue_enquiries WHERE id='.$id)->fetch();
-testOK($q['product_name']==='Multi-product request' && $q['preview']==='0','Combined request not marked correctly');
+testOK($q['product_name']==='Multi-product request' && (int)$q['preview']===0,'Combined request not marked correctly');
 $lines=ankhCustomerEnquiryLines($db,$id);
 testOK(count($lines)===2 && $lines[0]['quantity']===3 && $lines[1]['quantity']===2,'Combined lines lost or miscounted');
 testOK($q['price']===(1999*3+500*2),'Combined display price incorrect');
