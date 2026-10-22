@@ -114,18 +114,34 @@ $active = array_values(array_filter($orders, fn(array $o): bool => !in_array(por
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body>
+<?php if (!empty($isStaffPreview)): ?>
+<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Private read-only inspection — SMS customer login is not enabled.</span><a href="./preview.php">Fictional demo</a></div>
+<?php endif; ?>
 <?php if (!empty($isDemo)): ?>
 <div class="demo-strip" role="note"><strong>DEMO PREVIEW</strong><span>Fictional customer and orders. No real SMS or customer data.</span><nav aria-label="Demo screens"><a href="./preview.php?screen=login">Login</a><a href="./preview.php?screen=account">Customer dashboard</a></nav></div>
 <?php endif; ?>
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
 <header class="site-header">
-  <a class="brand" href="<?=!empty($isDemo)?'./preview.php':'./'?>" aria-label="ANKH home"><span class="brand-icon">☥</span><span>ANKH<span class="brand-sub">CUSTOMER PORTAL</span></span></a>
+  <a class="brand" href="<?=!empty($isStaffPreview)?'./preview-live.php':(!empty($isDemo)?'./preview.php':'./')?>" aria-label="ANKH home"><span class="brand-icon">☥</span><span>ANKH<span class="brand-sub">CUSTOMER PORTAL</span></span></a>
   <?php if ($customer): ?>
   <form method="post" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit">Sign out <span aria-hidden="true">↗</span></button></form>
   <?php else: ?><span class="header-note"><span class="status-pip"></span> PRIVATE ACCESS</span><?php endif; ?>
 </header>
 <main class="page <?= $customer ? 'account' : 'auth' ?>">
-<?php if (!$customer): ?>
+<?php if (!empty($isStaffPreview)): ?>
+<section class="staff-customer-search">
+  <div><span class="eyebrow">PRIVATE VIEW · READ ONLY</span><h2>Choose a customer</h2><p>Find a real customer to check exactly which existing orders would appear on their dashboard.</p></div>
+  <form method="get" action="./preview-live.php" class="staff-search-form"><label for="customer_search">Search name or phone</label><div><input id="customer_search" type="search" name="q" value="<?=portalEscape((string)$search)?>" placeholder="Customer name or mobile" maxlength="80"><button type="submit">Find</button></div></form>
+  <?php if (!empty($results)): ?><div class="staff-customer-list" role="list">
+  <?php foreach($results as $previewRow): ?>
+   <a role="listitem" href="./preview-live.php?customer_id=<?=(int)$previewRow['id']?>&amp;q=<?=rawurlencode((string)$search)?>" class="<?=($customer && (int)$customer['id']===(int)$previewRow['id'])?'selected':''?>"><span><?=portalEscape((string)$previewRow['name'])?></span><small>#<?=(int)$previewRow['id']?> · Mobile ending <?=portalEscape(substr(preg_replace('/[^0-9]/','',(string)$previewRow['phone']),-4) ?: '—')?></small><span aria-hidden="true">→</span></a>
+  <?php endforeach; ?></div><?php else: ?><p class="staff-empty">No matching customers.</p><?php endif; ?>
+</section>
+<?php if ($notice): ?><p class="feedback info" role="status"><?=portalEscape($notice)?></p><?php endif; ?>
+<?php endif; ?>
+<?php if (!empty($isStaffPreview) && !$customer): ?>
+<section class="staff-empty-page"><span>☥</span><h1>Select a customer above</h1><p>You'll see their real order history, dates, products, payment statuses and delivery progress without sending them any messages or changing records.</p></section>
+<?php elseif (!$customer): ?>
   <div class="auth-layout">
     <section class="welcome-copy">
       <span class="eyebrow"><span class="line"></span> YOUR PRIVATE SPACE</span>
