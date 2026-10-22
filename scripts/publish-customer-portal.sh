@@ -80,7 +80,7 @@ for file in "${files[@]}"; do
   cmp -s "$source" "$target/$file"
   printf 'VERIFIED: %s\n' "$file"
 done
-printf 'SUCCESS: All 16 customer portal files match the tested release.\n'
+printf 'SUCCESS: All %s customer portal files match the tested release.\\n' "${#files[@]}"
 printf 'Destination: %s\nPrivate code backup: %s\n' "$target" "$backup"
 printf 'This confirms files on disk. Check the web preview to confirm the served page.\n'
 
