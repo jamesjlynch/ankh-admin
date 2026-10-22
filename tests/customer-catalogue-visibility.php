@@ -45,6 +45,16 @@ catalogueCheck((int)ankhCatalogueContent($db)[1]['image_bytes']===0,'Removing ph
 catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Catalogue content never changes existing product data');
 foreach(['<svg onload="bad()"></svg>','<?php echo 1;'] as $invalid){try{ankhCatalogueValidateImage($invalid);throw new RuntimeException('Non-photo accepted');}catch(InvalidArgumentException $e){}}
 try{ankhCatalogueSaveContent($db,1,str_repeat('a',5001),null,false,true);throw new RuntimeException('Overlong description accepted');}catch(InvalidArgumentException $e){}
+$info=['strength'=>'10 mg','research'=>'Original research notes <script>test</script>','coa_url'=>'https://example.org/analysis.pdf'];
+ankhCatalogueSaveContent($db,1,'Updated description',null,false,true,$info);
+catalogueCheck(ankhCatalogueProducts($db,1)[0]['information']===$info,'Structured information persists and is exposed for published products');
+ankhCatalogueSaveContent($db,1,'Updated description',null,false,true);
+catalogueCheck(ankhCatalogueInformation($db)[1]===$info,'Older forms preserve structured information');
+foreach(['javascript:alert(1)','http://example.org/test','https://user:secret@example.org/test'] as $url){try{ankhCatalogueSaveContent($db,1,'bad',null,false,false,['coa_url'=>$url]);throw new RuntimeException('Unsafe URL accepted');}catch(InvalidArgumentException $e){}}
+catalogueCheck(ankhCatalogueInformation($db)[1]===$info && ankhCatalogueVisibility($db)[1]===1,'Validation errors preserve all saved metadata');
+ankhCatalogueSaveContent($db,1,'Updated description',null,false,true,[]);
+catalogueCheck(ankhCatalogueInformation($db)[1]===[],'Optional product information can be cleared');
+catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Structured information leaves product records unchanged');
 $db->exec('PRAGMA query_only=ON');
 catalogueCheck(count(ankhCatalogueProducts($db,1))===2,'Customer catalogue reads through a read-only connection');
 echo "Catalogue defaults, manual visibility, renamed products, pricing, stock and product preservation passed.\n";

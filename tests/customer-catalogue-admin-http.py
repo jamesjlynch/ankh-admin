@@ -86,13 +86,16 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(0,)
         assert before==snapshot()
         image=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
-        fields={'csrf':token,'action':'product_catalogue_content','product_id':str(case),'catalogue_description':'Product description <script>bad()</script>','catalogue_visible':'1','return':'products'}
+        fields={'csrf':token,'action':'product_catalogue_content','product_id':str(case),'catalogue_description':'Product description <script>bad()</script>','catalogue_visible':'1','return':'products','catalogue_information[strength]':'Fixture specification','catalogue_information[research]':'Fixture research notes'}
         boundary='ankh-photo-test-boundary'
         body=b''
         for key,value in fields.items():body+=('--'+boundary+'\r\nContent-Disposition: form-data; name="'+key+'"\r\n\r\n'+value+'\r\n').encode()
         body+=('--'+boundary+'\r\nContent-Disposition: form-data; name="catalogue_photo"; filename="photo.png"\r\nContent-Type: image/png\r\n\r\n').encode()+image+('\r\n--'+boundary+'--\r\n').encode()
         request(body,content_type='multipart/form-data; boundary='+boundary)
         html=request()
+        assert 'Fixture specification' in html and 'Fixture research notes' in html
+        with sqlite3.connect(database) as db:
+            assert 'Fixture specification' in db.execute('SELECT information FROM customer_catalogue_information WHERE product_id=?',(case,)).fetchone()[0]
         assert '&lt;script&gt;bad()&lt;/script&gt;' in html and 'data-photo-preview' in html
         image_url=base.split('?')[0]+'?api=catalogue-image&id='+str(case)
         response=opener.open(image_url)

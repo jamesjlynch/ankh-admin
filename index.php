@@ -3339,7 +3339,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    if(!$catalogueProductId || !is_string($_POST['catalogue_description']??''))throw new Exception('Check the catalogue product details.');
    $cataloguePhoto=ankhCataloguePhotoUpload($_FILES['catalogue_photo']??[]);
-   ankhCatalogueSaveContent($db,(int)$catalogueProductId,(string)($_POST['catalogue_description']??''),$cataloguePhoto,($_POST['remove_catalogue_photo']??'')==='1',($_POST['catalogue_visible']??'')==='1');
+   ankhCatalogueSaveContent($db,(int)$catalogueProductId,(string)($_POST['catalogue_description']??''),$cataloguePhoto,($_POST['remove_catalogue_photo']??'')==='1',($_POST['catalogue_visible']??'')==='1',isset($_POST['catalogue_information'])?(is_array($_POST['catalogue_information'])?$_POST['catalogue_information']:throw new Exception('Check product information.')):null);
   }
   if($action==='product_catalogue_visibility'){
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);

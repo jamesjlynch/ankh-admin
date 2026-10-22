@@ -24,10 +24,31 @@ function ankhCatalogueInit(PDO $db): void {
         image_width INTEGER NOT NULL DEFAULT 0,image_height INTEGER NOT NULL DEFAULT 0,updated_at TEXT NOT NULL
     )');
 }
+function ankhCatalogueInformationFields(): array {
+    return ['strength'=>'Strength / quantity','concentration'=>'Concentration','presentation'=>'Presentation / format','appearance'=>'Appearance','purity'=>'Purity (supported by your documentation)','cas'=>'CAS number','formula'=>'Molecular formula','weight'=>'Molecular weight','sequence'=>'Sequence','storage'=>'Storage conditions','research'=>'Research overview','applications'=>'Research applications','precautions'=>'Precautions and handling','faq'=>'Frequently asked questions','coa_url'=>'Certificate / analysis document URL'];
+}
+function ankhCatalogueInformation(PDO $db): array {
+    if(!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_information'")->fetchColumn())return [];
+    $out=[];foreach($db->query('SELECT product_id,information FROM customer_catalogue_information') as $row){$info=json_decode($row['information'],true);if(is_array($info))$out[(int)$row['product_id']]=$info;}
+    return $out;
+}
+function ankhCatalogueValidateInformation(array $input): array {
+    $out=[];
+    foreach(ankhCatalogueInformationFields() as $key=>$label){
+        $value=$input[$key]??'';
+        if(!is_string($value))throw new InvalidArgumentException('Check the product information fields.');
+        $value=trim($value);$limit=in_array($key,['research','applications','precautions','faq'],true)?5000:600;
+        if(strlen($value)>$limit*4 || !preg_match('//u',$value) || preg_match_all('/./us',$value)>$limit)throw new InvalidArgumentException($label.' is too long.');
+        if($key==='coa_url' && $value!=='' && (!filter_var($value,FILTER_VALIDATE_URL) || strtolower((string)parse_url($value,PHP_URL_SCHEME))!=='https' || parse_url($value,PHP_URL_USER)!==null || parse_url($value,PHP_URL_PASS)!==null))throw new InvalidArgumentException('Use an HTTPS link to your own product analysis document.');
+        if($value!=='')$out[$key]=$value;
+    }
+    return $out;
+}
 function ankhCatalogueContent(PDO $db): array {
     if(!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_content'")->fetchColumn())return [];
     $out=[];
     foreach($db->query('SELECT product_id,description,image_mime,image_width,image_height,updated_at,CASE WHEN image_data IS NULL THEN 0 ELSE length(image_data) END AS image_bytes FROM customer_catalogue_content') as $row)$out[(int)$row['product_id']]=$row;
+    foreach(ankhCatalogueInformation($db) as $id=>$info){$out[$id]['information']=$info;}
     return $out;
 }
 function ankhCatalogueValidateImage(string $bytes): array {
@@ -47,7 +68,8 @@ function ankhCataloguePhotoUpload(array $file): ?array {
     if($bytes===false)throw new InvalidArgumentException('The uploaded photo could not be read.');
     return ankhCatalogueValidateImage($bytes);
 }
-function ankhCatalogueSaveContent(PDO $db,int $id,string $description,?array $photo,bool $remove,bool $visible):void {
+function ankhCatalogueSaveContent(PDO $db,int $id,string $description,?array $photo,bool $remove,bool $visible,?array $information=null):void {
+    if($information!==null)$information=ankhCatalogueValidateInformation($information);
     $description=trim($description);
     if(strlen($description)>20000 || !preg_match('//u',$description) || preg_match_all('/./us',$description)>5000)throw new InvalidArgumentException('Use a description of up to 5,000 characters.');
     if($photo!==null && $remove)throw new InvalidArgumentException('Choose a new photo or remove the existing photo, rather than both.');
@@ -61,6 +83,10 @@ function ankhCatalogueSaveContent(PDO $db,int $id,string $description,?array $ph
             $q=$db->prepare('UPDATE customer_catalogue_content SET image_data=?,image_mime=?,image_width=?,image_height=? WHERE product_id=?');
             $q->bindValue(1,$photo['data'],PDO::PARAM_LOB);$q->bindValue(2,$photo['mime']);$q->bindValue(3,$photo['width'],PDO::PARAM_INT);$q->bindValue(4,$photo['height'],PDO::PARAM_INT);$q->bindValue(5,$id,PDO::PARAM_INT);$q->execute();
         }elseif($remove){$db->prepare('UPDATE customer_catalogue_content SET image_data=NULL,image_mime="",image_width=0,image_height=0 WHERE product_id=?')->execute([$id]);}
+        if($information!==null){
+            $db->exec('CREATE TABLE IF NOT EXISTS customer_catalogue_information(product_id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,information TEXT NOT NULL,updated_at TEXT NOT NULL)');
+            $db->prepare('INSERT INTO customer_catalogue_information(product_id,information,updated_at) VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET information=excluded.information,updated_at=excluded.updated_at')->execute([$id,json_encode($information,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('c')]);
+        }
         ankhCatalogueSetVisibility($db,$id,$visible);$db->commit();
     }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
@@ -107,11 +133,11 @@ function ankhCatalogueProducts(PDO $db,int $customerId): array {
         $tracked=(int)($p['stock_tracking']??0)===1;
         // Explicit public fields: never return costs, supplier data or fridge ownership.
         $meta=$content[(int)$p['id']]??[];
-        $out[]=['id'=>(int)$p['id'],'name'=>(string)$p['name'],'description'=>(string)($meta['description']??$p['description']??''),'category'=>$category,'price'=>max(0,$price),'retail_price'=>max(0,(int)$p['price']),'pricing'=>$pricing,'has_photo'=>(int)($meta['image_bytes']??0)>0,'available_qty'=>$tracked?max(0,(int)($p['stock_qty']??0)):null];
+        $out[]=['id'=>(int)$p['id'],'name'=>(string)$p['name'],'description'=>(string)($meta['description']??$p['description']??''),'category'=>$category,'price'=>max(0,$price),'retail_price'=>max(0,(int)$p['price']),'pricing'=>$pricing,'information'=>(array)($meta['information']??[]),'has_photo'=>(int)($meta['image_bytes']??0)>0,'available_qty'=>$tracked?max(0,(int)($p['stock_qty']??0)):null];
     }
     return $out;
 }
 function ankhCatalogueAdminControl(array $p,array $visibility,array $content=[]): void {
     $visible=(int)($visibility[(int)$p['id']]??0)===1;
-    ?><form method="post" enctype="multipart/form-data" class="detail product-settings-form customer-catalogue-control"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_content"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><h3>Customer catalogue</h3><label>Product photograph<input type="file" name="catalogue_photo" accept="image/jpeg,image/png,image/webp" data-catalogue-photo></label><small class="muted" data-photo-status role="status">Choose a JPG, PNG or WebP photo. Large phone photos are resized before upload.</small><img data-photo-preview src="<?=(int)($content['image_bytes']??0)>0?'?api=catalogue-image&amp;id='.(int)$p['id']:''?>" alt="Product photograph preview" width="160" height="160" style="object-fit:contain;border-radius:12px;max-width:100%;background:#f1eee5" <?=(int)($content['image_bytes']??0)>0?'':'hidden'?>><?php if((int)($content['image_bytes']??0)>0):?><label class="check"><input type="checkbox" name="remove_catalogue_photo" value="1"> Remove current photograph</label><?php endif;?><label>Customer description<textarea name="catalogue_description" maxlength="5000" rows="5" placeholder="Add the product information customers should see"><?=e((string)($content['description']??$p['description']??''))?></textarea></label><p class="muted">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form><?php
+    ?><form method="post" enctype="multipart/form-data" class="detail product-settings-form customer-catalogue-control"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_content"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><h3>Customer catalogue</h3><label>Product photograph<input type="file" name="catalogue_photo" accept="image/jpeg,image/png,image/webp" data-catalogue-photo></label><small class="muted" data-photo-status role="status">Choose a JPG, PNG or WebP photo. Large phone photos are resized before upload.</small><img data-photo-preview src="<?=(int)($content['image_bytes']??0)>0?'?api=catalogue-image&amp;id='.(int)$p['id']:''?>" alt="Product photograph preview" width="160" height="160" style="object-fit:contain;border-radius:12px;max-width:100%;background:#f1eee5" <?=(int)($content['image_bytes']??0)>0?'':'hidden'?>><?php if((int)($content['image_bytes']??0)>0):?><label class="check"><input type="checkbox" name="remove_catalogue_photo" value="1"> Remove current photograph</label><?php endif;?><label>Customer description<textarea name="catalogue_description" maxlength="5000" rows="5" placeholder="Add the product information customers should see"><?=e((string)($content['description']??$p['description']??''))?></textarea></label><details class="catalogue-information-editor"><summary>Specifications, research information &amp; documents</summary><p class="muted">Optional. Complete only the information that applies to this product. Empty sections stay hidden. Use your own descriptions and genuine documentation for the supplied product.</p><?php foreach(ankhCatalogueInformationFields() as $key=>$label):$value=(string)($content['information'][$key]??'');$long=in_array($key,['research','applications','precautions','faq'],true);?><label><?=e($label)?><?php if($long):?><textarea name="catalogue_information[<?=$key?>]" maxlength="5000" rows="4"><?=e($value)?></textarea><?php else:?><input type="<?=$key==='coa_url'?'url':'text'?>" name="catalogue_information[<?=$key?>]" maxlength="600" value="<?=e($value)?>" <?=$key==='coa_url'?'placeholder="https://…"':''?>><?php endif;?></label><?php endforeach;?></details><p class="muted">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form><?php
 }

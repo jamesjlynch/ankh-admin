@@ -42,6 +42,9 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
     with sqlite3.connect(admin) as db:
         db.execute('CREATE TABLE customer_catalogue_content(product_id INTEGER PRIMARY KEY,description TEXT,image_data BLOB,image_mime TEXT,image_width INTEGER,image_height INTEGER,updated_at TEXT)')
         for product_id in [1,2]:db.execute('INSERT INTO customer_catalogue_content VALUES(?,?,?,?,?,?,?)',(product_id,'Existing research description <script>example</script>',image_bytes,'image/png',1,1,'test'))
+    with sqlite3.connect(admin) as db:
+        db.execute('CREATE TABLE customer_catalogue_information(product_id INTEGER PRIMARY KEY,information TEXT,updated_at TEXT)')
+        db.execute('INSERT INTO customer_catalogue_information VALUES(?,?,?)',(1,json.dumps({'strength':'Fixture quantity','research':'Original research <script>unsafe</script>','coa_url':'https://example.org/fixture-analysis.pdf'}),'test'))
     with sqlite3.connect(portal) as db:
         db.execute('CREATE TABLE portal_rate_limits(rate_key TEXT PRIMARY KEY,attempts INTEGER,started_at INTEGER)')
     before = hashlib.sha256(admin.read_bytes()).hexdigest()
@@ -129,6 +132,11 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         html=request('/preview-live.php?customer_id=2&tab=catalogue')
         assert '£15.00' in html and 'Your Family & Friends price' in html
         html=request('/preview-live.php?customer_id=2&tab=catalogue&product=1')
+        assert 'pcs-quick-specs' in html and 'Fixture quantity' in html
+        assert 'pcs-sticky-enquiry' in html and 'Specifications' in html
+        assert 'Original research &lt;script&gt;unsafe&lt;/script&gt;' in html
+        assert 'https://example.org/fixture-analysis.pdf' in html and 'noopener noreferrer' in html
+        assert '<script>unsafe</script>' not in html
         assert '<h1>Case</h1>' in html and '£15.00' in html and 'Enquire about this product' in html
         assert '&lt;script&gt;example&lt;/script&gt;' in html and '<script>example</script>' not in html
         photo=opener.open(base+'/preview-live.php?customer_id=2&catalogue_image=1')
