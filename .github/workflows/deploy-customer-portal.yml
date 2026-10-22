@@ -34,6 +34,7 @@ jobs:
           php -l customer-catalogue.php
           node --check customer-portal/account.js
           php tests/customer-statement.php
+          php tests/customer-announcements.php
           php tests/customer-portal.php
           php tests/customer-catalogue-visibility.php
           php tests/customer-portal-render.php
@@ -75,6 +76,6 @@ jobs:
           mkdir -p "$S"
           git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
           git -C "$R" merge-base --is-ancestor "$release_sha" origin/feature/ankh-customer-portal
-          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh tests/customer-statement.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
+          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           REMOTE
