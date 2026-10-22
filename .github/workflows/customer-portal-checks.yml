@@ -35,7 +35,7 @@ jobs:
         run: php tests/customer-portal.php
       - name: Smoke test fictional dashboard without production secrets
         run: |
-          php -r '\$_SERVER["HTTPS"]="on"; \$_SERVER["REQUEST_METHOD"]="GET"; \$_GET["screen"]="account"; include "customer-portal/preview.php";' > /tmp/ankh-customer-preview.html
+          php -r '$_SERVER["HTTPS"]="on"; $_SERVER["REQUEST_METHOD"]="GET"; $_GET["screen"]="account"; include "customer-portal/preview.php";' > /tmp/ankh-customer-preview.html
           grep -q 'Alex Morgan' /tmp/ankh-customer-preview.html
           grep -q 'Sample product A' /tmp/ankh-customer-preview.html
           grep -q 'DEMO PREVIEW' /tmp/ankh-customer-preview.html
