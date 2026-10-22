@@ -159,7 +159,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'Original research &lt;script&gt;unsafe&lt;/script&gt;' in html
         assert 'https://example.org/fixture-analysis.pdf' in html and 'noopener noreferrer' in html
         assert '<script>unsafe</script>' not in html
-        assert '<h1>Case</h1>' in html and '£15.00' in html and 'Add to request list' in html
+        assert '<h1>Case</h1>' in html and '£15.00' in html and 'Add to basket' in html
         assert '&lt;script&gt;example&lt;/script&gt;' in html and '<script>example</script>' not in html
         photo=opener.open(base+'/preview-live.php?customer_id=2&catalogue_image=1')
         assert photo.headers['Content-Type']=='image/png' and photo.read()==image_bytes
@@ -188,15 +188,15 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         request(path,{'csrf':token,'action':'catalogue_favourite','product_id':1,'save':'0'})
         assert 'No favourites yet' in request(path+'&saved=1')
         # Real HTTP regression: one customer list -> one existing enquiry thread, not checkout.
-        assert 'Add to request list' in request(path+'&product=1')
+        assert 'Add to basket' in request(path+'&product=1')
         request(path, {'csrf':'wrong','action':'collection_set','product_id':1,'quantity':2},status=400)
         added=request(path, {'csrf':token,'action':'collection_set','product_id':1,'quantity':2,'customer_id':1})
         assert 'Request list updated' in added
         request(path, {'csrf':token,'action':'collection_set','product_id':3,'quantity':4})
         list_path='/preview-live.php?customer_id=2&tab=request-list'
         listed=request(list_path)
-        assert 'My request list' in listed and '£78.00' in listed and 'Test reference sample' not in listed
-        assert 'Reference sample A' in listed and 'Case' in listed and 'Send combined request' in listed
+        assert 'Your basket' in listed and '£78.00' in listed and 'Test reference sample' not in listed
+        assert 'Reference sample A' in listed and 'Case' in listed and 'Send order request' in listed
         other_list=request('/preview-live.php?customer_id=1&tab=request-list')
         assert 'Start with something you like' in other_list and '£78.00' not in other_list
         revision=re.search(r'name="revision" value="([a-f0-9]+)"',listed).group(1)
@@ -239,7 +239,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'Other customer reminder' not in reminders and 'Paused reminder' not in reminders and '987654' not in reminders
         assert 'No order or payment is created automatically' in reminders
         account_page=request('/preview-live.php?customer_id=2&tab=account');assert 'tab=recurring' in account_page
-        home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Next Order Centre' in home_page
+        home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Shop the collection' in home_page
         other=request('/preview-live.php?customer_id=1&tab=recurring');assert 'No recurring orders set up' in other and '19 Nov 2026' not in other
         notices_path='/preview-live.php?customer_id=2&tab=notifications'
         notices=request(notices_path)
@@ -263,8 +263,8 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
             assert saved_db.execute('SELECT COUNT(*) FROM portal_notification_state WHERE customer_id=1').fetchone()[0]==0
         fresh=request(notices_path+'&unread=1');assert 'ANKH replied to your enquiry' in fresh and 'is-unread' in fresh
         home=request('/preview-live.php?customer_id=2&tab=home')
-        assert 'ANKH has replied to you' in home and 'Read your reply' in home
-        assert 'pc-home-rail' in home and 'pc-home-focus' in home and 'class="pcd-home-banner"' not in home
+        assert 'Shop the collection' in home and 'Your basket' in home
+        assert 'pc-shop-hero' in home and 'pc-shop-featured' in home and 'class="pcd-home-banner"' not in home
         assert 'Skip to account content' in home and 'id="customer-main"' in home
         repeat_path='/preview-live.php?customer_id=2&tab=repeat-enquiry&order=10'
         repeat=request(repeat_path)
