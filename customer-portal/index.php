@@ -145,6 +145,7 @@ $pending = !$customer && !empty($_SESSION['portal_pending_phone']) && (int)($_SE
 $firstName = $customer ? preg_split('/\s+/',trim((string)$customer['name']))[0] : '';
 $active = array_values(array_filter($orders, fn(array $o): bool => !in_array(portalStatus($o), ['Delivered','Cancelled'], true)));
 
+if($customer && $account)portalOrderRequestController($portal,$admin,$customer,$account,$orders,false);
 if($customer && $account)portalNotificationController($portal,$admin,$customer,$account,$orders,false);
 if($customer)ankhPortalCatalogueActions($portal,$admin,$customer,false);
 if(isset($_GET['catalogue_image'])){

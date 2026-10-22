@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
     with sqlite3.connect(admin) as db:
         db.executescript("""
         INSERT INTO orders(id,customer,phone,status,created,delivery_date,delivery_charge) VALUES(10,'Sample Two','07999000000','Delivered','2026-10-01','2026-10-22',0),(11,'Sample One','07123456789','Delivered','2026-10-01','2026-10-22',0);
-        INSERT INTO items VALUES(10,10,'Case','Vial',1500,1),(11,11,'Reference sample A','Vial',1200,1);
+        INSERT INTO items VALUES(10,10,'Case','Vial',1500,1),(11,11,'Reference sample A','Vial',1200,1),(12,10,'Reference sample A','Vial',1,2),(13,10,'Retatrutide 10mg','Vial',6500,1);
         CREATE TABLE reta_cycles(id INTEGER PRIMARY KEY,customer_name TEXT,phone TEXT,last_order_id INTEGER,product_name TEXT,next_due_date TEXT,active INTEGER,cycle_weeks INTEGER,cycle_days INTEGER,presentation TEXT,quantity INTEGER,expected_cost INTEGER);
         INSERT INTO reta_cycles VALUES(1,'Sample Two','07999000000',10,'Case','2026-11-19',1,4,28,'Vial',1,987654),(2,'Sample One','07999000000',11,'Other customer reminder','2026-11-20',1,4,28,'Vial',1,987654),(3,'Sample Two','07999000000',10,'Paused reminder','2026-11-20',0,4,28,'Vial',1,987654);
         """)
@@ -218,6 +218,44 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'ANKH has replied to you' in home and 'Read your reply' in home
         assert 'pc-home-rail' in home and 'pc-home-focus' in home and 'class="pcd-home-banner"' not in home
         assert 'Skip to account content' in home and 'id="customer-main"' in home
+        repeat_path='/preview-live.php?customer_id=2&tab=repeat-enquiry&order=10'
+        repeat=request(repeat_path)
+        assert 'Send combined enquiry' in repeat and '£15.00' in repeat and '£12.00' in repeat
+        assert 'Currently unavailable in the catalogue' in repeat
+        assert 'Order unavailable' in request('/preview-live.php?customer_id=1&tab=repeat-enquiry&order=10')
+        def hidden(html,name):return re.search(r'name="'+name+r'" value="([^"]*)"',html).group(1)
+        repeat_payload={'csrf':csrf(repeat),'action':'catalogue_repeat_enquire','source_order_id':10,'quote_revision':hidden(repeat,'quote_revision'),'request_token':hidden(repeat,'request_token'),'repeat_selected[0]':'0','repeat_selected[1]':'1','repeat_quantities[0]':2,'repeat_quantities[1]':3,'message':'Fixture combined question','unit_price':1,'customer_id':1}
+        request(repeat_path,repeat_payload|{'csrf':'wrong'},status=400)
+        stale=request(repeat_path,repeat_payload|{'quote_revision':'a'*64});assert 'Prices or products have changed' in stale
+        blocked=request(repeat_path,repeat_payload|{'repeat_selected[1]':'2'});assert 'unavailable. Review your selection' in blocked
+        combined=request(repeat_path,repeat_payload);assert 'Your combined enquiry has been sent' in combined and 'Fixture combined question' in combined
+        request(repeat_path,repeat_payload)
+        with sqlite3.connect(portal) as saved_db:
+            parents=saved_db.execute('SELECT id,customer_id,preview,price FROM catalogue_enquiries WHERE product_id=0').fetchall()
+            assert len(parents)==1 and parents[0][1:]==(2,1,6600),parents
+            lines=saved_db.execute('SELECT product_id,quantity,unit_price FROM catalogue_enquiry_lines WHERE enquiry_id=? ORDER BY position',(parents[0][0],)).fetchall()
+            assert lines==[(1,2,1500),(3,3,1200)],lines
+        assert 'Fixture combined question' not in request('/preview-live.php?customer_id=1&tab=catalogue&view_enquiries=1')
+        reminder_path='/preview-live.php?customer_id=2&tab=recurring'
+        page=request(reminder_path);assert 'Request a date or interval change' in page
+        snooze={'csrf':csrf(page),'action':'reminder_snooze','cycle_id':1,'snooze_days':7}
+        assert 'Reminder alerts snoozed' in request(reminder_path,snooze)
+        assert 'Resume alerts' in request(reminder_path)
+        assert 'no longer active in your account' in request('/preview-live.php?customer_id=1&tab=recurring',snooze)
+        with sqlite3.connect(portal) as saved_db:
+            assert saved_db.execute('SELECT customer_id,preview FROM customer_reminder_preferences').fetchall()==[(2,1)]
+        assert 'Reminder alerts resumed' in request(reminder_path,snooze|{'action':'reminder_resume'})
+        page=request(reminder_path)
+        from datetime import date,timedelta
+        next_date=(date.today()+timedelta(days=30)).isoformat()
+        change={'csrf':csrf(page),'action':'reminder_change_request','cycle_id':1,'requested_weeks':6,'requested_date':next_date,'note':'Fixture date request','reminder_revision':hidden(page,'reminder_revision'),'request_token':hidden(page,'request_token')}
+        assert 'reminder has changed' in request(reminder_path,change|{'reminder_revision':'0'*64})
+        changed=request(reminder_path,change);assert 'awaiting ANKH approval' in changed and 'Change request: Pending' in changed
+        request(reminder_path,change)
+        with sqlite3.connect(portal) as saved_db:
+            assert saved_db.execute('SELECT customer_id,preview,requested_weeks,status FROM customer_reminder_requests').fetchall()==[(2,1,6,'Pending')]
+        assert 'Fixture date request' not in request('/preview-live.php?customer_id=1&tab=recurring')
+        print('Repeat enquiry HTTP checks passed: ownership, current Family & Friends prices, hidden products, combined quantities, stale quote, CSRF and replay. Reminder snooze, resume and pending change requests passed.')
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
         print('HTTP catalogue flow passed: Family & Friends pricing, descriptions, protected photos, hidden products, enquiries and unchanged Admin database; separate demo checkout also passed.')
     finally:

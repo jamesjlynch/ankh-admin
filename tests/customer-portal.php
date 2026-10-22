@@ -136,3 +136,23 @@ expectPortal(count(portalOrderHistory($identityDb,$other,'+447999000000'))===2,'
 $identityDb->exec('PRAGMA query_only=ON');
 expectPortal(count(portalOrderHistory($identityDb,$renamed,'+447777123456'))===1,'Stable link lookups work through a read-only Admin connection');
 echo "Stable identity links, rename continuity, ambiguous-match rejection and reassignment privacy passed.\n";
+
+$repeatOrder=['id'=>9,'lines'=>[['product_id'=>1,'name'=>'Old name','quantity'=>2],['product_id'=>2,'name'=>'Hidden product','quantity'=>1],['name'=>'Legacy fixture','quantity'=>1]]];
+$repeatCatalogue=[['id'=>1,'name'=>'Current name','price'=>1500],['id'=>3,'name'=>'Legacy fixture','price'=>0]];
+$candidates=portalRepeatCandidates($repeatOrder,$repeatCatalogue);
+expectPortal($candidates[0]['name']==='Current name' && !$candidates[1]['available'] && $candidates[2]['unit_price']===0,'Repeat enquiries use current published products, stable IDs and free account pricing');
+$repeatLines=portalRepeatEnquiryLines($candidates,['0','2'],[0=>'3',2=>'2']);
+expectPortal($repeatLines[0]['unit_price']===1500 && $repeatLines[0]['quantity']===3 && $repeatLines[1]['unit_price']===0,'Trusted current prices and requested quantities form enquiry lines');
+expectPortal(portalRepeatQuote($repeatOrder,$candidates)!==portalRepeatQuote($repeatOrder,portalRepeatCandidates($repeatOrder,[['id'=>1,'name'=>'Current name','price'=>1600]])),'Product and price changes invalidate the reviewed quote');
+foreach([[['1'],[1=>1]],[['0','0'],[0=>1]],[['0'],[0=>0]],[['0'],[0=>1000]]] as [$selected,$quantities]){try{portalRepeatEnquiryLines($candidates,$selected,$quantities);throw new RuntimeException('Invalid repeat selection accepted');}catch(InvalidArgumentException $e){}}
+ankhCustomerInteractionInit($notificationsStore);
+$notificationsStore->exec("INSERT INTO customer_reminder_preferences VALUES(1,0,1,'2026-10-28','2026-10-29')");
+$privateReminder=portalReminderPreferences($notificationsStore,1,false,[$noticeReminder],$noticeToday);
+expectPortal(portalNotificationEvents([],[],$privateReminder,$noticeToday)===[],'Snoozed reminders suppress due notifications');
+expectPortal(portalReminderPreferences($notificationsStore,2,false,[$noticeReminder],$noticeToday)[0]['snoozed_until']==='' && portalReminderPreferences($notificationsStore,1,true,[$noticeReminder],$noticeToday)[0]['snoozed_until']==='','Snoozes are private to customer and preview');
+expectPortal(portalReminderPreferences($notificationsStore,1,false,[array_replace($noticeReminder,['due_date'=>'2026-10-29'])],$noticeToday)[0]['snoozed_until']==='','A new saved due date starts a fresh reminder');
+expectPortal(portalReminderPreferences($notificationsStore,1,false,[$noticeReminder],new DateTimeImmutable('2026-10-29'))[0]['snoozed_until']==='','Expired snoozes automatically resume');
+echo "Repeat selection, current/free prices, stale quotes, snooze isolation, expiry and notification suppression passed.\n";
+$decisionReminder=array_replace($noticeReminder,['days_until'=>30,'change_request'=>['id'=>7,'status'=>'Approved','preview'=>0,'requested_date'=>'2026-11-21','reviewed_at'=>time()]]);
+$decisionEvents=portalNotificationEvents([],[],[$decisionReminder],$noticeToday);
+expectPortal(count($decisionEvents)===1 && $decisionEvents[0]['title']==='Reminder change approved','Reviewed requests notify customers even when their next date is not due soon');

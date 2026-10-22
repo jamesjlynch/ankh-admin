@@ -104,3 +104,36 @@ catalogueCheck($linkDb->query('SELECT * FROM orders')->fetchAll()===$linkBefore,
 $linkDb->exec("UPDATE customers SET name='Renamed owner',phone='07777123456' WHERE id=1");ankhCatalogueLinkIdentities($linkDb);
 catalogueCheck((int)$linkDb->query('SELECT customer_id FROM customer_order_links WHERE order_id=1')->fetchColumn()===1,'Durable ownership survives customer profile changes');
 echo "Durable customer ownership linking and ambiguous identity rejection passed.\n";
+
+// Disk-backed approval exercises the same two-database transaction as production.
+$requestFile=tempnam(sys_get_temp_dir(),'ankh-requests-');$adminFile=tempnam(sys_get_temp_dir(),'ankh-review-');
+try{
+    $requests=new PDO('sqlite:'.$requestFile,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);ankhCustomerInteractionInit($requests);
+    $review=new PDO('sqlite:'.$adminFile,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+    $review->exec("CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,archived INTEGER);CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,delivery_date TEXT);CREATE TABLE reta_cycles(id INTEGER PRIMARY KEY,last_order_id INTEGER,product_name TEXT,next_due_date TEXT,cycle_weeks INTEGER,cycle_days INTEGER,presentation TEXT,quantity INTEGER,active INTEGER,updated TEXT);
+    INSERT INTO customers VALUES(1,'Fixture owner','07123456789',0),(2,'Other owner','07999000000',0);INSERT INTO orders VALUES(1,'Fixture owner','07123456789','Delivered','2026-10-01');INSERT INTO reta_cycles VALUES(1,1,'Fixture product','2026-11-01',4,28,'Fixture',1,1,'original');");ankhCatalogueLinkIdentities($review);
+    $reminder=function()use($review):array{$cycle=$review->query('SELECT * FROM reta_cycles WHERE id=1')->fetch();$order=$review->query('SELECT * FROM orders WHERE id=1')->fetch();return ['id'=>1,'product'=>$cycle['product_name'],'due_date'=>$cycle['next_due_date'],'weeks'=>(int)$cycle['cycle_weeks'],'last_order_id'=>1,'revision'=>ankhReminderSignature($cycle,$order)];};
+    $date=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->modify('+30 days')->format('Y-m-d');$beforeReview=$review->query('SELECT * FROM reta_cycles')->fetchAll();
+    $req=ankhReminderRequest($requests,1,true,$reminder(),6,$date,'Staff fixture',str_repeat('a',64));
+    catalogueCheck($req===ankhReminderRequest($requests,1,true,$reminder(),6,$date,'Replay',str_repeat('a',64)),'Reminder request replay is idempotent');
+    try{ankhReminderRequest($requests,1,true,$reminder(),6,$date,'Duplicate',str_repeat('b',64));throw new RuntimeException('Duplicate pending request accepted');}catch(InvalidArgumentException $e){}
+    ankhReviewReminderRequest($review,$requests,$req,'approve','Test response');catalogueCheck($review->query('SELECT * FROM reta_cycles')->fetchAll()===$beforeReview,'Staff test approval never changes a live cycle');
+    catalogueCheck($requests->query('SELECT status FROM customer_reminder_requests')->fetchColumn()==='Approved','Staff decision saved');
+    $req=ankhReminderRequest($requests,1,false,$reminder(),6,$date,'Live fixture',str_repeat('c',64));
+    catalogueCheck($review->query('SELECT * FROM reta_cycles')->fetchAll()===$beforeReview,'Creating request never changes Admin');
+    ankhReviewReminderRequest($review,$requests,$req,'approve','Agreed');$cycle=$review->query('SELECT * FROM reta_cycles')->fetch();
+    catalogueCheck((int)$cycle['cycle_weeks']===6 && (int)$cycle['cycle_days']===42 && $cycle['next_due_date']===$date,'Real approval updates the target interval and date');
+    $req=ankhReminderRequest($requests,1,false,$reminder(),8,$date,'Stale fixture',str_repeat('d',64));$review->exec('UPDATE reta_cycles SET cycle_days=43 WHERE id=1');
+    try{ankhReviewReminderRequest($review,$requests,$req,'approve','');throw new RuntimeException('Stale approval accepted');}catch(InvalidArgumentException $e){}
+    catalogueCheck($requests->query('SELECT status FROM customer_reminder_requests WHERE id='.$req)->fetchColumn()==='Pending','Stale approval rolls back decision');
+    $snapshot=$review->query('SELECT * FROM reta_cycles')->fetchAll();ankhReviewReminderRequest($review,$requests,$req,'decline','Please resubmit');catalogueCheck($review->query('SELECT * FROM reta_cycles')->fetchAll()===$snapshot,'Decline leaves schedule unchanged');
+    $req=ankhReminderRequest($requests,2,false,$reminder(),8,$date,'Wrong owner',str_repeat('e',64));
+    try{ankhReviewReminderRequest($review,$requests,$req,'approve','');throw new RuntimeException('Wrong owner accepted');}catch(InvalidArgumentException $e){}
+    foreach([[0,$date],[53,$date],[4,'2026-02-30'],[4,'2000-01-01']] as [$weeks,$badDate]){try{ankhReminderRequest($requests,1,false,$reminder(),$weeks,$badDate,'',str_repeat('f',64));throw new RuntimeException('Invalid reminder change accepted');}catch(InvalidArgumentException $e){}}
+    $lines=[['product_id'=>1,'name'=>'Fixture <script>','quantity'=>2,'unit_price'=>1500],['product_id'=>3,'name'=>'Other fixture','quantity'=>3,'unit_price'=>1200]];
+    $combinedId=ankhCustomerCreateEnquiry($requests,['id'=>0,'name'=>'Combined fixture','price'=>6600],1,false,'Combined question',str_repeat('f',64),$lines);
+    catalogueCheck(count(ankhCustomerEnquiryLines($requests,$combinedId))===2,'One combined enquiry stores all selected line snapshots');
+    catalogueCheck(ankhCustomerCreateEnquiry($requests,['id'=>0,'name'=>'Combined fixture','price'=>6600],1,false,'Replay',str_repeat('f',64),$lines)===$combinedId && count(ankhCustomerEnquiryLines($requests,$combinedId))===2,'Combined enquiry replay does not duplicate lines');
+    ob_start();ankhCustomerEnquiryLinesView($lines);$html=ob_get_clean();catalogueCheck(!str_contains($html,'<script>') && str_contains($html,'&lt;script&gt;'),'Combined line names are escaped');
+    echo "Combined enquiry snapshots, reminder validation, replay, approval, staff isolation, ownership and stale-request rollback passed.\n";
+}finally{$requests=null;$review=null;unlink($requestFile);unlink($adminFile);}

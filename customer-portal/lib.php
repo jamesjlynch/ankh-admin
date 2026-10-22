@@ -250,7 +250,7 @@ function portalRecurringOrders(PDO $admin,array $customer,string $verifiedPhone,
         if(!$due || $due->format('Y-m-d')!==(string)$cycle['next_due_date'])continue;
         $days=(int)$today->diff($due)->format('%r%a');$weeks=(int)$cycle['cycle_weeks'];$interval=(int)$cycle['cycle_days'];
         if($weeks<1||$weeks>52)$weeks=($interval>=7&&$interval<=364&&$interval%7===0)?intdiv($interval,7):0;
-        $out[]=['id'=>(int)$cycle['id'],'product_id'=>$productId,'product'=>$name,'presentation'=>(string)$cycle['presentation'],'quantity'=>max(1,(int)$cycle['quantity']),'weeks'=>$weeks,'due_date'=>$due->format('Y-m-d'),'days_until'=>$days,'last_order_id'=>(int)$source['id'],'last_delivery_date'=>(string)$source['delivery_date']];
+        $out[]=['id'=>(int)$cycle['id'],'revision'=>ankhReminderSignature($cycle,$source),'product_id'=>$productId,'product'=>$name,'presentation'=>(string)$cycle['presentation'],'quantity'=>max(1,(int)$cycle['quantity']),'weeks'=>$weeks,'due_date'=>$due->format('Y-m-d'),'days_until'=>$days,'last_order_id'=>(int)$source['id'],'last_delivery_date'=>(string)$source['delivery_date']];
     }
     return $out;
 }
@@ -278,7 +278,9 @@ function portalNotificationEvents(array $orders,array $enquiries,array $reminder
         $events[]=['key'=>hash('sha256','order:'.json_encode($state)),'kind'=>'order','title'=>'Order ANK-'.str_pad((string)$order['id'],4,'0',STR_PAD_LEFT),'body'=>$body,'tab'=>'orders','params'=>['order'=>(int)$order['id']],'priority'=>2,'sort'=>$when->getTimestamp(),'label'=>'Current order update'];
     }
     foreach($reminders as $row){
-        if($row['days_until']>7)continue;
+        $request=$row['change_request']??null;
+        if($request && in_array($request['status'],['Approved','Declined'],true))$events[]=['key'=>hash('sha256','reminder-request:'.$request['id'].':'.$request['status']),'kind'=>'reminder','title'=>'Reminder change '.strtolower($request['status']),'body'=>$row['product'].' · '.($request['preview']?'Staff test decision':('Requested '.portalDate($request['requested_date']))),'tab'=>'recurring','params'=>[],'priority'=>0,'sort'=>(int)$request['reviewed_at'],'label'=>'Reminder request update'];
+        if($row['days_until']>7 || !empty($row['snoozed_until']))continue;
         $phase=$row['days_until']<0?'passed':($row['days_until']===0?'today':'soon');
         $title=$phase==='today'?'Reorder reminder: expected today':($phase==='passed'?'Review your reorder reminder':'Reorder reminder approaching');
         $events[]=['key'=>hash('sha256','reminder:'.$row['id'].':'.$row['due_date'].':'.$phase),'kind'=>'reminder','title'=>$title,'body'=>$row['product'].' · Expected '.portalDate($row['due_date']),'tab'=>'recurring','params'=>[],'priority'=>1,'sort'=>strtotime($row['due_date'].' 00:00:00 Europe/London'),'label'=>'Saved order reminder'];
@@ -312,11 +314,77 @@ function portalNotificationController(PDO $store,PDO $admin,array $customer,arra
     if(!is_string($_POST['csrf']??null)||!hash_equals((string)($_SESSION['portal_csrf']??''),$_POST['csrf'])){http_response_code(400);exit('Invalid request.');}
     try{
         ankhCustomerInteractionInit($store);portalNotificationInit($store);
-        $events=portalNotificationEvents($orders,ankhCustomerEnquiries($store,(int)$customer['id'],$preview),portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders));
+        $reminders=portalReminderPreferences($store,(int)$customer['id'],$preview,portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders));
+        $events=portalNotificationEvents($orders,ankhCustomerEnquiries($store,(int)$customer['id'],$preview),$reminders);
         if(!is_string($_POST['event_key']??''))throw new InvalidArgumentException('Invalid notification.');
         portalNotificationUpdate($store,(int)$customer['id'],$preview,$events,$_POST['action'],(string)($_POST['event_key']??''));
         $_SESSION['notification_flash']=$_POST['action']==='notification_dismiss'?'Notification dismissed.':($_POST['action']==='notification_read_all'?'All current notifications marked as read.':'Notification marked as read.');
     }catch(InvalidArgumentException $e){http_response_code(400);exit('This notification is no longer available. Refresh and try again.');}
     catch(Throwable $e){error_log('ANKH notification action: '.$e->getMessage());$_SESSION['notification_flash']='Your changes could not be saved. Please try again.';}
     header('Location: '.($preview?'./preview-live.php?customer_id='.(int)$customer['id'].'&':'./?').'tab=notifications',true,303);exit;
+}
+
+function portalRepeatCandidates(array $order,array $catalogue):array {
+    $byId=array_column($catalogue,null,'id');$out=[];
+    foreach($order['lines'] as $index=>$line){
+        $product=null;$id=(int)($line['product_id']??0);
+        if($id>0)$product=$byId[$id]??null;
+        else{$matches=array_values(array_filter($catalogue,static fn(array $p):bool=>strcasecmp(trim($p['name']),trim((string)$line['name']))===0));if(count($matches)===1)$product=$matches[0];}
+        $out[$index]=['index'=>$index,'product_id'=>(int)($product['id']??0),'name'=>(string)($product['name']??$line['name']),'quantity'=>max(1,min(999,(int)$line['quantity'])),'unit_price'=>$product===null?null:(int)$product['price'],'available'=>$product!==null];
+    }
+    return $out;
+}
+function portalRepeatQuote(array $order,array $candidates):string {return hash('sha256',json_encode([(int)$order['id'],array_values($candidates)],JSON_THROW_ON_ERROR));}
+function portalRepeatEnquiryLines(array $candidates,array $selected,array $quantities):array {
+    if(!$selected||count($selected)>25)throw new InvalidArgumentException('Select between 1 and 25 available products.');
+    $lines=[];$seen=[];
+    foreach($selected as $raw){$index=filter_var($raw,FILTER_VALIDATE_INT,['options'=>['min_range'=>0]]);if($index===false||isset($seen[$index])||empty($candidates[$index]['available']))throw new InvalidArgumentException('One of the selected products is unavailable. Review your selection.');$seen[$index]=true;
+        $quantity=filter_var($quantities[$index]??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>999]]);if($quantity===false||$quantity===null)throw new InvalidArgumentException('Choose a quantity of 1–999 for each selected product.');
+        $p=$candidates[$index];$lines[]=['product_id'=>$p['product_id'],'name'=>$p['name'],'quantity'=>$quantity,'unit_price'=>$p['unit_price']];
+    }
+    return $lines;
+}
+function portalReminderPreferences(PDO $store,int $customerId,bool $preview,array $reminders,?DateTimeImmutable $today=null):array {
+    $today=($today??new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+    $q=$store->prepare('SELECT cycle_id,due_date,snoozed_until FROM customer_reminder_preferences WHERE customer_id=? AND preview=? AND snoozed_until>?');$q->execute([$customerId,(int)$preview,$today]);$snoozes=[];foreach($q as $row)$snoozes[$row['cycle_id'].'|'.$row['due_date']]=$row['snoozed_until'];
+    $q=$store->prepare('SELECT * FROM customer_reminder_requests WHERE customer_id=? AND preview=? ORDER BY id DESC LIMIT 200');$q->execute([$customerId,(int)$preview]);$requests=[];foreach($q as $row)if(!isset($requests[(int)$row['cycle_id']]))$requests[(int)$row['cycle_id']]=$row;
+    foreach($reminders as &$reminder){$reminder['snoozed_until']=$snoozes[$reminder['id'].'|'.$reminder['due_date']]??'';$reminder['change_request']=$requests[$reminder['id']]??null;}unset($reminder);return $reminders;
+}
+function portalOrderRequestController(PDO $store,PDO $admin,array $customer,array $account,array $orders,bool $preview):void {
+    if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!in_array($_POST['action']??null,['catalogue_repeat_enquire','reminder_snooze','reminder_resume','reminder_change_request'],true))return;
+    if(!is_string($_POST['csrf']??null)||!hash_equals((string)($_SESSION['portal_csrf']??''),$_POST['csrf'])){http_response_code(400);exit('Invalid request.');}
+    $target='recurring';
+    try{
+        ankhCustomerInteractionInit($store);
+        if($_POST['action']==='catalogue_repeat_enquire'){
+            $target='repeat-enquiry';$order=null;$id=filter_var($_POST['source_order_id']??null,FILTER_VALIDATE_INT);foreach($orders as $candidate)if((int)$candidate['id']===$id){$order=$candidate;break;}
+            if(!$order)throw new InvalidArgumentException('This order is not available in your account.');
+            $candidates=portalRepeatCandidates($order,ankhCatalogueProducts($admin,(int)$customer['id']));
+            if(!is_string($_POST['quote_revision']??null)||!hash_equals(portalRepeatQuote($order,$candidates),$_POST['quote_revision']))throw new InvalidArgumentException('Prices or products have changed. Review the current details and send your enquiry again.');
+            if(!is_array($_POST['repeat_selected']??null)||!is_array($_POST['repeat_quantities']??null)||!is_string($_POST['message']??null)||!is_string($_POST['request_token']??null))throw new InvalidArgumentException('Check your selected products and message.');
+            $lines=portalRepeatEnquiryLines($candidates,$_POST['repeat_selected'],$_POST['repeat_quantities']);$message=trim($_POST['message']);
+            if(strlen($message)>8000||!preg_match('//u',$message)||preg_match_all('/./us',$message)>2000)throw new InvalidArgumentException('Use a message of up to 2,000 characters.');
+            $ref='ANK-'.str_pad((string)$order['id'],4,'0',STR_PAD_LEFT);$total=array_sum(array_map(static fn(array $line):int=>$line['quantity']*$line['unit_price'],$lines));
+            ankhCustomerCreateEnquiry($store,['id'=>0,'name'=>'Enquire again · '.$ref,'price'=>$total],(int)$customer['id'],$preview,'Please confirm availability for the selected products from '.$ref.'.'.($message!==''?"\n\n".$message:''),$_POST['request_token'],$lines);
+            $_SESSION['order_request_flash']='Your combined enquiry has been sent. ANKH will confirm availability; no order or payment has been created.';
+            $target='catalogue&view_enquiries=1';
+        }else{
+            $id=filter_var($_POST['cycle_id']??null,FILTER_VALIDATE_INT);$reminder=null;
+            foreach(portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders) as $candidate)if($candidate['id']===$id){$reminder=$candidate;break;}
+            if(!$reminder)throw new InvalidArgumentException('This reminder is no longer active in your account.');
+            if($_POST['action']==='reminder_snooze'){
+                $days=filter_var($_POST['snooze_days']??null,FILTER_VALIDATE_INT);if(!in_array($days,[7,14,28],true))throw new InvalidArgumentException('Choose a 7, 14 or 28-day snooze.');
+                $until=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->modify('+'.$days.' days')->format('Y-m-d');
+                $store->prepare('INSERT INTO customer_reminder_preferences(customer_id,preview,cycle_id,due_date,snoozed_until) VALUES(?,?,?,?,?) ON CONFLICT(customer_id,preview,cycle_id,due_date) DO UPDATE SET snoozed_until=excluded.snoozed_until')->execute([(int)$customer['id'],(int)$preview,$reminder['id'],$reminder['due_date'],$until]);
+                $_SESSION['order_request_flash']='Reminder alerts snoozed until '.portalDate($until).'. Your recorded reorder date is unchanged.';
+            }elseif($_POST['action']==='reminder_resume'){
+                $store->prepare('DELETE FROM customer_reminder_preferences WHERE customer_id=? AND preview=? AND cycle_id=? AND due_date=?')->execute([(int)$customer['id'],(int)$preview,$reminder['id'],$reminder['due_date']]);$_SESSION['order_request_flash']='Reminder alerts resumed.';
+            }else{
+                $weeks=filter_var($_POST['requested_weeks']??null,FILTER_VALIDATE_INT);if($weeks===false||$weeks===null||!is_string($_POST['requested_date']??null)||!is_string($_POST['note']??'')||!is_string($_POST['request_token']??null)||!is_string($_POST['reminder_revision']??null)||!hash_equals($reminder['revision'],$_POST['reminder_revision']))throw new InvalidArgumentException('The reminder has changed. Refresh and review your request.');
+                ankhReminderRequest($store,(int)$customer['id'],$preview,$reminder,$weeks,$_POST['requested_date'],(string)($_POST['note']??''),$_POST['request_token']);$_SESSION['order_request_flash']='Your reminder change request is awaiting ANKH approval. The recorded date and interval are unchanged.';
+            }
+        }
+        header('Location: '.($preview?'./preview-live.php?customer_id='.(int)$customer['id'].'&':'./?').'tab='.$target,true,303);exit;
+    }catch(InvalidArgumentException $e){$GLOBALS['orderRequestError']=$e->getMessage();}
+    catch(Throwable $e){error_log('ANKH customer order request: '.$e->getMessage());$GLOBALS['orderRequestError']='Your request could not be saved. Please try again.';}
 }

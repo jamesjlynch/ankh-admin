@@ -142,6 +142,15 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
         assert 'Customer enquiries' in html and 'Answer &lt;script&gt;reply()&lt;/script&gt;' in html
         with sqlite3.connect(interaction_db) as db:
             assert db.execute('SELECT reply,status FROM catalogue_enquiries WHERE id=1').fetchone()==('Answer <script>reply()</script>','Answered')
+        with sqlite3.connect(interaction_db) as db:
+            db.execute("INSERT INTO customer_reminder_requests(customer_id,preview,cycle_id,product_name,original_due_date,original_weeks,source_order_id,revision,requested_weeks,requested_date,note,created_at,request_token) VALUES(1,1,99,'Reminder fixture','2026-11-01',4,1,'fixture',6,'2026-12-01','Fixture request',1,?)",('b'*64,))
+        inbox=opener.open(inbox_url).read().decode();assert 'Reminder change requests' in inbox and 'Reminder fixture' in inbox
+        review={'csrf':token,'action':'reminder_request_review','request_id':1,'decision':'decline','admin_note':'Fixture response <script>bad()</script>'}
+        request(review|{'csrf':'bad'})
+        with sqlite3.connect(interaction_db) as db:assert db.execute('SELECT status FROM customer_reminder_requests WHERE id=1').fetchone()==('Pending',)
+        html=request(review);assert 'Declined' in html and 'Fixture response &lt;script&gt;bad()&lt;/script&gt;' in html
+        with sqlite3.connect(interaction_db) as db:assert db.execute('SELECT status,admin_note FROM customer_reminder_requests WHERE id=1').fetchone()==('Declined','Fixture response <script>bad()</script>')
+        print('Admin reminder decision HTTP checks passed: authenticated inbox, CSRF rejection, decision persistence and escaped response.')
         anonymous=client().open(inbox_url).read().decode();assert 'Inbox question' not in anonymous
         assert before==snapshot()
         print('Guided fields, legacy content, optional sections and original records preservation passed.')
