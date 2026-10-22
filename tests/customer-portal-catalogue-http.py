@@ -187,6 +187,52 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         other=request('/preview-live.php?customer_id=1&tab=catalogue&view_enquiries=1');assert 'No enquiries yet' in other and 'Question &lt;script&gt;' not in other
         request(path,{'csrf':token,'action':'catalogue_favourite','product_id':1,'save':'0'})
         assert 'No favourites yet' in request(path+'&saved=1')
+        # Real HTTP regression: one customer list -> one existing enquiry thread, not checkout.
+        assert 'Add to request list' in request(path+'&product=1')
+        request(path, {'csrf':'wrong','action':'collection_set','product_id':1,'quantity':2},status=400)
+        added=request(path, {'csrf':token,'action':'collection_set','product_id':1,'quantity':2,'customer_id':1})
+        assert 'Request list updated' in added
+        request(path, {'csrf':token,'action':'collection_set','product_id':3,'quantity':4})
+        list_path='/preview-live.php?customer_id=2&tab=request-list'
+        listed=request(list_path)
+        assert 'My request list' in listed and '£78.00' in listed and 'Test reference sample' not in listed
+        assert 'Reference sample A' in listed and 'Case' in listed and 'Send combined request' in listed
+        other_list=request('/preview-live.php?customer_id=1&tab=request-list')
+        assert 'Start with something you like' in other_list and '£78.00' not in other_list
+        revision=re.search(r'name="revision" value="([a-f0-9]+)"',listed).group(1)
+        list_token=re.search(r'name="request_token" value="([a-f0-9]+)"',listed).group(1)
+        combined_payload={'csrf':token,'action':'collection_send','revision':revision,'request_token':list_token,
+            'message':'Please confirm sample request','total':1,'customer_id':1}
+        stale=request(list_path,combined_payload|{'revision':'a'*64})
+        assert 'product or price has changed' in stale and 'Case' in stale
+        sent=request(list_path,combined_payload)
+        assert 'Your combined request has been sent' in sent and 'Please confirm sample request' in sent
+        request(list_path,combined_payload)
+        with sqlite3.connect(portal) as saved_db:
+            enquiry=saved_db.execute("SELECT id,customer_id,preview,price FROM catalogue_enquiries WHERE product_name='Multi-product request'").fetchall()
+            assert len(enquiry)==1 and enquiry[0][1:]==(2,1,7800),enquiry
+            saved_lines=saved_db.execute('SELECT product_id,quantity,unit_price FROM catalogue_enquiry_lines WHERE enquiry_id=? ORDER BY position',(enquiry[0][0],)).fetchall()
+            assert saved_lines==[(3,4,1200),(1,2,1500)] or saved_lines==[(1,2,1500),(3,4,1200)],saved_lines
+        assert 'Start with something you like' in request(list_path)
+        assert 'Multi-product request' not in request('/preview-live.php?customer_id=1&tab=catalogue&view_enquiries=1')
+        # Staff switches the public label without altering the read-only Admin SQLite data.
+        manage_path='/preview-live.php?manage=portal'
+        staff=request(manage_path);assert 'Product availability labels' in staff
+        coming=request(manage_path,{'csrf':csrf(staff),'action':'portal_availability','product_id':3,'label':'coming_soon'})
+        assert 'Saved successfully' in coming
+        product=request(path+'&product=3')
+        assert 'Coming soon' in product and 'Notify me when available' in product
+        watched=request(path,{'csrf':token,'action':'watch_set','product_id':3,'enabled':1})
+        assert 'Product watch saved' in watched
+        watch_page=request('/preview-live.php?customer_id=2&tab=watchlist')
+        assert 'Reference sample A' in watch_page and 'Stop watching' in watch_page
+        assert 'Nothing on your watchlist yet' in request('/preview-live.php?customer_id=1&tab=watchlist')
+        # A restored automatic label is detected on the next customer visit.
+        request(manage_path,{'csrf':token,'action':'portal_availability','product_id':3,'label':'automatic'})
+        restock=request('/preview-live.php?customer_id=2&tab=notifications')
+        assert 'A watched product became available' in restock and 'Reference sample A' in restock
+        assert 'A watched product became available' not in request('/preview-live.php?customer_id=1&tab=notifications')
+        print('Request list and availability-watch HTTP checks passed: ownership, review, enquiry lines, approval controls and in-app restocks.')
         reminders=request('/preview-live.php?customer_id=2&tab=recurring')
         assert 'Next Order Centre' in reminders and '19 Nov 2026' in reminders and 'Every 4 weeks' in reminders
         assert '22 Oct 2026' in reminders and 'Enquire about next order' in reminders and 'order=10' in reminders
