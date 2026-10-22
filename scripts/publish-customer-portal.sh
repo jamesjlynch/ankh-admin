@@ -35,6 +35,9 @@ cd "$repo"
 "$php" -l scripts/customer-portal-accounts.php
 "$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
+for tab in home orders vault support account; do "$php" tests/customer-portal-navigation.php "$tab"; done
+"$php" tests/customer-portal-navigation.php orders 104
+"$php" tests/customer-portal-navigation.php vault 103
 for file in index.php lib.php view.php customer-experience.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess; do
   source="customer-portal/$file"
   [[ -f "$source" ]] || { echo "Missing $source" >&2; exit 1; }
