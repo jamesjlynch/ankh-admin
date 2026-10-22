@@ -7,6 +7,7 @@ on:
       - 'customer-catalogue.php'
       - 'scripts/publish-customer-portal.sh'
       - 'tests/customer-portal*'
+      - 'tests/customer-account-features.php'
       - 'tests/customer-catalogue-visibility.php'
       - '.github/workflows/deploy-customer-portal.yml'
   workflow_dispatch:
@@ -28,17 +29,19 @@ jobs:
       - name: Block release on customer privacy and interaction regressions
         run: |
           set -euo pipefail
+          php -l customer-portal/account-features.php
           php -l customer-portal/statement.php
           php -l customer-portal/lib.php
           php -l customer-portal/customer-experience.php
           php -l customer-catalogue.php
           node --check customer-portal/account.js
+          php tests/customer-account-features.php
           php tests/customer-statement.php
           php tests/customer-announcements.php
           php tests/customer-portal.php
           php tests/customer-catalogue-visibility.php
           php tests/customer-portal-render.php
-          for tab in home orders vault support account recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
+          for tab in home orders vault support account insights recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
           python3 tests/customer-portal-catalogue-http.py
           python3 tests/customer-catalogue-admin-http.py
       - name: Configure deployment access
@@ -76,6 +79,6 @@ jobs:
           mkdir -p "$S"
           git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
           git -C "$R" merge-base --is-ancestor "$release_sha" origin/feature/ankh-customer-portal
-          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
+          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           REMOTE
