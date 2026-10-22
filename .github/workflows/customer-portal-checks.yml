@@ -8,7 +8,8 @@ on:
       - 'tests/customer-catalogue*'
       - 'scripts/customer-portal-accounts.php'
       - 'scripts/publish-customer-portal.sh'
-      - 'tests/customer-portal*.php'\n      - 'tests/customer-statement.php'
+      - 'tests/customer-portal*.php'
+      - 'tests/customer-statement.php'
       - 'tests/customer-portal-catalogue-http.py'
       - '.github/workflows/customer-portal-checks.yml'
   workflow_dispatch:
@@ -31,7 +32,8 @@ jobs:
       - name: Lint portal and management scripts
         run: |
           php -l customer-portal/index.php
-          php -l customer-portal/statement.php\n          php -l customer-portal/lib.php
+          php -l customer-portal/statement.php
+          php -l customer-portal/lib.php
           php -l customer-portal/view.php
           php -l customer-portal/customer-experience.php
           php -l customer-portal/catalogue-demo.php
@@ -44,11 +46,14 @@ jobs:
           php -l customer-portal/preview-live.php
           php -l scripts/configure-customer-preview.php
           php -l scripts/customer-portal-accounts.php
-          php -l tests/customer-statement.php\n          php -l tests/customer-portal.php
+          php -l tests/customer-statement.php
+          php -l tests/customer-portal.php
           php -l tests/customer-portal-render.php
           bash -n scripts/publish-customer-portal.sh
       - name: Verify private order isolation, read-only DB and rate limiting
-        run: |\n          php tests/customer-statement.php\n          php tests/customer-portal.php
+        run: |
+          php tests/customer-statement.php
+          php tests/customer-portal.php
       - name: Prevent accidental raw PHP controller leakage in customer HTML
         run: php tests/customer-portal-render.php
       - name: Verify five customer screens and drill-down interactions
