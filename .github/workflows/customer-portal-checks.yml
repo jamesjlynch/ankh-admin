@@ -26,8 +26,16 @@ jobs:
         run: |
           php -l customer-portal/index.php
           php -l customer-portal/lib.php
+          php -l customer-portal/view.php
+          php -l customer-portal/preview.php
           php -l scripts/customer-portal-accounts.php
           php -l tests/customer-portal.php
           bash -n scripts/publish-customer-portal.sh
       - name: Verify private order isolation, read-only DB and rate limiting
         run: php tests/customer-portal.php
+      - name: Smoke test fictional dashboard without production secrets
+        run: |
+          php -r '\$_SERVER["HTTPS"]="on"; \$_SERVER["REQUEST_METHOD"]="GET"; \$_GET["screen"]="account"; include "customer-portal/preview.php";' > /tmp/ankh-customer-preview.html
+          grep -q 'Alex Morgan' /tmp/ankh-customer-preview.html
+          grep -q 'Sample product A' /tmp/ankh-customer-preview.html
+          grep -q 'DEMO PREVIEW' /tmp/ankh-customer-preview.html
