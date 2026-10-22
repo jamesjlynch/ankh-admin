@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-if(!defined('ANKH_PORTAL_VIEW')||empty($customer)||!empty($portal)||!empty($isDemo)){http_response_code(404);exit;}
+if(!defined('ANKH_PORTAL_VIEW')||empty($customer)||empty($portal)||!empty($isDemo)){http_response_code(404);exit;}
 $requestedId=filter_var($_GET['enquiry']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
 $requestedEnquiry=null;
 try{
