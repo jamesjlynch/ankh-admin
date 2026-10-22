@@ -31,6 +31,20 @@ catalogueCheck($renamed['name']==='Renamed reference sample' && $renamed['price'
 ankhCatalogueSetVisibility($db,3,false);
 catalogueCheck(!in_array(3,array_column(ankhCatalogueProducts($db,1),'id'),true),'Unticking removes a product');
 try{ankhCatalogueSetVisibility($db,999,true);throw new RuntimeException('Unknown product accepted');}catch(InvalidArgumentException $e){}
+$imageBytes=base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=');
+$photo=ankhCatalogueValidateImage($imageBytes);
+$unchanged=$db->query('SELECT * FROM products')->fetchAll();
+ankhCatalogueSaveContent($db,1,"Saved catalogue description\n<script>example</script>",$photo,false,true);
+$withPhoto=array_values(array_filter(ankhCatalogueProducts($db,1),fn(array $p):bool=>$p['id']===1))[0];
+catalogueCheck($withPhoto['has_photo'] && str_contains($withPhoto['description'],'Saved catalogue'),'Photo and description are included in public fields');
+catalogueCheck(!isset($withPhoto['image_data']) && !isset($withPhoto['cost']),'Never put image blobs or costs into product list');
+ankhCatalogueSaveContent($db,1,'Updated description',null,false,true);
+catalogueCheck((int)ankhCatalogueContent($db)[1]['image_bytes']===strlen($imageBytes),'Saving text preserves existing photo');
+ankhCatalogueSaveContent($db,1,'Updated description',null,true,true);
+catalogueCheck((int)ankhCatalogueContent($db)[1]['image_bytes']===0,'Removing photo clears photo only');
+catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Catalogue content never changes existing product data');
+foreach(['<svg onload="bad()"></svg>','<?php echo 1;'] as $invalid){try{ankhCatalogueValidateImage($invalid);throw new RuntimeException('Non-photo accepted');}catch(InvalidArgumentException $e){}}
+try{ankhCatalogueSaveContent($db,1,str_repeat('a',5001),null,false,true);throw new RuntimeException('Overlong description accepted');}catch(InvalidArgumentException $e){}
 $db->exec('PRAGMA query_only=ON');
 catalogueCheck(count(ankhCatalogueProducts($db,1))===2,'Customer catalogue reads through a read-only connection');
 echo "Catalogue defaults, manual visibility, renamed products, pricing, stock and product preservation passed.\n";
