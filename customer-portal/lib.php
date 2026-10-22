@@ -3,6 +3,7 @@ declare(strict_types=1);
 // The standalone portal receives the same policy module as Admin during publishing.
 require_once is_file(__DIR__.'/customer-catalogue.php')?__DIR__.'/customer-catalogue.php':dirname(__DIR__).'/customer-catalogue.php';
 require_once __DIR__.'/account-features.php';
+require_once __DIR__.'/request-watch.php';
 
 /**
  * ANKH Customer Portal — isolated public application.
@@ -257,7 +258,7 @@ function portalRecurringOrders(PDO $admin,array $customer,string $verifiedPhone,
 }
 
 /** Current, account-scoped events. No mail, push or writes to the Admin database. */
-function portalNotificationEvents(array $orders,array $enquiries,array $reminders,?DateTimeImmutable $today=null):array {
+function portalNotificationEvents(array $orders,array $enquiries,array $reminders,?DateTimeImmutable $today=null,array $restockEvents=[]):array {
     $today=($today??new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->setTimezone(new DateTimeZone('Europe/London'));
     $events=[];
     foreach($enquiries as $row){
@@ -286,6 +287,7 @@ function portalNotificationEvents(array $orders,array $enquiries,array $reminder
         $title=$phase==='today'?'Reorder reminder: expected today':($phase==='passed'?'Review your reorder reminder':'Reorder reminder approaching');
         $events[]=['key'=>hash('sha256','reminder:'.$row['id'].':'.$row['due_date'].':'.$phase),'kind'=>'reminder','title'=>$title,'body'=>$row['product'].' · Expected '.portalDate($row['due_date']),'tab'=>'recurring','params'=>[],'priority'=>1,'sort'=>strtotime($row['due_date'].' 00:00:00 Europe/London'),'label'=>'Saved order reminder'];
     }
+    foreach($restockEvents as $restockEvent)$events[]=$restockEvent;
     usort($events,static fn(array $a,array $b):int=>($a['priority']<=>$b['priority'])?:($b['sort']<=>$a['sort']));
     return $events;
 }
@@ -316,7 +318,10 @@ function portalNotificationController(PDO $store,PDO $admin,array $customer,arra
     try{
         ankhCustomerInteractionInit($store);portalNotificationInit($store);
         $reminders=portalReminderPreferences($store,(int)$customer['id'],$preview,portalRecurringOrders($admin,$customer,(string)$account['phone_e164'],$orders));
-        $events=portalNotificationEvents($orders,ankhCustomerEnquiries($store,(int)$customer['id'],$preview),$reminders);
+        $restockEvents=[];
+        try{$restockEvents=portalWatchRefresh($store,(int)$customer['id'],$preview,ankhCatalogueProducts($admin,(int)$customer['id']),portalExtrasAvailabilityMap($store));}
+        catch(Throwable $e){error_log('ANKH restock events: '.$e->getMessage());}
+        $events=portalNotificationEvents($orders,ankhCustomerEnquiries($store,(int)$customer['id'],$preview),$reminders,null,$restockEvents);
         if(!is_string($_POST['event_key']??''))throw new InvalidArgumentException('Invalid notification.');
         portalNotificationUpdate($store,(int)$customer['id'],$preview,$events,$_POST['action'],(string)($_POST['event_key']??''));
         $_SESSION['notification_flash']=$_POST['action']==='notification_dismiss'?'Notification dismissed.':($_POST['action']==='notification_read_all'?'All current notifications marked as read.':'Notification marked as read.');
