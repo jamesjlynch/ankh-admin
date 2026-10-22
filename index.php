@@ -3335,6 +3335,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='supplier_order_cancel'){
    $supplierOrderId=(int)($_POST['supplier_order_id']??0);$q=$db->prepare('SELECT COALESCE(SUM(received_qty),0) FROM supplier_order_items WHERE supplier_order_id=?');$q->execute([$supplierOrderId]);if((int)$q->fetchColumn()>0)throw new Exception('This supplier order has already been partly received and cannot be cancelled.');$db->prepare("UPDATE supplier_orders SET status='Cancelled' WHERE id=?")->execute([$supplierOrderId]);
   }
+  if($action==='catalogue_enquiry_reply'){
+   if(!is_string($_POST['reply']??null)||!is_string($_POST['enquiry_status']??null))throw new Exception('Check the reply and status.');
+   ankhCustomerReply(ankhCustomerInteractionStore(),(int)($_POST['enquiry_id']??0),$_POST['reply'],$_POST['enquiry_status']);
+   header('Location: ./?view=enquiries',true,303);exit;
+  }
   if($action==='product_catalogue_content'){
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    if(!$catalogueProductId || !is_string($_POST['catalogue_description']??''))throw new Exception('Check the catalogue product details.');
@@ -3898,7 +3903,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
@@ -4705,14 +4710,14 @@ if($view==='reportsboard'){
 <a class="<?=$view==='products'?'selected':''?>" href="?view=products"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="nav-label">Products</span></a>
 <a class="<?=$view==='reports'?'selected':''?>" href="?view=reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></svg></span><span class="nav-label">Reports</span></a>
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
-<a class="<?=in_array($view,['supplies','more','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <nav class="mobile-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
-<a class="<?=in_array($view,['supplies','more','products','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','products','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
@@ -5111,6 +5116,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </div></details>
 <?php endif;?>
 
+<?php elseif($view==='enquiries'):ankhCustomerInbox($db);?>
 <?php elseif($view==='products'): ankhCatalogueInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
 <div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><a class="quick-action" href="?view=stock">Stock control →</a></div>
@@ -6304,6 +6310,7 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 <a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping Intelligence</h2><p>China holidays, disruption countdowns and mobile-friendly stock protection forecasts.</p></div><b>›</b></a>
 <a class="more-card" href="?view=activity"><span class="more-icon">≡</span><div><h2>Order &amp; payment activity</h2><p>Review recent changes to orders, payments, preparation and deliveries.</p></div><b>›</b></a>
 <a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
+<a class="more-card" href="?view=enquiries"><span class="more-icon">✉</span><div><h2>Customer enquiries</h2><p>Read product questions, reply and manage their status.</p></div><b>›</b></a>
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
 <a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; Profit Centre</h2><p>Supplier box prices, margins, combined purchases and incoming stock.</p></div><b>›</b></a>
 <a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2><p>See what’s running low and suggested supplier pack quantities.</p></div><b>›</b></a>

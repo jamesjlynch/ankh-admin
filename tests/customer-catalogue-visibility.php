@@ -78,3 +78,18 @@ catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Gu
 $db->exec('PRAGMA query_only=ON');
 catalogueCheck(count(ankhCatalogueProducts($db,1))===2,'Customer catalogue reads through a read-only connection');
 echo "Catalogue defaults, manual visibility, renamed products, pricing, stock and product preservation passed.\n";
+
+$store=new PDO('sqlite::memory:');$store->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);ankhCustomerInteractionInit($store);
+$product=['id'=>1,'name'=>'Fixture product','price'=>1500];
+ankhCustomerSaveFavourite($store,$product,1,false,true);ankhCustomerSaveFavourite($store,$product,1,false,true);
+catalogueCheck(ankhCustomerFavourites($store,1,false)===[1] && ankhCustomerFavourites($store,2,false)===[] && ankhCustomerFavourites($store,1,true)===[],'Favourites are idempotent and isolated by customer and staff test');
+ankhCustomerSaveFavourite($store,$product,1,false,false);catalogueCheck(ankhCustomerFavourites($store,1,false)===[],'Favourites can be removed');
+$token=str_repeat('a',64);$id=ankhCustomerCreateEnquiry($store,$product,1,false,'Fixture question <script>bad()</script>',$token);
+catalogueCheck(ankhCustomerCreateEnquiry($store,$product,1,false,'Duplicate',$token)===$id && count(ankhCustomerEnquiries($store,1,false))===1,'Replayed enquiry submissions do not duplicate');
+catalogueCheck(ankhCustomerEnquiries($store,2,false)===[] && ankhCustomerEnquiries($store,1,true)===[],'Enquiries are isolated by customer and preview');
+ankhCustomerReply($store,$id,'Fixture answer','Answered');$row=ankhCustomerEnquiries($store,1,false)[0];
+catalogueCheck($row['reply']==='Fixture answer' && $row['status']==='Answered' && $row['price']===1500,'Replies and account price snapshots persist');
+try{ankhCustomerReply($store,$id,'','Answered');throw new RuntimeException('Blank answer accepted');}catch(InvalidArgumentException $e){}
+for($i=0;$i<9;$i++)ankhCustomerCreateEnquiry($store,$product,1,false,'Question',hash('sha256',(string)$i));
+try{ankhCustomerCreateEnquiry($store,$product,1,false,'Too many',hash('sha256','more'));throw new RuntimeException('Rate limit failed');}catch(InvalidArgumentException $e){}
+echo "Customer favourite isolation, enquiry idempotency, replies, pricing snapshots and throttling passed.\n";

@@ -31,7 +31,11 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
     router.write_text("<?php $_SERVER['SERVER_ADDR']='127.0.0.1'; return false;")
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
-    env=os.environ|{'ANKH_TEST_ALLOW_HTTP':'1','ANKH_ADMIN_CONFIG':str(config_file)}
+    interaction_db=temp/'portal.sqlite'
+    sqlite3.connect(interaction_db).close()
+    interaction_config=temp/'portal-config.php'
+    interaction_config.write_text('<?php return '+"['portal_database_path'=>'"+str(interaction_db)+"'];")
+    env=os.environ|{'ANKH_TEST_ALLOW_HTTP':'1','ANKH_ADMIN_CONFIG':str(config_file),'ANKH_PORTAL_CONFIG':str(interaction_config)}
     log=open(temp/'server.log','w+')
     process=subprocess.Popen([args.php,'-S',f'127.0.0.1:{port}','-t',str(repo),str(router)],env=env,stdout=log,stderr=log)
     base=f'http://127.0.0.1:{port}/index.php?view=products'
@@ -129,6 +133,16 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
             assert db.execute('SELECT description FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==('Guided product introduction',)
         html=request()
         assert 'Fixture colour' in html and 'Fixture prepared storage' in html
+        php_seed="require '"+str(repo/'customer-catalogue.php')+"'; $s=ankhCustomerInteractionStore(); ankhCustomerCreateEnquiry($s,['id'=>1,'name'=>'Inbox fixture','price'=>1500],1,true,'Inbox question <script>bad()</script>',str_repeat('a',64));"
+        subprocess.check_call([args.php,'-r',php_seed],env=env)
+        inbox_url=base.split('?')[0]+'?view=enquiries'
+        inbox=opener.open(inbox_url).read().decode();assert 'Inbox fixture' in inbox and '&lt;script&gt;bad()&lt;/script&gt;' in inbox and 'STAFF TEST' in inbox
+        fields={'csrf':token,'action':'catalogue_enquiry_reply','enquiry_id':1,'reply':'Answer <script>reply()</script>','enquiry_status':'Answered'}
+        html=request(fields)
+        assert 'Customer enquiries' in html and 'Answer &lt;script&gt;reply()&lt;/script&gt;' in html
+        with sqlite3.connect(interaction_db) as db:
+            assert db.execute('SELECT reply,status FROM catalogue_enquiries WHERE id=1').fetchone()==('Answer <script>reply()</script>','Answered')
+        anonymous=client().open(inbox_url).read().decode();assert 'Inbox question' not in anonymous
         assert before==snapshot()
         print('Guided fields, legacy content, optional sections and original records preservation passed.')
         print('Photo upload, authenticated image delivery, escaped description and photo removal checks passed.')
