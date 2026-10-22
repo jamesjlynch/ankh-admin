@@ -118,6 +118,11 @@ if(empty($isDemo) && isset($portal)){
     catch(Throwable $e){error_log('ANKH notification centre: '.$e->getMessage());$notificationError=true;}
 }
 $notificationFlash=(string)($_SESSION['notification_flash']??'');unset($_SESSION['notification_flash']);
+$customerAnnouncement=null;
+if(empty($isDemo) && isset($portal)){
+    try{$customerAnnouncement=ankhAnnouncementLive($portal);}
+    catch(Throwable $e){error_log('ANKH customer announcement: '.$e->getMessage());}
+}
 $dueSoon=count(array_filter($recurringOrders,static fn(array $r):bool=>$r['days_until']<=7 && empty($r['snoozed_until'])));
 // A single priority keeps Home useful without stacking competing banners.
 $homeFocus=['eyebrow'=>'YOUR NEXT STEP','title'=>'Explore the ANKH collection','body'=>'Browse product information, save favourites and send a question to the team.','icon'=>'catalogue','tab'=>'catalogue','params'=>[],'action'=>'Explore the collection'];
@@ -136,6 +141,16 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
   <nav class="pc-top-nav" aria-label="Customer account navigation">
     <?php foreach($menu as [$key,$label]): ?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" <?=($activeNav===$key?'aria-current="page"':'')?> class="<?=$activeNav===$key?'selected':''?>"><?=pcIcon($key)?><span><?=portalEscape($label)?></span></a><?php endforeach;?>
   </nav>
+  <?php if($customerAnnouncement):?>
+  <aside class="pc-announcement" role="status" aria-label="ANKH customer announcement">
+    <span class="pc-announcement-symbol" aria-hidden="true">☥</span>
+    <div class="pc-announcement-content">
+      <span class="pc-eyebrow"><?=portalEscape((string)$customerAnnouncement['type'])?> UPDATE</span>
+      <h2><?=portalEscape((string)$customerAnnouncement['title'])?></h2>
+      <p><?=nl2br(portalEscape((string)$customerAnnouncement['message']))?></p>
+    </div>
+  </aside>
+  <?php endif;?>
   <?php if($catalogueEnabled && in_array($tab,['catalogue','basket','checkout','confirmation','test-orders'],true)): ?>
     <?php require __DIR__.(!empty($isDemo)?'/catalogue-view.php':'/live-catalogue.php'); ?>
   <?php elseif($tab==='home'): ?>
