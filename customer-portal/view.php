@@ -11,6 +11,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <meta name="description" content="Secure ANKH customer account and order history.">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./account.css">
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body>
@@ -83,50 +84,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
     </section>
   </div>
 <?php else: ?>
-  <div class="account-top">
-    <div><span class="eyebrow"><span class="line"></span> YOUR ANKH ACCOUNT</span><h1>Hello, <?=portalEscape((string)$firstName)?><span class="gold-dot">.</span></h1><p>Here’s the latest from your account.</p></div>
-    <div class="account-avatar" aria-hidden="true">☥</div>
-  </div>
-  <?php if ($error): ?><div class="feedback error" role="alert"><?=portalEscape($error)?></div><?php endif; ?>
-  <div class="summary-grid">
-    <div class="summary-card dark"><span class="summary-label">TOTAL ORDERS</span><strong><?=count($orders)?></strong><span class="summary-bottom">Your full order history</span><span class="summary-decor">◈</span></div>
-    <div class="summary-card light"><span class="summary-label">IN PROGRESS</span><strong><?=count($active)?></strong><span class="summary-bottom">Orders not yet delivered</span><span class="summary-decor">↗</span></div>
-  </div>
-  <div class="section-heading"><div><span class="eyebrow">ORDER HISTORY</span><h2>My orders</h2></div><span class="history-count"><?=count($orders)?> orders</span></div>
-  <?php if (!$orders): ?>
-    <section class="empty-state"><span>◈</span><h3>No orders here yet</h3><p>Only orders linked to your approved customer identity will appear here. If something is missing, contact us to review it.</p></section>
-  <?php else: ?>
-    <div class="orders-list">
-      <?php foreach ($orders as $order):
-        $status = portalStatus($order);
-        $balance = max(0,(int)$order['total'] - (int)$order['paid']);
-        $paymentLabel = (int)$order['total']===0 ? 'No payment required' : ($balance===0 ? 'Paid in full' : ((int)$order['paid']>0 ? 'Part paid' : 'Payment due'));
-        $statusClass = match($status) { 'Delivered' => 'delivered', 'Cancelled' => 'cancelled', default => 'progress' };
-      ?>
-        <details class="order-card">
-          <summary>
-            <span class="order-icon" aria-hidden="true">◈</span>
-            <span class="order-main"><span class="order-reference">ANK-<?=str_pad((string)$order['id'],4,'0',STR_PAD_LEFT)?> <span class="sep">·</span> <?=portalEscape(portalDate((string)$order['created']))?></span><strong><?=count($order['lines'])?> item<?=count($order['lines'])===1?'':'s'?> <span class="status-pill <?=$statusClass?>"><?=portalEscape($status)?></span></strong><span class="order-payment"><?=portalEscape($paymentLabel)?></span></span>
-            <span class="order-right"><strong><?=portalEscape(portalMoney((int)$order['total']))?></strong><span class="chevron" aria-hidden="true">⌄</span></span>
-          </summary>
-          <div class="order-details">
-            <div class="details-header">ITEMS IN THIS ORDER</div>
-            <?php foreach ($order['lines'] as $line): ?>
-              <div class="detail-row"><div><strong><?=portalEscape((string)$line['name'])?></strong><?php if(trim((string)$line['presentation'])!==''):?><small><?=portalEscape((string)$line['presentation'])?></small><?php endif;?></div><div><span class="item-qty">×<?= (int)$line['quantity'] ?></span> <strong><?=portalEscape(portalMoney((int)$line['price']*(int)$line['quantity']))?></strong></div></div>
-            <?php endforeach; ?>
-            <?php if ((int)$order['delivery_charge']>0): ?><div class="detail-row"><span>Delivery</span><strong><?=portalEscape(portalMoney((int)$order['delivery_charge']))?></strong></div><?php endif; ?>
-            <div class="detail-total"><span>Order total</span><strong><?=portalEscape(portalMoney((int)$order['total']))?></strong></div>
-            <div class="detail-payment"><span><?=portalEscape($paymentLabel)?></span><?php if ($balance>0 && $status!=='Cancelled'): ?><strong><?=portalEscape(portalMoney($balance))?> outstanding</strong><?php endif; ?></div>
-            <?php if ($status==='Delivered' && trim((string)$order['delivery_date'])!==''): ?><p class="detail-date">Delivered: <?=portalEscape(portalDate((string)$order['delivery_date']))?></p><?php elseif ($status!=='Delivered' && $status!=='Cancelled' && trim((string)$order['scheduled_delivery_date'])!==''): ?><p class="detail-date">Planned delivery: <?=portalEscape(portalDate((string)$order['scheduled_delivery_date']))?> · Subject to confirmation</p><?php endif; ?>
-          </div>
-        </details>
-      <?php endforeach; ?>
-    </div>
-  <?php endif; ?>
-  <div class="account-bottom">
-    <section class="help-card"><div class="help-symbol">✳</div><div><span class="eyebrow">NEED A HAND?</span><h3>Something not right?</h3><p>Questions about an order or missing history? Get in touch with our team.</p><a href="mailto:info@ankhpeptides.com?subject=ANKH%20Customer%20Account">Contact ANKH <span>↗</span></a></div></section>
-    <section class="details-card"><span class="eyebrow">YOUR DETAILS</span><h3><?=portalEscape((string)$customer['name'])?></h3><div class="saved-detail"><span>Verified mobile</span><strong><?=portalEscape((string)$account['phone_e164'])?></strong></div><div class="saved-detail"><span>Saved delivery details</span><strong><?=trim((string)$customer['address'])!=='' ? nl2br(portalEscape((string)$customer['address'])) : 'Not yet saved'?></strong></div><p>Need to make a change? Contact ANKH to update your account securely.</p></section>
-  </div>
+  <?php require __DIR__.'/customer-experience.php'; ?>
 <?php endif; ?>
 </main>
 <footer><span>☥ ANKH</span><span>PRIVATE CUSTOMER EXPERIENCE</span><a href="mailto:info@ankhpeptides.com?subject=Privacy%20enquiry">Privacy &amp; support</a></footer>
