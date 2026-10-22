@@ -206,7 +206,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         stale=request(list_path,combined_payload|{'revision':'a'*64})
         assert 'product or price has changed' in stale and 'Case' in stale
         sent=request(list_path,combined_payload)
-        assert 'Your combined request has been sent' in sent and 'Please confirm sample request' in sent
+        assert 'Your combined request has been sent' in sent and 'Please confirm sample request' in sent, sent[-6000:]
         request(list_path,combined_payload)
         with sqlite3.connect(portal) as saved_db:
             enquiry=saved_db.execute("SELECT id,customer_id,preview,price FROM catalogue_enquiries WHERE product_name='Multi-product request'").fetchall()
