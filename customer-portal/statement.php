@@ -13,6 +13,12 @@ function portalPdfString(string $text): string {
     return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $encoded);
 }
 
+function portalStatementClip(string $value,int $length):string {
+    if(function_exists('mb_substr'))return mb_substr($value,0,$length,'UTF-8');
+    $chars=preg_split('//u',$value,-1,PREG_SPLIT_NO_EMPTY);
+    return $chars===false?substr($value,0,$length):implode('',array_slice($chars,0,$length));
+}
+
 function portalStatementTotals(array $orders): array {
     $totals = ['orders'=>0,'charged'=>0,'paid'=>0,'outstanding'=>0,'cancelled'=>0];
     foreach ($orders as $order) {
@@ -61,9 +67,9 @@ function portalStatementPdf(array $orders, array $customer, ?DateTimeImmutable $
     $ensure=function(float $height)use(&$y,$newPage):void {if($y-$height<75)$newPage();};
     $newPage();
     $text(42,$y,'PREPARED FOR',8,true,'0.57 0.44 0.22');$y-=24;
-    $text(42,$y,mb_substr((string)($customer['name']??'Customer'),0,85,'UTF-8'),17,true);$y-=22;
+    $text(42,$y,portalStatementClip((string)($customer['name']??'Customer'),85),17,true);$y-=22;
     $address = preg_split('/\R/u',(string)($customer['address']??''))?:[];
-    foreach(array_slice($address,0,3) as $addr) {if(trim($addr)==='')continue;$text(42,$y,mb_substr(trim($addr),0,90,'UTF-8'),9);$y-=15;}
+    foreach(array_slice($address,0,3) as $addr) {if(trim($addr)==='')continue;$text(42,$y,portalStatementClip(trim($addr),90),9);$y-=15;}
     $y-=9;
     $line(42,$y,553,$y);$y-=25;
     $text(42,$y,'Orders: '.$summary['orders'],10,true);
@@ -90,7 +96,7 @@ function portalStatementPdf(array $orders, array $customer, ?DateTimeImmutable $
             try {$when=(new DateTimeImmutable($when))->setTimezone(new DateTimeZone('Europe/London'))->format('d M Y');}
             catch(Throwable $e) {$when='Date unavailable';}
             $detail=$when.'  '.portalMoney((int)($payment['amount']??0));
-            if(trim((string)($payment['method']??''))!=='')$detail.='  '.mb_substr(trim((string)$payment['method']),0,32,'UTF-8');
+            if(trim((string)($payment['method']??''))!=='')$detail.='  '.portalStatementClip(trim((string)$payment['method']),32);
             $paymentLines[]=$detail;
         }
         $height=38+(count($paymentLines)>0?14+13*min(15,count($paymentLines)):0);
@@ -103,7 +109,7 @@ function portalStatementPdf(array $orders, array $customer, ?DateTimeImmutable $
         $paid=max(0,min($total,(int)($order['paid']??0)));
         $balance=$cancelled?0:max(0,$total-$paid);
         $text(50,$y,$ref,10,true);$text(50,$y-14,$created,8,false,'0.48 0.48 0.45');
-        $text(235,$y,mb_substr($status,0,17,'UTF-8'),9);
+        $text(235,$y,portalStatementClip($status,17),9);
         $text(358,$y,portalMoney($total),9);
         $text(427,$y,portalMoney($paid),9);
         $text(490,$y,portalMoney($balance),9,true);
