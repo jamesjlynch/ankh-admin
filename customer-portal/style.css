@@ -155,3 +155,12 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var
 .demo-strip a{padding:6px 10px;background:#22231d;color:#f5dfb2;border-radius:7px;font-size:11px;font-weight:650}
 .demo-strip a:hover{background:#414132}
 @media(max-width:700px){.demo-strip{padding:11px 14px;gap:8px}.demo-strip span{flex-basis:100%;order:1}.demo-strip nav{order:2}.demo-strip strong{order:0}}
+
+/* Compact staff-only customer chooser: keep real customer info behind authentication. */
+.staff-switcher{border:1px solid rgba(232,199,125,.2);background:#161918;border-radius:15px;margin:0 0 25px}
+.staff-switcher>summary{list-style:none;display:flex;gap:16px;justify-content:space-between;align-items:center;padding:17px 21px;cursor:pointer;color:#e0c58c;font-weight:650;font-size:12px}
+.staff-switcher>summary::-webkit-details-marker{display:none}
+.staff-switcher>summary span{font-size:17px;transition:transform .2s}
+.staff-switcher[open]>summary span{transform:rotate(180deg)}
+.staff-switcher .staff-customer-search{margin:0;border:0;border-top:1px solid rgba(255,255,255,.08);border-radius:0 0 15px 15px;background:transparent}
+@media(max-width:700px){.staff-switcher{margin-bottom:13px}.staff-switcher>summary{padding:14px 16px;font-size:11px}}
