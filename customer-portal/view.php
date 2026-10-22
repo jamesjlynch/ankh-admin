@@ -11,7 +11,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <meta name="description" content="Secure ANKH customer account and order history.">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
-<link rel="stylesheet" href="./account.css?v=product-detail-4">
+<link rel="stylesheet" href="./account.css?v=unified-product-5">
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body>

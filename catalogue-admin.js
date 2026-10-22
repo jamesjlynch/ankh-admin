@@ -58,3 +58,26 @@ document.querySelectorAll('[data-catalogue-photo]').forEach(input => {
     }
   });
 });
+
+// One document per product. Formatting controls remain optional; plain text works too.
+document.querySelectorAll('[data-catalogue-document]').forEach(editor => {
+  const container = editor.closest('.catalogue-document-editor');
+  const count = container.querySelector('[data-catalogue-count]');
+  const update = () => { count.textContent = Array.from(editor.value).length.toLocaleString() + ' / 40,000 characters'; };
+  editor.addEventListener('input', update); update();
+  container.querySelectorAll('[data-catalogue-insert]').forEach(button => button.addEventListener('click', () => {
+    const start = editor.selectionStart, end = editor.selectionEnd;
+    const selected = editor.value.slice(start, end);
+    const before = editor.value.slice(0, start);
+    let insert = selected;
+    switch (button.dataset.catalogueInsert) {
+      case 'heading': insert = (before && !before.endsWith('\n\n') ? '\n\n' : '') + '## ' + (selected || 'Section heading') + '\n'; break;
+      case 'bullet': insert = (before && !before.endsWith('\n') ? '\n' : '') + (selected || 'List item').split('\n').map(line => '- ' + line).join('\n') + '\n'; break;
+      case 'bold': insert = '**' + (selected || 'Important detail') + '**'; break;
+      case 'link': insert = '[' + (selected || 'View analysis document') + '](https://)'; break;
+    }
+    // Do not truncate saved information when adding formatting near the limit.
+    if (editor.value.length - (end - start) + insert.length > editor.maxLength) return;
+    editor.setRangeText(insert, start, end, 'select'); editor.focus(); update();
+  }));
+});

@@ -132,8 +132,11 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         html=request('/preview-live.php?customer_id=2&tab=catalogue')
         assert '£15.00' in html and 'Your Family & Friends price' in html
         html=request('/preview-live.php?customer_id=2&tab=catalogue&product=1')
-        assert 'pcs-quick-specs' in html and 'Fixture quantity' in html
+        assert 'pcs-section-nav' in html and 'Fixture quantity' in html
         assert 'pcs-sticky-enquiry' in html and 'Specifications' in html
+        assert 'More from ANKH' in html and 'pcs-related-card' in html
+        assert 'Retatrutide' not in html and '£12.00' in html
+        assert 'pcs-quick-specs' not in html
         assert 'Original research &lt;script&gt;unsafe&lt;/script&gt;' in html
         assert 'https://example.org/fixture-analysis.pdf' in html and 'noopener noreferrer' in html
         assert '<script>unsafe</script>' not in html

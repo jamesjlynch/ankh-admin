@@ -44,7 +44,7 @@ ankhCatalogueSaveContent($db,1,'Updated description',null,true,true);
 catalogueCheck((int)ankhCatalogueContent($db)[1]['image_bytes']===0,'Removing photo clears photo only');
 catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Catalogue content never changes existing product data');
 foreach(['<svg onload="bad()"></svg>','<?php echo 1;'] as $invalid){try{ankhCatalogueValidateImage($invalid);throw new RuntimeException('Non-photo accepted');}catch(InvalidArgumentException $e){}}
-try{ankhCatalogueSaveContent($db,1,str_repeat('a',5001),null,false,true);throw new RuntimeException('Overlong description accepted');}catch(InvalidArgumentException $e){}
+try{ankhCatalogueSaveContent($db,1,str_repeat('a',40001),null,false,true);throw new RuntimeException('Overlong description accepted');}catch(InvalidArgumentException $e){}
 $info=['strength'=>'10 mg','research'=>'Original research notes <script>test</script>','coa_url'=>'https://example.org/analysis.pdf'];
 ankhCatalogueSaveContent($db,1,'Updated description',null,false,true,$info);
 catalogueCheck(ankhCatalogueProducts($db,1)[0]['information']===$info,'Structured information persists and is exposed for published products');
@@ -55,6 +55,17 @@ catalogueCheck(ankhCatalogueInformation($db)[1]===$info && ankhCatalogueVisibili
 ankhCatalogueSaveContent($db,1,'Updated description',null,false,true,[]);
 catalogueCheck(ankhCatalogueInformation($db)[1]===[],'Optional product information can be cleared');
 catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Structured information leaves product records unchanged');
+$combined=ankhCatalogueEditorText('Existing overview',['strength'=>'10 mg','storage'=>'Label conditions','research'=>'Saved notes','coa_url'=>'https://example.org/analysis.pdf']);
+catalogueCheck(str_contains($combined,'Existing overview') && str_contains($combined,'- Strength / quantity: 10 mg') && str_contains($combined,'Saved notes') && str_contains($combined,'https://example.org/analysis.pdf'),'One-box editor preserves every legacy detail');
+$sections=ankhCatalogueSections("Opening paragraph.\n\n## Specifications\n- Format: reference material\n- **Quantity:** fixture\n\n## Notes\n<script>alert(1)</script>\n[Analysis](https://example.org/file.pdf)\n[Bad](javascript:alert(1))");
+catalogueCheck(count($sections)===3 && $sections[1]['title']==='Specifications','Heading buttons create readable document sections');
+$formatted=ankhCatalogueFormat($sections[1]['text']);
+catalogueCheck(str_contains($formatted,'<ul>') && str_contains($formatted,'<strong>Quantity:</strong>'),'Bullets and emphasis render safely');
+$formatted=ankhCatalogueFormat($sections[2]['text']);
+catalogueCheck(!str_contains($formatted,'<script>') && str_contains($formatted,'&lt;script&gt;') && str_contains($formatted,'rel="noopener noreferrer"') && !str_contains($formatted,'href="javascript:'),'Document links and hostile input are safely rendered');
+catalogueCheck(ankhCatalogueSummary("## Overview\nA **short** intro.\n\n## Other\nMore") === 'A short intro.','Preview text strips formatting');
+ankhCatalogueSaveContent($db,1,$combined,null,false,true,[]);
+catalogueCheck(ankhCatalogueInformation($db)[1]===[] && ankhCatalogueProducts($db,1)[0]['description']===$combined,'Unified save keeps information in one field without duplicated legacy sections');
 $db->exec('PRAGMA query_only=ON');
 catalogueCheck(count(ankhCatalogueProducts($db,1))===2,'Customer catalogue reads through a read-only connection');
 echo "Catalogue defaults, manual visibility, renamed products, pricing, stock and product preservation passed.\n";

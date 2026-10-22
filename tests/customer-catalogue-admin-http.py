@@ -108,6 +108,16 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
         request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_description':'Description retained','remove_catalogue_photo':'1','catalogue_visible':'1','return':'products'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT description,image_data FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==('Description retained',None)
+        html=request()
+        assert 'data-catalogue-document' in html and 'catalogue_information[' not in html
+        assert 'Fixture specification' in html and 'Fixture research notes' in html
+        unified='Original overview.\n\n## Specifications\n- Quantity: fixture\n\n## Research notes\nNew saved information.'
+        request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'unified','catalogue_description':unified,'catalogue_visible':'1','return':'products'})
+        with sqlite3.connect(database) as db:
+            assert db.execute('SELECT description FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==(unified,)
+            assert json.loads(db.execute('SELECT information FROM customer_catalogue_information WHERE product_id=?',(case,)).fetchone()[0])==[]
+        html=request()
+        assert 'New saved information.' in html and 'Fixture specification' not in html
         assert before==snapshot()
         print('Photo upload, authenticated image delivery, escaped description and photo removal checks passed.')
         print('Admin catalogue checkbox HTTP checks passed: sign-in, CSRF, show/hide for arbitrary names and unchanged product/customer/order/payment records.')
