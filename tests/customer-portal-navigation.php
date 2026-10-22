@@ -20,7 +20,7 @@ ob_start();
 require dirname(__DIR__).'/customer-portal/preview.php';
 $html=(string)ob_get_clean();
 $checks=$order!=='' ? ($tab==='orders'?
-    ['Order details','Order received','Payment history','Sample product A'] :
+    ['Order details','Order received','Items in this order','Sample product A'] :
     ['Order summary','Print or save as PDF','Sample product B']) : $expected[$tab];
 foreach($checks as $needle){
     if(!str_contains($html,$needle))throw new RuntimeException("The {$tab} page is missing expected text: {$needle}");
