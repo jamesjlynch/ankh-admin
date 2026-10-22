@@ -188,7 +188,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         request(path,{'csrf':token,'action':'catalogue_favourite','product_id':1,'save':'0'})
         assert 'No favourites yet' in request(path+'&saved=1')
         reminders=request('/preview-live.php?customer_id=2&tab=recurring')
-        assert 'Recurring orders' in reminders and '19 Nov 2026' in reminders and 'Every 4 weeks' in reminders
+        assert 'Next Order Centre' in reminders and '19 Nov 2026' in reminders and 'Every 4 weeks' in reminders
         assert '22 Oct 2026' in reminders and 'Enquire about next order' in reminders and 'order=10' in reminders
         assert 'Other customer reminder' not in reminders and 'Paused reminder' not in reminders and '987654' not in reminders
         assert 'No order or payment is created automatically' in reminders
