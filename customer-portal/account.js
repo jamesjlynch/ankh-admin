@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.body.appendChild(announcement);
   document.querySelectorAll('.pc-app form').forEach(form => {
     const action = form.querySelector('input[name="action"]');
-    if (!action || !/^(catalogue_|notification_|reminder_)/.test(action.value)) return;
+    if (!action || !/^(catalogue_|collection_|watch_|notification_|reminder_)/.test(action.value)) return;
     form.addEventListener('submit', event => {
       if (form.dataset.pcSubmitting === '1') { event.preventDefault(); return; }
       form.dataset.pcSubmitting = '1';
@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (button && !button.disabled) {
         button.dataset.pcBusy = '1'; button.disabled = true; button.setAttribute('aria-busy', 'true');
       }
-      announcement.textContent = action.value === 'catalogue_enquire' ? 'Sending your enquiry…' : 'Saving your changes…';
+      announcement.textContent = /^(catalogue_enquire|collection_send)$/.test(action.value) ? 'Sending your enquiry…' : 'Saving your changes…';
     });
   });
 });
