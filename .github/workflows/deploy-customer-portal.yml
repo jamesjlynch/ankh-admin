@@ -1,0 +1,56 @@
+name: Deploy protected customer portal
+on:
+  push:
+    branches: [feature/ankh-customer-portal]
+    paths:
+      - 'customer-portal/**'
+      - 'customer-catalogue.php'
+      - 'scripts/publish-customer-portal.sh'
+      - 'tests/customer-portal*'
+      - 'tests/customer-catalogue-visibility.php'
+      - '.github/workflows/deploy-customer-portal.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ankh-protected-customer-portal
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure deployment access
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.KRYSTAL_KNOWN_HOSTS }}
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$KRYSTAL_HOST"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_rsa"
+          chmod 600 "$HOME/.ssh/id_rsa"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            ssh-keyscan -T 10 -p 722 -H "$KRYSTAL_HOST" > "$HOME/.ssh/known_hosts"
+            test -s "$HOME/.ssh/known_hosts"
+          fi
+          chmod 600 "$HOME/.ssh/known_hosts"
+      - name: Test and publish only the customer portal
+        env:
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" 'bash -se' <<'REMOTE'
+          set -Eeuo pipefail
+          R=/home/devcouk/repositories/ankh-admin-git
+          S=/home/devcouk/ankh-customer-portal-staging
+          mkdir -p "$S"
+          git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
+          git -C "$R" archive origin/feature/ankh-customer-portal customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
+          ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
+          REMOTE
