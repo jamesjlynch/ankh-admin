@@ -26,10 +26,11 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(index.php lib.php view.php customer-experience.php catalogue-demo.php catalogue-view.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess)
+files=(customer-catalogue.php lib.php live-catalogue.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
-  [[ -f "customer-portal/$file" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
+  [[ -f "$(source_for "$file")" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
 done
 echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/lib.php
@@ -38,6 +39,8 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/customer-experience.php
 "$php" -l customer-portal/catalogue-demo.php
 "$php" -l customer-portal/catalogue-view.php
+"$php" -l customer-portal/live-catalogue.php
+"$php" -l customer-catalogue.php
 "$php" -l customer-portal/preview-live.php
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
@@ -45,6 +48,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
 "$php" tests/customer-portal-catalogue.php
+"$php" tests/customer-catalogue-visibility.php
 for tab in home orders vault support account catalogue basket checkout test-orders; do "$php" tests/customer-portal-navigation.php "$tab"; done
 "$php" tests/customer-portal-navigation.php orders 104
 "$php" tests/customer-portal-navigation.php vault 103
@@ -60,14 +64,14 @@ for file in "${files[@]}"; do
 done
 echo "STEP 4/4: Installing and verifying portal files"
 for file in "${files[@]}"; do
-  source="customer-portal/$file"
+  source="$(source_for "$file")"
   tmp="$target/.$file.deploy.$$"
   install -m 644 "$source" "$tmp"
   mv -f "$tmp" "$target/$file"
   cmp -s "$source" "$target/$file"
   printf 'VERIFIED: %s\n' "$file"
 done
-printf 'SUCCESS: All 13 customer portal files match the tested release.\n'
+printf 'SUCCESS: All 15 customer portal files match the tested release.\n'
 printf 'Destination: %s\nPrivate code backup: %s\n' "$target" "$backup"
 printf 'This confirms files on disk. Check the web preview to confirm the served page.\n'
 

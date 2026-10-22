@@ -28,6 +28,10 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
     with sqlite3.connect(admin) as db:
         db.executescript("""
         CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER);
+        CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,price INTEGER,active INTEGER,cost INTEGER,stock_tracking INTEGER,stock_qty INTEGER,family_friends_price INTEGER);
+        INSERT INTO products VALUES(1,'Case',2000,1,700,1,4,1500),(2,'Retatrutide 10mg',6500,1,2000,1,8,NULL);
+        CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER,updated_at TEXT);
+        INSERT INTO customer_catalogue_visibility VALUES(1,1,'test'),(2,1,'test');
         INSERT INTO customers VALUES(1,'Sample One','07123456789','Fictional Address',0),(2,'Sample Two','07999000000','Other Fictional Address',0);
         CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,created TEXT,delivery_date TEXT,scheduled_delivery_date TEXT,delivery_charge INTEGER,packaged INTEGER,reconstituted INTEGER,delivery_method TEXT,tracking_reference TEXT);
         CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER);
@@ -110,13 +114,11 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         token = csrf(html)
         request('/preview-live.php', {'csrf': token, 'action': 'staff_login', 'password': 'test-password'})
         html = request('/preview-live.php?customer_id=1&tab=catalogue')
-        token = csrf(html)
-        html = request('/preview-live.php?customer_id=1', {'csrf': token, 'catalogue_action': 'add', 'product_id': 'label-sheets', 'quantity': 1})
-        assert 'Blank label sheets' in html and '£5.00' in html
-        html = request('/preview-live.php?customer_id=2&tab=basket')
-        assert 'Your basket is waiting' in html
-        html = request('/preview-live.php?customer_id=1&tab=basket')
-        assert 'Your basket is waiting' in html
+        assert '<h2>Case</h2>' in html and '£20.00' in html and 'Available · 4' in html
+        assert 'Retatrutide' not in html and '£65.00' not in html
+        assert 'catalogue_action' not in html and 'cost' not in html.lower()
+        html = request('/preview-live.php?customer_id=2&tab=catalogue')
+        assert '<h2>Case</h2>' in html
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
         print('HTTP accessory flow passed: forms, CSRF, server pricing, validation, duplicate submission, escaped notes, logout, staff gate, customer isolation and unchanged Admin database.')
     finally:

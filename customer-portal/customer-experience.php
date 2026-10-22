@@ -75,10 +75,11 @@ function pcOrderTimeline(array $o): array {
 }
 $staff=!empty($isStaffPreview);
 $customerId=(int)$customer['id'];
-$catalogueEnabled=$staff || !empty($isDemo);
+$catalogueEnabled=true;
 $tab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
 $allowedTabs=['home','orders','vault','support','account'];
-if($catalogueEnabled)$allowedTabs=array_merge($allowedTabs,['catalogue','basket','checkout','confirmation','test-orders']);
+if($catalogueEnabled)$allowedTabs[]='catalogue';
+if(!empty($isDemo))$allowedTabs=array_merge($allowedTabs,['basket','checkout','confirmation','test-orders']);
 if(!in_array($tab,$allowedTabs,true))$tab='home';
 $selectedId=filter_var($_GET['order']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
 $selected=null;
@@ -113,13 +114,13 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
     <?php foreach($menu as [$key,$label]): ?><a href="<?=portalEscape(pcHref($key,$staff,$customerId))?>" <?=($activeNav===$key?'aria-current="page"':'')?> class="<?=$activeNav===$key?'selected':''?>"><?=pcIcon($key)?><span><?=portalEscape($label)?></span></a><?php endforeach;?>
   </nav>
   <?php if($catalogueEnabled && in_array($tab,['catalogue','basket','checkout','confirmation','test-orders'],true)): ?>
-    <?php require __DIR__.'/catalogue-view.php'; ?>
+    <?php require __DIR__.(!empty($isDemo)?'/catalogue-view.php':'/live-catalogue.php'); ?>
   <?php elseif($tab==='home'): ?>
   <section class="pc-welcome">
     <div><span class="pc-eyebrow">YOUR PRIVATE ANKH SPACE</span><h1>Good to see you, <em><?=portalEscape((string)$firstName)?></em><span class="pc-dot">.</span></h1><p>Everything about your orders, documents and account in one place.</p></div>
     <div class="pc-welcome-symbol" aria-hidden="true">☥</div>
   </section>
-  <?php if($catalogueEnabled):?><a class="pcd-home-banner" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>"><span class="pcd-home-icon"><?=pcIcon('catalogue')?></span><span><small>NEW · ACCESSORY PREVIEW</small><strong>Explore the collection</strong><span>Try the catalogue, basket and checkout with sample accessories.</span></span><?=pcIcon('right')?></a><?php endif;?>
+  <?php if($catalogueEnabled):?><a class="pcd-home-banner" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>"><span class="pcd-home-icon"><?=pcIcon('catalogue')?></span><span><small>ACCESSORIES</small><strong>Explore the collection</strong><span><?=!empty($isDemo)?'Try the catalogue, basket and checkout with sample accessories.':'See current accessories, your prices and availability.'?></span></span><?=pcIcon('right')?></a><?php endif;?>
   <div class="pc-stat-grid">
     <a class="pc-stat pc-stat-gold" href="<?=portalEscape(pcHref('orders',$staff,$customerId,['filter'=>'active']))?>"><span><?=pcIcon('orders')?> Active orders</span><strong><?=count($currentOrders)?></strong><small>See what’s in progress <?=pcIcon('right')?></small></a>
     <a class="pc-stat" href="<?=portalEscape(pcHref('orders',$staff,$customerId))?>"><span><?=pcIcon('check')?> Total orders</span><strong><?=count($orders)?></strong><small>Complete order history <?=pcIcon('right')?></small></a>

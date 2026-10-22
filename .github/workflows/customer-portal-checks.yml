@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'customer-portal/**'
+      - 'customer-catalogue.php'
+      - 'tests/customer-catalogue*'
       - 'scripts/customer-portal-accounts.php'
       - 'scripts/publish-customer-portal.sh'
       - 'tests/customer-portal*.php'
@@ -34,6 +36,8 @@ jobs:
           php -l customer-portal/customer-experience.php
           php -l customer-portal/catalogue-demo.php
           php -l customer-portal/catalogue-view.php
+          php -l customer-portal/live-catalogue.php
+          php -l customer-catalogue.php
           php -l tests/customer-portal-catalogue.php
           php -l tests/customer-portal-navigation.php
           php -l customer-portal/preview.php
@@ -53,7 +57,9 @@ jobs:
           php tests/customer-portal-navigation.php orders 104
           php tests/customer-portal-navigation.php vault 103
       - name: Verify accessory preview pricing, checkout and isolation
-        run: php tests/customer-portal-catalogue.php
+        run: |
+          php tests/customer-portal-catalogue.php
+          php tests/customer-catalogue-visibility.php
       - name: Verify accessory flow over HTTP without real data
         run: python3 tests/customer-portal-catalogue-http.py
       - name: Smoke test fictional dashboard without production secrets

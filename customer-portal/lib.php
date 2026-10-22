@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+// The standalone portal receives the same policy module as Admin during publishing.
+require_once is_file(__DIR__.'/customer-catalogue.php')?__DIR__.'/customer-catalogue.php':dirname(__DIR__).'/customer-catalogue.php';
 
 /**
  * ANKH Customer Portal — isolated public application.
@@ -209,3 +211,4 @@ function portalDate(string $date): string {
     try { return (new DateTimeImmutable($date))->setTimezone(new DateTimeZone('Europe/London'))->format('j M Y'); }
     catch (Throwable $e) { return 'Date unavailable'; }
 }
+

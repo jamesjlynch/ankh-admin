@@ -135,8 +135,7 @@ if ($requestedId) {
     } else $notice='That customer record is not available.';
 }
 $isStaffPreview=true;
-require_once __DIR__.'/catalogue-demo.php';
-if($customer) pcdHandle($customer,true,false);
+// Staff catalogue uses the real read-only Admin connection.
 
 define('ANKH_PORTAL_VIEW',true);
 require __DIR__.'/view.php';

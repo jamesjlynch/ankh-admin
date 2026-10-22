@@ -269,3 +269,5 @@ a.pc-stat:hover{transform:translateY(-2px);border-color:rgba(231,197,130,.5)}
 @media(max-width:760px){.pcd-checkout-grid{grid-template-columns:1fr}.pcd-summary{order:-1}.pcd-product-copy{padding:19px}.pcd-product-grid{gap:14px}.pcd-product h2{font-size:25px}.pcd-notice{padding:14px}.pcd-home-banner{padding:18px;gap:13px}.pcd-home-banner strong{font-size:24px}.pcd-home-icon{width:42px;height:42px}.pcd-subnav{gap:6px}.pcd-subnav a{padding:10px 12px;font-size:12px}}
 @media(max-width:480px){.pcd-product-grid{grid-template-columns:1fr}.pcd-product-art{height:210px}.pcd-product-copy{padding:22px}.pcd-product h2{font-size:28px}.pcd-add-form button{font-size:14px}.pcd-basket-row h2{font-size:22px}.pcd-row-controls{gap:6px}.pcd-row-controls form{gap:7px}.pcd-confirmation h2{font-size:24px}.pcd-home-icon{display:none}.pcd-confirmation-top{align-items:flex-start}.pcd-subnav a{padding:9px 10px}.pcd-summary .pc-money-rows>div{flex-wrap:wrap}.pc-overline{letter-spacing:.03em}}
 @media(prefers-reduced-motion:reduce){.pcd-product *{transition:none}}
+
+.pcd-live-symbol .pc-icon{width:100px;height:100px;stroke-width:.7}

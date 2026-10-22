@@ -4,18 +4,19 @@ set -Eeuo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 temp="$(mktemp -d)"
 trap 'rm -rf -- "$temp"' EXIT
-mkdir -p "$temp/repo/scripts" "$temp/home" "$temp/home/public_html"
+mkdir -p "$temp/repo/scripts" "$temp/repo/tests" "$temp/home" "$temp/home/public_html"
 cp "$root/scripts/publish-live.sh" "$temp/repo/scripts/"
 cd "$temp/repo"
 git init -q
 git config user.email "tests@ankh.invalid"
 git config user.name "ANKH CI"
-for file in .htaccess index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
+for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
   case "$file" in
     *.php) printf '%s\n' '<?php echo "ok";' > "$file" ;;
     *) printf '%s\n' "fixture $file" > "$file" ;;
   esac
 done
+for check in delivery-queue business-alerts customer-catalogue-visibility; do printf '%s\n' '<?php echo "fixture check passed";' > "tests/$check.php"; done
 git add .
 git commit -qm "baseline"
 first="$(git rev-parse HEAD)"
