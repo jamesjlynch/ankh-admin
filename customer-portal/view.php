@@ -8,10 +8,17 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0d0e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ANKH">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="./touch-icon.png">
 <meta name="description" content="Secure ANKH customer account and order history.">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
-<link rel="stylesheet" href="./account.css?v=experience-12">
+<link rel="stylesheet" href="./account.css?v=experience-13">
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body><a class="pc-skip-link" href="#customer-main">Skip to account content</a>
