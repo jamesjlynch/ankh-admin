@@ -3,7 +3,7 @@ Options -Indexes
 Header always set X-Robots-Tag "noindex, nofollow, noarchive"
 Header always set X-Content-Type-Options "nosniff"
 </IfModule>
-<FilesMatch "^(lib|view)\.php$">
+<FilesMatch "^(lib|view|customer-experience)\.php$">
 Require all denied
 </FilesMatch>
 <FilesMatch "^(?:\.env|config(?:\.php)?|.*\.sqlite(?:-wal|-shm)?|.*\.log)$">
