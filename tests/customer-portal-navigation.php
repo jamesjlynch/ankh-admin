@@ -13,7 +13,8 @@ $expected = [
   'vault' => ['My vault','Order summaries','Batch documents'],
   'support' => ['Support centre','Email ANKH support','Delivery question'],
   'notifications' => ['Notifications','No notifications to show','All updates'],
-  'recurring' => ['Recurring orders','No recurring orders set up','No order or payment is created automatically'],
+  'recurring' => ['Next Order Centre','No recurring orders set up','No order or payment is created automatically'],
+  'insights' => ['My insights','Last six months','Payments','Outstanding'],
   'account' => ['My account','My details','Sampletown','Request my personal data'],
 ];
 if(!isset($expected[$tab]))exit(2);
