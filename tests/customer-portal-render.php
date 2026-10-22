@@ -16,7 +16,7 @@ $normalised=ltrim($html);
 $must = [
     ['Preview must start with doctype',str_starts_with(strtolower($normalised),'<!doctype html>')],
     ['Exactly one doctype',substr_count(strtolower($html),'<!doctype html>') === 1],
-    ['Fictional greeting on home',str_contains($html,'Good to see you') && str_contains($html,'Alex')],
+    ['Fictional greeting on home',str_contains($html,'Welcome back') && str_contains($html,'Alex')],
     ['Live-like example order reference',str_contains($html,'ANK-0104')],
     ['Demo data safety notice',str_contains($html,'DEMO PREVIEW')],
     ['Rendered app main landmark',str_contains($html,'<main')],
