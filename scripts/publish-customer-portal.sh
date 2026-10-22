@@ -47,6 +47,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
 "$php" tests/customer-statement.php
+"$php" tests/customer-announcements.php
 "$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
 "$php" tests/customer-portal-catalogue.php
