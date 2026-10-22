@@ -82,7 +82,7 @@ if($selected && $tab!=='orders' && $tab!=='vault') $selected=null;
 $filter=(string)($_GET['filter']??'all');
 if(!in_array($filter,['all','active','delivered','cancelled'],true))$filter='all';
 $term=trim((string)($_GET['find']??''));
-if(mb_strlen($term)>80)$term=mb_substr($term,0,80);
+if(strlen($term)>80)$term=substr($term,0,80);
 $visibleOrders=array_values(array_filter($orders,static function(array $o)use($filter,$term):bool{
     $status=portalStatus($o);
     if($filter==='active' && in_array($status,['Delivered','Cancelled'],true))return false;
@@ -90,7 +90,7 @@ $visibleOrders=array_values(array_filter($orders,static function(array $o)use($f
     if($filter==='cancelled' && $status!=='Cancelled')return false;
     if($term==='')return true;
     $haystack=pcOrderRef($o).' '.(string)$o['id'].' '.(string)$o['created'].' '.implode(' ',array_map(static fn(array $l):string=>(string)$l['name'],$o['lines']??[]));
-    return mb_stripos($haystack,$term)!==false;
+    return stripos($haystack,$term)!==false;
 }));
 $currentOrders=array_values(array_filter($orders,static fn(array $o):bool=>!in_array(portalStatus($o),['Delivered','Cancelled'],true)));
 $deliveredOrders=array_values(array_filter($orders,static fn(array $o):bool=>portalStatus($o)==='Delivered'));
@@ -201,7 +201,7 @@ $contactHref='mailto:info@ankhpeptides.com?subject='.rawurlencode('ANKH customer
   <?php elseif($tab==='account'): ?>
     <section class="pc-page-heading"><span class="pc-eyebrow">YOUR INFORMATION</span><h1>My account<span class="pc-dot">.</span></h1><p>Review the contact details ANKH has recorded for you.</p></section>
     <div class="pc-account-grid">
-      <section class="pc-panel pc-account-card"><div class="pc-section-header"><div><span class="pc-eyebrow">PERSONAL PROFILE</span><h2>My details</h2></div><?=pcIcon('account')?></div><div class="pc-profile-big"><span class="pc-profile-avatar"><?=portalEscape(mb_strtoupper(mb_substr((string)$firstName,0,1)))?></span><div><strong><?=portalEscape((string)$customer['name'])?></strong><small>ANKH customer · Account #<?=$customerId?></small></div></div><div class="pc-info-row"><span>Mobile number on file</span><strong><?=portalEscape((string)($customer['phone']?:'Not recorded'))?></strong></div><div class="pc-info-row"><span>Postal / delivery address</span><strong><?=trim((string)$customer['address'])!==''?nl2br(portalEscape((string)$customer['address'])):'No address saved'?></strong></div><div class="pc-info-row"><span>Order history</span><strong><?=count($orders)?> recorded</strong></div><a class="pc-outline-button" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Update my ANKH account details')?>"><?=pcIcon('mail')?> Request a change</a></section>
+      <section class="pc-panel pc-account-card"><div class="pc-section-header"><div><span class="pc-eyebrow">PERSONAL PROFILE</span><h2>My details</h2></div><?=pcIcon('account')?></div><div class="pc-profile-big"><span class="pc-profile-avatar"><?=portalEscape(strtoupper(substr((string)$firstName,0,1)))?></span><div><strong><?=portalEscape((string)$customer['name'])?></strong><small>ANKH customer · Account #<?=$customerId?></small></div></div><div class="pc-info-row"><span>Mobile number on file</span><strong><?=portalEscape((string)($customer['phone']?:'Not recorded'))?></strong></div><div class="pc-info-row"><span>Postal / delivery address</span><strong><?=trim((string)$customer['address'])!==''?nl2br(portalEscape((string)$customer['address'])):'No address saved'?></strong></div><div class="pc-info-row"><span>Order history</span><strong><?=count($orders)?> recorded</strong></div><a class="pc-outline-button" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('Update my ANKH account details')?>"><?=pcIcon('mail')?> Request a change</a></section>
       <section class="pc-panel pc-account-card"><div class="pc-section-header"><div><span class="pc-eyebrow">SECURITY & PRIVACY</span><h2>Your data</h2></div><?=pcIcon('shield')?></div><div class="pc-privacy-list"><p><?=pcIcon('shield')?> Your order records are private to this account after enrolment and verification.</p><p><?=pcIcon('clock')?> Order details reflect the latest information recorded in ANKH Admin.</p><p><?=pcIcon('mail')?> To access, correct or discuss your personal information, contact the ANKH team.</p></div><a class="pc-outline-button" href="mailto:info@ankhpeptides.com?subject=<?=rawurlencode('ANKH personal data request')?>"><?=pcIcon('mail')?> Request my personal data</a></section>
     </div>
   <?php endif; ?>
