@@ -3133,6 +3133,8 @@ if((string)($_GET['view']??'')==='shipping' && $_SERVER['REQUEST_METHOD']==='POS
  }catch(Throwable $ex){$error=$ex->getMessage();}
 }
 
+if(!empty($_SESSION['admin']) && time()-(int)($_SESSION['last']??0)<=3600){try{ankhCatalogueLinkIdentities($db);}catch(Throwable $linkError){error_log('ANKH identity link update: '.$linkError->getMessage());}}
+
 if ($_SERVER['REQUEST_METHOD']==='POST') {
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
@@ -3740,6 +3742,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $_SESSION['flash'].=' The order was saved, but the email notification failed. Open More → Business Alerts for its send status and a safe retry.';
   }
  }
+ try{if(!empty($_SESSION['admin']))ankhCatalogueLinkIdentities($db);}catch(Throwable $linkError){error_log('ANKH identity link update: '.$linkError->getMessage());}
  if($action==='order' && $savedOrderId>0 && (string)($_POST['back_order']??'')==='1'){header('Location: ./?view=orders&section=backorders');exit;}
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
  $returnView=(string)($_POST['return']??'orders');$returnSection=(string)($_POST['return_section']??'');
