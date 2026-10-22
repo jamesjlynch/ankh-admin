@@ -249,3 +249,9 @@ a.pc-stat:hover{transform:translateY(-2px);border-color:rgba(231,197,130,.5)}
  .pc-print-address{background:#f0f0f0!important}
  .pc-printable .pc-footnote{font-size:10px;color:#555!important}
 }
+
+.pc-delivery-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:17px}
+.pc-delivery-facts>div{display:grid;gap:4px;padding:14px 17px;border:1px solid rgba(227,190,109,.13);border-radius:11px;background:#242521}
+.pc-delivery-facts span{color:#aaaca1;font-size:10px}
+.pc-delivery-facts strong{font-size:12px;overflow-wrap:anywhere;font-weight:670}
+@media(max-width:700px){.pc-delivery-facts{grid-template-columns:1fr;gap:8px}}
