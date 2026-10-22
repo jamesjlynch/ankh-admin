@@ -30,14 +30,14 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 </header>
 <main class="page <?= $customer ? 'account' : 'auth' ?>">
 <?php if (!empty($isStaffPreview)): ?>
-<section class="staff-customer-search">
+<details class="staff-switcher" <?php if (!$customer): ?>open<?php endif; ?>><summary><?= $customer ? 'Staff preview · Viewing '.portalEscape((string)$customer['name']).' — switch customer' : 'Choose a customer to preview' ?><span aria-hidden="true">⌄</span></summary><section class="staff-customer-search">
   <div><span class="eyebrow">PRIVATE VIEW · READ ONLY</span><h2>Choose a customer</h2><p>Find a real customer to check exactly which existing orders would appear on their dashboard.</p></div>
   <form method="get" action="./preview-live.php" class="staff-search-form"><label for="customer_search">Search name or phone</label><div><input id="customer_search" type="search" name="q" value="<?=portalEscape((string)$search)?>" placeholder="Customer name or mobile" maxlength="80"><button type="submit">Find</button></div></form>
   <?php if (!empty($results)): ?><div class="staff-customer-list" role="list">
   <?php foreach($results as $previewRow): ?>
    <a role="listitem" href="./preview-live.php?customer_id=<?=(int)$previewRow['id']?>&amp;q=<?=rawurlencode((string)$search)?>" class="<?=($customer && (int)$customer['id']===(int)$previewRow['id'])?'selected':''?>"><span><?=portalEscape((string)$previewRow['name'])?></span><small>#<?=(int)$previewRow['id']?> · Mobile ending <?=portalEscape(substr(preg_replace('/[^0-9]/','',(string)$previewRow['phone']),-4) ?: '—')?></small><span aria-hidden="true">→</span></a>
   <?php endforeach; ?></div><?php else: ?><p class="staff-empty">No matching customers.</p><?php endif; ?>
-</section>
+</section></details>
 <?php if ($notice): ?><p class="feedback info" role="status"><?=portalEscape($notice)?></p><?php endif; ?>
 <?php endif; ?>
 <?php if (!empty($isStaffPreview) && !$customer): ?>
