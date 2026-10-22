@@ -26,14 +26,14 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(customer-catalogue.php lib.php live-catalogue.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+files=(customer-catalogue.php lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
 source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
   [[ -f "$(source_for "$file")" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
 done
 echo "STEP 2/4: Running portal checks"
-"$php" -l customer-portal/lib.php
+"$php" -l customer-portal/statement.php\n"$php" -l customer-portal/lib.php
 "$php" -l customer-portal/index.php
 "$php" -l customer-portal/view.php
 "$php" -l customer-portal/customer-experience.php
@@ -45,7 +45,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
-"$php" tests/customer-portal.php
+"$php" tests/customer-statement.php\n"$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
 "$php" tests/customer-portal-catalogue.php
 "$php" tests/customer-catalogue-visibility.php
@@ -71,7 +71,7 @@ for file in "${files[@]}"; do
   cmp -s "$source" "$target/$file"
   printf 'VERIFIED: %s\n' "$file"
 done
-printf 'SUCCESS: All 15 customer portal files match the tested release.\n'
+printf 'SUCCESS: All 16 customer portal files match the tested release.\n'
 printf 'Destination: %s\nPrivate code backup: %s\n' "$target" "$backup"
 printf 'This confirms files on disk. Check the web preview to confirm the served page.\n'
 
