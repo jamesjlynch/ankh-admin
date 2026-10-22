@@ -26,13 +26,16 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(customer-catalogue.php account-features.php lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
 source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
   [[ -f "$(source_for "$file")" ]] || { echo "Missing customer-portal/$file" >&2; exit 1; }
 done
 echo "STEP 2/4: Running portal checks"
+"$php" -l customer-portal/request-watch.php
+"$php" -l customer-portal/request-list-view.php
+"$php" -l customer-portal/watchlist-view.php
 "$php" -l customer-portal/account-features.php
 "$php" -l customer-portal/statement.php
 "$php" -l customer-portal/lib.php
@@ -47,6 +50,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
+"$php" tests/customer-collection.php
 "$php" tests/customer-account-features.php
 "$php" tests/customer-statement.php
 "$php" tests/customer-announcements.php
