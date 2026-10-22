@@ -109,7 +109,8 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT description,image_data FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==('Description retained',None)
         html=request()
-        assert 'data-catalogue-document' in html and 'catalogue_information[' not in html
+        assert 'catalogue-guide-step' in html and 'catalogue_information[amino_length]' in html
+        assert 'data-catalogue-insert' not in html and 'Research &amp; literature' in html
         assert 'Fixture specification' in html and 'Fixture research notes' in html
         unified='Original overview.\n\n## Specifications\n- Quantity: fixture\n\n## Research notes\nNew saved information.'
         request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'unified','catalogue_description':unified,'catalogue_visible':'1','return':'products'})
@@ -118,7 +119,18 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
             assert json.loads(db.execute('SELECT information FROM customer_catalogue_information WHERE product_id=?',(case,)).fetchone()[0])==[]
         html=request()
         assert 'New saved information.' in html and 'Fixture specification' not in html
+        guided={'peptide_type':'Fixture peptide','appearance':'Fixture colour','amino_length':'15 (fixture)','weight':'Fixture molecular weight','formula':'Fixture formula','sequence':'Fixture sequence','half_life':'Fixture conditions and reference','pubchem':'Fixture identifier','research_focus':'Fixture research focus','research':'Fixture research background','references':'Fixture paper https://pubmed.ncbi.nlm.nih.gov/123456/','storage':'Fixture sealed storage','prepared_storage':'Fixture prepared storage','coa_url':'https://example.org/analysis.pdf'}
+        fields={'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'guided','catalogue_description':'Guided product introduction','catalogue_visible':'1','return':'products'}
+        fields.update({'catalogue_information['+key+']':value for key,value in guided.items()})
+        request(fields)
+        with sqlite3.connect(database) as db:
+            saved=json.loads(db.execute('SELECT information FROM customer_catalogue_information WHERE product_id=?',(case,)).fetchone()[0])
+            assert saved==guided
+            assert db.execute('SELECT description FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==('Guided product introduction',)
+        html=request()
+        assert 'Fixture colour' in html and 'Fixture prepared storage' in html
         assert before==snapshot()
+        print('Guided fields, legacy content, optional sections and original records preservation passed.')
         print('Photo upload, authenticated image delivery, escaped description and photo removal checks passed.')
         print('Admin catalogue checkbox HTTP checks passed: sign-in, CSRF, show/hide for arbitrary names and unchanged product/customer/order/payment records.')
     finally:

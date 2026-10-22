@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         for product_id in [1,2]:db.execute('INSERT INTO customer_catalogue_content VALUES(?,?,?,?,?,?,?)',(product_id,'Existing research description <script>example</script>',image_bytes,'image/png',1,1,'test'))
     with sqlite3.connect(admin) as db:
         db.execute('CREATE TABLE customer_catalogue_information(product_id INTEGER PRIMARY KEY,information TEXT,updated_at TEXT)')
-        db.execute('INSERT INTO customer_catalogue_information VALUES(?,?,?)',(1,json.dumps({'strength':'Fixture quantity','research':'Original research <script>unsafe</script>','coa_url':'https://example.org/fixture-analysis.pdf'}),'test'))
+        db.execute('INSERT INTO customer_catalogue_information VALUES(?,?,?)',(1,json.dumps({'strength':'Fixture quantity','research':'Original research <script>unsafe</script>','coa_url':'https://example.org/fixture-analysis.pdf','appearance':'Fixture colour','amino_length':'Fixture amino-acid count','prepared_storage':'Fixture prepared conditions','references':'Fixture citation https://pubmed.ncbi.nlm.nih.gov/123456/'}),'test'))
     with sqlite3.connect(portal) as db:
         db.execute('CREATE TABLE portal_rate_limits(rate_key TEXT PRIMARY KEY,attempts INTEGER,started_at INTEGER)')
     before = hashlib.sha256(admin.read_bytes()).hexdigest()
@@ -133,6 +133,8 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert '£15.00' in html and 'Your Family & Friends price' in html
         html=request('/preview-live.php?customer_id=2&tab=catalogue&product=1')
         assert 'pcs-section-nav' in html and 'Fixture quantity' in html
+        assert 'Fixture colour' in html and 'Fixture amino-acid count' in html and 'Fixture prepared conditions' in html
+        assert 'href="https://pubmed.ncbi.nlm.nih.gov/123456/"' in html
         assert 'pcs-sticky-enquiry' in html and 'Specifications' in html
         assert 'More from ANKH' in html and 'pcs-related-card' in html
         assert 'Retatrutide' not in html and '£12.00' in html
