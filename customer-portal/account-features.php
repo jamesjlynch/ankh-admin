@@ -209,6 +209,7 @@ function portalExtrasInsights(array $orders):array {
 function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     portalExtrasInit($store);
     $availability=portalExtrasAvailabilityMap($store);
+    $whatsapp=portalContactWhatsApp($store);
     $products=$admin->query('SELECT id,name,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
     $delivery=$store->query("SELECT * FROM portal_delivery_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END,id DESC LIMIT 70")->fetchAll(PDO::FETCH_ASSOC);
     $next=$store->query("SELECT * FROM portal_next_order_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END,id DESC LIMIT 70")->fetchAll(PDO::FETCH_ASSOC);
@@ -222,6 +223,14 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     <header class="pc-ops-header"><span class="pc-eyebrow">☥ ANKH · PRIVATE STAFF TOOLS</span><h1>Customer portal controls<span class="pc-dot">.</span></h1><p>Review customer requests and choose public availability labels. Admin orders, customer records and stock stay untouched.</p><a class="pc-outline-button" href="./preview-live.php">← Back to customer preview</a></header>
     <?php if($flash!==''):?><p class="pc-notification-feedback" role="status"><?=$esc($flash)?></p><?php endif;?>
     <div class="pc-ops-stack">
+    <section class="pc-panel pc-ops-contact"><div class="pc-section-header"><div><span class="pc-eyebrow">CUSTOMER CONTACT</span><h2>WhatsApp Business</h2></div></div>
+      <p class="pc-footnote">Enter the ANKH business WhatsApp number, with country code. Once saved, the Shop, Basket, Orders and Account screens show an instant-message link. The customer's order information is not automatically sent to WhatsApp. Leave blank to disable the button.</p>
+      <form method="post" class="pc-ops-contact-form"><input type="hidden" name="csrf" value="<?=$csrf?>"><input type="hidden" name="action" value="portal_whatsapp">
+        <label>Business WhatsApp number <input name="whatsapp" type="tel" inputmode="tel" placeholder="447700900000" autocomplete="off" maxlength="50" value="<?=$esc($whatsapp??'')?>"></label>
+        <button type="submit">Save WhatsApp contact</button>
+      </form>
+      <?php if($whatsapp):?><p class="pc-footnote">Currently enabled · <a href="<?=$esc(portalContactWhatsAppUrl($whatsapp))?>" target="_blank" rel="noopener noreferrer">Open test chat ↗</a></p><?php else:?><p class="pc-footnote">Not yet configured. A WhatsApp button will appear after an approved number is saved.</p><?php endif;?>
+    </section>
     <section class="pc-panel"><div class="pc-section-header"><div><span class="pc-eyebrow">PRIVATE REQUESTS</span><h2>Next orders &amp; skips</h2></div><span class="pc-count"><?=count($next)?></span></div><p class="pc-footnote">Approve to acknowledge the request. Manually create orders or change recurring schedules in Admin. Approval here never places an order or changes an Admin date.</p>
     <?php if(!$next):?><p>No requests yet.</p><?php endif;?>
     <?php foreach($next as $r):?><details class="pc-ops-request"><summary><strong><?=$esc($names[(int)$r['customer_id']]??'Customer #'.$r['customer_id'])?></strong> · <?=$r['kind']==='skip'?'Skip cycle':'Request now'?> · <?=$esc($r['status'])?> <?=$r['preview']?'· STAFF TEST':''?></summary><p><?=$esc($r['product_name'])?> · Due <?=$esc($r['due_date'])?> · Source order #<?=(int)$r['source_order_id']?></p><p><?=$r['kind']==='skip'?'Requested to skip this cycle. An Admin schedule update may be needed.':'Customer would like the next order arranged. No order has been created.'?></p><?php if($r['status']==='Pending'):?><form method="post"><input type="hidden" name="csrf" value="<?=$csrf?>"><input type="hidden" name="action" value="portal_review"><input type="hidden" name="request_type" value="next"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>"><label>Customer response (optional)<textarea name="reviewer_note" maxlength="500" rows="2"></textarea></label><div class="pc-ops-decisions"><button name="decision" value="approve">Accept request</button><button name="decision" value="decline">Decline request</button></div></form><?php else:?><p><?=$esc($r['reviewer_note'])?></p><?php endif;?></details><?php endforeach;?></section>
