@@ -20,12 +20,12 @@ CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,
 CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER);
 CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT,method TEXT DEFAULT '');
 INSERT INTO customers VALUES (1,'Alice Customer','07123 456789','Road 1',0),(2,'Bob Customer','07123 456789','Road 2',0);
-INSERT INTO orders VALUES (1,'Alice Customer','07123 456789','New','2026-10-21T10:00:00Z','','',500),
+INSERT INTO orders(id,customer,phone,status,created,delivery_date,scheduled_delivery_date,delivery_charge) VALUES (1,'Alice Customer','07123 456789','New','2026-10-21T10:00:00Z','','',500),
 (2,'Bob Customer','07123 456789','New','2026-10-21T10:00:00Z','','',0),
 (3,'Alice Customer','07999 000000','New','2026-10-21T10:00:00Z','','',0),
 (4,'Alice Customer','+447123456789','Delivered','2026-10-21T10:00:00Z','2026-10-22','',0);
 INSERT INTO items VALUES (1,1,'Test item','Vial',1299,2),(2,4,'Test other','','0',1);
-INSERT INTO payments VALUES (1,1,1000,'2026-10-22T08:00:00Z');");
+INSERT INTO payments(id,order_id,amount,created) VALUES (1,1,1000,'2026-10-22T08:00:00Z');");
 $customer=['id'=>1,'name'=>'Alice Customer','phone'=>'07123 456789','address'=>'Road 1','archived'=>0];
 $admin->exec('PRAGMA query_only=ON');
 $orders=portalOrderHistory($admin,$customer,'+447123456789');
