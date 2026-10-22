@@ -195,7 +195,8 @@ function portalOrderHistory(PDO $admin, array $customer, string $verifiedPhone):
 
 function portalStatus(array $order): string {
     if ($order['status'] === 'Cancelled') return 'Cancelled';
-    if (trim((string)$order['delivery_date']) !== '' || in_array($order['status'], ['Delivered','Dispatched'], true)) return 'Delivered';
+    if (trim((string)$order['delivery_date']) !== '' || $order['status'] === 'Delivered') return 'Delivered';
+    if ($order['status'] === 'Dispatched') return 'On its way';
     if ((string)$order['status'] === 'New') return 'Received';
     return 'In progress';
 }
