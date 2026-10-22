@@ -34,7 +34,7 @@ cd "$repo"
 "$php" -l scripts/customer-portal-accounts.php
 "$php" tests/customer-portal.php
 "$php" tests/customer-portal-render.php
-for file in index.php lib.php view.php preview.php preview-live.php style.css icon.svg .htaccess; do
+for file in index.php lib.php view.php customer-experience.php preview.php preview-live.php style.css account.css account.js icon.svg .htaccess; do
   source="customer-portal/$file"
   [[ -f "$source" ]] || { echo "Missing $source" >&2; exit 1; }
   tmp="$target/.$file.deploy.$$"
