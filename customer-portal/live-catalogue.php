@@ -42,8 +42,8 @@ function pcsCollectionAction(array $p,bool $compact=false):void {
         <input type="hidden" name="action" value="collection_set">
         <input type="hidden" name="product_id" value="<?=$p['id']?>">
         <input type="hidden" name="return_product" value="<?=$compact?0:$p['id']?>">
-        <?php if(!$compact):?><label class="pc-collection-qty">Quantity <input type="number" min="1" max="99" name="quantity" value="<?=$quantity?:1?>" required></label><?php else:?><input type="hidden" name="quantity" value="<?=$quantity?:1?>"><?php endif;?>
-        <button type="submit"><?=pcIcon('catalogue')?> <?=$quantity?'Update basket':'Add to basket'?></button>
+        <?php if(!$compact):?><label class="pc-collection-qty">Quantity <input type="number" min="1" max="99" name="quantity" value="<?=$quantity?:1?>" required></label><?php else:?><input type="hidden" name="quantity" value="<?=min(99,$quantity+1)?>"><?php endif;?>
+        <button type="submit"><?=pcIcon('catalogue')?> <?=$quantity?($compact?'Add another':'Update basket'):'Add to basket'?></button>
       </form>
       <?php if($quantity):?><a class="pc-collection-view-list" href="<?=portalEscape(pcHref('basket',(bool)$GLOBALS['staff'],(int)$GLOBALS['customerId']))?>">View basket</a><?php endif;?>
     <?php endif;?>
