@@ -63,14 +63,14 @@ try {
         $q=$portal->prepare('SELECT id,phone_e164,active FROM portal_accounts WHERE customer_id=?');
         $q->execute([$id]); $existing=$q->fetch(PDO::FETCH_ASSOC);
         if ($existing) {
-            $portal->prepare('UPDATE portal_accounts SET phone_e164=?,active=1,verified_at=NULL WHERE customer_id=?')->execute([$mobile,$id]);
+            $portal->prepare('UPDATE portal_accounts SET phone_e164=?,active=1,verified_at=NULL,auth_version=auth_version+1 WHERE customer_id=?')->execute([$mobile,$id]);
         } else {
             $portal->prepare('INSERT INTO portal_accounts(customer_id,phone_e164,active,created_at) VALUES (?,?,1,?)')->execute([$id,$mobile,time()]);
         }
         echo "Granted login to customer #$id (" . $customer['name'] . ") at $mobile. SMS verification still required.\n";
         exit;
     }
-    $q=$portal->prepare('UPDATE portal_accounts SET active=0,verified_at=NULL WHERE customer_id=?');
+    $q=$portal->prepare('UPDATE portal_accounts SET active=0,verified_at=NULL,auth_version=auth_version+1 WHERE customer_id=?');
     $q->execute([$id]);
     echo $q->rowCount() ? "Revoked portal access for customer #$id.\n" : "No account exists for customer #$id.\n";
 } catch (Throwable $e) {
