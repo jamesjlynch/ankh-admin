@@ -1,7 +1,7 @@
 {
-  "name": "ANKH Private Customer Portal",
+  "name": "ANKH Shop & Account",
   "short_name": "ANKH",
-  "description": "Private ANKH customer workspace",
+  "description": "Private ANKH shop, basket, orders and account",
   "start_url": "./?tab=home",
   "scope": "./",
   "display": "standalone",
@@ -31,9 +31,9 @@
       ]
     },
     {
-      "name": "My request list",
-      "short_name": "Request list",
-      "url": "./?tab=request-list",
+      "name": "My basket",
+      "short_name": "Basket",
+      "url": "./?tab=basket",
       "icons": [
         {
           "src": "./icon.svg",
