@@ -16,9 +16,9 @@ if($private===false)throw new RuntimeException('Unable to create test database')
 $admin=new PDO('sqlite:'.$private,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 try{
 $admin->exec("CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER);
-CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,created TEXT,delivery_date TEXT,scheduled_delivery_date TEXT,delivery_charge INTEGER,packaged INTEGER DEFAULT 0,reconstituted INTEGER DEFAULT 0);
+CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,status TEXT,created TEXT,delivery_date TEXT,scheduled_delivery_date TEXT,delivery_charge INTEGER,packaged INTEGER DEFAULT 0,reconstituted INTEGER DEFAULT 0,delivery_method TEXT DEFAULT '',tracking_reference TEXT DEFAULT '');
 CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER);
-CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT);
+CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT,method TEXT DEFAULT '');
 INSERT INTO customers VALUES (1,'Alice Customer','07123 456789','Road 1',0),(2,'Bob Customer','07123 456789','Road 2',0);
 INSERT INTO orders VALUES (1,'Alice Customer','07123 456789','New','2026-10-21T10:00:00Z','','',500),
 (2,'Bob Customer','07123 456789','New','2026-10-21T10:00:00Z','','',0),
