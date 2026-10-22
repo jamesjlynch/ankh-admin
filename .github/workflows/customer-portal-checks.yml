@@ -53,7 +53,7 @@ jobs:
         run: php tests/customer-portal-render.php
       - name: Verify five customer screens and drill-down interactions
         run: |
-          for tab in home orders vault support account catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
+          for tab in home orders vault support account recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
           php tests/customer-portal-navigation.php orders 104
           php tests/customer-portal-navigation.php vault 103
       - name: Verify accessory preview pricing, checkout and isolation

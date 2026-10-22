@@ -93,3 +93,14 @@ try{ankhCustomerReply($store,$id,'','Answered');throw new RuntimeException('Blan
 for($i=0;$i<9;$i++)ankhCustomerCreateEnquiry($store,$product,1,false,'Question',hash('sha256',(string)$i));
 try{ankhCustomerCreateEnquiry($store,$product,1,false,'Too many',hash('sha256','more'));throw new RuntimeException('Rate limit failed');}catch(InvalidArgumentException $e){}
 echo "Customer favourite isolation, enquiry idempotency, replies, pricing snapshots and throttling passed.\n";
+
+$linkDb=new PDO('sqlite::memory:');$linkDb->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+$linkDb->exec("PRAGMA foreign_keys=ON; CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT);CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT);
+INSERT INTO customers VALUES(1,'Owner one','07123456789'),(2,'Ambiguous','07999000000'),(3,'Ambiguous','+447999000000'),(4,'','07888000000');
+INSERT INTO orders VALUES(1,'Owner one','+447123456789'),(2,'Ambiguous','07999000000'),(3,'','07888000000');");
+$linkBefore=$linkDb->query('SELECT * FROM orders')->fetchAll();ankhCatalogueLinkIdentities($linkDb);ankhCatalogueLinkIdentities($linkDb);
+catalogueCheck((int)$linkDb->query('SELECT COUNT(*) FROM customer_order_links')->fetchColumn()===1,'Durable links only claim a unique named customer with a valid matching phone');
+catalogueCheck($linkDb->query('SELECT * FROM orders')->fetchAll()===$linkBefore,'Durable linking preserves all original order data');
+$linkDb->exec("UPDATE customers SET name='Renamed owner',phone='07777123456' WHERE id=1");ankhCatalogueLinkIdentities($linkDb);
+catalogueCheck((int)$linkDb->query('SELECT customer_id FROM customer_order_links WHERE order_id=1')->fetchColumn()===1,'Durable ownership survives customer profile changes');
+echo "Durable customer ownership linking and ambiguous identity rejection passed.\n";

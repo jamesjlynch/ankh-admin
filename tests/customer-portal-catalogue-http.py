@@ -214,6 +214,10 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
             saved_db.execute('UPDATE catalogue_enquiries SET reply=? WHERE customer_id=2',('A newer answer',))
             assert saved_db.execute('SELECT COUNT(*) FROM portal_notification_state WHERE customer_id=1').fetchone()[0]==0
         fresh=request(notices_path+'&unread=1');assert 'ANKH replied to your enquiry' in fresh and 'is-unread' in fresh
+        home=request('/preview-live.php?customer_id=2&tab=home')
+        assert 'ANKH has replied to you' in home and 'Read your reply' in home
+        assert 'pc-home-rail' in home and 'pc-home-focus' in home and 'class="pcd-home-banner"' not in home
+        assert 'Skip to account content' in home and 'id="customer-main"' in home
         assert hashlib.sha256(admin.read_bytes()).hexdigest() == before, 'Admin database changed'
         print('HTTP catalogue flow passed: Family & Friends pricing, descriptions, protected photos, hidden products, enquiries and unchanged Admin database; separate demo checkout also passed.')
     finally:

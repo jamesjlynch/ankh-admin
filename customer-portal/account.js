@@ -26,3 +26,29 @@ document.addEventListener('DOMContentLoaded', () => {
   dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
   dialog.addEventListener('close', () => { image.removeAttribute('src'); if (trigger) trigger.focus(); });
 });
+
+// Prevent accidental duplicate taps while ordinary, CSRF-protected forms navigate.
+document.addEventListener('DOMContentLoaded', () => {
+  const announcement = document.createElement('div');
+  announcement.className = 'pc-sr-only'; announcement.setAttribute('role', 'status');
+  document.body.appendChild(announcement);
+  document.querySelectorAll('.pc-app form').forEach(form => {
+    const action = form.querySelector('input[name="action"]');
+    if (!action || !/^(catalogue_|notification_)/.test(action.value)) return;
+    form.addEventListener('submit', event => {
+      if (form.dataset.pcSubmitting === '1') { event.preventDefault(); return; }
+      form.dataset.pcSubmitting = '1';
+      const button = event.submitter;
+      if (button && !button.disabled) {
+        button.dataset.pcBusy = '1'; button.disabled = true; button.setAttribute('aria-busy', 'true');
+      }
+      announcement.textContent = action.value === 'catalogue_enquire' ? 'Sending your enquiry…' : 'Saving your changes…';
+    });
+  });
+});
+window.addEventListener('pageshow', () => {
+  document.querySelectorAll('[data-pc-busy]').forEach(button => {
+    button.disabled = false; button.removeAttribute('aria-busy'); delete button.dataset.pcBusy;
+  });
+  document.querySelectorAll('[data-pc-submitting]').forEach(form => { delete form.dataset.pcSubmitting; });
+});

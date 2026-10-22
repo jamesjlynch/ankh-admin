@@ -298,3 +298,28 @@ function ankhCustomerInbox(PDO $admin):void {
     if(!$rows){?><div class="panel"><h2>No enquiries yet</h2><p>Customer product questions will appear here.</p></div><?php }
     foreach($rows as $row){$q=$admin->prepare('SELECT name FROM customers WHERE id=?');$q->execute([$row['customer_id']]);$name=$q->fetchColumn()?:'Customer #'.$row['customer_id'];?><details class="panel" style="margin-bottom:16px"><summary style="cursor:pointer;list-style:none"><small><?=e($row['status'])?> · <?=e(date('d M Y H:i',$row['created_at']))?> <?=$row['preview']?' · STAFF TEST':''?></small><h2><?=e($row['product_name'])?></h2><p><?=e($name)?> · Enquiry #<?=(int)$row['id']?> · Displayed price £<?=number_format($row['price']/100,2)?></p></summary><p style="white-space:pre-wrap;overflow-wrap:anywhere"><?=e($row['message'])?></p><form method="post"><?php csrf();?><input type="hidden" name="action" value="catalogue_enquiry_reply"><input type="hidden" name="enquiry_id" value="<?=(int)$row['id']?>"><label>Reply shown to the customer<textarea name="reply" maxlength="5000" rows="5"><?=e($row['reply'])?></textarea></label><label>Status<select name="enquiry_status"><?php foreach(['Open','Answered','Closed'] as $state):?><option <?=$state===$row['status']?'selected':''?>><?=$state?></option><?php endforeach;?></select></label><button type="submit">Save reply &amp; status</button></form></details><?php }
 }
+
+/** Add durable links only for unambiguous legacy identities; keep original business records intact. */
+function ankhCatalogueIdentityPhone(string $phone):?string {
+    $phone=preg_replace('/[\s().-]+/','',trim($phone))??'';
+    if(str_starts_with($phone,'0044'))$phone='+44'.substr($phone,4);
+    elseif(str_starts_with($phone,'07'))$phone='+44'.substr($phone,1);
+    elseif(str_starts_with($phone,'447'))$phone='+'.$phone;
+    return preg_match('/^\+447\d{9}$/D',$phone)?$phone:null;
+}
+function ankhCatalogueLinkIdentities(PDO $db):void {
+    if($db->inTransaction())throw new RuntimeException('Identity links must be updated outside an order transaction.');
+    $db->beginTransaction();
+    try{
+        $db->exec('CREATE TABLE IF NOT EXISTS customer_order_links(order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,source_name TEXT NOT NULL,source_phone TEXT NOT NULL);
+        CREATE INDEX IF NOT EXISTS customer_order_links_customer ON customer_order_links(customer_id,order_id)');
+        $customers=[];foreach($db->query('SELECT id,name,phone FROM customers') as $customer){$phone=ankhCatalogueIdentityPhone((string)$customer['phone']);if($phone!==null && trim((string)$customer['name'])!=='')$customers[strtolower(trim((string)$customer['name'])).'|'.$phone][]=(int)$customer['id'];}
+        $insert=$db->prepare('INSERT INTO customer_order_links(order_id,customer_id,source_name,source_phone) VALUES(?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET customer_id=excluded.customer_id,source_name=excluded.source_name,source_phone=excluded.source_phone');
+        $remove=$db->prepare('DELETE FROM customer_order_links WHERE order_id=?');
+        $rows=$db->query('SELECT o.id,o.customer,o.phone FROM orders o LEFT JOIN customer_order_links l ON l.order_id=o.id WHERE l.order_id IS NULL OR l.source_name<>o.customer OR l.source_phone<>o.phone')->fetchAll(PDO::FETCH_ASSOC);
+        foreach($rows as $order){$phone=ankhCatalogueIdentityPhone((string)$order['phone']);$ids=$phone===null?[]:($customers[strtolower(trim((string)$order['customer'])).'|'.$phone]??[]);
+            if(count($ids)===1)$insert->execute([(int)$order['id'],$ids[0],(string)$order['customer'],(string)$order['phone']]);else $remove->execute([(int)$order['id']]);
+        }
+        $db->commit();
+    }catch(Throwable $e){$db->rollBack();throw $e;}
+}

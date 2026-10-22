@@ -169,18 +169,23 @@ function portalCustomer(PDO $admin, array $account): ?array {
 }
 
 function portalOrderHistory(PDO $admin, array $customer, string $verifiedPhone): array {
-    // Legacy Admin orders have NO customer_id. Both exact customer identity
-    // AND normalised verified number must match. Never match phone alone.
-    $q = $admin->prepare("SELECT id,customer,phone,created,status,delivery_date,
-        scheduled_delivery_date,delivery_charge,packaged,reconstituted,delivery_method,tracking_reference
-        FROM orders WHERE lower(trim(customer))=lower(trim(?))
-        ORDER BY id DESC LIMIT 1000");
-    $q->execute([trim((string)$customer['name'])]);
-    $orders = [];
-    $items = $admin->prepare('SELECT name,presentation,price,quantity FROM items WHERE order_id=? ORDER BY id ASC');
+    if(portalMobile((string)($customer['phone']??''))!==$verifiedPhone)return [];
+    $identity=$admin->prepare('SELECT id,phone FROM customers WHERE lower(trim(name))=lower(trim(?))');$identity->execute([trim((string)$customer['name'])]);
+    $identityIds=[];foreach($identity as $record)if(portalMobile((string)$record['phone'])===$verifiedPhone)$identityIds[]=(int)$record['id'];
+    $legacyAllowed=trim((string)$customer['name'])!=='' && count($identityIds)===1 && $identityIds[0]===(int)$customer['id'];
+    $linked=(bool)$admin->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_order_links'")->fetchColumn();
+    $productLinked=in_array('product_id',array_column($admin->query('PRAGMA table_info(items)')->fetchAll(PDO::FETCH_ASSOC),'name'),true);
+    $fields='o.id,o.customer,o.phone,o.created,o.status,o.delivery_date,o.scheduled_delivery_date,o.delivery_charge,o.packaged,o.reconstituted,o.delivery_method,o.tracking_reference';
+    // A saved owner is authoritative. Name + verified phone is only a legacy fallback.
+    $legacyWhere=$legacyAllowed?'lower(trim(o.customer))=lower(trim(?))':'0=1';
+    $sql='SELECT '.$fields.($linked?',l.customer_id AS linked_customer_id':'').' FROM orders o '.($linked?'LEFT JOIN customer_order_links l ON l.order_id=o.id ':'').'WHERE '.($linked?'(l.customer_id=? OR (l.order_id IS NULL AND '.$legacyWhere.'))':$legacyWhere).' ORDER BY o.id DESC LIMIT 1000';
+    $q=$admin->prepare($sql);$q->execute(array_merge($linked?[(int)$customer['id']]:[],$legacyAllowed?[trim((string)$customer['name'])]:[]));
+    $orders=[];
+    $items=$admin->prepare('SELECT i.name,i.presentation,i.price,i.quantity'.($productLinked?',i.product_id':'').' FROM items i WHERE i.order_id=? ORDER BY i.id ASC');
     $payments = $admin->prepare('SELECT amount,created,method FROM payments WHERE order_id=? ORDER BY created DESC,id DESC');
     foreach ($q as $order) {
-        if (portalMobile((string)$order['phone']) !== $verifiedPhone) continue;
+        if(empty($order['linked_customer_id']) && portalMobile((string)$order['phone'])!==$verifiedPhone)continue;
+        unset($order['linked_customer_id']);
         $items->execute([(int)$order['id']]);
         $lines = $items->fetchAll();
         $payments->execute([(int)$order['id']]);
@@ -223,22 +228,29 @@ function portalRecurringOrders(PDO $admin,array $customer,string $verifiedPhone,
         if(portalStatus($order)==='Delivered' && trim((string)($order['delivery_date']??''))!=='')$owned[(int)$order['id']]=$order;
     }
     if(!$owned)return [];
-    $fields=['id','customer_name','phone','last_order_id','next_due_date','product_name'];
-    foreach(['presentation','quantity','cycle_weeks','cycle_days'] as $field)$fields[]=in_array($field,$columns,true)?$field:($field==='presentation'?"''":"0").' AS '.$field;
-    $q=$admin->prepare('SELECT '.implode(',',$fields).' FROM reta_cycles WHERE active=1 AND lower(trim(customer_name))=lower(trim(?)) ORDER BY next_due_date,id');$q->execute([trim((string)$customer['name'])]);
+    $linked=(bool)$admin->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_order_links'")->fetchColumn();
+    $productNames=[];if($admin->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='products'")->fetchColumn())foreach($admin->query('SELECT id,name FROM products') as $product)$productNames[(int)$product['id']]=(string)$product['name'];
+    $fields=['c.id','c.customer_name','c.phone','c.last_order_id','c.next_due_date','c.product_name'];
+    foreach(['presentation','quantity','cycle_weeks','cycle_days'] as $field)$fields[]=in_array($field,$columns,true)?'c.'.$field:($field==='presentation'?"''":"0").' AS '.$field;
+    $q=$admin->prepare('SELECT '.implode(',',$fields).($linked?',l.customer_id AS linked_customer_id':'').' FROM reta_cycles c '.($linked?'LEFT JOIN customer_order_links l ON l.order_id=c.last_order_id ':'').'WHERE c.active=1 AND '.($linked?'(l.customer_id=? OR (l.order_id IS NULL AND lower(trim(c.customer_name))=lower(trim(?))))':'lower(trim(c.customer_name))=lower(trim(?))').' ORDER BY c.next_due_date,c.id');$q->execute($linked?[(int)$customer['id'],trim((string)$customer['name'])]:[trim((string)$customer['name'])]);
     $zone=new DateTimeZone('Europe/London');$today=($today??new DateTimeImmutable('today',$zone))->setTimezone($zone)->setTime(0,0);
     $out=[];
     foreach($q as $cycle){
-        if(portalMobile((string)$cycle['phone'])!==$verifiedPhone || !isset($owned[(int)$cycle['last_order_id']]))continue;
+        if((empty($cycle['linked_customer_id']) && portalMobile((string)$cycle['phone'])!==$verifiedPhone) || !isset($owned[(int)$cycle['last_order_id']]))continue;
         $name=trim((string)$cycle['product_name']);if($name==='')continue;
         $source=$owned[(int)$cycle['last_order_id']];
         // Require the named product to exist in the independently authorised source order.
-        if(!array_filter($source['lines'],static fn(array $line):bool=>strcasecmp(trim((string)$line['name']),$name)===0))continue;
+        $matchedLines=array_values(array_filter($source['lines'],static fn(array $line):bool=>strcasecmp(trim((string)$line['name']),$name)===0 || (isset($productNames[(int)($line['product_id']??0)]) && strcasecmp(trim($productNames[(int)$line['product_id']]),$name)===0)));
+        if(!$matchedLines)continue;
+        $productIds=array_values(array_unique(array_filter(array_map(static fn(array $line):int=>(int)($line['product_id']??0),$matchedLines))));
+        if(count($productIds)>1)continue;
+        $productId=$productIds[0]??0;
+        if($productId>0 && isset($productNames[$productId]))$name=$productNames[$productId];
         $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$zone);
         if(!$due || $due->format('Y-m-d')!==(string)$cycle['next_due_date'])continue;
         $days=(int)$today->diff($due)->format('%r%a');$weeks=(int)$cycle['cycle_weeks'];$interval=(int)$cycle['cycle_days'];
         if($weeks<1||$weeks>52)$weeks=($interval>=7&&$interval<=364&&$interval%7===0)?intdiv($interval,7):0;
-        $out[]=['id'=>(int)$cycle['id'],'product'=>$name,'presentation'=>(string)$cycle['presentation'],'quantity'=>max(1,(int)$cycle['quantity']),'weeks'=>$weeks,'due_date'=>$due->format('Y-m-d'),'days_until'=>$days,'last_order_id'=>(int)$source['id'],'last_delivery_date'=>(string)$source['delivery_date']];
+        $out[]=['id'=>(int)$cycle['id'],'product_id'=>$productId,'product'=>$name,'presentation'=>(string)$cycle['presentation'],'quantity'=>max(1,(int)$cycle['quantity']),'weeks'=>$weeks,'due_date'=>$due->format('Y-m-d'),'days_until'=>$days,'last_order_id'=>(int)$source['id'],'last_delivery_date'=>(string)$source['delivery_date']];
     }
     return $out;
 }

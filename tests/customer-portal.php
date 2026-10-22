@@ -101,3 +101,38 @@ expectPortal(portalNotificationEvents([],[],[array_replace($noticeReminder,['day
 expectPortal(portalNotificationEvents([array_replace($noticeOrder,['created'=>'2020-01-01'])],[],[],$noticeToday)===[],'Old order history does not flood notifications');
 try{portalNotificationUpdate($notificationsStore,1,false,$generated,'notification_read',str_repeat('f',64));throw new RuntimeException('Unknown event accepted');}catch(InvalidArgumentException $e){}
 echo "Customer notification generation, persistence, isolation, read/dismiss controls and refresh checks passed.\n";
+
+$identityDb=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+$identityDb->exec("PRAGMA foreign_keys=ON;
+CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER);
+CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT);
+CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,phone TEXT,created TEXT,status TEXT,delivery_date TEXT,scheduled_delivery_date TEXT,delivery_charge INTEGER,packaged INTEGER,reconstituted INTEGER,delivery_method TEXT,tracking_reference TEXT);
+CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,name TEXT,presentation TEXT,price INTEGER,quantity INTEGER,product_id INTEGER);
+CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT,method TEXT);
+CREATE TABLE reta_cycles(id INTEGER PRIMARY KEY,customer_name TEXT,phone TEXT,last_order_id INTEGER,product_name TEXT,next_due_date TEXT,active INTEGER,cycle_weeks INTEGER);
+INSERT INTO customers VALUES(1,'Original Alice','07123456789','Fixture address',0),(2,'Other customer','07999000000','Other fixture',0),(3,'Duplicate identity','07888000000','A',0),(4,'Duplicate identity','+447888000000','B',0);
+INSERT INTO products VALUES(1,'Original reference'),(2,'Other reference');
+INSERT INTO orders VALUES(1,'Original Alice','+447123456789','2026-10-01','Delivered','2026-10-22','',0,1,1,'collection',''),(2,'Other customer','07999000000','2026-10-01','Delivered','2026-10-22','',0,1,1,'collection',''),(3,'Duplicate identity','07888000000','2026-10-01','Delivered','2026-10-22','',0,1,1,'collection',''),(4,'Original Alice','07123456789','2026-10-01','New','','',0,0,0,'collection','');
+INSERT INTO items VALUES(1,1,'Original reference','Vial',1500,1,1),(2,2,'Other reference','Vial',1500,1,2),(3,3,'Original reference','Vial',1500,1,1),(4,4,'Original reference','Vial',1500,1,1);
+INSERT INTO reta_cycles VALUES(1,'Original Alice','07123456789',1,'Original reference','2026-11-19',1,4);");
+$identitySnapshot=[];foreach(['customers','products','orders','items'] as $table)$identitySnapshot[$table]=$identityDb->query('SELECT * FROM '.$table)->fetchAll();
+ankhCatalogueLinkIdentities($identityDb);ankhCatalogueLinkIdentities($identityDb);
+foreach($identitySnapshot as $table=>$rows)expectPortal($identityDb->query('SELECT * FROM '.$table)->fetchAll()===$rows,'Link migration preserves original '.$table.' records');
+expectPortal((int)$identityDb->query('SELECT COUNT(*) FROM customer_order_links')->fetchColumn()===3,'Only unique customer identities are linked, idempotently');
+$duplicate=['id'=>3,'name'=>'Duplicate identity','phone'=>'07888000000','archived'=>0];
+expectPortal(portalOrderHistory($identityDb,$duplicate,'+447888000000')===[],'Ambiguous legacy identities never guess order ownership');
+$identityDb->exec("UPDATE customers SET name='Renamed Alice',phone='07777123456' WHERE id=1; UPDATE products SET name='Renamed reference' WHERE id=1;");
+ankhCatalogueLinkIdentities($identityDb);
+$renamed=['id'=>1,'name'=>'Renamed Alice','phone'=>'07777123456','archived'=>0];
+$linkedOrders=portalOrderHistory($identityDb,$renamed,'+447777123456');
+expectPortal(count($linkedOrders)===2 && (int)$linkedOrders[1]['lines'][0]['product_id']===1,'Stable customer and product IDs survive names and verified phone changes');
+$linkedReminders=portalRecurringOrders($identityDb,$renamed,'+447777123456',$linkedOrders,new DateTimeImmutable('2026-10-22',new DateTimeZone('Europe/London')));
+expectPortal(count($linkedReminders)===1 && $linkedReminders[0]['product_id']===1 && $linkedReminders[0]['product']==='Renamed reference','Recurring links survive customer and product renaming');
+expectPortal(portalOrderHistory($identityDb,$renamed,'+447123456789')===[],'Changing contact details still requires the current verified phone');
+$identityDb->exec("UPDATE orders SET customer='Other customer',phone='07999000000' WHERE id=4;");ankhCatalogueLinkIdentities($identityDb);
+expectPortal(count(portalOrderHistory($identityDb,$renamed,'+447777123456'))===1,'An explicitly reassigned order is removed from its old owner');
+$other=['id'=>2,'name'=>'Other customer','phone'=>'07999000000','archived'=>0];
+expectPortal(count(portalOrderHistory($identityDb,$other,'+447999000000'))===2,'An explicitly reassigned order belongs to its new unique customer');
+$identityDb->exec('PRAGMA query_only=ON');
+expectPortal(count(portalOrderHistory($identityDb,$renamed,'+447777123456'))===1,'Stable link lookups work through a read-only Admin connection');
+echo "Stable identity links, rename continuity, ambiguous-match rejection and reassignment privacy passed.\n";

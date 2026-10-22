@@ -11,10 +11,10 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <meta name="description" content="Secure ANKH customer account and order history.">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
-<link rel="stylesheet" href="./account.css?v=notifications-9">
+<link rel="stylesheet" href="./account.css?v=experience-10">
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
-<body>
+<body><a class="pc-skip-link" href="#customer-main">Skip to account content</a>
 <?php if (!empty($isStaffPreview)): ?>
 <div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Private read-only inspection — SMS customer login is not enabled.</span><a href="./preview.php">Fictional demo</a></div>
 <?php endif; ?>
@@ -28,7 +28,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
   <form method="post" action="<?=!empty($isStaffPreview)?'./preview-live.php':'./'?>" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit"><?=!empty($isStaffPreview)?'Exit staff preview':'Sign out'?> <span aria-hidden="true">↗</span></button></form>
   <?php else: ?><span class="header-note"><span class="status-pip"></span> PRIVATE ACCESS</span><?php endif; ?>
 </header>
-<main class="page <?= $customer ? 'account' : 'auth' ?>">
+<main id="customer-main" tabindex="-1" class="page <?= $customer ? 'account' : 'auth' ?>">
 <?php if (!empty($isStaffPreview)): ?>
 <details class="staff-switcher" <?php if (!$customer): ?>open<?php endif; ?>><summary><?= $customer ? 'Staff preview · Viewing '.portalEscape((string)$customer['name']).' — switch customer' : 'Choose a customer to preview' ?><span aria-hidden="true">⌄</span></summary><section class="staff-customer-search">
   <div><span class="eyebrow">PRIVATE VIEW · READ ONLY</span><h2>Choose a customer</h2><p>Find a real customer to check exactly which existing orders would appear on their dashboard.</p></div>
