@@ -83,3 +83,27 @@ Preview URL: **https://order.ankhpeptides.com/preview.php**
 The preview has Login and Customer dashboard buttons. The login screen accepts a valid UK-format *test* mobile number and demonstrates the code-entry page; on preview.php **only**, enter sample code **123456**, or use the Customer dashboard button to go straight to the fake account. It shows expandable example orders, delivery dates, partial payment, order totals, account details, and responsive layouts. The demo has only hard-coded **fictional** customer records: no Admin DB connection, no account creation, no SMS delivery, and no stock changes. It is not a production authentication test.
 
 Use an iPhone to check typography, buttons, overflow, responsiveness, accordions, and navigation; test the real OTP delivery, enrolment, stale-session revocation, and real order visibility **after** installing Twilio, with a specifically approved test customer.
+
+## Owner-only preview using LIVE existing customers (no Twilio required)
+
+**Do not bypass the customer login or publish an unprotected list of customers.** Use the distinct **temporary staff password** to open `/preview-live.php`. This route reads the real Admin SQLite records with `PRAGMA query_only=ON`. No editing and no SMS messages.
+
+- The **main public customer route** remains locked until Twilio is configured.
+- The staff preview has a separate, 20-minute idle-expiring session and rate-limited temporary password. Private config stores only a password hash. All staff preview customer selection pages require authentication.
+- You can search by existing customer name or phone and select a specific customer to see their exact eligible order history, item quantities, payments and delivery status.
+- Historical orders are matched by both current customer name and phone. If either has changed, orders won't automatically appear. This is intentional and must be addressed in a future reconciliation feature, not by dropping identity checks.
+- **Do not share the staff preview password with customers** and rotate or remove `preview_password_hash` when customer SMS login goes live.
+- The preview is not a substitute for verifying actual customer SMS authentication later.
+
+From the server shell after downloading the latest feature branch, run:
+
+```bash
+export ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php
+php /home/devcouk/ankh-customer-portal-staging/scripts/configure-customer-preview.php
+```
+
+Save the one-time randomly generated password privately. **Never paste it into ChatGPT, GitHub, screenshots, tickets, or messages.** A second run won't reset it; add `--rotate` to intentionally rotate it.
+
+Then deploy with the dedicated `scripts/publish-customer-portal.sh` script and open **https://order.ankhpeptides.com/preview-live.php** to sign in as staff. The folder must be `/home/devcouk/public_html/ankh-order`.
+
+**Before giving customers the domain:** disable or remove the staff preview (delete the published `preview-live.php` and remove `preview_password_hash` from private config) once staff review finishes.
