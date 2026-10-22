@@ -66,6 +66,15 @@ catalogueCheck(!str_contains($formatted,'<script>') && str_contains($formatted,'
 catalogueCheck(ankhCatalogueSummary("## Overview\nA **short** intro.\n\n## Other\nMore") === 'A short intro.','Preview text strips formatting');
 ankhCatalogueSaveContent($db,1,$combined,null,false,true,[]);
 catalogueCheck(ankhCatalogueInformation($db)[1]===[] && ankhCatalogueProducts($db,1)[0]['description']===$combined,'Unified save keeps information in one field without duplicated legacy sections');
+$guided=['appearance'=>'White (fixture)','peptide_type'=>'Fixture compound','amino_length'=>'15 (fixture)','half_life'=>'Fixture experimental context','pubchem'=>'Fixture identifier','research_focus'=>'Fixture research focus','references'=>'Fixture paper https://pubmed.ncbi.nlm.nih.gov/123456/','prepared_storage'=>'Fixture preparation storage'];
+ankhCatalogueSaveContent($db,1,'Product introduction',null,false,true,$guided);
+catalogueCheck(ankhCatalogueInformation($db)[1]===$guided,'Guided Midshire-style information persists');
+$document=ankhCatalogueEditorText('Product introduction',$guided);
+foreach($guided as $value)catalogueCheck(str_contains($document,$value),'Each guided answer is included in the product document');
+catalogueCheck(str_contains(ankhCatalogueFormat($guided['references']),'href="https://pubmed.ncbi.nlm.nih.gov/123456/"'),'Pasted literature URLs are clickable without formatting syntax');
+catalogueCheck(!str_contains(ankhCatalogueFormat('https://user:secret@example.org/test'),'href='),'Credential-bearing links are never activated');
+try{ankhCatalogueSaveContent($db,1,'bad',null,false,true,['amino_length'=>['bad']]);throw new RuntimeException('Array field accepted');}catch(InvalidArgumentException $e){}
+catalogueCheck($unchanged===$db->query('SELECT * FROM products')->fetchAll(),'Guided fields leave original product data unchanged');
 $db->exec('PRAGMA query_only=ON');
 catalogueCheck(count(ankhCatalogueProducts($db,1))===2,'Customer catalogue reads through a read-only connection');
 echo "Catalogue defaults, manual visibility, renamed products, pricing, stock and product preservation passed.\n";
