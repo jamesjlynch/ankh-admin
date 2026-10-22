@@ -170,24 +170,26 @@ function portalOrderHistory(PDO $admin, array $customer, string $verifiedPhone):
     // Legacy Admin orders have NO customer_id. Both exact customer identity
     // AND normalised verified number must match. Never match phone alone.
     $q = $admin->prepare("SELECT id,customer,phone,created,status,delivery_date,
-        scheduled_delivery_date,delivery_charge
+        scheduled_delivery_date,delivery_charge,packaged,reconstituted
         FROM orders WHERE lower(trim(customer))=lower(trim(?))
         ORDER BY id DESC LIMIT 1000");
     $q->execute([trim((string)$customer['name'])]);
     $orders = [];
     $items = $admin->prepare('SELECT name,presentation,price,quantity FROM items WHERE order_id=? ORDER BY id ASC');
-    $payments = $admin->prepare('SELECT COALESCE(SUM(amount),0) FROM payments WHERE order_id=?');
+    $payments = $admin->prepare('SELECT amount,created FROM payments WHERE order_id=? ORDER BY created DESC,id DESC');
     foreach ($q as $order) {
         if (portalMobile((string)$order['phone']) !== $verifiedPhone) continue;
         $items->execute([(int)$order['id']]);
         $lines = $items->fetchAll();
         $payments->execute([(int)$order['id']]);
-        $paid = (int)$payments->fetchColumn();
+        $paymentRows = $payments->fetchAll();
+        $paid = array_sum(array_map(static fn(array $entry): int => (int)$entry['amount'], $paymentRows));
         $total = max(0,(int)$order['delivery_charge']);
         foreach ($lines as $line) $total += (int)$line['price'] * (int)$line['quantity'];
         $order['lines'] = $lines;
         $order['total'] = $total;
         $order['paid'] = min($paid,$total);
+        $order['payments'] = array_map(static fn(array $p): array => ['amount'=>(int)$p['amount'],'created'=>(string)$p['created']], $paymentRows);
         $orders[] = $order;
     }
     return $orders;
