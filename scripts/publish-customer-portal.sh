@@ -28,6 +28,7 @@ cd "$repo"
 "$php" -l customer-portal/lib.php
 "$php" -l customer-portal/index.php
 "$php" -l customer-portal/view.php
+"$php" -l customer-portal/customer-experience.php
 "$php" -l customer-portal/preview-live.php
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
