@@ -58,3 +58,28 @@ A separate, iPhone-first public PHP application. ANKH Admin remains private at i
 - No online ordering or reordering. Those features require a separate review of the UK's medicine/product-classification, advertising and supply rules, alongside fulfilment requirements.
 - Twilio credentials and SMS service are **not** included. A working login cannot be claimed until they are configured and an actual SMS/login test passes.
 - cPanel DNS, document-root and certificate settings cannot be created by repository code alone.
+
+## Testing before Twilio is configured (safe fictional demo)
+
+The **real** sign-in route `https://order.ankhpeptides.com/` deliberately returns a temporary unavailable page until valid Twilio credentials are installed; it cannot send or accept test bypass codes.
+
+You can publish a **separate simulated customer experience** with zero access to production data or SMS:
+
+```bash
+set -euo pipefail
+REPO=/home/devcouk/repositories/ankh-admin-git
+STAGING=/home/devcouk/ankh-customer-portal-staging
+
+git -C "$REPO" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
+git -C "$REPO" archive origin/feature/ankh-customer-portal customer-portal scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh tests/customer-portal.php | tar -x -C "$STAGING"
+php "$STAGING/tests/customer-portal.php"
+export ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order
+export ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php
+bash "$STAGING/scripts/publish-customer-portal.sh"
+```
+
+Preview URL: **https://order.ankhpeptides.com/preview.php**
+
+The preview has Login and Customer dashboard buttons. The login screen accepts a valid UK-format *test* mobile number and demonstrates the code-entry page; on preview.php **only**, enter sample code **123456**, or use the Customer dashboard button to go straight to the fake account. It shows expandable example orders, delivery dates, partial payment, order totals, account details, and responsive layouts. The demo has only hard-coded **fictional** customer records: no Admin DB connection, no account creation, no SMS delivery, and no stock changes. It is not a production authentication test.
+
+Use an iPhone to check typography, buttons, overflow, responsiveness, accordions, and navigation; test the real OTP delivery, enrolment, stale-session revocation, and real order visibility **after** installing Twilio, with a specifically approved test customer.
