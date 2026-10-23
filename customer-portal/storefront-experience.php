@@ -45,7 +45,7 @@ $related=$selected?pfRelated($selected,$products):[];
     <div class="sf-gallery-slide sf-gallery-photo" id="sf-gallery-photo" aria-label="Product photograph">
       <div class="sf-product-image sf-photo-stage">
       <?php if($selected['has_photo']):?>
-       <img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="700" height="700">
+       <img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=detail')?>" srcset="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=thumb')?> 420w, <?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=detail')?> 880w" sizes="(max-width: 600px) 100vw, (max-width: 1000px) 60vw, 700px" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="880" height="880">
        <button type="button" class="sf-gallery-zoom" data-gallery-zoom aria-label="Enlarge product photograph">⌕ <span>Enlarge photo</span></button>
       <?php else:?><span class="sf-gallery-fallback" aria-hidden="true">☥</span><?php endif;?>
       <span class="sf-photo-mark" aria-hidden="true">☥</span></div>
@@ -133,7 +133,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <div class="sf-hero-note"><span aria-hidden="true">☥</span><span>Explore with confidence<br><small>Factual profiles · Account privacy first</small></span></div></div>
 <div class="sf-hero-art sf-real-art" aria-label="ANKH product collection photography">
 <?php if($heroPhotos):?><div class="sf-hero-photo-wall">
-<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'].($j===0?'':'&size=thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
+<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'].($j===0?'&size=detail':'&size=thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
 </div><?php else:?><span class="sf-hero-symbol" aria-hidden="true">☥</span><?php endif;?>
 <span class="sf-art-label">A N K H &nbsp; / &nbsp; T H E &nbsp; C O L L E C T I O N</span>
 </div></section>
