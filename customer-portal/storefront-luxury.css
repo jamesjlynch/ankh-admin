@@ -293,3 +293,10 @@
 @media(prefers-reduced-motion:reduce){
  .sf-gallery-specification{scroll-behavior:auto!important}
 }
+
+
+.sf-demo-total{display:flex;align-items:center;justify-content:space-between;gap:16px;
+ padding:18px 0;margin:13px 0;border-top:1px solid #d7be8962;border-bottom:1px solid #d7be8962}
+.sf-demo-total span{font-size:11px;color:#c7c4b3}
+.sf-demo-total strong{font:500 24px Georgia,serif;color:#f3d598;white-space:nowrap}
+.sf-public .sf-checkout-line>span{font-size:11px;line-height:1.6;color:#edca8b;text-align:right}
