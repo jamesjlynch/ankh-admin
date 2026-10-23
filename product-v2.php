@@ -6,7 +6,7 @@
  * $reservedStockByProduct, $reservationDetailsByProduct and $incomingByProduct.
  */
 $productV2Id=filter_input(INPUT_GET,'id',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
-if(!$productV2Id && isset($_GET['id']) && ctype_digit((string)$_GET['id']))$productV2Id=(int)$_GET['id'];
+if(!$productV2Id && isset($_GET['id']) && is_scalar($_GET['id']) && ctype_digit((string)$_GET['id']))$productV2Id=(int)$_GET['id'];
 $productV2=null;
 if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$productV2Id){$productV2=$item;break;}}}
 ?>
@@ -113,7 +113,7 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
    <div class="product-v2-section-head"><div><p class="eyebrow">COMMITMENTS</p><h2>Reserved for orders</h2></div><span><?=$pvReserved?> units</span></div>
    <?php if($pvDetails):?><div class="product-v2-list">
     <?php foreach(array_slice($pvDetails,0,8) as $pvReservation):?>
-     <a class="product-v2-item" href="?view=orders&amp;search=ANK-<?=str_pad((string)(int)$pvReservation['order_id'],4,'0',STR_PAD_LEFT)?>">
+     <a class="product-v2-item" href="?view=orders&amp;search=ANK-<?=(int)$pvReservation['order_id']?>">
       <div><strong><?=e((string)$pvReservation['customer'])?></strong><small>ANK-<?=str_pad((string)(int)$pvReservation['order_id'],4,'0',STR_PAD_LEFT)?> · <?=e((string)$pvReservation['location'])?></small></div>
       <b><?=max(0,(int)$pvReservation['quantity'])?> reserved</b>
      </a>
@@ -127,7 +127,7 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
   <div class="product-v2-section-head"><div><p class="eyebrow">CUSTOMER ACTIVITY</p><h2>Recent orders</h2></div><span>Latest 12 lines</span></div>
   <?php if($pvOrders):?><div class="product-v2-list">
    <?php foreach($pvOrders as $pvOrder):?>
-    <a class="product-v2-item product-v2-order-row" href="?view=orders&amp;search=ANK-<?=str_pad((string)(int)$pvOrder['id'],4,'0',STR_PAD_LEFT)?>">
+    <a class="product-v2-item product-v2-order-row" href="?view=orders&amp;search=ANK-<?=(int)$pvOrder['id']?>">
      <div><strong><?=e((string)$pvOrder['customer'])?></strong><small>ANK-<?=str_pad((string)(int)$pvOrder['id'],4,'0',STR_PAD_LEFT)?> · <?=e((string)$pvOrder['created'])?></small></div>
      <div class="product-v2-order-state"><b><?=max(0,(int)$pvOrder['quantity'])?> × <?=money((int)$pvOrder['price'])?></b><small><?=e((string)$pvOrder['status'])?><?=trim((string)$pvOrder['presentation'])!==''?' · '.e((string)$pvOrder['presentation']):''?></small></div>
     </a>
