@@ -131,3 +131,32 @@ function sfCommerceCreateRequest(PDO $db,array $input,array $approved,string $to
         $id=(int)$db->lastInsertId();$db->commit();return $id;
     }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
+
+
+/**
+ * Demo-only basket visibility, completely separate from commercial eligibility.
+ * Published profiles are on by default for UI testing; staff may untick each.
+ * No prices, orders or payment rights are granted by this flag.
+ */
+function sfDemoVisible(PDO $store,array $published):array {
+    $allowed=[];
+    foreach($published as $p)if(isset($p['id'])&&(int)$p['id']>0)$allowed[(int)$p['id']]=true;
+    if(!$allowed)return [];
+    $table=$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='storefront_demo_visibility'")->fetchColumn();
+    if(!$table)return $allowed;
+    foreach($store->query("SELECT product_id FROM storefront_demo_visibility WHERE enabled=0") as $row)unset($allowed[(int)$row['product_id']]);
+    return $allowed;
+}
+function sfDemoSetVisible(PDO $store,PDO $admin,int $id,bool $enabled):void {
+    if($id<1)throw new InvalidArgumentException('Invalid product.');
+    $q=$admin->prepare("SELECT p.id FROM products p
+      JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1
+      WHERE p.id=? AND p.active=1");
+    $q->execute([$id]);
+    if(!$q->fetchColumn())throw new InvalidArgumentException('Product is no longer published.');
+    $store->exec("CREATE TABLE IF NOT EXISTS storefront_demo_visibility(
+      product_id INTEGER PRIMARY KEY,enabled INTEGER NOT NULL CHECK(enabled IN(0,1)),updated_at INTEGER NOT NULL)");
+    $store->prepare("INSERT INTO storefront_demo_visibility(product_id,enabled,updated_at) VALUES(?,?,?)
+      ON CONFLICT(product_id) DO UPDATE SET enabled=excluded.enabled,updated_at=excluded.updated_at")
+      ->execute([$id,$enabled?1:0,time()]);
+}
