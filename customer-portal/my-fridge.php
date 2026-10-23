@@ -104,7 +104,7 @@ function portalFridgeProjection(array $row,?string $today=null):array {
         $daysLeft=(int)ceil($remaining/$daily);
         if($daysLeft<=3650)$runout=$now->modify('+'.$daysLeft.' days')->format('Y-m-d');
     }
-    $fraction=(int)$row['unit_amount_milli']>0?min(100,round(100*$remaining/(int)$row['unit_amount_milli'])):0;
+    $fraction=(int)$row['unit_amount_milli']>0?(int)min(100,round(100*$remaining/(int)$row['unit_amount_milli'])):0;
     return ['remaining_milli'=>$remaining,'daily_milli'=>$daily,'runout_date'=>$runout,'days_left'=>$daysLeft,
       'percent'=>$fraction,'estimated'=>$days>0&&$daily>0];
 }
