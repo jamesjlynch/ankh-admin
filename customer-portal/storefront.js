@@ -6,6 +6,7 @@
   const corpus = [...document.querySelectorAll('[data-suggest-name]')].map(node => ({
     name: node.dataset.suggestName || '',
     kind: node.dataset.suggestKind || '',
+    photo: node.dataset.suggestPhoto || '',
     href: node.dataset.suggestHref || ''
   }));
   if (search && suggestions) {
@@ -19,12 +20,15 @@
       if(query.length < 2) {close(); return;}
       const found = corpus.filter(item => (item.name+' '+item.kind).toLocaleLowerCase().includes(query)).slice(0,6);
       if(!found.length) {close();return;}
-      const heading=document.createElement('span'); heading.className='sf-suggest-label'; heading.textContent='QUICK RESULTS';suggestions.append(heading);
+      const heading=document.createElement('span'); heading.className='sf-suggest-label'; heading.textContent=found.length+' MATCHING PROFILE'+(found.length===1?'':'S');suggestions.append(heading);
       found.forEach(item=>{
         const link=document.createElement('a');link.href=item.href;
         const name=document.createElement('strong');name.textContent=item.name;
         const kind=document.createElement('small');kind.textContent=item.kind;
-        link.append(name,kind);suggestions.append(link);
+        const copy=document.createElement('span');copy.className='sf-suggest-copy';copy.append(name,kind);
+        if(item.photo){const img=document.createElement('img');img.className='sf-suggest-thumb';img.src=item.photo;img.alt='';img.loading='lazy';img.width=46;img.height=46;link.append(img);}
+        else {const fallback=document.createElement('span');fallback.className='sf-suggest-thumb sf-suggest-fallback';fallback.textContent='☥';fallback.setAttribute('aria-hidden','true');link.append(fallback);}
+        link.append(copy);const arrow=document.createElement('span');arrow.className='sf-suggest-arrow';arrow.textContent='↗';arrow.setAttribute('aria-hidden','true');link.append(arrow);suggestions.append(link);
       });
       suggestions.hidden=false;search.setAttribute('aria-expanded','true');
     };
