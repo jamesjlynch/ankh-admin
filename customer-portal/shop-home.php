@@ -28,6 +28,7 @@ if(empty($isDemo)&&isset($admin,$portal)){
   <input type="hidden" name="tab" value="catalogue">
   <?=pcIcon('search')?><label for="pc-shop-query" class="sr-only">Search products</label><input id="pc-shop-query" type="search" name="search" maxlength="80" placeholder="What are you looking for?" enterkeyhint="search"><button type="submit">Search <?=pcIcon('right')?></button>
 </form>
+<a class="pc-fridge-home-banner" href="<?=portalEscape(pcHref('fridge',$staff,$customerId))?>"><span><?=pcIcon('fridge')?></span><div><strong>My Fridge</strong><small>Keep track of what you have and see when your stock may run out</small></div><?=pcIcon('right')?></a>
 <nav class="pc-shop-quick" aria-label="Popular shopping shortcuts">
   <a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>"><span><?=pcIcon('catalogue')?></span><strong>All products</strong><small>Explore the collection</small></a>
   <a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['saved'=>1]))?>"><span><?=pcIcon('check')?></span><strong>Saved favourites</strong><small>Products you love</small></a>
