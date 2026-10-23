@@ -83,7 +83,7 @@ const checkServer=url=>new Promise(resolve=>http.get(url,res=>{res.resume();reso
     });
     console.log('Button hit test',width,JSON.stringify(hit));
     assert(hit.isSelf,'Product Add button tap is blocked at '+width+'px: '+JSON.stringify(hit));
-    await cartButton.click({timeout:8000});
+    await page.touchscreen.tap(hit.button.x+hit.button.width/2,hit.button.y+hit.button.height/2);
     assert.equal(await page.locator('.sf-cart-drawer').evaluate(el=>el.open),false,'Add must not open basket');
     assert((await first.locator('.sf-add-cart').innerText()).includes('Added'),'Animated added state missing');
     assert((await page.locator('.sf-cart-feedback').innerText()).includes('added'),'Toast confirmation missing');
