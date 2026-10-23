@@ -300,3 +300,23 @@
 .sf-demo-total span{font-size:11px;color:#c7c4b3}
 .sf-demo-total strong{font:500 24px Georgia,serif;color:#f3d598;white-space:nowrap}
 .sf-public .sf-checkout-line>span{font-size:11px;line-height:1.6;color:#edca8b;text-align:right}
+
+
+/* ANKH document suite: restrained gold/charcoal surfaces on every product. */
+.sf-public-documents{margin:34px 0 54px;padding:26px;border:1px solid #d7b97a55;border-radius:20px;
+ background:linear-gradient(128deg,#24281f,#141b15);box-shadow:0 18px 60px #0003}
+.sf-public-documents .sf-section-title{margin-bottom:16px}
+.sf-public-documents .sf-section-title h2{font:400 clamp(27px,4vw,36px)/1.15 Georgia,serif;letter-spacing:-.03em}
+.sf-product-doc-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,285px),1fr));gap:12px}
+.sf-product-doc-link{display:flex;align-items:center;gap:14px;min-height:100px;padding:18px;
+ background:#0f160e;border:1px solid #ceaf7350;border-radius:13px;text-decoration:none;
+ transition:transform .24s,border-color .24s,box-shadow .24s}
+.sf-product-doc-link:hover{border-color:#efca7c;transform:translateY(-2px);box-shadow:0 9px 30px #0007}
+.sf-product-doc-link>span:nth-child(2){flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.sf-product-doc-link strong{font-size:13px;color:#f3e0ba;line-height:1.45}
+.sf-product-doc-link small{font-size:10px;color:#b1b9a9;line-height:1.6}
+.sf-product-doc-link>span:last-child{color:#e8ca85;font-size:20px}
+.sf-doc-symbol{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:10px;background:#cdb27722;
+ border:1px solid #cdb27772;color:#e6c88b;font:26px Georgia,serif}
+.sf-docs-notice{font-size:11px;color:#aeb2a4;margin:18px 0 0;line-height:1.7}
+@media(max-width:600px){.sf-public-documents{padding:17px;border-radius:14px;margin:24px 0 35px}}

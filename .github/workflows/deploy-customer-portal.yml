@@ -56,6 +56,9 @@ jobs:
           php -l customer-portal/storefront-card.php
           php -l customer-portal/storefront-commerce.php
           php -l customer-portal/storefront-staff.php
+          php -l customer-portal/product-certificates.php
+          php -l customer-portal/product-document.php
+          php -l customer-portal/product-specification.php
           php -l customer-portal/shop-checkout.php
           php -l customer-portal/shop-demo.php
           node --check customer-portal/shop-demo.js
@@ -79,6 +82,7 @@ jobs:
           python3 tests/customer-catalogue-admin-http.py
           python3 tests/customer-storefront-preview-http.py
           python3 tests/customer-public-storefront-http.py
+          php tests/customer-product-certificates.php
           php tests/customer-storefront-commerce.php
           php tests/customer-demo-basket.php
       - name: Configure deployment access

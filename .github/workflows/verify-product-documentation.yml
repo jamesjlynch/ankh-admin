@@ -1,0 +1,37 @@
+name: Verify ANKH product documentation
+on:
+  push:
+    branches: [feature/ankh-authentic-coa-product-documents]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring, fileinfo
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate PDF generator, certificate upload and privacy
+        run: |
+          set -euo pipefail
+          php -l customer-portal/product-certificates.php
+          php -l customer-portal/product-specification.php
+          php -l customer-portal/product-document.php
+          php -l customer-portal/preview-live.php
+          php -l customer-portal/account-features.php
+          php -l customer-portal/storefront-experience.php
+          php -l customer-portal/storefront.php
+          php tests/customer-product-certificates.php
+          php tests/customer-storefront-commerce.php
+          php tests/customer-collection.php
+          python3 tests/customer-public-storefront-http.py
+          python3 tests/customer-storefront-preview-http.py
+          python3 tests/customer-catalogue-admin-http.py
+          php tests/customer-portal-render.php
