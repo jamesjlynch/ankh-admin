@@ -11,6 +11,7 @@ declare(strict_types=1);
 require_once __DIR__.'/public-catalogue-core.php';
 require_once is_file(__DIR__.'/customer-catalogue.php') ? __DIR__.'/customer-catalogue.php' : dirname(__DIR__).'/customer-catalogue.php';
 require_once __DIR__.'/storefront-design.php';
+require_once __DIR__.'/storefront-commerce.php';
 $loopback = PHP_SAPI==='cli-server' && getenv('ANKH_TEST_ALLOW_HTTP')==='1'
     && in_array((string)($_SERVER['REMOTE_ADDR']??''),['127.0.0.1','::1'],true)
     && preg_match('/^(?:127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?$/D',(string)($_SERVER['HTTP_HOST']??''))===1;
@@ -62,6 +63,18 @@ try {
         $contacts=null;
     }
 } catch (Throwable $e) { error_log('ANKH public contact link: '.$e->getMessage()); }
+// Public site reads only explicitly approved accessory IDs and staff-verified business facts.
+// An absent private database/table means no items can be checked out (fail closed).
+$buyable=[];$businessFacts=null;
+try{
+    $portalPath=is_array($config)?($config['portal_database_path']??''):'';
+    if(is_string($portalPath)&&is_file($portalPath)){
+        $store=new PDO('sqlite:'.$portalPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+        $store->exec('PRAGMA query_only=ON; PRAGMA busy_timeout=2000');
+        $buyable=sfCommerceEligible($store,$db);
+        $businessFacts=sfCommerceFacts($store);
+    }
+}catch(Throwable $e){error_log('ANKH public shop setup: '.$e->getMessage());}
 if(isset($_GET['image'])) {http_response_code(404);exit;}
 $id=filter_var($_GET['product']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 $selected=null;
