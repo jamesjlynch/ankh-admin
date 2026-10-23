@@ -20,7 +20,11 @@
         "sequence": "GEPPPGKPADDAGLV",
         "formula": "C62H98N16O22",
         "weight": "1419.53 g/mol"
-      }
+      },
+      "evidence_level": "Predominantly preclinical; limited, very-low-certainty human studies",
+      "mechanism": "Investigated in gastrointestinal and tissue-injury models with multiple proposed pathways, including inflammatory signalling and tissue remodelling. A single clinically validated human receptor mechanism has not been established.",
+      "research_limitations": "Published experimental BPC-157 findings do not establish clinical healing effects, safe doses or long-term safety in humans. A 2026 systematic review found three small human studies totalling 30 participants with very low certainty.",
+      "identity_notes": "15-residue synthetic peptide; chemical salt form and any associated counterions require batch confirmation."
     },
     {
       "key": "tb500",
@@ -37,7 +41,11 @@
       ],
       "specifications": {
         "peptide_type": "Thymosin beta-4-associated research peptide; exact fragment requires batch confirmation"
-      }
+      },
+      "evidence_level": "Mechanistic research on thymosin beta-4; specific commercial TB-500 identity uncertain",
+      "mechanism": "Full-length thymosin beta-4 participates in actin-binding and cell-migration processes. These findings cannot be assumed to apply to a different peptide fragment called TB-500.",
+      "research_limitations": "The research name TB-500 can refer to different sequences. Without a verified sequence and precise mass, no product-specific molecular formula, pharmacology or clinical claim is supportable.",
+      "identity_notes": "Require a lot-specific amino-acid sequence. Do not confuse full-length 43-residue thymosin beta-4 with fragments marketed as TB-500."
     },
     {
       "key": "ghkcu",
@@ -60,7 +68,11 @@
         "formula": "C14H24CuN6O4",
         "weight": "403.93 g/mol",
         "appearance": "Typically blue to violet, depending on preparation"
-      }
+      },
+      "evidence_level": "Predominantly in-vitro and animal findings",
+      "mechanism": "Gly-His-Lys can coordinate copper(II), a property investigated alongside fibroblast and extracellular-matrix responses in laboratory models.",
+      "research_limitations": "Cellular collagen findings are not proof of skin rejuvenation, medical wound treatment, or safe administration in humans. Copper complexation, stoichiometry and sample identity must be verified.",
+      "identity_notes": "Copper(II) complex of glycyl-L-histidyl-L-lysine; the composition and oxidation state of the isolated salt should be confirmed."
     },
     {
       "key": "ss31",
@@ -80,7 +92,11 @@
         "peptide_type": "Synthetic mitochondrial-targeted tetrapeptide",
         "amino_length": "4",
         "sequence": "D-Arg–2',6'-dimethyl-Tyr–Lys–Phe–NH2"
-      }
+      },
+      "evidence_level": "Cell and animal studies; some human clinical trial data",
+      "mechanism": "Elamipretide (SS-31) has been studied for mitochondrial membrane interactions, including associations with cardiolipin and bioenergetic functions.",
+      "research_limitations": "Clinical findings depend on diagnosis, endpoints, trial size and medicinal product formulation. Results of regulated studies do not establish equivalence, purity or suitability of other research vials.",
+      "identity_notes": "Synthetic tetrapeptide; exact stereochemistry and salt form are essential to the molecular identity."
     },
     {
       "key": "cjcdac",
@@ -97,7 +113,11 @@
       ],
       "specifications": {
         "peptide_type": "Long-acting GHRH analogue containing DAC"
-      }
+      },
+      "evidence_level": "Small human pharmacodynamic investigations; limited clinical efficacy evidence",
+      "mechanism": "The drug-affinity complex was developed to prolong exposure to a synthetic GHRH analogue, allowing endocrine pharmacodynamic investigations.",
+      "research_limitations": "The extended exposure findings apply to DAC-containing CJC-1295, not the variant commonly called CJC-1295 without DAC. Efficacy and safety for general consumer use are not established.",
+      "identity_notes": "Confirm the DAC modification and sequence in batch records. The words with DAC and without DAC designate materially different molecules."
     },
     {
       "key": "cjcno",
@@ -117,7 +137,11 @@
       "specifications": {
         "peptide_type": "Modified GHRH(1–29) analogue without DAC",
         "amino_length": "29"
-      }
+      },
+      "evidence_level": "GHRH analogue pharmacology; no-DAC formulation-specific evidence required",
+      "mechanism": "Modified GRF(1–29) interacts with GHRH-related endocrine signalling; it is not identical to the DAC-conjugated long-acting molecule.",
+      "research_limitations": "Assigning DAC study half-life values to this version is scientifically wrong. Clinical safety, exact sequence and lot identity require independent assessment.",
+      "identity_notes": "Often sold under the ambiguous name CJC-1295 without DAC; state modified GRF(1–29) only when chemical identity is confirmed."
     },
     {
       "key": "ipamorelin",
@@ -134,7 +158,11 @@
         "peptide_type": "Growth hormone secretagogue pentapeptide",
         "amino_length": "5",
         "sequence": "Aib–His–D-2-Nal–D-Phe–Lys–NH2"
-      }
+      },
+      "evidence_level": "Preclinical and endocrine pharmacodynamic studies",
+      "mechanism": "Investigated as an agonist of the growth hormone secretagogue receptor with measurable experimental GH secretory responses.",
+      "research_limitations": "GH secretion is a surrogate laboratory endpoint, not proof of muscle gain, injury recovery or safety in unsupervised use.",
+      "identity_notes": "Synthetic five-residue secretagogue with nonstandard residues; confirm the actual supplied peptide form."
     },
     {
       "key": "ghrp2",
@@ -151,7 +179,11 @@
       "specifications": {
         "peptide_type": "Synthetic growth hormone-releasing hexapeptide",
         "amino_length": "6"
-      }
+      },
+      "evidence_level": "Preclinical and human endocrine-challenge literature",
+      "mechanism": "Investigated for endocrine activation through the ghrelin/secretagogue receptor system.",
+      "research_limitations": "Transient hormone changes do not establish broad clinical health benefits, safety or equivalence between vials.",
+      "identity_notes": "Synthetic hexapeptide whose stereochemistry must be verified."
     },
     {
       "key": "igflr3",
@@ -169,7 +201,11 @@
       ],
       "specifications": {
         "peptide_type": "Engineered IGF-1 analogue"
-      }
+      },
+      "evidence_level": "Cell and experimental receptor research; clinical suitability not established",
+      "mechanism": "Long R3 IGF-1 was engineered to alter interactions with binding proteins and has been used as a growth-factor research reagent.",
+      "research_limitations": "Native human IGF-1 clinical literature is not directly interchangeable with LR3 studies. The recombinant/protein manufacturing quality and safety of retail materials are unknown.",
+      "identity_notes": "Long R3 variant differs from native IGF-1 by an N-terminal extension and substitution."
     },
     {
       "key": "pegmgf",
@@ -185,7 +221,11 @@
       ],
       "specifications": {
         "peptide_type": "PEGylated MGF-related peptide; formulation-dependent"
-      }
+      },
+      "evidence_level": "Research on MGF variants; PEGylated commercial composition often unspecified",
+      "mechanism": "PEGylation changes a peptide's physicochemical properties; endogenous IGF-1 splice-variant studies do not establish the action of a given PEG conjugate.",
+      "research_limitations": "Without PEG mass, attachment chemistry and site-specific identity, a precise molecular formula and half-life cannot be given. Human performance claims are unsupported.",
+      "identity_notes": "PEG-MGF is a descriptive label for a conjugate, not a uniquely defined molecular identity."
     },
     {
       "key": "mgf",
@@ -201,7 +241,11 @@
       ],
       "specifications": {
         "peptide_type": "MGF-related research peptide; exact fragment unverified"
-      }
+      },
+      "evidence_level": "Mechanistic IGF-1 splice-variant research",
+      "mechanism": "MGF-related literature examines transcripts and peptide fragments associated with mechanical response in muscle research.",
+      "research_limitations": "Different fragments are marketed under the same short name. Results for endogenous isoforms cannot be transferred to an unspecified synthesis.",
+      "identity_notes": "Confirm exact peptide sequence rather than assuming all MGF-labelled products are the same."
     },
     {
       "key": "motsc",
@@ -220,7 +264,11 @@
         "peptide_type": "Mitochondrial-derived signalling peptide",
         "amino_length": "16",
         "sequence": "MRWQEMGYIFYPRKLR"
-      }
+      },
+      "evidence_level": "Cell and rodent studies; translational research developing",
+      "mechanism": "Studies describe relationships between mitochondrial-derived peptide signalling, folate-purine metabolism and AMPK-associated responses.",
+      "research_limitations": "Mouse metabolic findings are not proof of improved metabolism or weight control in people. Unresolved human pharmacology and product-specific quality remain.",
+      "identity_notes": "16-amino-acid mitochondrial-derived peptide; sequence and any terminal modifications must be verified."
     },
     {
       "key": "nad",
@@ -239,7 +287,11 @@
         "peptide_type": "Oxidised nicotinamide adenine dinucleotide; non-peptide coenzyme",
         "formula": "C21H27N7O14P2",
         "weight": "663.43 g/mol"
-      }
+      },
+      "evidence_level": "Established cellular biochemistry; product-specific clinical claims are separate",
+      "mechanism": "NAD+ functions as a redox coenzyme and substrate for NAD-consuming enzyme families such as sirtuins and PARPs.",
+      "research_limitations": "NAD+ is not a peptide. Endogenous physiological importance does not imply therapeutic benefits from a commercial vial or a particular administration route.",
+      "identity_notes": "Confirm oxidised NAD+ rather than NADH or mixtures; salt form affects listed mass and formula."
     },
     {
       "key": "tesamorelin",
@@ -255,7 +307,11 @@
       ],
       "specifications": {
         "peptide_type": "GHRH analogue"
-      }
+      },
+      "evidence_level": "Controlled human clinical research exists for specific authorised formulations",
+      "mechanism": "Synthetic GHRH-analogue research explores GH and IGF-1 responses and defined clinical metabolic endpoints.",
+      "research_limitations": "Results from licensed clinical preparations do not permit claims for an unidentified research-market preparation. UK medicine classification and advertising controls require specific review.",
+      "identity_notes": "Tesamorelin is an identifiable pharmacologically active medicine-related peptide; salt and formulation affect laboratory specification."
     },
     {
       "key": "retatrutide",
@@ -270,7 +326,11 @@
       ],
       "specifications": {
         "peptide_type": "GLP-1/GIP/glucagon triple-receptor agonist"
-      }
+      },
+      "evidence_level": "Human randomised clinical trials using investigational pharmaceutical material",
+      "mechanism": "The molecule has been evaluated as a GLP-1, GIP and glucagon receptor agonist in controlled research settings.",
+      "research_limitations": "Clinical results do not establish that a third-party vial is identical, sterile, properly manufactured, legally supplied or appropriate for use by consumers. Website promotion may be considered medicines advertising.",
+      "identity_notes": "Distinct triple-receptor agonist; avoid confusing it with tirzepatide or semaglutide. Independently verify lot identity."
     },
     {
       "key": "melanotan1",
@@ -289,7 +349,11 @@
       "specifications": {
         "peptide_type": "Synthetic α-MSH analogue",
         "amino_length": "13"
-      }
+      },
+      "evidence_level": "Clinical research exists for regulated afamelanotide formulations",
+      "mechanism": "A synthetic analogue of alpha-MSH studied for melanocortin receptor binding and melanogenesis.",
+      "research_limitations": "Evidence for a regulated afamelanotide implant cannot validate a supplied research powder. Promotion of tanning or treatment effects may raise medicinal advertising issues.",
+      "identity_notes": "Identify if the item is afamelanotide (melanotan I) and confirm sequence; do not confuse with melanotan II."
     },
     {
       "key": "kisspeptin",
@@ -308,7 +372,11 @@
       "specifications": {
         "peptide_type": "Kisspeptin active decapeptide",
         "amino_length": "10"
-      }
+      },
+      "evidence_level": "Human experimental endocrine studies plus basic neuroendocrine research",
+      "mechanism": "Kisspeptin-10 is investigated through KISS1R-dependent signalling upstream of GnRH and gonadotropin release.",
+      "research_limitations": "Hormonal responses measured in research are not treatment recommendations. Health outcomes, reproductive safety and long-term effects are not established for retail preparations.",
+      "identity_notes": "Ten-residue terminal segment of kisspeptin; actual supplied counterion may vary."
     },
     {
       "key": "dsip",
@@ -327,7 +395,11 @@
         "peptide_type": "Synthetic nonapeptide",
         "amino_length": "9",
         "sequence": "Trp–Ala–Gly–Gly–Asp–Ala–Ser–Gly–Glu"
-      }
+      },
+      "evidence_level": "Early human sleep experiments and preclinical work; mixed evidence",
+      "mechanism": "DSIP has been studied experimentally in relation to sleep physiology and neuropeptide pathways; a single accepted therapeutic mechanism is not established.",
+      "research_limitations": "Controlled insomnia evidence was inconsistent and insufficient for efficacy claims. Avoid language implying validated sleep treatment.",
+      "identity_notes": "Synthetic nonapeptide; sequence and salt must be documented."
     },
     {
       "key": "epitalon",
@@ -346,7 +418,11 @@
         "peptide_type": "Synthetic tetrapeptide",
         "amino_length": "4",
         "sequence": "Ala–Glu–Asp–Gly (AEDG)"
-      }
+      },
+      "evidence_level": "Predominantly cell-based and animal studies",
+      "mechanism": "Laboratory research considers telomerase-associated and cell-senescence pathways after exposure to the AEDG peptide.",
+      "research_limitations": "Telomere or telomerase observations do not establish extension of human lifespan, anti-ageing efficacy or safety.",
+      "identity_notes": "Epitalon/Epithalon refers to AEDG; confirm actual chemical form and batch identity."
     },
     {
       "key": "selank",
@@ -364,7 +440,11 @@
         "peptide_type": "Synthetic tuftsin analogue",
         "amino_length": "7",
         "sequence": "Thr–Lys–Pro–Arg–Pro–Gly–Pro"
-      }
+      },
+      "evidence_level": "Animal work and small human investigations; limited generalisable evidence",
+      "mechanism": "Tuftsin-related heptapeptide investigated for neural and immunological peptide signalling in experimental contexts.",
+      "research_limitations": "Behavioural findings do not prove treatment of anxiety or neurological conditions. Much human evidence is limited in size or accessibility.",
+      "identity_notes": "Synthetic seven-residue tuftsin-related sequence; salt and terminal chemistry require verification."
     },
     {
       "key": "semax",
@@ -382,7 +462,11 @@
         "peptide_type": "Synthetic ACTH-derived heptapeptide",
         "amino_length": "7",
         "sequence": "Met–Glu–His–Phe–Pro–Gly–Pro"
-      }
+      },
+      "evidence_level": "Primarily animal and mechanistic neurological literature; smaller clinical reports",
+      "mechanism": "ACTH-related peptide investigated in neurotrophin and cerebral ischaemia signalling models.",
+      "research_limitations": "Animal BDNF changes are not proof of human memory improvement, stroke treatment or neurological safety.",
+      "identity_notes": "Synthetic heptapeptide ACTH(4–7)-PGP analogue; terminal chemistry and lot identity require checking."
     },
     {
       "key": "snap8",
@@ -400,7 +484,11 @@
       "specifications": {
         "peptide_type": "Acetylated octapeptide; confirm exact identity",
         "amino_length": "8"
-      }
+      },
+      "evidence_level": "Formulation-dependent cosmetic and in-vitro evidence",
+      "mechanism": "Acetyl octapeptide-3 is associated with experimental studies of exocytosis-related peptide design.",
+      "research_limitations": "Evidence is insufficient to claim injection benefits, treatment effects or clinically proven wrinkle elimination; cosmetic status depends on formulation and intended use.",
+      "identity_notes": "Confirm chemical acetylation and identity. Cosmetic research data are not proof of medical suitability."
     },
     {
       "key": "kpv",
@@ -421,7 +509,11 @@
         "sequence": "Lys–Pro–Val (KPV)",
         "formula": "C16H30N4O4",
         "weight": "342.43 g/mol"
-      }
+      },
+      "evidence_level": "Predominantly cell and animal models, including intestinal inflammation",
+      "mechanism": "KPV has been investigated for PepT1-mediated cellular uptake and modulation of inflammatory signalling, including NF-κB- and MAPK-related responses.",
+      "research_limitations": "Dalmasso's findings were preclinical. They do not demonstrate a validated treatment for inflammatory bowel disease or establish safe use in people.",
+      "identity_notes": "Tripeptide Lys-Pro-Val from alpha-MSH C-terminus; ensure salt/form-specific specifications."
     },
     {
       "key": "ara290",
@@ -440,7 +532,11 @@
       "specifications": {
         "peptide_type": "Erythropoietin-derived research peptide",
         "amino_length": "11"
-      }
+      },
+      "evidence_level": "Early-stage clinical studies plus preclinical models",
+      "mechanism": "Cibinetide is investigated for tissue-protective signalling associated with proposed innate repair receptor pathways.",
+      "research_limitations": "Studies are preliminary and cannot establish licensed indications, broad efficacy or safe use of unrelated research material.",
+      "identity_notes": "Erythropoietin-derived short peptide; confirm specific residue sequence and stereochemistry."
     },
     {
       "key": "tirzepatide",
@@ -457,7 +553,11 @@
       ],
       "specifications": {
         "peptide_type": "Dual GIP/GLP-1 receptor agonist"
-      }
+      },
+      "evidence_level": "Large human clinical trial programme for regulated prescription-medicine formulations",
+      "mechanism": "Dual GIP/GLP-1 receptor agonist studied for physiological endpoints in regulated trials.",
+      "research_limitations": "Tirzepatide is an active substance used in prescription medicines. Public promotion of POMs is prohibited in the UK; a research-only label cannot circumvent those restrictions.",
+      "identity_notes": "Distinguish prescribed, authorised medicinal products from a research vial. No drug-equivalence claim can be supported without authorisation."
     },
     {
       "key": "glutathione",
@@ -475,7 +575,11 @@
         "peptide_type": "Endogenous redox tripeptide",
         "amino_length": "3",
         "sequence": "γ-Glu–Cys–Gly (reduced glutathione)"
-      }
+      },
+      "evidence_level": "Established biochemical knowledge; clinical claims depend on formulation and study",
+      "mechanism": "Reduced glutathione participates in thiol redox chemistry and glutathione-dependent enzymatic reactions.",
+      "research_limitations": "Endogenous glutathione function does not justify skin-lightening, detoxification or injection claims. Verify reduced versus oxidised form.",
+      "identity_notes": "Reduced and oxidised glutathione are chemically distinct; do not conflate GSH and GSSG."
     },
     {
       "key": "blendglow",
@@ -489,7 +593,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Multi-component research blend; composition must be confirmed"
-      }
+      },
+      "evidence_level": "Uncharacterised multi-component blend unless recipe/COA supplied",
+      "mechanism": "Component-specific mechanisms cannot be combined into an assumed pharmacological response without formulation studies.",
+      "research_limitations": "Without confirmed ingredient identities, strengths and compatibility data, claims of synergy, a single molecular formula or a clinical purpose are unsupported.",
+      "identity_notes": "Verify every component and its actual amount; the marketing name alone is not an analytical identity."
     },
     {
       "key": "blendwolverine",
@@ -503,7 +611,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Multi-component research blend; composition must be confirmed"
-      }
+      },
+      "evidence_level": "Uncharacterised multi-component blend unless recipe/COA supplied",
+      "mechanism": "Mixture research requires individual material identities, concentrations and compatibility testing.",
+      "research_limitations": "Preclinical findings for individual ingredients cannot demonstrate safety or efficacy of an unidentified combination.",
+      "identity_notes": "Require a full verified blend formula and batch records before technical specifications can be asserted."
     },
     {
       "key": "bacwater",
@@ -518,7 +630,11 @@
       "specifications": {
         "peptide_type": "Laboratory diluent; non-peptide",
         "precautions": "Check container label, manufacturer documentation and applicable handling requirements. Never assume sterility, injectable suitability or a multidose lifespan without verified batch information."
-      }
+      },
+      "evidence_level": "Reagent specifications must come from manufacturer rather than efficacy studies",
+      "mechanism": "Bacteriostatic diluent research concerns preservatives, compatible containers and chemical handling.",
+      "research_limitations": "The presence of a preservative does not establish sterility or suitability for human administration. Never invent a multidose lifespan.",
+      "identity_notes": "Verify benzyl-alcohol percentage, manufacturer, labelling, sterility and expiry from the actual documentation."
     },
     {
       "key": "aceticacid",
@@ -533,7 +649,11 @@
       "specifications": {
         "peptide_type": "Dilute acetic acid laboratory reagent; non-peptide",
         "precautions": "Follow the supplier safety data sheet; verify concentration and container compatibility. Keep separate from unverified medical-use claims."
-      }
+      },
+      "evidence_level": "Established solution chemistry; composition-dependent hazards",
+      "mechanism": "Laboratory uses of dilute acetic acid concern acidity, solvent properties and analytical compatibility.",
+      "research_limitations": "Correct GB CLP classification, SDS and required hazard labelling depend on verified mixture concentration and composition.",
+      "identity_notes": "Confirm stated percentage basis and solvent, plus manufacturer SDS."
     },
     {
       "key": "pen",
@@ -549,7 +669,11 @@
       "specifications": {
         "peptide_type": "Accessory; non-peptide",
         "precautions": "Do not assume compatibility or clinical suitability without the exact manufacturer's instructions."
-      }
+      },
+      "evidence_level": "Device specifications rather than biological evidence",
+      "mechanism": "Technical factors include cartridge fitting, construction, material compatibility and manufacturer instructions.",
+      "research_limitations": "A pen-like device should not be presented as approved for injections or home treatment without appropriate medical device status and documentation.",
+      "identity_notes": "Confirm device make, model, dimensions and compatible cartridge."
     },
     {
       "key": "case",
@@ -564,7 +688,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Storage accessory; non-peptide"
-      }
+      },
+      "evidence_level": "Accessory material specifications",
+      "mechanism": "Storage case design may protect equipment from mechanical damage, but temperature stability needs validated data.",
+      "research_limitations": "Do not claim cold-chain performance or UV shielding without product testing.",
+      "identity_notes": "Record external dimensions, lining material and capacity once verified."
     },
     {
       "key": "cartridge",
@@ -578,7 +706,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Laboratory accessory; non-peptide"
-      }
+      },
+      "evidence_level": "Accessory technical specifications",
+      "mechanism": "Container-contact materials and sealing determine compatibility with research solutions.",
+      "research_limitations": "Cartridge compatibility and suitability for medical administration cannot be assumed.",
+      "identity_notes": "Verify volume, seal material, dimensional fitting, sterilisation status and batch manufacturer."
     },
     {
       "key": "starterkit",
@@ -593,7 +725,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Multi-item laboratory accessory kit; non-peptide"
-      }
+      },
+      "evidence_level": "Accessory set; technical documentation depends on contents",
+      "mechanism": "Scientific analysis is not applicable to a generic accessory bundle, but component-specific specifications remain relevant.",
+      "research_limitations": "Do not imply any contained component is medically approved, sterile or safe for injections without documentation.",
+      "identity_notes": "Record each included part and manufacturer model."
     },
     {
       "key": "labels",
@@ -609,7 +745,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Labelling accessory; non-peptide"
-      }
+      },
+      "evidence_level": "Packaging technical specifications",
+      "mechanism": "Adhesion and legibility can be assessed for defined temperatures and storage conditions.",
+      "research_limitations": "Do not claim cryogenic durability, chemical resistance or compliance without testing.",
+      "identity_notes": "List label size, adhesive, printer type and stock material."
     },
     {
       "key": "envelope",
@@ -624,7 +764,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Packaging accessory; non-peptide"
-      }
+      },
+      "evidence_level": "Packaging technical specifications",
+      "mechanism": "Appropriate packaging selection concerns strength, puncture resistance and fit.",
+      "research_limitations": "Packaging alone does not prove lawful product shipping, sterile delivery or temperature compliance.",
+      "identity_notes": "Confirm the material grade, dimensions and closure type."
     },
     {
       "key": "notebook",
@@ -638,7 +782,11 @@
       "references": [],
       "specifications": {
         "peptide_type": "Stationery; non-peptide"
-      }
+      },
+      "evidence_level": "Stationery; no pharmacological research evidence",
+      "mechanism": "Quality considerations are durable laboratory record-keeping and item identification.",
+      "research_limitations": "No medicinal, peptide, sterility or clinical claims are applicable.",
+      "identity_notes": "Specify page count and paper/binding details from the actual product."
     }
   ]
 }
