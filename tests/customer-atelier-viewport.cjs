@@ -30,7 +30,7 @@ with sqlite3.connect(db) as c:
  """)
  for i in (1,2,3):
   c.execute("INSERT INTO customer_catalogue_content VALUES(?,?,?,?,?,?)",(i,"Research reference",im,"image/png",1,1))
-  c.execute("INSERT INTO customer_catalogue_information VALUES(?,?)",(i,json.dumps({'strength':str(5*i)+'mg','presentation':'Vial','appearance':'Powder'})))
+  c.execute("INSERT INTO customer_catalogue_information VALUES(?,?)",(i,json.dumps({'strength':str(5*i)+'mg','presentation':'Vial','appearance':'Powder','peptide_type':'Research compound','amino_length':'15 residues','formula':'C62H98N16O22','weight':'1419 g/mol','sequence':'GEPPPGKPADDAGLV','cas':'137525-51-0','purity':'Unverified manufacturer listing','storage':'Use label conditions'})))
 with sqlite3.connect(portal) as c:c.execute('CREATE TABLE portal_accounts(id INTEGER PRIMARY KEY,customer_id INTEGER,phone_e164 TEXT,active INTEGER)')
 `;
 execFileSync('python3',['-c',fixturePython,path.join(temp,'admin.sqlite'),path.join(temp,'portal.sqlite')]);
@@ -60,6 +60,7 @@ const checkServer=url=>new Promise(resolve=>http.get(url,res=>{res.resume();reso
     page.on('pageerror',e=>failures.push(e.message));
     await page.goto(origin+'/',{waitUntil:'networkidle'});
     const first=page.locator('.sf-card-v3').first();await first.waitFor();
+    assert((await page.locator('.sf-card-v3').first().innerText()).includes('£12.99'),'Retail preview not restored to published product card');
     assert.equal(await page.locator('.sf-card-v3').count(),3,'all published fixture products must have cards');
     const actions=await first.locator('.sf-card-bottom button').all();
     assert.equal(actions.length,2,'two card footer actions expected');
@@ -91,6 +92,13 @@ const checkServer=url=>new Promise(resolve=>http.get(url,res=>{res.resume();reso
     await page.goto(origin+'/?product=1',{waitUntil:'networkidle'});
     await page.locator('[data-gallery-next]').click();
     await page.waitForTimeout(100);
+    const fullIdentity=page.locator('#sf-gallery-specification');
+    assert((await fullIdentity.innerText()).includes('Molecular formula'),'Full identity absent from gallery slide');
+    assert((await fullIdentity.innerText()).includes('Amino-acid sequence'),'Sequence absent from gallery slide');
+    const specs=await fullIdentity.evaluate(el=>({client:el.clientHeight,scroll:el.scrollHeight,overflow:getComputedStyle(el).overflowY}));
+    assert(specs.scroll>specs.client,'Full specification list should be vertically scrollable rather than clipped');
+    assert(specs.overflow==='auto'||specs.overflow==='scroll','Gallery identity overflow does not allow scrolling');
+    assert((await page.locator('.sf-product-price').innerText()).includes('£12.99'),'Product-detail price preview missing');
     const scroll=await page.locator('.sf-gallery-track').evaluate(el=>el.scrollLeft);
     assert(scroll>10,'Details slide not navigable');
     await page.locator('[data-gallery-prev]').click();
