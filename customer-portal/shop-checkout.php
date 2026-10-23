@@ -65,7 +65,7 @@ try {
 catch(Throwable $e){error_log('ANKH guest checkout: '.$e->getMessage());$error='Guest checkout is temporarily unavailable. Please contact ANKH support.';}
 ?>
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0e100d"><meta name="robots" content="noindex,nofollow">
-<title>Checkout request · ANKH</title><link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=3"><script defer src="./checkout.js?v=1"></script></head>
+<title>Checkout request · ANKH</title><link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=4"><script defer src="./checkout.js?v=1"></script></head>
 <body class="sf-public sf-checkout-page">
 <header class="sf-header"><div class="sf-shell sf-head-inner"><a class="sf-logo" href="./"><span class="sf-ankh">☥</span><span><strong>ANKH</strong><small>CHECKOUT REQUEST</small></span></a><a class="sf-account-entry" href="./?tab=home">My Account ↗</a></div></header>
 <main class="sf-shell sf-checkout-shell"><a class="sf-back-link" href="./#collection">← Back to collection</a>
