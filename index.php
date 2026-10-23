@@ -22,6 +22,7 @@ if (!$config || empty($config['password_hash']) || empty($config['database_path'
 $db = new PDO('sqlite:'.$config['database_path'], null, null, [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $db->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000');
 require_once __DIR__.'/customer-catalogue.php';
+require_once __DIR__.'/packing-v2-support.php';
 $db->exec('CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, failures INTEGER NOT NULL, started INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL CHECK(price>=0), active INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, status TEXT NOT NULL DEFAULT "New", created TEXT NOT NULL);
@@ -123,6 +124,8 @@ if(!in_array('family_friends_price',array_column($productColumns,'name'),true))$
 foreach(['stock_jay_qty','stock_tony_qty','stock_unallocated_qty'] as $stockColumn){if(!in_array($stockColumn,array_column($productColumns,'name'),true))$db->exec("ALTER TABLE products ADD COLUMN {$stockColumn} INTEGER NOT NULL DEFAULT 0");}
 
 if(!in_array('product_id',array_column($itemColumns,'name'),true))$db->exec("ALTER TABLE items ADD COLUMN product_id INTEGER DEFAULT NULL");
+// Additive private checklist; no existing inventory or delivery fields are modified.
+ankhPackingEnsureSchema($db);
 
 /*
  * Hidden live stock board.
@@ -3140,7 +3143,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
  $action=$_POST['action']??'';
  // Snapshot only operational fields; do not store customer contact details in audit records.
- $auditedActions=['order_backorder','order','order_edit','order_delete','status','order_dates','delivery_mark','order_schedule','order_delivery_section','order_preparation','order_reconstituted','payment_add','payment_delete'];
+ $auditedActions=['packing_pick','order_backorder','order','order_edit','order_delete','status','order_dates','delivery_mark','order_schedule','order_delivery_section','order_preparation','order_reconstituted','payment_add','payment_delete'];
  $auditTrack=in_array((string)$action,$auditedActions,true);
  $auditOrderId=$auditTrack?(int)($_POST['id']??0):0;
  $auditPaymentBefore=null;
@@ -3519,6 +3522,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($orderId===false||!in_array($complete,['0','1'],true))throw new Exception('Choose a valid preparation state.');
    setOrderPreparation($db,$orderId,'reconstituted',$complete==='1');
   }
+  if($action==='packing_pick'){
+   if(empty($_SESSION['ankh_premium_v2_preview']))throw new Exception('Enable Premium V2 to use packing checks.');
+   $packingOrderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   $packingItemId=filter_var($_POST['item_id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   $packingPicked=(string)($_POST['picked']??'');
+   if($packingOrderId===false||$packingItemId===false||!in_array($packingPicked,['0','1'],true))throw new Exception('Choose a valid order line and pick state.');
+   ankhPackingToggle($db,(int)$packingOrderId,(int)$packingItemId,$packingPicked==='1',(int)($_SESSION['admin_user_id']??0));
+   recordActivity($db,'order',(int)$packingOrderId,$packingPicked==='1'?'Item picked':'Item unchecked',['item_id'=>(int)$packingItemId]);
+  }
   if($action==='order_preparation'){
    $orderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    $complete=(string)($_POST['complete']??'0');
@@ -3710,6 +3722,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'customer_pricing'=>'Customer pricing saved. Existing orders are unchanged.',
   'order_schedule'=>(($_POST['schedule_clear']??'')==='1')?'Planned delivery date cleared.':'Delivery date arranged.',
   'order_delivery_section'=>(($_POST['delivery_section']??'')==='auto')?'Automatic delivery timing restored.':'Order moved to '.(($_POST['delivery_section']??'')==='future'?'Future deliveries.':'Awaiting delivery.'),
+  'packing_pick'=>(($_POST['picked']??'')==='1')?'Item checked for packing.':'Packing check cleared.',
   'order_preparation'=>'Preparation stage updated.',
   'order_reconstituted'=>(($_POST['reconstituted']??'0')==='1')?'Order marked as reconstituted.':'Reconstituted mark removed.',
   'status'=>'Order status updated.',
@@ -3730,7 +3743,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $previous=$auditBefore[$key]??null;$next=$auditAfter[$key]??null;
    if($previous!==$next)$changes[$key]=['from'=>$previous,'to'=>$next];
   }
-  $labels=['order_backorder'=>'Order waiting list changed','order'=>'Order created','order_edit'=>'Order edited','order_delete'=>'Order deleted','status'=>'Order status changed','order_dates'=>'Order dates updated','delivery_mark'=>'Delivery recorded','order_schedule'=>'Delivery arranged','order_delivery_section'=>'Delivery queue changed','order_preparation'=>'Preparation updated','order_reconstituted'=>'Preparation updated','payment_add'=>'Payment recorded','payment_delete'=>'Payment removed'];
+  $labels=['packing_pick'=>'Packing checklist updated','order_backorder'=>'Order waiting list changed','order'=>'Order created','order_edit'=>'Order edited','order_delete'=>'Order deleted','status'=>'Order status changed','order_dates'=>'Order dates updated','delivery_mark'=>'Delivery recorded','order_schedule'=>'Delivery arranged','order_delivery_section'=>'Delivery queue changed','order_preparation'=>'Preparation updated','order_reconstituted'=>'Preparation updated','payment_add'=>'Payment recorded','payment_delete'=>'Payment removed'];
   if($auditOrderId>0&&($changes||in_array($action,['order','order_edit','order_delete','payment_add','payment_delete'],true))){
    $meta=['changes'=>$changes];
    if($action==='payment_delete'&&$auditPaymentBefore)$meta['removed_payment']=['amount_pence'=>(int)$auditPaymentBefore['amount'],'method'=>(string)$auditPaymentBefore['method']];
@@ -3759,6 +3772,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  }
  if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
  else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['all','payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).'#dashboard-actions');
+ else if($returnView==='packing' && (int)($_POST['id']??0)>0)header('Location: ./?view=packing&id='.(int)$_POST['id'].'#packing-lines');
  else if($returnView==='backorders')header('Location: ./?view=orders&section=backorders');
  else if($returnView==='recurring')header('Location: ./?view=orders&section=recurring');
  else if($returnView==='stock' && in_array($returnSection,['incoming','forecast','history'],true))header('Location: ./?view=stock&section='.urlencode($returnSection));
@@ -3911,7 +3925,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','new','edit','products','product','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','new','edit','products','product','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
@@ -4001,7 +4015,7 @@ if($reportDownloadBuffer)ob_start();
 @media (min-width:1000px){
  #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
 }
-</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><link rel="stylesheet" href="premium-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/premium-v2.css') ?: 0))?>"><link rel="stylesheet" href="product-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/product-v2.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head>
+</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><link rel="stylesheet" href="premium-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/premium-v2.css') ?: 0))?>"><link rel="stylesheet" href="product-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/product-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-v2.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head>
 <?php
 // Premium V2 remains opt-in per authenticated session until the full visual QA is complete.
 // It modifies presentation only; core order/stock logic is untouched.
@@ -4721,7 +4735,7 @@ if($view==='reportsboard'){
 </button></div>
 <nav class="desktop-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
-<a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="<?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=$view==='balances'?'selected':''?>" href="?view=balances"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14v11H5z"/><path d="M8 11h8M8 15h5"/><circle cx="17" cy="15" r="1"/></svg></span><span class="nav-label">Balances</span></a>
@@ -4732,7 +4746,7 @@ if($view==='reportsboard'){
 </nav>
 <nav class="mobile-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
-<a class="<?=$view==='orders'?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['enquiries','supplies','more','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
@@ -4891,6 +4905,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><a class="dashboard-row dashboard-stock-link" href="?view=stock&amp;filter=low#stock-product-<?=(int)$stockProduct['id']?>"><span><?=e($stockProduct['name'])?></span><strong><?=max(0,$stockProduct['fridge_available'])?> left <i aria-hidden="true">›</i></strong></a><?php endforeach;?>
 </section></div><?php endif;?>
 <?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit excludes costs that have not been mapped yet.</p><?php endif;?>
+<?php elseif($view==='packing'):require __DIR__.'/packing-v2.php';?>
 <?php elseif($view==='orders'): ?>
 <?php
 $ordersSection=in_array($_GET['section']??'', ['recurring','backorders'],true)?(string)$_GET['section']:'all';
