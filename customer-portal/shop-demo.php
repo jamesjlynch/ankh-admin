@@ -38,7 +38,7 @@ try{
 ?>
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0c0d0b"><title>Demo checkout · ANKH</title>
-<link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=6"><script src="./shop-demo.js?v=2" defer></script></head>
+<link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=6"><link rel="stylesheet" href="./storefront-luxury.css?v=2"><script src="./shop-demo.js?v=2" defer></script></head>
 <body class="sf-public sf-checkout-page"><header class="sf-header"><div class="sf-shell sf-head-inner"><a class="sf-logo" href="./" aria-label="ANKH homepage"><span class="sf-ankh" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>SHOPPING DEMONSTRATION</small></span></a><a class="sf-account-entry" href="./">Back to products ↗</a></div></header>
 <main class="sf-shell sf-checkout-shell"><a href="./#collection" class="sf-back-link">← Continue browsing</a>
 <section class="sf-checkout-title"><span class="sf-kicker">PREVIEW · NO LOGIN REQUIRED</span><h1>Test your checkout<span class="sf-gold">.</span></h1><p>Preview the shopping journey with the products in your basket. This demo never places an order, collects a payment, submits an enquiry or reserves stock.</p></section>
