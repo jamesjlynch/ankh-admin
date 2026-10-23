@@ -27,6 +27,7 @@ try{
     $admin=new PDO('sqlite:'.$path,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     $admin->exec('PRAGMA query_only=ON');
     $products=ankhPublicCatalogueProducts($admin);
+    $previewPrices=sfRetailPreviewPrices($admin,$products);
     $portalPath=$config['portal_database_path']??'';
     if(is_string($portalPath)&&is_file($portalPath)){
         $portal=new PDO('sqlite:'.$portalPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
@@ -37,18 +38,19 @@ try{
 ?>
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0c0d0b"><title>Demo checkout · ANKH</title>
-<link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=5"><script src="./shop-demo.js?v=1" defer></script></head>
+<link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=6"><link rel="stylesheet" href="./storefront-luxury.css?v=2"><script src="./shop-demo.js?v=2" defer></script></head>
 <body class="sf-public sf-checkout-page"><header class="sf-header"><div class="sf-shell sf-head-inner"><a class="sf-logo" href="./" aria-label="ANKH homepage"><span class="sf-ankh" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>SHOPPING DEMONSTRATION</small></span></a><a class="sf-account-entry" href="./">Back to products ↗</a></div></header>
 <main class="sf-shell sf-checkout-shell"><a href="./#collection" class="sf-back-link">← Continue browsing</a>
 <section class="sf-checkout-title"><span class="sf-kicker">PREVIEW · NO LOGIN REQUIRED</span><h1>Test your checkout<span class="sf-gold">.</span></h1><p>Preview the shopping journey with the products in your basket. This demo never places an order, collects a payment, submits an enquiry or reserves stock.</p></section>
 <div class="sf-checkout-layout">
 <section class="sf-checkout-panel"><span class="sf-kicker">01 / YOUR SELECTION</span><h2>Basket summary</h2><div class="sf-demo-items" id="sf-demo-lines"><p>Loading your basket…</p></div>
 <div class="sf-demo-available" hidden>
-<?php foreach($products as $p):if(!isset($demo[(int)$p['id']]))continue;?><span data-demo-id="<?=(int)$p['id']?>" data-demo-name="<?=demoEscape($p['name'])?>"></span><?php endforeach;?>
+<?php foreach($products as $p):if(!isset($demo[(int)$p['id']]))continue;?><span data-demo-id="<?=(int)$p['id']?>" data-demo-name="<?=demoEscape($p['name'])?>" data-demo-price="<?=(int)($previewPrices[(int)$p['id']]??0)?>"></span><?php endforeach;?>
 </div>
-<p class="sf-checkout-hint">Quantities are saved only in this browser. Product prices and delivery charges are not quoted in this demo.</p>
+<p class="sf-checkout-hint">Quantities are saved only in this browser. Displayed retail values are test previews; actual order totals and delivery charges are not confirmed.</p>
 <a href="./#collection" class="sf-secondary">← Add more products</a></section>
 <aside class="sf-checkout-panel sf-checkout-summary"><span class="sf-kicker">02 / DEMO COMPLETION</span><h2>Ready to preview?</h2><p>No payment details, delivery details or account sign-in are needed for this simulation.</p>
+<div class="sf-demo-total"><span>Preview product subtotal</span><strong id="sf-demo-subtotal">£0.00</strong></div><p>Not a payable amount. Delivery and order acceptance are not included.</p>
 <button type="button" class="sf-button sf-checkout-submit" id="sf-demo-finish" disabled>Simulate checkout ↗</button>
 <p class="sf-demo-confirmed" id="sf-demo-confirmed" hidden role="status">Demo complete. No order, payment or customer record has been created.</p>
 <a href="./?tab=home" class="sf-secondary">Go to My Account ↗</a></aside></div>

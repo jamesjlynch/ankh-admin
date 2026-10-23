@@ -12,6 +12,10 @@ CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,status TEXT,delivery_ch
 CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,price INTEGER,quantity INTEGER);
 CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER);');
 $portal=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+$previews=sfRetailPreviewPrices($admin,[['id'=>1],['id'=>2],['id'=>3],['id'=>4]]);
+check(($previews[1]??null)===1999&&($previews[2]??null)===6000,'Published retail prices must be available independently of checkout eligibility');
+check(!isset($previews[3],$previews[4]),'Hidden/inactive product prices must stay out of public preview');
+
 check(sfCommerceEligible($portal,$admin)===[],'Fail closed when approval table missing');
 sfCommerceInit($portal);
 check(sfCommerceEligible($portal,$admin)===[],'No product should be buyable by default');

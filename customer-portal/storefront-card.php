@@ -8,6 +8,7 @@ $photo=!empty($p['has_photo'])?'./public-catalogue.php?image='.$id.'&size=thumb'
 $url=pfUrl(['product'=>$id]);
 $hasDemo=isset($demoProducts[$id]);
 $canRequest=isset($buyable[$id]);
+$previewPrice=$previewPrices[$id]??null;
 ?>
 <article class="sf-card sf-card-v3 sf-card-v2" data-profile-id="<?=$id?>"
   data-filter-name="<?=pfEscape($name)?>" data-filter-kind="<?=pfEscape($kind)?>"
@@ -26,10 +27,12 @@ $canRequest=isset($buyable[$id]);
    <h3><a href="<?=pfEscape($url)?>"><?=pfEscape($name)?></a></h3>
    <?php if($summary!==''):?><p><?=pfEscape($summary)?></p><?php endif;?>
    <div class="sf-card-meta"><?php if($strength!==''):?><span><?=pfEscape($strength)?></span><?php endif;?><?php if($format!=='Other'):?><span><?=pfEscape($format)?></span><?php endif;?></div>
+   <?php if($previewPrice!==null):?>
+    <div class="sf-card-price"><span><?=$canRequest?'PRICE':'RETAIL PREVIEW'?></span><strong>£<?=number_format((int)$previewPrice/100,2)?></strong></div>
+   <?php endif;?>
    <?php if($hasDemo):?>
     <div class="sf-shop-line">
-     <span class="sf-demo-label"><?=$canRequest?'Approved accessory request':'BASKET DEMONSTRATION'?></span>
-     <?php if($canRequest):?><strong>£<?=number_format((int)$buyable[$id]['price']/100,2)?></strong><?php endif;?>
+     <span class="sf-demo-label"><?=$canRequest?'Approved accessory request':'DEMO BASKET · NO PAYMENT'?></span>
      <button type="button" class="sf-add-cart" data-cart-id="<?=$id?>" aria-label="Add <?=pfEscape($name)?> to basket">Add to basket <span aria-hidden="true">＋</span></button>
     </div>
    <?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>

@@ -71,3 +71,33 @@ function pfValidHTTPS(string $url):bool {
         && strtolower((string)($parts['scheme']??''))==='https'
         && empty($parts['user'])&&empty($parts['pass']);
 }
+
+/** Full material identity, shared between the gallery and the reference summary. */
+function pfIdentityRows(array $information):array {
+    $labels=[
+        'strength'=>'Strength / quantity',
+        'presentation'=>'Supplied form',
+        'appearance'=>'Appearance',
+        'peptide_type'=>'Material type',
+        'amino_length'=>'Amino-acid length',
+        'formula'=>'Molecular formula',
+        'weight'=>'Molecular weight',
+        'sequence'=>'Amino-acid sequence',
+        'cas'=>'CAS number',
+        'purity'=>'Listed purity (unverified)',
+        'storage'=>'Storage',
+        'concentration'=>'Listed concentration',
+        'pubchem'=>'PubChem reference',
+        'half_life'=>'Experimental half-life',
+        'prepared_storage'=>'Prepared laboratory storage'
+    ];
+    $rows=[];
+    foreach($labels as $key=>$label){
+        $value=$information[$key]??'';
+        if(!is_string($value))continue;
+        $value=trim($value);
+        if($value==='')continue;
+        $rows[]=['key'=>$key,'label'=>$label,'value'=>$value];
+    }
+    return $rows;
+}

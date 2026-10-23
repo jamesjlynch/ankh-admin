@@ -15,10 +15,10 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
-<link rel="stylesheet" href="./storefront-luxury.css?v=1">
+<link rel="stylesheet" href="./storefront-luxury.css?v=2">
 <script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
-<script defer src="./storefront-luxury.js?v=2"></script>
+<script defer src="./storefront-luxury.js?v=3"></script>
 </head>
 <body class="sf-public <?=$selected?'sf-is-detail':'sf-is-collection'?>">
 <a href="#main" class="sf-skip">Skip to content</a>
@@ -36,7 +36,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <a class="sf-cart-nav sf-account-entry" href="./?tab=home" aria-label="Open your ANKH customer account"><span class="sf-user-symbol" aria-hidden="true">◉</span> My Account <span aria-hidden="true">↗</span></a>
 </div></header>
 <main class="sf-shell" id="main">
-<?php if($selected):$info=$selected['information'];?>
+<?php if($selected):$info=$selected['information'];$identityRows=pfIdentityRows($info);$selectedPreviewPrice=$previewPrices[(int)$selected['id']]??null;$selectedCommercial=isset($buyable[(int)$selected['id']]);?>
 <nav class="sf-breadcrumb" aria-label="Breadcrumb"><a href="./">Collection</a><span aria-hidden="true">/</span><a href="<?=pfEscape(pfUrl(['category'=>pfType($selected['name'])]))?>"><?=pfEscape(pfType($selected['name']))?></a><span aria-hidden="true">/</span><span><?=pfEscape($selected['name'])?></span></nav>
 <section class="sf-product-hero sf-product-hero-v2">
 <div class="sf-detail-visual-column">
@@ -50,11 +50,15 @@ $related=$selected?pfRelated($selected,$products):[];
       <?php else:?><span class="sf-gallery-fallback" aria-hidden="true">☥</span><?php endif;?>
       <span class="sf-photo-mark" aria-hidden="true">☥</span></div>
     </div>
-    <div class="sf-gallery-slide sf-gallery-specification" id="sf-gallery-specification" aria-label="Technical reference details">
-      <span class="sf-kicker">ANKH / MATERIAL REFERENCE</span><span class="sf-gallery-emblem" aria-hidden="true">☥</span>
-      <h2><?=pfEscape($selected['name'])?></h2><dl>
-       <?php foreach(['strength'=>'Quantity','presentation'=>'Presentation','appearance'=>'Appearance','peptide_type'=>'Material type'] as $field=>$label):if(empty($info[$field]))continue;?><div><dt><?=pfEscape($label)?></dt><dd><?=pfEscape((string)$info[$field])?></dd></div><?php endforeach;?>
-      </dl><small>Supplied profile specifications are not batch verification.</small>
+    <div class="sf-gallery-slide sf-gallery-specification" id="sf-gallery-specification" aria-label="Complete product identity and technical specifications" tabindex="0">
+      <div class="sf-gallery-spec-header"><span class="sf-kicker">ANKH / PRODUCT IDENTITY</span><span class="sf-gallery-emblem" aria-hidden="true">☥</span>
+       <h2>At a glance<span class="sf-gold">.</span></h2>
+       <p><?=pfEscape($selected['name'])?> · <?=count($identityRows)?> documented specification<?=count($identityRows)===1?'':'s'?></p>
+      </div>
+      <?php if($identityRows):?><dl class="sf-gallery-spec-rows">
+       <?php foreach($identityRows as $identity):?><div class="sf-gallery-spec-row"><dt><?=pfEscape($identity['label'])?></dt><dd><?=pfEscape($identity['value'])?></dd></div><?php endforeach;?>
+      </dl><?php else:?><p class="sf-gallery-spec-empty">Detailed technical specifications for this product have not yet been published.</p><?php endif;?>
+      <p class="sf-gallery-spec-disclaimer">Specifications are supplied as research references and are not a substitute for a verified batch-specific certificate.</p>
     </div>
   </div>
   <div class="sf-gallery-bar">
@@ -77,9 +81,15 @@ $related=$selected?pfRelated($selected,$products):[];
 <div class="sf-detail-spec-mini">
 <?php foreach(['strength'=>'Quantity','presentation'=>'Presentation','purity'=>'Purity reference'] as $field=>$label):if(empty($info[$field]))continue;?><span><small><?=pfEscape($label)?></small><strong><?=pfEscape($info[$field])?></strong></span><?php endforeach;?>
 </div>
+<?php if($selectedPreviewPrice!==null):?>
+<div class="sf-product-price" aria-label="<?=$selectedCommercial?'Product price':'Demo preview price'?>">
+ <div><span class="sf-product-price-caption"><?=$selectedCommercial?'PRODUCT PRICE':'RETAIL PRICE PREVIEW'?></span>
+ <strong>£<?=number_format((int)$selectedPreviewPrice/100,2)?></strong></div>
+ <?php if(!$selectedCommercial):?><small>For storefront testing only · Not a payment or accepted order</small><?php endif;?>
+</div>
+<?php endif;?>
 <?php if(isset($demoProducts[(int)$selected['id']])):?>
-<div class="sf-shop-inline"><span><?=isset($buyable[(int)$selected['id']])?'Eligible accessory request':'Demo shopping basket only · no purchase'?>
-<?php if(isset($buyable[(int)$selected['id']])):?><strong>£<?=number_format($buyable[(int)$selected['id']]['price']/100,2)?></strong><?php endif;?></span>
+<div class="sf-shop-inline"><span><?=$selectedCommercial?'Eligible accessory order request':'Demo basket · No payment or order'?></span>
 <button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>">Add to basket ＋</button></div>
 <?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>
 <div class="sf-detail-actions">
@@ -105,10 +115,9 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <details class="sf-accordion"><summary><span><b>06</b> Regulatory &amp; evidence notice</span><span aria-hidden="true">＋</span></summary><div class="sf-accordion-content"><p><?=pfEscape($notice)?></p><p>Research references are not evidence of pharmaceutical approval, batch release, sterility or suitability for administration. An analysis document should be assessed against the actual batch and laboratory method.</p></div></details>
 </div>
 <aside class="sf-profile-aside">
-<div class="sf-spec-card"><span class="sf-kicker">PRODUCT IDENTITY</span><h2>At a glance.</h2><dl>
-<?php foreach(['strength'=>'Strength / quantity','presentation'=>'Supplied form','appearance'=>'Appearance','peptide_type'=>'Material type','amino_length'=>'Amino-acid length','formula'=>'Formula','weight'=>'Molecular weight','sequence'=>'Sequence','cas'=>'CAS number','purity'=>'Listed purity','storage'=>'Storage'] as $key=>$label):
-if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?></dt><dd><?=pfEscape((string)$info[$key])?></dd></div><?php endforeach;?>
-</dl><p>Specifications are provided as reference information and are not a substitute for a batch-specific certificate.</p></div>
+<div class="sf-identity-jump"><span class="sf-kicker">COMPLETE PRODUCT IDENTITY</span><h2>All the details. One swipe away.</h2>
+<p>View the full material identity, composition, storage and listed research specifications in the gallery above.</p>
+<button type="button" data-open-identity class="sf-identity-jump-action">Open full specifications <span aria-hidden="true">↗</span></button></div>
 <div class="sf-assist-card"><span class="sf-kicker">NEED CLARIFICATION?</span><h3>Talk to ANKH.</h3><p>Questions about existing orders, product documentation or your account?</p><?php if(!empty($whatsappUrl)):?><a href="<?=pfEscape($whatsappUrl)?>" target="_blank" rel="noopener noreferrer">WhatsApp ANKH ↗</a><?php else:?><a href="mailto:info@ankhpeptides.com?subject=ANKH%20product%20enquiry">Contact support ↗</a><?php endif;?></div>
 </aside></section>
 <?php if($related):?><section class="sf-related"><div class="sf-section-title"><div><span class="sf-kicker">MORE TO EXPLORE</span><h2>Continue researching<span class="sf-gold">.</span></h2></div></div>
@@ -195,7 +204,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <?php endif;?>
 <?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
-<?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=$eligible?(int)$eligible['price']:0?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
+<?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=(int)($previewPrices[(int)$p['id']]??0)?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
 </div>
 <dialog id="sf-cart-drawer" class="sf-cart-drawer" aria-labelledby="sf-cart-heading">
 <div class="sf-cart-head"><div><span class="sf-kicker">YOUR ANKH BASKET</span><h2 id="sf-cart-heading">Your selections<span class="sf-gold">.</span></h2></div><button type="button" data-close-cart class="sf-cart-dismiss" aria-label="Close basket">×</button></div>

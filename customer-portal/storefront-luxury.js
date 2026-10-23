@@ -16,6 +16,13 @@
     };
     if(track && slides.length>1){
       selectors.forEach(button=>button.addEventListener('click',()=>go(Number(button.dataset.galleryGo))));
+      document.querySelectorAll('[data-open-identity]').forEach(button=>button.addEventListener('click',()=>{
+        gallery.scrollIntoView({behavior:reduceMotion?'instant':'smooth',block:'start'});
+        go(1);
+        // Make the full specification slide available to keyboard users.
+        const slide=document.getElementById('sf-gallery-specification');
+        if(slide)slide.scrollTop=0;
+      }));
       gallery.querySelector('[data-gallery-prev]')?.addEventListener('click',()=>go(Math.round(track.scrollLeft/track.clientWidth)-1));
       gallery.querySelector('[data-gallery-next]')?.addEventListener('click',()=>go(Math.round(track.scrollLeft/track.clientWidth)+1));
       let frame=0;
