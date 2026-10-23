@@ -14,9 +14,10 @@ $related=$selected?pfRelated($selected,$products):[];
 <title><?=pfEscape($selected?$selected['name'].' · ANKH':'ANKH · Research Collection')?></title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
-<link rel="stylesheet" href="./storefront.css?v=6">
+<link rel="stylesheet" href="./storefront.css?v=7">
 <script defer src="./storefront.js?v=2"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
+<script defer src="./storefront-luxury.js?v=1"></script>
 </head>
 <body class="sf-public">
 <a href="#main" class="sf-skip">Skip to content</a>
@@ -37,9 +38,32 @@ $related=$selected?pfRelated($selected,$products):[];
 <?php if($selected):$info=$selected['information'];?>
 <nav class="sf-breadcrumb" aria-label="Breadcrumb"><a href="./">Collection</a><span aria-hidden="true">/</span><a href="<?=pfEscape(pfUrl(['category'=>pfType($selected['name'])]))?>"><?=pfEscape(pfType($selected['name']))?></a><span aria-hidden="true">/</span><span><?=pfEscape($selected['name'])?></span></nav>
 <section class="sf-product-hero sf-product-hero-v2">
-<div class="sf-detail-visual-column"><div class="sf-product-image sf-photo-stage">
-<?php if($selected['has_photo']):?><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" alt="<?=pfEscape($selected['name'].' product photograph')?>" fetchpriority="high" decoding="async" width="640" height="640"><?php else:?><span aria-hidden="true">☥</span><?php endif;?>
-<span class="sf-photo-mark" aria-hidden="true">☥</span></div>
+<div class="sf-detail-visual-column">
+<div class="sf-product-gallery" aria-label="Product image and technical specification gallery" data-gallery>
+  <div class="sf-gallery-track" id="sf-gallery-track" tabindex="0" aria-label="Swipe between product photograph and product specifications">
+    <div class="sf-gallery-slide sf-gallery-photo" id="sf-gallery-photo" aria-label="Product photograph">
+      <div class="sf-product-image sf-photo-stage">
+      <?php if($selected['has_photo']):?>
+       <img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="700" height="700">
+       <button type="button" class="sf-gallery-zoom" data-gallery-zoom aria-label="Enlarge product photograph">⌕ <span>Enlarge photo</span></button>
+      <?php else:?><span class="sf-gallery-fallback" aria-hidden="true">☥</span><?php endif;?>
+      <span class="sf-photo-mark" aria-hidden="true">☥</span></div>
+    </div>
+    <div class="sf-gallery-slide sf-gallery-specification" id="sf-gallery-specification" aria-label="Technical reference details">
+      <span class="sf-kicker">ANKH / MATERIAL REFERENCE</span><span class="sf-gallery-emblem" aria-hidden="true">☥</span>
+      <h2><?=pfEscape($selected['name'])?></h2><dl>
+       <?php foreach(['strength'=>'Quantity','presentation'=>'Presentation','appearance'=>'Appearance','peptide_type'=>'Material type'] as $field=>$label):if(empty($info[$field]))continue;?><div><dt><?=pfEscape($label)?></dt><dd><?=pfEscape((string)$info[$field])?></dd></div><?php endforeach;?>
+      </dl><small>Supplied profile specifications are not batch verification.</small>
+    </div>
+  </div>
+  <div class="sf-gallery-bar">
+    <div class="sf-gallery-select" role="group" aria-label="Select gallery view">
+      <button type="button" data-gallery-go="0" aria-pressed="true"><span class="sf-gallery-thumb"><?php if($selected['has_photo']):?><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=thumb')?>" loading="lazy" width="45" height="45" alt=""><?php else:?>☥<?php endif;?></span><span>PHOTO</span></button>
+      <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">☥</span><span>DETAILS</span></button>
+    </div>
+    <div class="sf-gallery-arrows" aria-label="Gallery navigation"><button type="button" data-gallery-prev aria-label="Previous gallery view">←</button><button type="button" data-gallery-next aria-label="Next gallery view">→</button></div>
+  </div>
+</div>
 <div class="sf-image-caption"><span>ANKH / PRODUCT PROFILE</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
 <span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
@@ -119,7 +143,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <?php foreach($categories as $c):?><a href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfType($p['name'])===$c))?></span></a><?php endforeach;?>
 </div>
 <form method="get" action="./#collection" class="sf-filter sf-filter-v2" role="search" id="sf-search-form">
-<div class="sf-search-box"><label for="sf-search">Search the collection</label><input id="sf-search" name="q" type="search" autocomplete="off" maxlength="120" placeholder="Search products or research context…" value="<?=pfEscape($search)?>" aria-describedby="sf-search-help" aria-controls="sf-suggestions"><span class="sf-search-icon" aria-hidden="true">⌕</span>
+<div class="sf-search-box"><label for="sf-search">Search the collection</label><input id="sf-search" name="q" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" autocomplete="off" maxlength="120" placeholder="Search products or research context…" value="<?=pfEscape($search)?>" aria-describedby="sf-search-help" aria-controls="sf-suggestions"><span class="sf-search-icon" aria-hidden="true">⌕</span>
 <div id="sf-suggestions" class="sf-suggestions" hidden role="status" aria-live="polite"></div><small id="sf-search-help">Type a product name or compound to find matching profiles.</small></div>
 <div class="sf-select-wrap"><label for="sf-cat">Category</label><select id="sf-cat" name="category"><?php foreach($categories as $c):?><option value="<?=pfEscape($c)?>" <?=$category===$c?'selected':''?>><?=pfEscape($c)?></option><?php endforeach;?></select></div>
 <div class="sf-select-wrap"><label for="sf-strength">Strength</label><select id="sf-strength" name="strength"><option value="">All strengths</option><?php foreach($facets['strength'] as $s=>$qty):?><option value="<?=pfEscape($s)?>" <?=$strength===$s?'selected':''?>><?=pfEscape($s)?> (<?=$qty?>)</option><?php endforeach;?></select></div>
@@ -128,9 +152,9 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <button type="submit" class="sf-filter-apply">Show products <span aria-hidden="true">↗</span></button>
 </form>
 <?php if($search!==''||$strength!==''||$format!==''||$category!=='All research'||$sort!=='name'):?><div class="sf-active-filter"><span>Showing filtered results</span><a href="./#collection">Clear all filters ×</a></div><?php endif;?>
-<p class="sf-results"><?=count($filtered)?> matching profile<?=count($filtered)===1?'':'s'?> <span>·</span> Select an image or quick view to discover more</p>
+<p class="sf-results" data-live-results><?=count($filtered)?> matching profile<?=count($filtered)===1?'':'s'?> <span>·</span> Select an image or quick view to discover more</p>
 <?php if(!$filtered):?><div class="sf-empty"><h3>No matching profiles.</h3><p>Try a different term, strength or format.</p><a href="./#collection" class="sf-secondary">Clear filters →</a></div><?php else:?>
-<div class="sf-grid sf-grid-v2" id="sf-product-grid"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
+<div class="sf-grid sf-grid-v2" id="sf-product-grid" aria-live="polite"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
 </section>
 <section class="sf-trust-details" id="sf-trust" aria-labelledby="sf-trust-title">
 <div class="sf-section-title"><div><span class="sf-kicker">TRANSPARENT BY DESIGN</span><h2 id="sf-trust-title">Know who you're dealing with<span class="sf-gold">.</span></h2>
@@ -154,6 +178,21 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 </section>
 <?php endif;?>
 </main>
+<?php if($selected):?>
+<div class="sf-mobile-product-action" aria-label="Product actions">
+ <div class="sf-mobile-product-summary"><small>ANKH / PRODUCT PROFILE</small><strong><?=pfEscape($selected['name'])?></strong></div>
+ <?php if(isset($demoProducts[(int)$selected['id']])):?>
+ <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add">Add to basket <span aria-hidden="true">＋</span></button>
+ <?php else:?><a href="./#collection" class="sf-mobile-product-add sf-action-reference">Browse collection ↗</a><?php endif;?>
+</div>
+<?php if($selected['has_photo']):?>
+<dialog class="sf-zoom-dialog" id="sf-product-zoom" aria-label="Enlarged product photograph">
+ <div class="sf-zoom-toolbar"><span><?=pfEscape($selected['name'])?> · Product photo</span><button type="button" data-close-zoom aria-label="Close enlarged product image">×</button></div>
+ <div class="sf-zoom-scroll"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" width="900" height="900" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" decoding="async"></div>
+ <p>Pinch to zoom on supported devices, or double-tap the photograph to enlarge.</p>
+</dialog>
+<?php endif;?>
+<?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
 <?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=$eligible?(int)$eligible['price']:0?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
 </div>
