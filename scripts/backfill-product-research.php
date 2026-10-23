@@ -72,7 +72,7 @@ function researchDetails(string $name, array $profile): array {
         $info['prepared_storage'] = 'Mixture stability after preparation is not established without component-specific compatibility testing.';
         $info['precautions'] = 'Check the full verified ingredient list and quantities; a blend name is not proof of composition.';
     } else {
-        $info['storage'] = 'Follow the actual manufacturer's packaging and storage requirements.';
+        $info['storage'] = 'Follow the packaging and storage requirements provided by the actual manufacturer.';
         $info['prepared_storage'] = 'Not applicable as a peptide reconstitution instruction; consult the manufacturer for any prepared-system handling.';
         $info['precautions'] = $info['precautions'] ?? 'Use according to the exact product label and supplier safety/technical documentation.';
     }
