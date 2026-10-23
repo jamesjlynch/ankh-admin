@@ -109,7 +109,7 @@ def verify():
             assert "Saved profiles" in saved and "data-saved-grid" in saved and "data-save-id" in saved
             assert "Hidden Compound" not in saved and "Inactive Material" not in saved
             assert 'src="./storefront.js?v=3"' in home
-            assert 'storefront-luxury.css?v=1' in home and 'storefront-luxury.js?v=2' in home
+            assert 'storefront-luxury.css?v=2' in home and 'storefront-luxury.js?v=3' in home
             assert 'sf-card-v3' in home and 'data-filter-name="Visible Study Material"' in home
             assert 'data-full-collection="1"' in home
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
@@ -124,7 +124,7 @@ def verify():
             assert 'data-open-identity' in profile and 'Complete product identity' in profile
             assert 'sf-mobile-product-action' in profile and 'sf-mobile-product-add' in profile
             assert 'data-cart-id="1"' in profile and 'sf-quick-add' in home
-            assert 'src="./storefront-luxury.js?v=2"' in profile
+            assert 'src="./storefront-luxury.js?v=3"' in profile
             assert "Preclinical laboratory observations" in get("/?product=1")
             get("/?product=2",404)
             get("/?product=3",404)
