@@ -72,7 +72,18 @@ const checkServer=url=>new Promise(resolve=>http.get(url,res=>{res.resume();reso
     }
     const pageOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth);
     assert(pageOverflow<=3,`Horizontal overflow ${pageOverflow}px on ${width}px home`);
-    await first.locator('.sf-add-cart').click();
+    const cartButton=first.locator('.sf-add-cart');
+    await cartButton.evaluate(el=>el.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));
+    await page.waitForTimeout(130);
+    await page.screenshot({path:path.join(out,'home-before-click-'+width+'.png'),fullPage:true});
+    const hit=await cartButton.evaluate(el=>{
+      const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+      const top=document.elementFromPoint(x,y);
+      return {button:{x:r.x,y:r.y,width:r.width,height:r.height},hit:top?.className,tag:top?.tagName,isSelf:top===el||el.contains(top)};
+    });
+    console.log('Button hit test',width,JSON.stringify(hit));
+    assert(hit.isSelf,'Product Add button tap is blocked at '+width+'px: '+JSON.stringify(hit));
+    await cartButton.click({timeout:8000});
     assert.equal(await page.locator('.sf-cart-drawer').evaluate(el=>el.open),false,'Add must not open basket');
     assert((await first.locator('.sf-add-cart').innerText()).includes('Added'),'Animated added state missing');
     assert((await page.locator('.sf-cart-feedback').innerText()).includes('added'),'Toast confirmation missing');
