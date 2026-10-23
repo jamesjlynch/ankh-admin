@@ -7005,11 +7005,12 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
 
 <?php
 // Small, read-only display model. Uploaded photos stay in the existing private catalogue table.
+$ankhVisualProducts=[];
+if (isset($products,$productCatalogForJs) && is_array($products) && is_array($productCatalogForJs)) {
 $ankhVisualContent=isset($customerCatalogueContent) && is_array($customerCatalogueContent)
   ? $customerCatalogueContent : ankhCatalogueContent($db);
 $ankhVisualStock=[];
 foreach($products as $photoStockProduct){$ankhVisualStock[(int)$photoStockProduct['id']]=$photoStockProduct;}
-$ankhVisualProducts=[];
 foreach($productCatalogForJs as $photoCatalogProduct){
  $pid=(int)$photoCatalogProduct['id'];
  $stock=$ankhVisualStock[$pid]??[];
@@ -7024,6 +7025,7 @@ foreach($productCatalogForJs as $photoCatalogProduct){
   'available'=>max(0,(int)($stock['stock_qty']??0)),
   'low_at'=>max(0,(int)($stock['low_stock_at']??5))
  ];
+}
 }
 ?>
 <script id="ankh-visual-product-data" type="application/json"><?=json_encode($ankhVisualProducts,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE)?></script>
