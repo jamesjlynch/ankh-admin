@@ -135,7 +135,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $_SESSION['portal_last_activity'] = time();
                 unset($_SESSION['portal_pending_phone'],$_SESSION['portal_pending_until']);
                 $portal->prepare('UPDATE portal_accounts SET verified_at=? WHERE id=?')->execute([time(),(int)$login['id']]);
-                header('Location: ./?tab=home', true, 303);
+                $requestedTab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
+                $returnTab=in_array($requestedTab,['home','basket','orders','catalogue','account','fridge','support'],true)?$requestedTab:'home';
+                header('Location: ./?tab='.rawurlencode($returnTab), true, 303);
                 exit;
             }
             $error = 'We could not verify that code. Check it and try again.';
