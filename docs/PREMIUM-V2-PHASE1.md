@@ -120,6 +120,21 @@ Avoid bright yellow, gold-on-gold fields, gratuitous animation, text truncated w
 
 **Important:** this stage is a new UI and read-only analytics surface. The existing “create order” button leads to the normal new-order flow without automatically selecting a product. Larger product photo uploads are still served through the existing secure image endpoint; purpose-built thumbnail resizing remains a later performance improvement. The entire stage still requires real iPhone visual review.
 
+## Phase 3A: Orders V2 and visual packing station
+
+This stage adds a premium preparation board and a **shared, persisted pick checklist** behind the existing Premium V2 opt-in. It is a working operations aid, not a substitute for the existing verified delivery, preparation, inventory and payment logic.
+
+- **Workflow board** at \`?view=packing&premium=1\` when signed in: grouped preparation stages (To prepare, Reconstituted, Packaged / awaiting delivery, Delivered) with order/customer information, product photos, quantities, assigned owner, delivery schedule and separate unpaid balance indicators. Dispatched orders remain eligible for actual delivery confirmation.
+- **Order-specific station** at \`?view=packing&id=ID\`: photo-led item list, quantities, format, clear checked count/progress and links back to the ordinary order editor.
+- **Shared picking state**: each Pick/Uncheck control makes an explicit authenticated CSRF-protected POST. An additive private SQLite \`order_packing_checks\` table stores the item/check signature, time and admin-user ID; pick state survives refreshing and appears for Jay and Tony across devices.
+- **Stale-pick protection**: editing an item name, quantity, presentation or product association invalidates its previous checked state until the new line is explicitly checked again; deleting an item cascades away its old check.
+- **Safety**: no pick action automatically reconstitutes, packages, delivers, collects payment, reserves or moves stock. Existing preparation and delivery actions are reused, with their existing permission/validation checks, manual confirmation and explicit dates; payment status remains independent. Check controls are locked for delivered, cancelled, back orders and dispatched orders.
+- **Audit**: existing order activity log records manual Pick and Uncheck events.
+- **Old design unchanged**: the Packing Station quick-link appears on Orders and Dashboard only while the V2 session preview is enabled, and all five original mobile tabs are retained.
+- **Test coverage**: \`tests/packing-v2.php\` uses SQLite fixtures to verify persistence, item ownership, closed-order checks, stale-line protection and read-only workflow semantics. Deployer includes every new component and lints the PHP files before copying.
+
+**Review before treating this as finished UX:** real iPhone Safari screenshots at 320/375/390/430 widths, both owners' admin accounts, all statuses including free internal orders and delivered-but-unpaid, action confirmations and reconnect/refresh after each pick. The workflow board intentionally shows up to 30 most recent orders per stage for clarity, with an All Orders link.
+
 ## Next build slices after Phase 1A
 
 **Phase 1B — device QA and refinement:** collect actual iPhone screenshots at 320 / 375 / 390 / 430 CSS pixels and desktop at 1024 / 1440. Fix wrapping, sticky overlays, alerts, focus, and any conflicting accumulated CSS. Approve consistent design before making it default.
