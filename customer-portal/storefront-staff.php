@@ -3,7 +3,7 @@ declare(strict_types=1);
 /** Staff-only ANKH storefront controls. Called solely after staff preview authentication. */
 function sfStaffController(PDO $portal,PDO $admin):void {
     if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST'
-       ||!in_array($_POST['action']??'',['sf_facts_save','sf_eligibility_save','sf_guest_review'],true))return;
+       ||!in_array($_POST['action']??'',['sf_facts_save','sf_eligibility_save','sf_guest_review','sf_demo_save_all'],true))return;
     if(!is_string($_POST['csrf']??null)||!hash_equals((string)($_SESSION['portal_csrf']??''),$_POST['csrf'])){http_response_code(400);exit('Invalid request.');}
     try{
         switch($_POST['action']){
@@ -15,6 +15,12 @@ function sfStaffController(PDO $portal,PDO $admin):void {
                 $id=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
                 sfCommerceSaveEligibility($portal,$admin,$id,(string)($_POST['decision']??''),(string)($_POST['reviewer']??''),(string)($_POST['basis']??''));
                 $_SESSION['portal_staff_flash']='Checkout eligibility reviewed.';
+                break;
+            case 'sf_demo_save_all':
+                $selected=$_POST['demo_product']??[];
+                if(!is_array($selected))throw new InvalidArgumentException('Invalid product selection.');
+                $count=sfDemoSaveAll($portal,$admin,$selected);
+                $_SESSION['portal_staff_flash']=$count.' products enabled for the non-transactional demo basket.';
                 break;
             case 'sf_guest_review':
                 $id=filter_var($_POST['request_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
@@ -39,6 +45,11 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
     foreach($portal->query("SELECT product_id,approved,reviewer,review_note FROM storefront_checkout_eligibility") as $row)$eligibility[(int)$row['product_id']]=$row;
     $candidates=$admin->query('SELECT id,name,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
     $candidates=array_values(array_filter($candidates,static fn($p)=>function_exists('ankhPublicType')&&ankhPublicType((string)$p['name'])==='Research accessory'));
+    $demoCandidates=[];
+    try{
+        $demoCandidates=$admin->query('SELECT p.id,p.name FROM products p JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 WHERE p.active=1 ORDER BY p.name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+    }catch(Throwable $e){error_log('ANKH demo list: '.$e->getMessage());}
+    $demoAllowed=sfDemoVisible($portal,$demoCandidates);
     $requests=$portal->query('SELECT id,placed_at,name,email,phone,address,note,lines_json,subtotal,status FROM storefront_guest_requests ORDER BY CASE status WHEN "Pending staff review" THEN 0 ELSE 1 END,id DESC LIMIT 40')->fetchAll(PDO::FETCH_ASSOC);
     ?>
     <section class="pc-panel pc-sf-staff" id="storefront-controls">
@@ -53,6 +64,16 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
         <label>Support availability <textarea name="support" maxlength="300" rows="2" placeholder="Actual support hours and response methods"><?=$esc($facts['support'])?></textarea></label>
         <button type="submit">Publish business information</button>
       </form>
+      <section class="pc-demo-manager"><h3>Demo basket products</h3>
+      <p class="pc-footnote"><strong>All published products are ticked by default.</strong> Untick any you want to exclude from the public basket simulation. This changes only the demonstration buttons; it never enables real orders, bank transfers or payments for research compounds.</p>
+      <form method="post" class="pc-demo-manager-form"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_demo_save_all">
+        <div class="pc-demo-manager-list">
+        <?php foreach($demoCandidates as $p):$id=(int)$p['id'];?>
+         <label><input type="checkbox" name="demo_product[]" value="<?=$id?>" <?=isset($demoAllowed[$id])?'checked':''?>>
+         <span><?=$esc($p['name'])?></span></label>
+        <?php endforeach;?></div>
+        <button type="submit">Save demo basket products</button>
+      </form></section>
       <h3>Eligible accessories for guest checkout requests</h3>
       <p class="pc-footnote">Eligibility must be assessed separately from visibility, including the actual product, intended use and legal position. A research-use label is not regulatory authorisation. Accessory requests remain subject to ANKH confirmation.</p>
       <?php if(!$candidates):?><p>No eligible accessory candidates are present.</p><?php endif;?>
