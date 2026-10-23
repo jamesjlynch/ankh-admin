@@ -41,11 +41,12 @@ $pvReadableDate=static function(string $date):string{
  $pvLinesQ->execute([$pvOrderId]);$pvLines=$pvLinesQ->fetchAll(PDO::FETCH_ASSOC);
  $pvChecked=ankhPackingCheckedIds($db,$pvOrderId,$pvLines);
  $pvState=orderPreparationState($pvOrder);
- $pvClosed=$pvState==='closed'||(string)$pvOrder['status']==='Dispatched';
+ $pvClosed=$pvState==='closed';
+ $pvPickLocked=$pvClosed||(string)$pvOrder['status']==='Dispatched';
  $pvPicked=count($pvChecked);$pvTotal=count($pvLines);
  $pvBalance=max(0,(int)$pvOrder['total']-(int)($pvOrder['paid_amount']??0));
  $pvDelivered=(string)$pvOrder['status']==='Delivered'||trim((string)($pvOrder['delivery_date']??''))!=='';
- $pvStageIndex=$pvDelivered?4:($pvState==='packaged'?3:($pvState==='reconstituted'?2:1));
+ $pvStageIndex=$pvDelivered?4:((string)$pvOrder['status']==='Dispatched'?3:($pvState==='packaged'?3:($pvState==='reconstituted'?2:1)));
 ?>
  <nav class="packing-v2-breadcrumb" aria-label="Breadcrumb"><a href="?view=packing">Packing station</a><span aria-hidden="true">›</span><span>ANK-<?=str_pad((string)$pvOrderId,4,'0',STR_PAD_LEFT)?></span></nav>
  <section class="packing-v2-order-hero">
@@ -84,7 +85,7 @@ $pvReadableDate=static function(string $date):string{
       <span><?=max(1,(int)$pvLine['quantity'])?> unit<?=((int)$pvLine['quantity']===1)?'':'s'?><?=trim((string)($pvLine['presentation']??''))!==''?' · '.e((string)$pvLine['presentation']):''?></span>
       <small><?=$pvIsChecked?'Picked for packing':'Awaiting pick check'?></small>
      </div>
-     <?php if(!$pvClosed):?><form method="post" class="packing-v2-check-form">
+     <?php if(!$pvPickLocked):?><form method="post" class="packing-v2-check-form">
       <?php csrf();?><input type="hidden" name="action" value="packing_pick"><input type="hidden" name="id" value="<?=$pvOrderId?>"><input type="hidden" name="item_id" value="<?=$pvItemId?>"><input type="hidden" name="picked" value="<?=$pvIsChecked?'0':'1'?>"><input type="hidden" name="return" value="packing">
       <button class="<?=$pvIsChecked?'is-checked':''?>" type="submit" aria-label="<?=$pvIsChecked?'Uncheck':'Mark picked'?> <?=e((string)$pvLine['name'])?>"><span aria-hidden="true"><?=$pvIsChecked?'✓':'○'?></span><span><?=$pvIsChecked?'Picked':'Pick'?></span></button>
      </form><?php else:?><span class="packing-v2-readonly-state"><?=$pvIsChecked?'✓ Picked':'Not picked'?></span><?php endif;?>
@@ -97,7 +98,7 @@ $pvReadableDate=static function(string $date):string{
    <?php if($pvClosed):?><p class="packing-v2-helper"><?=((string)$pvOrder['status']==='Cancelled')?'Order cancelled':($pvDelivered?'Delivery already recorded':'This order is no longer active')?>. Preparation controls are unavailable.</p>
    <?php elseif(isBackOrder($pvOrder)):?><p class="packing-v2-helper">Move this order from back orders to active orders before preparing it.</p>
    <?php else:?>
-    <div class="packing-v2-preparation-controls"><?php dashboardPreparationControls($pvOrder,'packing');?></div>
+    <?php if((string)$pvOrder['status']==='Dispatched'):?><p class="packing-v2-helper">Dispatched — pick checks and preparation changes are locked, but actual delivery can still be confirmed.</p><?php else:?><div class="packing-v2-preparation-controls"><?php dashboardPreparationControls($pvOrder,'packing');?></div><?php endif;?>
     <p class="packing-v2-helper">Keep the actual preparation stage accurate. Packaging remains an explicit separate action.</p>
     <details class="packing-v2-delivery-disclosure"><summary>Confirm actual delivery <span aria-hidden="true">›</span></summary>
      <form method="post" onsubmit="return confirm('Confirm this order was actually delivered on the selected date? Unpaid balances will remain outstanding.');">
@@ -120,7 +121,7 @@ $pvReadableDate=static function(string $date):string{
  foreach($orders as $pvOrder){
   if(isBackOrder($pvOrder)||(string)$pvOrder['status']==='Cancelled')continue;
   $pvState=orderPreparationState($pvOrder);
-  $pvBucket=$pvState==='closed'?'delivered':$pvState;
+  $pvBucket=$pvState==='closed'?'delivered':((string)$pvOrder['status']==='Dispatched'?'packaged':$pvState);
   if(!isset($pvGroups[$pvBucket]))continue;
   $pvCount[$pvBucket]++;
   if($pvBucket!=='delivered'&&max(0,(int)$pvOrder['total']-(int)($pvOrder['paid_amount']??0))>0)$pvUnpaid++;
