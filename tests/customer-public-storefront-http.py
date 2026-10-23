@@ -79,6 +79,11 @@ def verify():
             assert "Order" not in home[:80] # public storefront doesn't embed customer orders
             no_results=get("/?q=not-a-match")
             assert "No matching profiles." in no_results and "0 matching profiles" in no_results and "sf-grid-v2" not in no_results
+            saved=get("/?saved=1")
+            assert "Saved profiles" in saved and "data-saved-grid" in saved and "data-save-id" in saved
+            assert "Hidden Compound" not in saved and "Inactive Material" not in saved
+            assert 'src="./storefront.js?v=2"' in home
+            assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             assert "Visible Study Material" in get("/?product=1")
             assert "Preclinical laboratory observations" in get("/?product=1")
             get("/?product=2",404)
