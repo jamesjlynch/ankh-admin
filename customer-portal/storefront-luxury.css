@@ -188,3 +188,14 @@
  .sf-image-pending:after{animation:none}
 }
 @view-transition{navigation:auto}
+
+
+/* Quick view uses the same functional basket, with no forced drawer. */
+.sf-quick-actions{display:flex;align-items:stretch;gap:10px;flex-wrap:wrap;margin:18px 0 5px}
+.sf-quick-actions .sf-button,.sf-quick-actions .sf-quick-add{
+ margin:0!important;flex:1 1 145px;min-height:48px;display:flex;align-items:center;justify-content:center;text-align:center
+}
+.sf-quick-actions .sf-quick-add{padding:11px 15px;border-radius:9px;border:1px solid #dfc18d;background:linear-gradient(110deg,#efd49b,#cfaa6c);color:#201d16;font-size:11px;font-weight:750}
+.sf-quick-actions .sf-quick-add[hidden]{display:none!important}
+.sf-quick-actions .sf-quick-add.is-added{background:#f1e0b1!important}
+.sf-gallery-zoom:focus-visible,.sf-gallery-select button:focus-visible,.sf-gallery-arrows button:focus-visible,.sf-zoom-toolbar button:focus-visible{outline:3px solid #ebce8e;outline-offset:2px}
