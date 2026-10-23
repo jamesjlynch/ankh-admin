@@ -69,4 +69,40 @@
       if(event.target===dialog)dialog.close();
     });
   }
+}
+  // Opt-in, on-device shortlist. No personal data, order or medicine purchase.
+  const shortlistKey='ankh-public-research-shortlist-v1';
+  const getSaved=()=>{
+    try{
+      const ids=JSON.parse(window.localStorage.getItem(shortlistKey)||'[]');
+      return Array.isArray(ids)?new Set(ids.filter(x=>Number.isInteger(x)&&x>0).slice(0,100)) : new Set();
+    }catch(_){return new Set();}
+  };
+  let saved=getSaved();
+  const repaintSaved=()=>{
+    document.querySelectorAll('[data-saved-count]').forEach(el=>{el.textContent=String(saved.size);});
+    document.querySelectorAll('[data-save-id]').forEach(button=>{
+      const active=saved.has(Number(button.dataset.saveId));
+      button.setAttribute('aria-pressed',active?'true':'false');
+      button.classList.toggle('is-saved',active);
+      if(button.classList.contains('sf-save-mini'))button.textContent=active?'♥ Saved':'♡ Save';
+      else button.textContent=active?'♥ Saved to shortlist':'♡ Save to research shortlist';
+    });
+    const grid=document.querySelector('[data-saved-grid]'),empty=document.querySelector('[data-saved-empty]');
+    if(grid&&empty){
+      let visible=0;
+      grid.querySelectorAll('[data-profile-id]').forEach(card=>{
+        const show=saved.has(Number(card.dataset.profileId));card.hidden=!show;if(show)visible++;
+      });
+      grid.hidden=visible===0;empty.hidden=visible>0;
+    }
+  };
+  document.querySelectorAll('[data-save-id]').forEach(button=>button.addEventListener('click',()=>{
+    const id=Number(button.dataset.saveId);if(!Number.isInteger(id)||id<1)return;
+    if(saved.has(id))saved.delete(id);else if(saved.size<100)saved.add(id);
+    try{window.localStorage.setItem(shortlistKey,JSON.stringify([...saved]));}catch(_){}
+    repaintSaved();
+  }));
+  window.addEventListener('storage',event=>{if(event.key===shortlistKey){saved=getSaved();repaintSaved();}});
+  repaintSaved();
 })();
