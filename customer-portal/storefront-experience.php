@@ -107,7 +107,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <div class="sf-hero-note"><span aria-hidden="true">☥</span><span>Explore with confidence<br><small>Factual profiles · Account privacy first</small></span></div></div>
 <div class="sf-hero-art sf-real-art" aria-label="ANKH product collection photography">
 <?php if($heroPhotos):?><div class="sf-hero-photo-wall">
-<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'])?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
+<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'].($j===0?'':'&size=thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
 </div><?php else:?><span class="sf-hero-symbol" aria-hidden="true">☥</span><?php endif;?>
 <span class="sf-art-label">A N K H &nbsp; / &nbsp; T H E &nbsp; C O L L E C T I O N</span>
 </div></section>
