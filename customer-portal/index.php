@@ -1,5 +1,18 @@
 <?php
 declare(strict_types=1);
+/*
+ * ANKH website is shop-first. Public GET requests have a read-only
+ * controller; sign-in, private account tabs and POST handlers retain
+ * the existing portal's authentication and privacy protections.
+ */
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+    && !array_key_exists('login', $_GET)
+    && !array_key_exists('tab', $_GET)
+    && !array_key_exists('download', $_GET)
+    && !array_key_exists('catalogue_image', $_GET)) {
+    require __DIR__.'/storefront.php';
+    exit;
+}
 require_once __DIR__ . '/lib.php';
 
 $localHttp = PHP_SAPI === 'cli-server' && getenv('ANKH_TEST_ALLOW_HTTP') === '1'
@@ -122,7 +135,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $_SESSION['portal_last_activity'] = time();
                 unset($_SESSION['portal_pending_phone'],$_SESSION['portal_pending_until']);
                 $portal->prepare('UPDATE portal_accounts SET verified_at=? WHERE id=?')->execute([time(),(int)$login['id']]);
-                header('Location: ./', true, 303);
+                header('Location: ./?tab=home', true, 303);
                 exit;
             }
             $error = 'We could not verify that code. Check it and try again.';
