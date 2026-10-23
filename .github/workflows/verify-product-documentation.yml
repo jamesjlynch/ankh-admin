@@ -28,6 +28,7 @@ jobs:
           php -l customer-portal/account-features.php
           php -l customer-portal/storefront-experience.php
           php -l customer-portal/storefront.php
+          php tests/customer-product-certificates.php
           php tests/customer-storefront-commerce.php
           php tests/customer-collection.php
           python3 tests/customer-public-storefront-http.py
