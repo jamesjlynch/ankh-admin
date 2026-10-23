@@ -110,13 +110,18 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
  <section class="section"><span class="eyebrow">01 / Identity</span><h2>Overview</h2><?=ankhCatalogueFormat($selected['description'])?></section>
  <?php if($focus!==''||!empty($info['research'])):?><section class="section"><span class="eyebrow">02 / Scientific evidence</span><h2>Research context</h2>
  <?php if($focus!==''):?><p><strong>Research focus:</strong> <?=esc($focus)?></p><?php endif;?>
+ <?php if(!empty($info['evidence_level'])):?><p><strong>Evidence status:</strong> <?=esc($info['evidence_level'])?></p><?php endif;?>
+ <?php if(!empty($info['mechanism'])):?><p><strong>Experimental mechanism:</strong> <?=esc($info['mechanism'])?></p><?php endif;?>
+ <?php if(!empty($info['research_limitations'])):?><p><strong>Research limitations:</strong> <?=esc($info['research_limitations'])?></p><?php endif;?>
  <?php if(!empty($info['research'])):?><?=ankhCatalogueFormat((string)$info['research'])?><?php endif;?>
  <p><strong>Interpretation:</strong> Findings in a published study depend on the precise molecule, tested preparation, participants or laboratory model. They do not validate the quality or medical use of a product listed here.</p>
  </section><?php endif;?>
  <?php if(!empty($info['references'])):?><section class="section"><span class="eyebrow">03 / Literature</span><h2>Research references</h2><p>External scientific literature for background reading. These are not certificates of analysis or endorsements of this material.</p><ol class="refs"><?php printLinkList((string)$info['references']);?></ol></section><?php endif;?>
  <?php if(!empty($info['faq'])):?><section class="section"><span class="eyebrow">04 / Common questions</span><h2>Scientific FAQs</h2><?=ankhCatalogueFormat((string)$info['faq'])?></section><?php endif;?>
  </div><aside>
- <section class="side"><h2>Product identity</h2><dl><?php foreach($specs as $key=>$label):if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=esc($label)?></dt><dd><?=esc($info[$key])?></dd></div><?php endforeach;?></dl><p style="color:var(--muted);font-size:11px">Molecular values describe the named reference compound and can differ with salt forms, solvents and batch composition. Blank values have not been verified.</p></section>
+ <section class="side"><h2>Product identity</h2>
+ <?php if(!empty($info['identity_notes'])):?><p style="font-size:12px;color:#c6c7bd"><?=esc($info['identity_notes'])?></p><?php endif;?>
+ <dl><?php foreach($specs as $key=>$label):if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=esc($label)?></dt><dd><?=esc($info[$key])?></dd></div><?php endforeach;?></dl><p style="color:var(--muted);font-size:11px">Molecular values describe the named reference compound and can differ with salt forms, solvents and batch composition. Blank values have not been verified.</p></section>
  <section class="side"><h2>Handling and limitations</h2>
  <?php foreach(['storage'=>'Unprepared laboratory material','prepared_storage'=>'After laboratory preparation','precautions'=>'Precautions'] as $key=>$label):if(empty($info[$key]))continue;?>
  <details class="expand" <?=$key==='precautions'?'open':''?>><summary><?=esc($label)?></summary><div class="inner"><?=ankhCatalogueFormat((string)$info[$key])?></div></details>
@@ -134,7 +139,7 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <div class="grid" id="catalogue-grid"><?php foreach($products as $p):?>
 <a class="product" data-search="<?=esc(strtolower($p['name'].' '.($p['information']['research_focus']??'')))?>" href="?product=<?=(int)$p['id']?>">
  <div class="product-photo"><?php if($p['has_photo']):?><img src="?image=<?=(int)$p['id']?>" loading="lazy" alt="" decoding="async"><?php else:?><span class="placeholder" aria-hidden="true">☥</span><?php endif;?></div>
- <div class="product-body"><small><?=esc(ankhPublicType($p['name']))?></small><h2><?=esc($p['name'])?></h2><p><?=esc(mb_substr(ankhCatalogueSummary($p['description']),0,190))?></p><div class="product-foot">Explore technical profile →</div></div>
+ <div class="product-body"><small><?=esc(ankhPublicType($p['name']))?></small><h2><?=esc($p['name'])?></h2><p><?=esc(substr(ankhCatalogueSummary($p['description']),0,190))?></p><div class="product-foot">Explore technical profile →</div></div>
 </a><?php endforeach;?></div>
 <p id="no-search" class="empty hidden">No reviewed profiles match that search.</p>
 <script>
