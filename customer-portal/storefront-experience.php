@@ -15,7 +15,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
-<link rel="stylesheet" href="./storefront-luxury.css?v=2">
+<link rel="stylesheet" href="./storefront-luxury.css?v=3">
 <script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
 <script defer src="./storefront-luxury.js?v=3"></script>
@@ -98,6 +98,22 @@ $related=$selected?pfRelated($selected,$products):[];
 </div>
 <p class="sf-product-warning">Technical research information only. This page does not offer medical products for sale. See the laboratory and regulatory notice below.</p>
 </div></section>
+<section class="sf-public-documents" aria-label="Product documentation">
+ <div class="sf-section-title"><div><span class="sf-kicker">ANKH / DOCUMENTATION</span><h2>Certificates &amp; product data<span class="sf-gold">.</span></h2>
+ <p>Download the ANKH product specification, or review original analytical reports where documentation has been published for this product.</p></div></div>
+ <div class="sf-product-doc-links">
+  <a class="sf-product-doc-link sf-product-doc-reference" href="./product-specification.php?product=<?=(int)$selected['id']?>" target="_blank" rel="noopener">
+    <span class="sf-doc-symbol" aria-hidden="true">☥</span><span><strong>ANKH product specification</strong><small>Product identity &amp; technical information · Not an analytical certificate</small></span><span aria-hidden="true">↗</span>
+  </a>
+  <?php foreach($productDocuments as $doc):?>
+   <a class="sf-product-doc-link" href="./product-document.php?id=<?=(int)$doc['id']?>" target="_blank" rel="noopener">
+    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong><?=pfEscape(ankhDocsKindName((string)$doc['document_kind']))?></strong>
+    <small><?=pfEscape((string)$doc['issuer'])?><?php if($doc['batch_ref']!==''):?> · Batch <?=pfEscape((string)$doc['batch_ref'])?><?php endif;?></small></span><span aria-hidden="true">↗</span>
+   </a>
+  <?php endforeach;?>
+ </div>
+ <?php if(!$productDocuments):?><p class="sf-docs-notice">A corresponding analytical report has not yet been published for this product. The specification document does not claim independent batch testing.</p><?php endif;?>
+</section>
 <section class="sf-profile-content" aria-label="Product profile">
 <div class="sf-profile-main">
 <div class="sf-section-intro"><span class="sf-kicker">IN-DEPTH REFERENCE</span><h2>Beyond the label<span class="sf-gold">.</span></h2><p>Organised scientific information, without distracting you from the details.</p></div>
