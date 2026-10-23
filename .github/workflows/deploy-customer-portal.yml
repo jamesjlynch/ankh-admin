@@ -9,6 +9,7 @@ on:
       - 'tests/customer-portal*'
       - 'tests/customer-fridge.php'
       - 'tests/customer-storefront-preview-http.py'
+      - 'tests/customer-public-storefront-http.py'
       - 'tests/customer-shopping-ux.php'
       - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
@@ -34,6 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           php -l customer-portal/storefront-preview.php
+          php -l customer-portal/storefront.php
           php -l customer-portal/shop-home.php
           php -l customer-portal/my-fridge.php
           php -l customer-portal/fridge-view.php
@@ -63,6 +65,7 @@ jobs:
           python3 tests/customer-portal-catalogue-http.py
           python3 tests/customer-catalogue-admin-http.py
           python3 tests/customer-storefront-preview-http.py
+          python3 tests/customer-public-storefront-http.py
       - name: Configure deployment access
         env:
           SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
