@@ -35,7 +35,7 @@ $canRequest=isset($buyable[$id]);
    <?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>
    <div class="sf-card-bottom" role="group" aria-label="<?=pfEscape($name)?> quick actions">
      <button type="button" class="sf-save-action sf-save-mini" data-save-id="<?=$id?>" aria-pressed="false" aria-label="Save <?=pfEscape($name)?> to research shortlist">♡ Save</button>
-     <button type="button" class="sf-card-quick" data-quick-name="<?=pfEscape($name)?>" data-quick-kind="<?=pfEscape($kind)?>" data-quick-summary="<?=pfEscape($summary)?>" data-quick-href="<?=pfEscape($url)?>" data-quick-photo="<?=pfEscape($photo)?>" aria-label="Quick view <?=pfEscape($name)?>">Quick view <span aria-hidden="true">↗</span></button>
+     <button type="button" class="sf-card-quick" data-quick-name="<?=pfEscape($name)?>" data-quick-kind="<?=pfEscape($kind)?>" data-quick-summary="<?=pfEscape($summary)?>" data-quick-href="<?=pfEscape($url)?>" data-quick-cart-id="<?=$hasDemo?$id:0?>" data-quick-photo="<?=pfEscape($photo)?>" aria-label="Quick view <?=pfEscape($name)?>">Quick view <span aria-hidden="true">↗</span></button>
    </div>
  </div>
 </article>
