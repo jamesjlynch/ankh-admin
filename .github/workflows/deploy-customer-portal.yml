@@ -53,6 +53,10 @@ jobs:
           php -l customer-portal/storefront-experience.php
           php -l customer-portal/storefront-design.php
           php -l customer-portal/storefront-card.php
+          php -l customer-portal/storefront-commerce.php
+          php -l customer-portal/storefront-staff.php
+          php -l customer-portal/shop-checkout.php
+          node --check customer-portal/checkout.js
           node --check customer-portal/account.js
           node --check customer-portal/sw.js
           python3 -m json.tool customer-portal/manifest.webmanifest >/dev/null
