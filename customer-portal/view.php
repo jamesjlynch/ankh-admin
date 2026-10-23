@@ -55,6 +55,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
       <span class="eyebrow"><span class="line"></span> YOUR PRIVATE SPACE</span>
       <h1>Everything in<br><em>one place.</em></h1>
       <p>View your order history, track progress and keep your details close. A simpler way to stay connected with ANKH.</p>
+      <p class="public-research-cta"><a href="./public-catalogue.php">Explore our public scientific reference <span aria-hidden="true">→</span></a></p>
       <div class="trust-line"><span class="trust-icon">✳</span><span>Secure sign-in. No password needed.</span></div>
     </section>
     <section class="auth-card">
