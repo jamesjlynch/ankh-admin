@@ -159,7 +159,7 @@ function ankhCatalogueEditorText(string $description,array $information=[]):stri
         if(!empty($information[$key]))$parts[]='## '.$label."\n".$information[$key];
     }
     if(!empty($information['coa_url']))$parts[]="## Documentation\n[View analysis document](".$information['coa_url'].")";
-    $parts[]="## Research-only and medical-use warning\n".'This is a technical research material or laboratory accessory, not a medicine or medical treatment. '
+    $parts[]="## Research-only and medical-use warning\n".'This page provides research and laboratory information, not authorisation or advice for medical treatment. '
     .'Not for human or veterinary consumption, administration or self-treatment. Published studies concern '
     .'specific experimental materials and do not establish safety, clinical efficacy, sterility, or batch quality.';
     return trim(implode("\n\n",array_filter($parts,static fn(string $part):bool=>$part!=='')));
