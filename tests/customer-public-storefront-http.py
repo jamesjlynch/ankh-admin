@@ -109,13 +109,22 @@ def verify():
             assert "Saved profiles" in saved and "data-saved-grid" in saved and "data-save-id" in saved
             assert "Hidden Compound" not in saved and "Inactive Material" not in saved
             assert 'src="./storefront.js?v=3"' in home
-            assert 'storefront-luxury.css?v=2' in home and 'storefront-luxury.js?v=3' in home
+            assert 'storefront-luxury.css?v=3' in home and 'storefront-luxury.js?v=3' in home
             assert 'sf-card-v3' in home and 'data-filter-name="Visible Study Material"' in home
             assert 'data-full-collection="1"' in home
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             profile=get("/?product=1")
             assert "Visible Study Material" in profile
+            assert 'Certificates &amp; product data' in profile
+            assert 'product-specification.php?product=1' in profile
+            assert 'A corresponding analytical report has not yet been published' in profile
+            spec_pdf=get("/product-specification.php?product=1",200,raw=True)
+            assert spec_pdf.startswith(b"%PDF-1.4") and spec_pdf.rstrip().endswith(b"%%EOF"),"Automatic downloadable specification must be a valid PDF"
+            assert b"PRODUCT SPECIFICATION" in spec_pdf and b"No original batch analytical report" in spec_pdf
+            get("/product-specification.php?product=2",404)
+            get("/product-document.php?id=9999",404)
+
             assert 'sf-gallery-track' in profile and 'data-gallery-next' in profile and 'data-gallery-zoom' in profile
             assert 'sf-gallery-specification' in profile and 'sf-product-zoom' in profile
             assert 'sf-gallery-spec-rows' in profile and 'sf-gallery-spec-row' in profile
