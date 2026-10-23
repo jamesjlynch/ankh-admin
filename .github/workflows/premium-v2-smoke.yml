@@ -1,0 +1,55 @@
+name: ANKH Premium V2 foundation smoke
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'premium-v2.css'
+      - 'product-v2.css'
+      - 'product-v2.php'
+      - 'tests/product-v2.php'
+      - 'index.php'
+      - 'scripts/publish-live.sh'
+      - 'tests/publish-live.sh'
+      - 'tests/deploy-smoke.php'
+      - 'tests/premium-v2.php'
+      - '.github/workflows/premium-v2-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'premium-v2.css'
+      - 'product-v2.css'
+      - 'product-v2.php'
+      - 'tests/product-v2.php'
+      - 'index.php'
+      - 'scripts/publish-live.sh'
+      - 'tests/publish-live.sh'
+      - 'tests/deploy-smoke.php'
+      - 'tests/premium-v2.php'
+      - '.github/workflows/premium-v2-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  preview-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite
+      - name: Lint PHP template
+        run: |
+          php -l index.php
+          php -l product-v2.php
+          php -l tests/product-v2.php
+      - name: Check V2 visual flag and asset integrity
+        run: |
+          php tests/premium-v2.php
+          php tests/product-v2.php
+      - name: Check shared Krystal publisher
+        run: php tests/deploy-smoke.php
+      - name: Simulate isolated publish and missing-asset repair
+        run: bash tests/publish-live.sh
