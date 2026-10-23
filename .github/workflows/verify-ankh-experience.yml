@@ -1,0 +1,28 @@
+name: Verify ANKH experience 4-7
+on:
+  push:
+    branches: [feature/ankh-experience-4-7]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - name: Validate all storefront and account components
+        run: |
+          set -euo pipefail
+          for f in customer-portal/storefront-commerce.php customer-portal/shop-checkout.php customer-portal/storefront-staff.php customer-portal/storefront.php customer-portal/storefront-experience.php customer-portal/storefront-card.php customer-portal/shop-home.php customer-portal/customer-experience.php customer-portal/preview-live.php customer-portal/account-features.php customer-portal/lib.php; do php -l "$f"; done
+          node --check customer-portal/checkout.js
+          node --check customer-portal/storefront-cart.js
+          node --check customer-portal/storefront.js
+          php tests/customer-storefront-commerce.php
+          php tests/customer-portal-render.php
+          php tests/customer-collection.php
+          python3 tests/customer-public-storefront-http.py
