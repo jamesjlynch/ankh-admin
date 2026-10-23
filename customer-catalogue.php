@@ -234,7 +234,7 @@ foreach($guideGroups as $groupIndex=>$group):$completed=count(array_filter($grou
 <p class="muted" style="font-size:12px;line-height:1.65">Public listing is <strong>separate</strong> from the customer dashboard. It is disabled unless a documented external regulatory assessment and advertising review have been recorded. The website does not show prices, ordering or stock on public pages. Editing this catalogue entry again automatically takes it offline pending another review.</p>
 <?php $publicRow=$publicReviews[(int)$p['id']]??null;$publicOn=(int)($publicRow['public_enabled']??0)===1;?>
 <p style="font-size:12px"><strong><?= $publicOn?'Public technical profile released':'Public profile not released' ?></strong>
- · <a href="./public-catalogue.php" target="_blank" rel="noopener noreferrer">View public page ↗</a></p>
+ · <a href="https://order.ankhpeptides.com/public-catalogue.php" target="_blank" rel="noopener noreferrer">View public page ↗</a></p>
 <?php if($publicRow && $publicOn):?>
 <p class="muted" style="font-size:11px">Reviewed <?=e($publicRow['reviewed_at']??'')?> by <?=e($publicRow['reviewed_by']??'')?>. Review details are stored in the admin database.</p>
 <?php endif;?>
