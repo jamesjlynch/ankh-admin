@@ -8,6 +8,7 @@ $expected = [
   'basket' => ['Your basket','Your basket is waiting','Explore accessories'],
   'checkout' => ['Checkout','Add an accessory first'],
   'test-orders' => ['Your test requests','No test requests here yet'],
+  'fridge' => ['My Fridge','Preview only','Sample research material'],
   'home' => ['Discover. Select.','Shop the collection','Browse products','Your basket'],
   'orders' => ['My orders','Find an order or product','ANK-0104'],
   'vault' => ['My vault','Order summaries','Batch documents'],
