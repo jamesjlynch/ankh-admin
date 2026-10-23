@@ -63,6 +63,11 @@ try {
         $contacts=null;
     }
 } catch (Throwable $e) { error_log('ANKH public contact link: '.$e->getMessage()); }
+// Prices are retrieved independently for the public storefront display only.
+// Display eligibility does not enable live sales or change the technical research index.
+$previewPrices=[];
+try{$previewPrices=sfRetailPreviewPrices($db,$products);}
+catch(Throwable $e){error_log('ANKH storefront retail preview: '.$e->getMessage());}
 // Public site reads only explicitly approved accessory IDs and staff-verified business facts.
 // An absent private database/table means no items can be checked out (fail closed).
 $buyable=[];$businessFacts=null;$demoProducts=[];
