@@ -26,6 +26,31 @@ function sfCommerceInit(PDO $db):void {
        fingerprint TEXT PRIMARY KEY, counter INTEGER NOT NULL, expires_at INTEGER NOT NULL
     );");
 }
+/**
+ * Storefront DISPLAY prices: read retail prices from published active products
+ * without altering the scientific reference index or granting checkout rights.
+ * Never exports stock, cost, family/friends rates or private customer data.
+ * Research-compound values are clearly labelled as demo previews in the UI.
+ */
+function sfRetailPreviewPrices(PDO $admin,array $published):array {
+    $ids=[];
+    foreach($published as $p){
+        if(is_array($p) && isset($p['id']) && (int)$p['id']>0)$ids[(int)$p['id']]=true;
+    }
+    if(!$ids)return [];
+    $placeholders=implode(',',array_fill(0,count($ids),'?'));
+    $query=$admin->prepare("SELECT p.id,p.price FROM products p
+      INNER JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1
+      WHERE p.active=1 AND p.id IN ($placeholders)");
+    $query->execute(array_keys($ids));
+    $prices=[];
+    foreach($query as $row){
+        $price=filter_var($row['price'],FILTER_VALIDATE_INT);
+        if($price!==false && $price>0 && $price<=100000000)$prices[(int)$row['id']]=$price;
+    }
+    return $prices;
+}
+
 function sfCommerceEligible(PDO $portal,PDO $admin):array {
     $has=$portal->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='storefront_checkout_eligibility'")->fetchColumn();
     if(!$has)return [];
