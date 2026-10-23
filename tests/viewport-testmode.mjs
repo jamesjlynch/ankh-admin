@@ -34,12 +34,20 @@ async function layout(page,label){
 }
 try{
  await ready();
+ // Test the real private-access workflow; public no-auth test mode was disabled.
+ const seedAdmin='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->prepare("INSERT INTO admin_users(username,password_hash,created_at) VALUES (?,?,?)")->execute(["fixture",password_hash("fixture-admin-only",PASSWORD_DEFAULT),time()]);';
+ execFileSync('php',['-r',seedAdmin],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:390,height:844}});
  const page=await context.newPage();
  await page.goto(host+'/index.php?view=dashboard');
- check(await page.locator('#dashboard-actions').count()===1,'Unchanged test-mode dashboard must open directly.');
- check(await page.locator('form input[name="password"]').count()===0,'Test-mode access must not require a login.');
+ check(await page.locator('form input[name="password"]').count()===1,'Private admin must require sign-in.');
+ await page.locator('input[name="username"]').fill('fixture');
+ await page.locator('input[name="password"]').fill('fixture-admin-only');
+ await page.getByRole('button',{name:/Sign in/}).click();
+ await page.waitForURL(/view=dashboard/);
+ check(await page.locator('#dashboard-actions').count()===1,'Authenticated dashboard should open directly.');
+ check(await page.locator('form input[name="password"]').count()===0,'Credentials should not remain on dashboard.');
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
  const insert='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Test Customer\',\'\',\'\',\'\',\'New\',\'2026-10-15T09:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (1,\'Test Product\',1000,1);");';
  execFileSync('php',['-r',insert],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
