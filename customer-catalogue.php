@@ -231,26 +231,10 @@ foreach($guideGroups as $groupIndex=>$group):$completed=count(array_filter($grou
 </div></details><?php endforeach;?>
 <section class="catalogue-public-gate" style="margin:20px 0;border:1px solid #6d5d37;background:#201d16;border-radius:16px;padding:16px 19px">
 <h4 style="margin:0 0 8px;color:#ecd596">Public research catalogue</h4>
-<p class="muted" style="font-size:12px;line-height:1.65">Public listing is <strong>separate</strong> from the customer dashboard. It is disabled unless a documented external regulatory assessment and advertising review have been recorded. The website does not show prices, ordering or stock on public pages. Editing this catalogue entry again automatically takes it offline pending another review.</p>
-<?php $publicRow=$publicReviews[(int)$p['id']]??null;$publicOn=(int)($publicRow['public_enabled']??0)===1;?>
-<p style="font-size:12px"><strong><?= $publicOn?'Public technical profile released':'Public profile not released' ?></strong>
- · <a href="https://order.ankhpeptides.com/public-catalogue.php" target="_blank" rel="noopener noreferrer">View public page ↗</a></p>
-<?php if($publicRow && $publicOn):?>
-<p class="muted" style="font-size:11px">Reviewed <?=e($publicRow['reviewed_at']??'')?> by <?=e($publicRow['reviewed_by']??'')?>. Review details are stored in the admin database.</p>
-<?php endif;?>
-</section><p class="catalogue-guide-price">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form>
-<form method="post" class="detail product-settings-form" style="margin:16px 0;padding:17px;border:1px solid #6d5d37;border-radius:14px">
-<?php csrf();?><input type="hidden" name="action" value="public_catalogue_review"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>">
-<h4>Independent public listing review</h4><p class="muted">Do not approve merely because a disclaimer is present. Retain documented professional advice on product classification, lawful supply and advertising. This form is an internal audit trail, not MHRA authorisation.</p>
-<label>Reviewer name<input name="reviewed_by" maxlength="120" value="<?=e($publicRow['reviewed_by']??'')?>" placeholder="Name of person who checked the external assessment"></label>
-<label>Regulatory classification and advertising assessment reference<textarea name="review_basis" maxlength="3000" rows="4" placeholder="Identify the external professional advice, review date, product formulation, and regulatory basis for public listing."><?=e($publicRow['review_basis']??'')?></textarea></label>
-<label class="check"><input type="checkbox" name="checked_classification" value="1"> Classification and lawful public supply have been independently assessed for this exact product</label>
-<label class="check"><input type="checkbox" name="checked_advertising" value="1"> All public copy, imagery and implicit medicinal claims have been checked against MHRA and CAP rules</label>
-<label class="check"><input type="checkbox" name="checked_documents" value="1"> Product identity, label and required chemical documents are verified; no unsubstantiated purity or clinical claims remain</label>
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
-<button class="quiet" name="review_decision" value="approve" type="submit">Record review &amp; release public reference</button>
-<button class="quiet" name="review_decision" value="hide" type="submit">Keep / take public profile offline</button>
-</div></form><?php
+<p class="muted" style="font-size:12px;line-height:1.65">Active products already published to customers are also listed in the public read-only scientific reference. Use the visibility checkbox below to include or hide this product in both views. Public pages do not expose prices, stock, customer records or ordering. This technical visibility setting does not establish UK regulatory compliance.</p>
+<p style="font-size:12px"><strong><?= $visible && (int)$p['active']===1?'Published in public scientific reference':'Not publicly listed' ?></strong>
+ · <a href="https://order.ankhpeptides.com/public-catalogue.php" target="_blank" rel="noopener noreferrer">Open public catalogue ↗</a></p>
+</section><p class="catalogue-guide-price">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Published in customer catalogue and public research reference</label><p class="muted"><?=(int)$p['active']===1?'Tick to show this research profile in both catalogues, then save. Untick to hide it everywhere.':'This product is inactive and will stay hidden from both catalogues until it is activated.'?></p><button class="quiet" type="submit">Save catalogue details</button></form><?php
 }
 
 /** Customer interactions live in the private portal database, never the order database. */
