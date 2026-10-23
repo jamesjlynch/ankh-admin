@@ -3,7 +3,7 @@ declare(strict_types=1);
 // Real entrypoint requests; isolated SQLite only, never production.
 $root=dirname(__DIR__);$temp=sys_get_temp_dir().'/ankh-backorders-'.bin2hex(random_bytes(6));mkdir($temp,0700);
 $config=$temp.'/config.php';
-file_put_contents($config,'<?php $_SESSION["csrf"]="pricing-fixture"; $_SESSION["admin"]=true; $_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('test',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["csrf"]="pricing-fixture"; return '.var_export(['password_hash'=>password_hash('test',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
 function pricingCheck(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
 function pricingRequest(array $get=[],array $post=[]):string{
  global $root,$config;
