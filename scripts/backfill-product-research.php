@@ -133,7 +133,20 @@ if (is_link($backupDir) || (!is_dir($backupDir) && !mkdir($backupDir,0700,true))
     throw new RuntimeException('Refusing to run without private backup directory.');
 }
 $backupFile=$backupDir.'/research-before-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.sqlite';
-$db->exec('VACUUM INTO '.$db->quote($backupFile));
+$sqliteVersion=(string)$db->query('SELECT sqlite_version()')->fetchColumn();
+if (version_compare($sqliteVersion,'3.27.0','>=')) {
+    $db->exec('VACUUM INTO '.$db->quote($backupFile));
+} elseif (class_exists('SQLite3') && method_exists('SQLite3','backup')) {
+    $source=new SQLite3($database,SQLITE3_OPEN_READONLY);
+    try {
+        $destination=new SQLite3($backupFile,SQLITE3_OPEN_READWRITE|SQLITE3_OPEN_CREATE);
+        try {
+            if (!$source->backup($destination)) throw new RuntimeException('SQLite3 backup API failed.');
+        } finally { $destination->close(); }
+    } finally { $source->close(); }
+} else {
+    throw new RuntimeException('No supported online SQLite backup method (SQLite '.$sqliteVersion.').');
+}
 chmod($backupFile,0600);
 $backupCheck = new PDO('sqlite:'.$backupFile);
 if ($backupCheck->query('PRAGMA integrity_check')->fetchColumn() !== 'ok') {
