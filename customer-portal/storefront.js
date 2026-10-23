@@ -69,7 +69,6 @@
       if(event.target===dialog)dialog.close();
     });
   }
-}
   // Opt-in, on-device shortlist. No personal data, order or medicine purchase.
   const shortlistKey='ankh-public-research-shortlist-v1';
   const getSaved=()=>{
