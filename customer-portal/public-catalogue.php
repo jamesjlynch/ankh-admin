@@ -2,7 +2,7 @@
 declare(strict_types=1);
 /**
  * Standalone read-only catalogue. No session/auth, orders, stock, pricing or customer data.
- * Public products require a separate review record in catalogue_public_reviews.
+ * Public profiles are the already-published, active customer catalogue products.
  */
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-store, max-age=0');
@@ -14,11 +14,11 @@ header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; 
 require_once __DIR__.'/public-catalogue-core.php';
 require_once __DIR__.'/customer-catalogue.php';
 function esc($s):string {return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
-$configFile=getenv('ANKH_ADMIN_CONFIG') ?: dirname(__DIR__,2).'/ankh-admin-config.php';
+$configFile=getenv('ANKH_PORTAL_CONFIG') ?: dirname(__DIR__,2).'/ankh-customer-portal-config.php';
 try {
     if (!is_file($configFile)) throw new RuntimeException('Missing private configuration.');
     $config=require $configFile;
-    $file=is_array($config)?($config['database_path']??''):'';
+    $file=is_array($config)?($config['admin_database_path']??''):'';
     if (!is_string($file) || !is_file($file)) throw new RuntimeException('Missing private data.');
     $db=new PDO('sqlite:'.$file,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     $db->exec('PRAGMA query_only=ON; PRAGMA busy_timeout=2000');
@@ -30,7 +30,7 @@ try {
 }
 $imageId=filter_var($_GET['image']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 if ($imageId!==false && $imageId!==null) {
-    // Images are never directly exposed until this exact product is reviewed.
+    // Only serve photos for active products already marked visible in the catalogue.
     $allowed=array_values(array_filter($products,static fn($p)=>(int)$p['id']===(int)$imageId));
     if (!$allowed || !$allowed[0]['has_photo']) {http_response_code(404);exit;}
     $q=$db->prepare('SELECT image_data,image_mime FROM customer_catalogue_content WHERE product_id=?');
@@ -98,7 +98,7 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <header class="top"><div class="wrap"><a class="brand" href="./public-catalogue.php"><span class="symbol" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>SCIENTIFIC REFERENCE</small></span></a><nav aria-label="Primary"><a href="./public-catalogue.php">Research index</a><a href="https://www.gov.uk/guidance/borderline-products-how-to-tell-if-your-product-is-a-medicine" target="_blank" rel="noopener noreferrer">UK guidance ↗</a></nav></div></header>
 <main class="wrap">
 <?php if($selected):$info=$selected['information'];$focus=trim((string)($info['research_focus']??''));?>
-<a class="back" href="./public-catalogue.php">← All reviewed research profiles</a>
+<a class="back" href="./public-catalogue.php">← All published research profiles</a>
 <div class="detail-head">
  <div class="detail-visual"><?php if($selected['has_photo']):?><img src="?image=<?=(int)$selected['id']?>" alt="<?=esc($selected['name'])?> – documented product photograph"><?php else:?><span class="placeholder" aria-hidden="true">☥</span><?php endif;?></div>
  <div><span class="eyebrow">Scientific reference / <?=esc(ankhPublicType($selected['name']))?></span>
@@ -131,9 +131,9 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <?php elseif($id!==false && $id!==null):?>
 <div class="hero"><span class="eyebrow">Not listed</span><h1>Profile not available</h1><p class="lead">This product does not have an approved public research profile.</p><a href="./public-catalogue.php">Return to research index</a></div>
 <?php else:?>
-<section class="hero"><span class="eyebrow">ANKH / Scientific reference catalogue</span><h1>Technical profiles for laboratory research.</h1><p class="lead">Factual reference information on molecular identity, scientific literature, experimental research models and technical limitations. Product inclusion is subject to a separate regulatory and advertising review.</p></section>
+<section class="hero"><span class="eyebrow">ANKH / Scientific reference catalogue</span><h1>Technical profiles for laboratory research.</h1><p class="lead">Factual reference information on molecular identity, scientific literature, experimental research models and technical limitations. Profiles are shown when they are active and already marked visible in ANKH's customer catalogue. Public presentation and legal classification require separate regulatory consideration.</p></section>
 <div class="notice" role="note"><strong>Research use only — not for medical use</strong><p><?=esc($notice)?></p></div>
-<?php if($products):?><div class="stats"><span class="chip"><?=count($products)?> approved technical profiles</span><span class="chip">Read-only reference</span><span class="chip">No prices or ordering</span></div>
+<?php if($products):?><div class="stats"><span class="chip"><?=count($products)?> published research profiles</span><span class="chip">Read-only reference</span><span class="chip">No prices or ordering</span></div>
 <label for="catalogue-search" class="eyebrow" style="display:block;margin-bottom:8px">Find a compound or material</label>
 <input class="search" type="search" id="catalogue-search" placeholder="Search profiles…" autocomplete="off">
 <div class="grid" id="catalogue-grid"><?php foreach($products as $p):?>
@@ -145,7 +145,7 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <script>
 (()=>{const search=document.getElementById('catalogue-search');if(!search)return;const cards=[...document.querySelectorAll('[data-search]')];search.addEventListener('input',()=>{const q=search.value.trim().toLowerCase();let count=0;cards.forEach(card=>{const show=card.dataset.search.includes(q);card.classList.toggle('hidden',!show);if(show)count++});document.getElementById('no-search').classList.toggle('hidden',count!==0);});})();
 </script>
-<?php else:?><section class="empty"><span class="eyebrow">Regulatory review</span><h2>No public profiles released yet</h2><p>Technical product profiles are being reviewed for scientific accuracy, supply classification and advertising compliance. Public access is available, but no product listings are released until documented approval.</p></section><?php endif;?>
+<?php else:?><section class="empty"><span class="eyebrow">Regulatory review</span><h2>No published profiles available</h2><p>The public reference lists only products marked active and visible in ANKH’s existing catalogue. Products without that visibility setting remain hidden.</p></section><?php endif;?>
 <?php endif;?>
 </main>
 <footer class="foot"><div class="wrap">ANKH GLOBAL LTD · Technical scientific information only. No price, availability or clinical-use information is provided on this public page. Public display does not constitute a regulatory authorisation. <a href="https://www.gov.uk/guidance/advertise-your-medicines" rel="noopener noreferrer" target="_blank">MHRA guidance ↗</a></div></footer>
