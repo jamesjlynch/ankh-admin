@@ -1,0 +1,40 @@
+name: ANKH publisher asset smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/publish-live.sh'
+      - 'tests/publish-live.sh'
+      - 'tests/deploy-smoke.php'
+      - 'admin-visuals.js'
+      - 'admin-visuals.css'
+      - 'index.php'
+      - '.github/workflows/publish-assets-smoke.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/publish-live.sh'
+      - 'tests/publish-live.sh'
+      - 'tests/deploy-smoke.php'
+      - 'admin-visuals.js'
+      - 'admin-visuals.css'
+      - 'index.php'
+      - '.github/workflows/publish-assets-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite
+      - name: Verify shipped files are listed in deploy manifest
+        run: php tests/deploy-smoke.php
+      - name: Verify atomic publisher, fresh deployment and missing-asset repairs
+        run: bash tests/publish-live.sh

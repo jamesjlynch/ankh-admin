@@ -14,8 +14,12 @@ if(!str_contains($phpLint,'No syntax errors detected'))throw new RuntimeExceptio
 $publisher=file_get_contents($root.'/scripts/publish-live.sh');
 if(!str_contains($deploy,'/bin/bash scripts/publish-live.sh'))throw new RuntimeException('Krystal cron must call the shared publisher.');
 if(!str_contains($cpanel,'/bin/bash scripts/publish-live.sh'))throw new RuntimeException('cPanel deployment must call the same publisher.');
-foreach(['index.php','supplier-centre.php','setup.php','style.min.css','style.core.min.css','service-worker.js'] as $required){
+foreach(['index.php','supplier-centre.php','setup.php','style.min.css','style.core.min.css','service-worker.js','admin-visuals.js','admin-visuals.css'] as $required){
  if(!str_contains($publisher,$required))throw new RuntimeException('Publisher is missing asset '.$required);
+}
+foreach(['admin-visuals.js','admin-visuals.css'] as $visualAsset){
+ if(!is_file($root.'/'.$visualAsset))throw new RuntimeException('Missing admin photo asset: '.$visualAsset);
+ if(!str_contains($index,$visualAsset))throw new RuntimeException('Admin entrypoint does not load photo asset: '.$visualAsset);
 }
 if(!str_contains($publisher,'"$php" -l supplier-centre.php'))throw new RuntimeException('Publisher must lint Supplier Centre before copying.');
 if(!str_contains($publisher,'install -m 644')||!str_contains($publisher,'mv -f "$stage"'))throw new RuntimeException('Publisher must atomically install web assets.');
