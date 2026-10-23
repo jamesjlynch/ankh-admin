@@ -58,6 +58,13 @@ $flash=(string)($_SESSION['collection_flash']??'');unset($_SESSION['collection_f
         <input type="hidden" name="action" value="collection_send">
         <input type="hidden" name="revision" value="<?=portalEscape(portalCollectionRevision($items))?>">
         <input type="hidden" name="request_token" value="<?=bin2hex(random_bytes(32))?>">
+        <fieldset class="pc-transfer-preference"><legend>Preferred payment method</legend>
+          <label class="pc-transfer-option"><input type="radio" name="payment_preference" value="bank_transfer" checked>
+            <span><strong>Bank transfer to ANKH (Tide)</strong><small>After ANKH has reviewed and confirmed an eligible order, we'll provide verified payment instructions and a matching order reference.</small></span></label>
+          <label class="pc-transfer-option"><input type="radio" name="payment_preference" value="discuss">
+            <span><strong>Discuss payment with ANKH</strong><small>We will agree payment arrangements with you once your request has been reviewed.</small></span></label>
+          <p class="pc-transfer-disclaimer">No bank details or payment request will appear here. Sending this list does not create an order or reserve stock.</p>
+        </fieldset>
         <label class="pc-field">Anything else ANKH should know? <span>(optional)</span><textarea name="message" rows="4" maxlength="2000" placeholder="Add a note to your request"></textarea></label>
         <button type="submit" class="pc-primary-link" <?=$unavailable?'disabled':''?>>Send order request <?=pcIcon('right')?></button>
       </form>
