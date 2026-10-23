@@ -160,3 +160,26 @@ function sfDemoSetVisible(PDO $store,PDO $admin,int $id,bool $enabled):void {
       ON CONFLICT(product_id) DO UPDATE SET enabled=excluded.enabled,updated_at=excluded.updated_at")
       ->execute([$id,$enabled?1:0,time()]);
 }
+
+
+/** Save a complete staff-selected demo basket list; an empty list turns off all. */
+function sfDemoSaveAll(PDO $store,PDO $admin,array $selection):int {
+    if(count($selection)>500)throw new InvalidArgumentException('Too many product choices.');
+    $chosen=[];
+    foreach($selection as $raw){
+        if(!is_scalar($raw)||!ctype_digit((string)$raw)||(int)$raw<1)
+           throw new InvalidArgumentException('Invalid demo product choice.');
+        $chosen[(int)$raw]=true;
+    }
+    $stmt=$admin->query("SELECT p.id FROM products p
+      JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1
+      WHERE p.active=1");
+    $ids=array_map('intval',$stmt->fetchAll(PDO::FETCH_COLUMN));
+    if(array_diff(array_keys($chosen),$ids))throw new InvalidArgumentException('A selected product is no longer published.');
+    $store->beginTransaction();
+    try{
+        foreach($ids as $id)sfDemoSetVisible($store,$admin,$id,isset($chosen[$id]));
+        $store->commit();
+    }catch(Throwable $e){if($store->inTransaction())$store->rollBack();throw $e;}
+    return count($chosen);
+}
