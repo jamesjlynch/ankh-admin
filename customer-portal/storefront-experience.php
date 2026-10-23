@@ -15,11 +15,12 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
+<link rel="stylesheet" href="./storefront-luxury.css?v=1">
 <script defer src="./storefront.js?v=2"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
 <script defer src="./storefront-luxury.js?v=1"></script>
 </head>
-<body class="sf-public">
+<body class="sf-public <?=$selected?'sf-is-detail':'sf-is-collection'?>">
 <a href="#main" class="sf-skip">Skip to content</a>
 <div class="sf-promo"><span aria-hidden="true">✦</span> ANKH GLOBAL LTD <span aria-hidden="true">✦</span> TECHNICAL RESEARCH COLLECTION</div>
 <header class="sf-header"><div class="sf-shell sf-head-inner">
@@ -140,7 +141,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <section class="sf-collection" id="collection"><div class="sf-section-title"><div><span class="sf-kicker">THE COLLECTION</span><h2>Explore every detail<span class="sf-gold">.</span></h2>
 <p>Browse <?=count($products)?> published technical profiles with your existing ANKH product photography.</p></div><span class="sf-index">ANKH / 001</span></div>
 <div class="sf-category-chips" aria-label="Browse by type">
-<?php foreach($categories as $c):?><a href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfType($p['name'])===$c))?></span></a><?php endforeach;?>
+<?php foreach($categories as $c):?><a data-category-value="<?=pfEscape($c)?>" href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfType($p['name'])===$c))?></span></a><?php endforeach;?>
 </div>
 <form method="get" action="./#collection" class="sf-filter sf-filter-v2" role="search" id="sf-search-form">
 <div class="sf-search-box"><label for="sf-search">Search the collection</label><input id="sf-search" name="q" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" autocomplete="off" maxlength="120" placeholder="Search products or research context…" value="<?=pfEscape($search)?>" aria-describedby="sf-search-help" aria-controls="sf-suggestions"><span class="sf-search-icon" aria-hidden="true">⌕</span>
@@ -154,7 +155,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <?php if($search!==''||$strength!==''||$format!==''||$category!=='All research'||$sort!=='name'):?><div class="sf-active-filter"><span>Showing filtered results</span><a href="./#collection">Clear all filters ×</a></div><?php endif;?>
 <p class="sf-results" data-live-results><?=count($filtered)?> matching profile<?=count($filtered)===1?'':'s'?> <span>·</span> Select an image or quick view to discover more</p>
 <?php if(!$filtered):?><div class="sf-empty"><h3>No matching profiles.</h3><p>Try a different term, strength or format.</p><a href="./#collection" class="sf-secondary">Clear filters →</a></div><?php else:?>
-<div class="sf-grid sf-grid-v2" id="sf-product-grid" aria-live="polite"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
+<div class="sf-grid sf-grid-v2" id="sf-product-grid" aria-live="polite" data-full-collection="<?=($search===''&&$strength===''&&$format===''&&$category==='All research'&&$sort==='name')?'1':'0'?>"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
 </section>
 <section class="sf-trust-details" id="sf-trust" aria-labelledby="sf-trust-title">
 <div class="sf-section-title"><div><span class="sf-kicker">TRANSPARENT BY DESIGN</span><h2 id="sf-trust-title">Know who you're dealing with<span class="sf-gold">.</span></h2>
