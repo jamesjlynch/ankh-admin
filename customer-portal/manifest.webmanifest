@@ -2,7 +2,7 @@
   "name": "ANKH Shop & Account",
   "short_name": "ANKH",
   "description": "Private ANKH shop, basket, orders and account",
-  "start_url": "./?tab=home",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#0b0d0e",
