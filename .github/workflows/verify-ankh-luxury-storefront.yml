@@ -1,0 +1,36 @@
+name: Verify ANKH atelier storefront
+on:
+  push:
+    branches: [feature/ankh-luxury-storefront-v3]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify templates and source syntax
+        run: |
+          set -euo pipefail
+          for file in customer-portal/storefront-experience.php customer-portal/storefront-card.php customer-portal/storefront-design.php customer-portal/storefront.php customer-portal/public-catalogue.php; do php -l "$file"; done
+          node --check customer-portal/storefront.js
+          node --check customer-portal/storefront-luxury.js
+          node --check customer-portal/storefront-cart.js
+          node tests/customer-cart-add-animation.cjs
+      - name: Public HTTP and checkout policy regressions
+        run: |
+          set -euo pipefail
+          php tests/customer-demo-basket.php
+          php tests/customer-storefront-commerce.php
+          python3 tests/customer-public-storefront-http.py
+          php tests/customer-collection.php
+          php tests/customer-portal-render.php
