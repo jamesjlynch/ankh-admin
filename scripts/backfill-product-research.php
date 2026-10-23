@@ -8,6 +8,7 @@ declare(strict_types=1);
  *        php scripts/backfill-product-research.php --apply
  */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+set_exception_handler(static function(Throwable $e):void { fwrite(STDERR, '[catalogue backfill] '.$e->getMessage().' (line '.$e->getLine().")\n"); exit(1); });
 $mode = $argv[1] ?? '';
 if (!in_array($mode, ['--dry-run','--apply'], true)) {
     fwrite(STDERR, "Usage: php scripts/backfill-product-research.php --dry-run|--apply\n");
