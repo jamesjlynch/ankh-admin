@@ -2,7 +2,7 @@
 declare(strict_types=1);
 $root=dirname(__DIR__);
 require $root.'/packing-v2-support.php';
-function checkV2(bool $pass,string $message):void{if(!$pass)throw new RuntimeException($message);}
+function checkV(bool $pass,string $message):void{if(!$pass)throw new RuntimeException($message);}
 function e($value):string{return htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');}
 function money(int $pence):string{return '£'.number_format($pence/100,2);}
 function csrf():void{echo '<input type="hidden" name="csrf" value="fixture">';}
