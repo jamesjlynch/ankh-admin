@@ -8,6 +8,7 @@ on:
       - 'scripts/publish-customer-portal.sh'
       - 'tests/customer-portal*'
       - 'tests/customer-fridge.php'
+      - 'tests/customer-storefront-preview-http.py'
       - 'tests/customer-shopping-ux.php'
       - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
@@ -32,6 +33,7 @@ jobs:
       - name: Block release on customer privacy and interaction regressions
         run: |
           set -euo pipefail
+          php -l customer-portal/storefront-preview.php
           php -l customer-portal/shop-home.php
           php -l customer-portal/my-fridge.php
           php -l customer-portal/fridge-view.php
@@ -60,6 +62,7 @@ jobs:
           for tab in home orders vault support account insights recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
           python3 tests/customer-portal-catalogue-http.py
           python3 tests/customer-catalogue-admin-http.py
+          python3 tests/customer-storefront-preview-http.py
       - name: Configure deployment access
         env:
           SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}

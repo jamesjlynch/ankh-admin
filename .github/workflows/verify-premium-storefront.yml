@@ -1,0 +1,37 @@
+name: Verify premium storefront preview
+on:
+  push:
+    branches: [feature/ankh-premium-storefront]
+    paths:
+      - 'customer-portal/storefront-preview.php'
+      - 'customer-portal/storefront-preview.css'
+      - 'tests/customer-storefront-preview-http.py'
+      - '.github/workflows/verify-premium-storefront.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - name: Check PHP and Python syntax
+        run: |
+          set -euo pipefail
+          php -l customer-portal/storefront-preview.php
+          php -l customer-portal/lib.php
+          php -l customer-catalogue.php
+          python3 -m py_compile tests/customer-storefront-preview-http.py
+      - name: Verify protected catalogue and basket using local test database
+        run: |
+          set -euo pipefail
+          python3 tests/customer-storefront-preview-http.py
+      - name: Confirm preview excludes payment integration
+        run: |
+          set -euo pipefail
+          ! grep -Eiq 'stripe|paypal|payment_intent|INSERT[[:space:]]+INTO[[:space:]]+orders|UPDATE[[:space:]]+products' customer-portal/storefront-preview.php
