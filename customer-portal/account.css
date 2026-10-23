@@ -577,3 +577,86 @@ a.pc-stat:hover{transform:translateY(-2px);border-color:rgba(231,197,130,.5)}
 @media(max-width:740px){.pc-shop-hero{grid-template-columns:1fr;min-height:0;padding:28px 23px}.pc-shop-hero-art{display:none}.pc-shop-hero h1{font-size:clamp(38px,10vw,53px)}.pc-shop-featured-image{height:170px}.pc-shop-account-links{grid-template-columns:1fr}.pc-shop-quick{gap:7px}.pc-shop-quick>a{display:flex;flex-direction:column;align-items:start;gap:7px;padding:12px}.pc-shop-quick>a>span{width:35px;height:35px}.pc-shop-quick strong{font-size:11px}.pc-shop-quick small{font-size:9px}.pc-shop-latest{align-items:start;flex-direction:column}.pc-shop-latest .pc-primary-link{width:100%;justify-content:center}.pc-whatsapp-fab{bottom:calc(85px + env(safe-area-inset-bottom));right:max(14px,env(safe-area-inset-right));min-height:43px;padding:11px 14px}.pc-bottom-nav a{position:relative}.pc-bottom-nav .pc-nav-cart-count{right:calc(50% - 24px);top:-3px;font-size:9px;min-width:16px;height:16px}}
 @media(max-width:490px){.pc-shop-search{padding:7px 7px 7px 13px;gap:9px}.pc-shop-search button{padding:9px 11px}.pc-shop-featured-grid{gap:9px}.pc-shop-featured-image{height:145px}.pc-shop-featured-content{padding:13px}.pc-shop-featured-content h3{font-size:18px;min-height:44px}.pc-shop-featured-foot{gap:7px}.pc-shop-featured-foot strong{font-size:18px}.pc-shop-featured-foot button{padding:8px}.pc-shop-hero-actions{align-items:stretch}.pc-shop-hero-actions>a{flex:1;min-width:130px}.pc-shop-quick small{display:none}.pc-shop-featured .pc-section-header>a{font-size:11px}.pc-checkout-steps{gap:6px}.pc-checkout-steps span{font-size:9px}.pc-checkout-steps span b{width:21px;height:21px}.pc-confirmation-ref{align-items:start;flex-direction:column}.pc-confirmation-buttons{flex-direction:column}.pc-confirmation-buttons>a{width:100%;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.pc-shop-quick>a,.pc-shop-featured-card{transition:none!important}}
+
+/* Private My Fridge — premium inventory tracker. Mobile-first, no medicine advice. */
+.pc-fridge{max-width:1190px;margin:0 auto 50px}
+.pc-fridge-heading{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:6px 0 22px;padding:clamp(22px,4vw,42px);overflow:hidden;border-radius:23px;border:1px solid rgba(231,194,114,.26);background:radial-gradient(circle at 89% 37%,rgba(228,188,109,.16),transparent 40%),linear-gradient(120deg,#27291e,#151c1b)}
+.pc-fridge-heading h1{font:400 clamp(36px,5vw,53px)/1.1 Georgia,serif;letter-spacing:-.045em;color:#f5eee1;margin:12px 0}
+.pc-fridge-heading p{max-width:570px;font-size:13px;line-height:1.75;color:#bdb8ab;margin:0}
+.pc-fridge-heading-symbol{display:grid;place-items:center;width:150px;height:150px;flex:none;color:#e0bf79;border:1px solid #bb915249;border-radius:50%;font:115px/1 Georgia,serif;box-shadow:0 0 40px #ad864525}
+.pc-fridge-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:29px}
+.pc-fridge-stats>div{display:flex;flex-direction:column;gap:9px;min-width:0;padding:23px;border:1px solid rgba(233,207,149,.16);border-radius:16px;background:linear-gradient(135deg,#232721,#181d1c)}
+.pc-fridge-stats strong{font:400 38px Georgia,serif;color:#f2dba7}
+.pc-fridge-stats small{font-size:11px;color:#aaa99d}
+.pc-fridge-empty{display:grid;justify-items:center;text-align:center;gap:12px;padding:49px 20px!important;margin-bottom:25px}
+.pc-fridge-empty>span{font:75px Georgia,serif;color:#e9c684}
+.pc-fridge-empty h2{font:400 31px Georgia,serif;margin:0;color:#f2eadd}
+.pc-fridge-empty p{max-width:490px;font-size:13px;line-height:1.7;color:#bcb6a7;margin:0 0 10px}
+.pc-fridge-heading-row{display:flex;justify-content:space-between;align-items:end;gap:14px;margin:15px 0 17px}
+.pc-fridge-heading-row h2{font:400 29px Georgia,serif;color:#f2eada;margin:8px 0 0}
+.pc-fridge-heading-row p{color:#ada99f;font-size:12px;line-height:1.6;margin:8px 0 0;max-width:650px}
+.pc-fridge-heading-row>a{display:flex;align-items:center;gap:7px;font-size:12px;color:#e6c68a;font-weight:750;white-space:nowrap}
+.pc-fridge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin-bottom:31px}
+.pc-fridge-card{min-width:0;display:flex;flex-direction:column;padding:21px;background:linear-gradient(140deg,#212721,#171c1b);border:1px solid rgba(240,217,165,.16);border-radius:20px}
+.pc-fridge-card.pc-fridge-watch{border-color:rgba(228,177,92,.47)}
+.pc-fridge-card.pc-fridge-soon{border-color:rgba(214,134,93,.49)}
+.pc-fridge-card>header{display:flex;align-items:start;gap:14px;min-width:0}
+.pc-fridge-mark{display:grid;place-items:center;flex:none;width:58px;height:63px;border-radius:14px;background:radial-gradient(#4c442e,#2b2b20);color:#e9c77e;font:39px Georgia,serif;border:1px solid rgba(233,198,131,.22)}
+.pc-fridge-card>header>div:last-child{min-width:0}
+.pc-fridge-card>header h3{font:400 24px/1.25 Georgia,serif;color:#f5ebdb;margin:6px 0}
+.pc-fridge-card>header small:not(.pc-eyebrow){display:block;color:#a9a69b;font-size:10px;line-height:1.6}
+.pc-fridge-level{margin-top:21px;padding:20px 0;border-top:1px solid rgba(255,255,255,.09);border-bottom:1px solid rgba(255,255,255,.09)}
+.pc-fridge-level>div:first-child{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.pc-fridge-level>div:first-child>span{font-size:11px;color:#acae9f}
+.pc-fridge-level strong{font:400 27px Georgia,serif;color:#e8d3a3;white-space:nowrap}
+.pc-fridge-level strong small{font:600 11px system-ui,sans-serif;color:#c1b59c}
+.pc-fridge-track{position:relative;height:8px;overflow:hidden;border-radius:20px;background:#3d4240;margin-top:13px}
+.pc-fridge-track>span{display:block;height:100%;background:linear-gradient(90deg,#a88950,#f0d69b);border-radius:20px}
+.pc-fridge-soon .pc-fridge-track>span{background:linear-gradient(90deg,#c37e5e,#f4be9e)}
+.pc-fridge-forecast{display:flex;align-items:start;gap:13px;margin:19px 0}
+.pc-fridge-forecast-icon{display:grid;place-items:center;width:39px;height:39px;border-radius:11px;background:rgba(224,187,106,.12);color:#e4bf78;flex:none}
+.pc-fridge-forecast strong{display:block;color:#e8dabf;font-size:13px;margin:3px 0 6px}
+.pc-fridge-forecast small{color:#aaa99e;font-size:11px;line-height:1.55}
+.pc-fridge-edit{border-top:1px solid rgba(255,255,255,.07);padding-top:12px}
+.pc-fridge-edit>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:9px;padding:9px 0;color:#e7c891;font-size:12px;font-weight:750}
+.pc-fridge-edit>summary::-webkit-details-marker{display:none}
+.pc-fridge-edit>summary>.pc-icon{width:18px;height:18px}
+.pc-fridge-edit>summary>span{margin-left:auto;color:#b6a784}
+.pc-fridge-form{display:grid;gap:13px;padding-top:16px}
+.pc-fridge-form label{display:grid;gap:7px;color:#e0d7c6;font-size:12px;font-weight:700}
+.pc-fridge-form label small{color:#b1a998;font-size:10px;font-weight:400}
+.pc-fridge-form input,.pc-fridge-form select{width:100%;min-width:0;min-height:46px;padding:10px 13px;background:#101716;color:#fff;border:1px solid #575549;border-radius:10px;font:400 14px system-ui,sans-serif}
+.pc-fridge-form input:focus-visible,.pc-fridge-form select:focus-visible{outline:2px solid #e6c587;outline-offset:1px}
+.pc-fridge-frequency{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.pc-fridge-help{font-size:11px;line-height:1.65;color:#b6ae9f;margin:1px 0 0}
+.pc-fridge-form .pc-primary-link{border:0;cursor:pointer;justify-content:center;font-size:12px}
+.pc-fridge-archive{margin-top:auto;padding-top:15px;display:flex;justify-content:end}
+.pc-fridge-archive button{background:none;border:0;color:#aca69b;font-size:11px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.pc-fridge-import{margin:25px 0 28px;padding-top:9px}
+.pc-fridge-import-list{display:grid;gap:9px}
+.pc-fridge-import-row{display:flex;align-items:center;gap:14px;min-width:0;padding:16px;background:#1d2220;border:1px solid rgba(255,255,255,.09);border-radius:13px}
+.pc-fridge-import-icon{display:grid;place-items:center;flex:none;width:44px;height:47px;border-radius:11px;background:#333024;color:#d9b877;font:30px Georgia,serif}
+.pc-fridge-import-row>div{min-width:0;flex:1}
+.pc-fridge-import-row strong{display:block;color:#ebe5d9;font-size:13px;margin-bottom:5px}
+.pc-fridge-import-row small{display:block;color:#a9a69a;font-size:10px;line-height:1.7}
+.pc-fridge-import-row form{margin:0}
+.pc-fridge-import-row button{display:flex;align-items:center;justify-content:center;min-width:70px;min-height:42px;border:1px solid #d3ac67;border-radius:10px;background:linear-gradient(110deg,#e9cc93,#caa45f);color:#251e15;font-size:11px;font-weight:800;cursor:pointer}
+.pc-fridge-no-candidates{display:flex;align-items:center;gap:13px;padding:20px;border-radius:13px;background:#1a211e;color:#aaa89f}
+.pc-fridge-no-candidates>.pc-icon{color:#d9c18b}
+.pc-fridge-no-candidates p{flex:1;font-size:12px}
+.pc-fridge-no-candidates a{color:#e6c88e;font-size:11px}
+.pc-fridge-disclaimer,.pc-fridge-intro{display:flex;align-items:start;gap:15px;padding:20px;border:1px solid rgba(230,189,110,.24);background:#22221e;border-radius:15px}
+.pc-fridge-disclaimer>.pc-icon,.pc-fridge-intro>.pc-icon{color:#e8c889;flex:none}
+.pc-fridge-disclaimer strong,.pc-fridge-intro strong{font-size:12px;color:#e5d3ae}
+.pc-fridge-disclaimer p,.pc-fridge-intro p{font-size:11px;line-height:1.7;margin:5px 0;color:#c0b9ad}
+.pc-fridge-demo{max-width:700px;margin-top:15px}
+.pc-fridge-demo h2{font:400 27px Georgia,serif;margin:13px 0}
+.pc-fridge-demo p{font-size:12px;color:#b9b3a5;line-height:1.8}
+.pc-fridge-account-link{border-color:rgba(221,188,108,.48);background:linear-gradient(120deg,#323023,#1c2220)}
+.pc-fridge-home-banner{display:flex;align-items:center;gap:15px;margin:0 0 17px;padding:16px 20px;border-radius:15px;background:linear-gradient(115deg,#292a20,#1a211f);border:1px solid rgba(229,185,107,.28);color:#f1ead8;text-decoration:none}
+.pc-fridge-home-banner>span{display:grid;place-items:center;flex:none;width:48px;height:48px;border-radius:13px;background:#3b3727;color:#e7c481}
+.pc-fridge-home-banner>span .pc-icon{width:25px;height:25px}
+.pc-fridge-home-banner>div{min-width:0;flex:1;display:grid;gap:5px}.pc-fridge-home-banner strong{font-size:13px}.pc-fridge-home-banner small{font-size:11px;color:#b9b3a3}
+.pc-fridge-home-banner>.pc-icon{color:#e4c687}
+@media(max-width:800px){.pc-fridge-grid{grid-template-columns:1fr}.pc-fridge-heading-symbol{width:95px;height:95px;font-size:77px}.pc-fridge-heading{padding:25px}.pc-fridge-stats>div{padding:18px}}
+@media(max-width:530px){.pc-fridge-heading-symbol{display:none}.pc-fridge-heading h1{font-size:43px}.pc-fridge-heading-row h2{font-size:26px}.pc-fridge-stats{gap:6px}.pc-fridge-stats>div{padding:13px 10px}.pc-fridge-stats .pc-eyebrow{font-size:8px}.pc-fridge-stats strong{font-size:30px}.pc-fridge-stats small{font-size:9px}.pc-fridge-card{padding:16px}.pc-fridge-mark{width:46px;height:52px;font-size:30px}.pc-fridge-card>header h3{font-size:21px}.pc-fridge-level strong{font-size:23px}.pc-fridge-frequency{gap:8px}.pc-fridge-import-row{padding:12px;gap:9px}.pc-fridge-import-icon{width:36px;height:41px;font-size:25px}.pc-fridge-import-row button{min-width:59px;padding:8px}.pc-fridge-import-row small{font-size:9px}.pc-fridge-home-banner{padding:13px 15px}.pc-fridge-home-banner small{font-size:10px}}
