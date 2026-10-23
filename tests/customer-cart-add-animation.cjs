@@ -43,7 +43,7 @@ const dialog=new FakeElement('dialog'),closeBtn=new FakeElement('button'),descri
 dialog.localSelectors['[data-close-cart]']=closeBtn;
 dialog.localSelectors['.sf-cart-description']=description;
 const product=new FakeElement('span');
-product.dataset={approvedId:'7',approvedName:'Fixture research profile',approvedPrice:'0',approvedLive:'0'};
+product.dataset={approvedId:'7',approvedName:'Fixture research profile',approvedPrice:'9900',approvedLive:'0'};
 const add=new FakeElement('button');
 add.dataset={cartId:'7'};
 add.setAttribute('aria-label','Add fixture to test basket');
@@ -73,6 +73,7 @@ assert.equal(dialog.showModalCalls??0,0);
 add.click();
 assert.equal(JSON.parse(storage.get('ankh-approved-accessory-cart-v1'))['7'],1,'Item not saved');
 assert.equal(badge.textContent,'1','Header badge not updated');
+assert.equal(subtotal.textContent,'Preview £99.00','Demo basket must show retail price labelled as a preview');
 assert.equal(mobileBadge.textContent,'1','Mobile badge not updated');
 assert.equal(add.textContent,'✓ Added','Button success animation text missing');
 assert.equal(add.classList.contains('is-added'),true);
