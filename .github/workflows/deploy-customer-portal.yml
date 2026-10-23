@@ -40,6 +40,7 @@ jobs:
           php -l customer-portal/my-fridge.php
           php -l customer-portal/fridge-view.php
           php -l customer-portal/contact-settings.php
+          php -l customer-portal/tide-bank.php
           php -l customer-portal/request-confirmation.php
           php -l customer-portal/request-watch.php
           php -l customer-portal/request-list-view.php
