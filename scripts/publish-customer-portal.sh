@@ -26,7 +26,7 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php request-confirmation.php shop-home.php contact-settings.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php request-confirmation.php shop-home.php contact-settings.php my-fridge.php fridge-view.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
 source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
@@ -34,6 +34,8 @@ for file in "${files[@]}"; do
 done
 echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/shop-home.php
+"$php" -l customer-portal/my-fridge.php
+"$php" -l customer-portal/fridge-view.php
 "$php" -l customer-portal/contact-settings.php
 "$php" -l customer-portal/request-confirmation.php
 "$php" -l customer-portal/request-watch.php
@@ -53,6 +55,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/preview.php
 "$php" -l scripts/configure-customer-preview.php
 "$php" -l scripts/customer-portal-accounts.php
+"$php" tests/customer-fridge.php
 "$php" tests/customer-shopping-ux.php
 "$php" tests/customer-collection.php
 "$php" tests/customer-account-features.php
