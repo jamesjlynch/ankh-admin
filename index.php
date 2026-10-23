@@ -4786,6 +4786,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 ?>
 <div class="heading dashboard-heading"><div><p class="focus-date"><?=e($now->format('l, j F'))?></p><h1>Today, in focus.</h1><p class="muted page-description">Your orders. Your next steps.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <nav class="ux-mobile-actions" aria-label="Quick actions">
+ <?php if($premiumV2Preview):?><a href="?view=packing"><span aria-hidden="true">▣</span><strong>Packing station</strong></a><?php endif;?>
  <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
  <a href="?view=orders&amp;scope=to_deliver"><span aria-hidden="true">↗</span><strong>Deliveries</strong></a>
  <a href="?view=stock"><span aria-hidden="true">▣</span><strong>Stock</strong></a>
@@ -4930,6 +4931,7 @@ $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['t
 ?>
 <div class="heading orders-page-heading"><div><h1><?=$ordersSection==='backorders'?'Back orders':'Orders'?></h1><p class="muted page-description"><?=$ordersSection==='backorders'?'Stock needed for your waiting orders.':'Search, update or repeat any order.'?></p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <nav class="ux-mobile-scopes order-view-nav" aria-label="Order views">
+ <?php if($premiumV2Preview):?><a class="packing-v2-orders-link" href="?view=packing">Visual packing station ↗</a><?php endif;?>
  <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
  <a href="?view=orders&amp;section=backorders" <?=$ordersSection==='backorders'?'aria-current="page"':''?>>Back orders <b><?=count($backOrders)?></b></a>
  <a href="?view=orders&amp;section=recurring" <?=$ordersSection==='recurring'?'aria-current="page"':''?>>Recurring</a>
