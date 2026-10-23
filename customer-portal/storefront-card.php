@@ -15,10 +15,10 @@ $url=pfUrl(['product'=>$id]);
 <?php if($summary!==''):?><p><?=pfEscape($summary)?></p><?php endif;?>
 <div class="sf-card-meta"><?php if(($s=pfStrength($p))!==''):?><span><?=pfEscape($s)?></span><?php endif;?>
 <?php if(($f=pfFormat($p))!=='Other'):?><span><?=pfEscape($f)?></span><?php endif;?></div>
-<?php if(isset($buyable[$id])):?>
-<div class="sf-shop-line"><strong>£<?=number_format((int)$buyable[$id]['price']/100,2)?></strong>
-<button type="button" class="sf-add-cart" data-cart-id="<?=$id?>" data-cart-price="<?=(int)$buyable[$id]['price']?>" data-cart-name="<?=pfEscape($name)?>" aria-label="Add <?=pfEscape($name)?> to basket">Add to basket ＋</button></div>
-<?php endif;?>
-<div class="sf-card-bottom"><button type="button" class="sf-save-action sf-save-mini" data-save-id="<?=$id?>" aria-pressed="false" aria-label="Save <?=pfEscape($name)?> to research shortlist">♡ Save</button>
-<button type="button" class="sf-card-quick" data-quick-name="<?=pfEscape($name)?>" data-quick-kind="<?=pfEscape($kind)?>" data-quick-summary="<?=pfEscape($summary)?>" data-quick-href="<?=pfEscape($url)?>" data-quick-photo="<?=pfEscape($photo)?>" aria-label="Quick view <?=pfEscape($name)?>">Quick view <span aria-hidden="true">↗</span></button>
-</div></div></article>
+<?php if(isset($demoProducts[$id])):?>
+<div class="sf-shop-line">
+<?php if(isset($buyable[$id])):?><strong>£<?=number_format((int)$buyable[$id]['price']/100,2)?></strong><?php else:?><span class="sf-demo-label">Demo basket · No payment</span><?php endif;?>
+<button type="button" class="sf-add-cart" data-cart-id="<?=$id?>" aria-label="Add <?=pfEscape($name)?> to test basket">Add to basket <span aria-hidden="true">＋</span></button></div>
+<?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>
+<div class="sf-card-bottom" role="group" aria-label="<?=pfEscape($name)?> quick actions"><button type="button" class="sf-save-action sf-save-mini" data-save-id="<?=$id?>" aria-pressed="false" aria-label="Save <?=pfEscape($name)?> to research shortlist">♡ Save</button>
+<button type="button" class="sf-card-quick" data-quick-name="<?=pfEscape($name)?>" data-quick-kind="<?=pfEscape($kind)?>" data-quick-summary="<?=pfEscape($summary)?>" data-quick-href="<?=pfEscape($url)?>" data-quick-photo="<?=pfEscape($photo)?>" aria-label="Quick view <?=pfEscape($name)?>">View details <span aria-hidden="true">↗</span></button></div></div></article>

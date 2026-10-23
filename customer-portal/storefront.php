@@ -65,13 +65,15 @@ try {
 } catch (Throwable $e) { error_log('ANKH public contact link: '.$e->getMessage()); }
 // Public site reads only explicitly approved accessory IDs and staff-verified business facts.
 // An absent private database/table means no items can be checked out (fail closed).
-$buyable=[];$businessFacts=null;
+$buyable=[];$businessFacts=null;$demoProducts=[];
+foreach($products as $p)$demoProducts[(int)$p['id']]=true; // Demo basket defaults to all published products.
 try{
     $portalPath=is_array($config)?($config['portal_database_path']??''):'';
     if(is_string($portalPath)&&is_file($portalPath)){
         $store=new PDO('sqlite:'.$portalPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
         $store->exec('PRAGMA query_only=ON; PRAGMA busy_timeout=2000');
         $buyable=sfCommerceEligible($store,$db);
+        $demoProducts=sfDemoVisible($store,$products);
         $businessFacts=sfCommerceFacts($store);
     }
 }catch(Throwable $e){error_log('ANKH public shop setup: '.$e->getMessage());}

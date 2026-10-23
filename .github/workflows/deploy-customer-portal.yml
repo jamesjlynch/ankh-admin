@@ -56,6 +56,8 @@ jobs:
           php -l customer-portal/storefront-commerce.php
           php -l customer-portal/storefront-staff.php
           php -l customer-portal/shop-checkout.php
+          php -l customer-portal/shop-demo.php
+          node --check customer-portal/shop-demo.js
           node --check customer-portal/checkout.js
           node --check customer-portal/storefront-cart.js
           node --check customer-portal/account.js
@@ -76,6 +78,7 @@ jobs:
           python3 tests/customer-storefront-preview-http.py
           python3 tests/customer-public-storefront-http.py
           php tests/customer-storefront-commerce.php
+          php tests/customer-demo-basket.php
       - name: Configure deployment access
         env:
           SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}

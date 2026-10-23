@@ -1,0 +1,31 @@
+name: Verify ANKH mobile cards and guest demo basket
+on:
+  push:
+    branches: [fix/ankh-mobile-cards-all-products-demo]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite,mbstring
+      - name: PHP and JavaScript syntax
+        run: |
+          set -euo pipefail
+          for p in customer-portal/storefront.php customer-portal/storefront-commerce.php customer-portal/storefront-card.php customer-portal/storefront-experience.php customer-portal/storefront-staff.php customer-portal/shop-demo.php; do php -l "$p"; done
+          node --check customer-portal/shop-demo.js
+          node --check customer-portal/storefront-cart.js
+          node --check customer-portal/storefront.js
+      - name: Public demo and secure checkout regression
+        run: |
+          set -euo pipefail
+          php tests/customer-demo-basket.php
+          php tests/customer-storefront-commerce.php
+          python3 tests/customer-public-storefront-http.py
+          php tests/customer-collection.php
