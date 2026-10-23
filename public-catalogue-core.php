@@ -81,9 +81,10 @@ function ankhPublicType(string $name): string {
     return 'Research compound';
 }
 function ankhPublicNotice():string {
-    return 'Technical research information only. Not intended, authorised or supplied as a medicine, '
-        .'treatment, dietary supplement or veterinary product. Not for human or animal consumption '
-        .'or administration. No dosage, injection, therapeutic or self-treatment instructions are provided. '
-        .'Published studies describe specific research materials and conditions, not proof that ANKH products '
-        .'are safe, effective, sterile, equivalent to trial products, or suitable for medical use.';
+    return 'Technical research information only. Not intended for human or veterinary consumption '
+        .'or administration. No medical, therapeutic, dosage, injection or self-treatment instructions '
+        .'are provided. No clinical-use approval or medicine licence is claimed. A research-use disclaimer '
+        .'does not determine the legal classification of any substance. Published studies describe '
+        .'specific experimental materials, not proof that ANKH materials are safe, effective, sterile, '
+        .'equivalent to trial products, or suitable for medical use.';
 }
