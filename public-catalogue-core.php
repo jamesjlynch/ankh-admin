@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 /**
- * Public catalogue gate. Public product visibility is INDEPENDENT of account
- * catalogue visibility, stock and order availability. Default: no public products.
- * The admin must record an external regulatory/advertising assessment per product.
- * Recording a review is NOT a government authorisation or substitute for advice.
+ * The public read-only product index mirrors existing customer catalogue visibility.
+ * Historical public-review records are retained for audit compatibility but are
+ * not an additional publishing prerequisite. Product legal classification still
+ * requires a separate professional assessment; no web flag authorises medicines.
  */
 function ankhPublicReviewInit(PDO $db): void {
     $db->exec('CREATE TABLE IF NOT EXISTS catalogue_public_reviews (
@@ -51,24 +51,32 @@ function ankhPublicReviewSave(PDO $db,int $productId,string $decision,array $inp
         review_basis=excluded.review_basis,reviewed_at=excluded.reviewed_at,updated_at=excluded.updated_at')
         ->execute([$productId,$name,$basis,$now,$now]);
 }
+/**
+ * Reuse precisely the products previously published in the customer catalogue.
+ * Public content has no price/stock/order/customer fields and never falls back
+ * to all active products if the visibility table or catalogue content is absent.
+ * External regulatory review is still required; this is a technical visibility rule.
+ */
 function ankhPublicCatalogueProducts(PDO $db):array {
-    if (!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='catalogue_public_reviews'")->fetchColumn()) return [];
-    if (!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_content'")->fetchColumn()) return [];
-    $hasInfo=(bool)$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_information'")->fetchColumn();
-    $sql='SELECT p.id,p.name,c.description,c.image_mime,r.reviewed_at'.
+    $required=['customer_catalogue_visibility','customer_catalogue_content'];
+    $tables=array_flip($db->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN));
+    foreach ($required as $table) if (!isset($tables[$table])) return [];
+    $hasInfo=isset($tables['customer_catalogue_information']);
+    $sql='SELECT p.id,p.name,c.description,c.image_mime'.
         ($hasInfo?',i.information':'').
-        ' FROM products p JOIN catalogue_public_reviews r ON r.product_id=p.id
-          JOIN customer_catalogue_content c ON c.product_id=p.id'.
+        ' FROM products p
+          JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1
+          LEFT JOIN customer_catalogue_content c ON c.product_id=p.id'.
         ($hasInfo?' LEFT JOIN customer_catalogue_information i ON i.product_id=p.id':'').
-        ' WHERE p.active=1 AND r.public_enabled=1 AND length(trim(r.review_basis))>=80
-          AND length(trim(r.reviewed_by))>=3 AND length(trim(c.description))>=60
+        ' WHERE p.active=1
           ORDER BY p.name COLLATE NOCASE';
     $rows=$db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     foreach ($rows as &$row) {
+        $row['description']=(string)($row['description']??'');
         $row['information']=$hasInfo?json_decode((string)($row['information']??''),true):[];
         if (!is_array($row['information'])) $row['information']=[];
-        unset($row['information']['coa_url']); // Do not publicly claim a COA without independent batch verification.
-        $row['has_photo']=in_array((string)$row['image_mime'],['image/png','image/webp','image/jpeg'],true);
+        unset($row['information']['coa_url']); // No automatic claim of batch verification.
+        $row['has_photo']=in_array((string)($row['image_mime']??''),['image/png','image/webp','image/jpeg'],true);
         unset($row['image_mime']);
     } unset($row);
     return $rows;
