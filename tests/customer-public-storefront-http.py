@@ -72,6 +72,25 @@ def verify():
             home=get("/")
             assert "Discover the" in home and "ANKH collection" in home
             assert "Visible Study Material" in home
+            assert 'data-cart-id="1"' in home, "Published product must show a no-login demo Add to basket button"
+            assert 'data-approved-id="1"' in home and 'data-approved-live="0"' in home
+            assert 'sf-card-quick' in home and 'sf-save-mini' in home
+            demo=get("/shop-demo.php")
+            assert "Visible Study Material" in demo and "Simulate checkout" in demo
+            assert "Hidden Compound" not in demo and "Inactive Material" not in demo
+            request=urllib.request.Request(host+"/shop-demo.php",data=b"confirmed=1",method="POST")
+            try:
+                urllib.request.urlopen(request,timeout=8)
+                raise AssertionError("Demo must reject POST submissions")
+            except urllib.error.HTTPError as err:
+                assert err.code==405,err.code
+            with sqlite3.connect(portal) as db:
+                db.executescript("CREATE TABLE storefront_demo_visibility(product_id INTEGER PRIMARY KEY,enabled INTEGER,updated_at INTEGER); INSERT INTO storefront_demo_visibility VALUES(1,0,1);")
+            disabled=get("/")
+            assert 'data-cart-id="1"' not in disabled and "Reference only" in disabled
+            assert "Visible Study Material" not in get("/shop-demo.php"), "Disabled item must not appear in demo checkout"
+            with sqlite3.connect(portal) as db:db.execute("UPDATE storefront_demo_visibility SET enabled=1 WHERE product_id=1")
+            assert 'data-cart-id="1"' in get("/"), "Staff re-enabled product should be offered in demo basket"
             assert "Hidden Compound" not in home and "Inactive Material" not in home
             assert "Private Test Person" not in home
             assert "£99" not in home and "9900" not in home and "4400" not in home
