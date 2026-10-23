@@ -16,6 +16,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=2">
 <script defer src="./storefront.js?v=2"></script>
+<script defer src="./storefront-cart.js?v=1"></script>
 </head>
 <body class="sf-public">
 <a href="#main" class="sf-skip">Skip to content</a>
@@ -152,6 +153,9 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 </section>
 <?php endif;?>
 </main>
+<div id="sf-approved-items" hidden aria-hidden="true">
+<?php foreach($buyable as $item):?><span data-approved-id="<?=(int)$item['id']?>" data-approved-name="<?=pfEscape($item['name'])?>" data-approved-price="<?=(int)$item['price']?>"></span><?php endforeach;?>
+</div>
 <dialog id="sf-cart-drawer" class="sf-cart-drawer" aria-labelledby="sf-cart-heading">
 <div class="sf-cart-head"><div><span class="sf-kicker">YOUR ANKH BASKET</span><h2 id="sf-cart-heading">Your selections<span class="sf-gold">.</span></h2></div><button type="button" data-close-cart class="sf-cart-dismiss" aria-label="Close basket">×</button></div>
 <p class="sf-cart-description">Approved non-medicinal accessories only. Your selections are saved on this device. Submission is an order request, not payment.</p>
