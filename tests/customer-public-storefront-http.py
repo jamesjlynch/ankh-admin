@@ -104,9 +104,19 @@ def verify():
             saved=get("/?saved=1")
             assert "Saved profiles" in saved and "data-saved-grid" in saved and "data-save-id" in saved
             assert "Hidden Compound" not in saved and "Inactive Material" not in saved
-            assert 'src="./storefront.js?v=2"' in home
+            assert 'src="./storefront.js?v=3"' in home
+            assert 'storefront-luxury.css?v=1' in home and 'storefront-luxury.js?v=2' in home
+            assert 'sf-card-v3' in home and 'data-filter-name="Visible Study Material"' in home
+            assert 'data-full-collection="1"' in home
+            assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
-            assert "Visible Study Material" in get("/?product=1")
+            profile=get("/?product=1")
+            assert "Visible Study Material" in profile
+            assert 'sf-gallery-track' in profile and 'data-gallery-next' in profile and 'data-gallery-zoom' in profile
+            assert 'sf-gallery-specification' in profile and 'sf-product-zoom' in profile
+            assert 'sf-mobile-product-action' in profile and 'sf-mobile-product-add' in profile
+            assert 'data-cart-id="1"' in profile and 'sf-quick-add' in home
+            assert 'src="./storefront-luxury.js?v=2"' in profile
             assert "Preclinical laboratory observations" in get("/?product=1")
             get("/?product=2",404)
             get("/?product=3",404)
