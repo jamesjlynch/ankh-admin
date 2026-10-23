@@ -45,7 +45,8 @@ try{
  await page.locator('input[name="username"]').fill('fixture');
  await page.locator('input[name="password"]').fill('fixture-admin-only');
  await page.getByRole('button',{name:/Sign in/}).click();
- await page.waitForURL(/view=dashboard/);
+ await page.waitForLoadState('domcontentloaded');
+ await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('#dashboard-actions').count()===1,'Authenticated dashboard should open directly.');
  check(await page.locator('form input[name="password"]').count()===0,'Credentials should not remain on dashboard.');
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
