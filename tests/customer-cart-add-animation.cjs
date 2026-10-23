@@ -21,6 +21,8 @@ class FakeElement {
         this.attributes={};this.open=false;this.disabled=false;this.href='';
         this.localSelectors={};
     }
+    set className(v){this.classes=new Set(String(v).split(/\s+/).filter(Boolean));}
+    get className(){return Array.from(this.classes).join(' ');}
     get textContent(){return this.childNodes.length?this.childNodes.map(x=>x.textContent).join(''):this._text;}
     set textContent(text){this._text=String(text);this.childNodes=[];}
     get offsetWidth(){return 100;}
