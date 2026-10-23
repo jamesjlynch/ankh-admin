@@ -47,6 +47,21 @@ try {
     http_response_code(503);
     exit('<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ANKH</title></head><body style="background:#0b0d0c;color:#e8d7ad;padding:12vh 8vw;font:16px system-ui"><h1>☥ ANKH</h1><p>The collection is temporarily unavailable.</p><p><a style="color:#e8d7ad" href="./?login=1">Customer account</a> · <a style="color:#e8d7ad" href="mailto:info@ankhpeptides.com">Contact us</a></p></body></html>');
 }
+// Optional publicly configured WhatsApp Business contact. Never expose private Admin numbers.
+$whatsappUrl=null;
+try {
+    $portalPath=$config['portal_database_path']??null;
+    if(is_string($portalPath)&&is_file($portalPath)) {
+        $contacts=new PDO('sqlite:'.$portalPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+        $contacts->exec('PRAGMA query_only=ON; PRAGMA busy_timeout=1000');
+        $exists=$contacts->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_public_settings'")->fetchColumn();
+        if($exists){
+            $number=$contacts->query("SELECT value FROM portal_public_settings WHERE name='whatsapp'")->fetchColumn();
+            if(is_string($number)&&preg_match('/^[1-9][0-9]{7,14}$/D',$number))$whatsappUrl='https://wa.me/'.$number.'?text='.rawurlencode('Hi ANKH, I need some help.');
+        }
+        $contacts=null;
+    }
+} catch (Throwable $e) { error_log('ANKH public contact link: '.$e->getMessage()); }
 if(isset($_GET['image'])) {http_response_code(404);exit;}
 $id=filter_var($_GET['product']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 $selected=null;
