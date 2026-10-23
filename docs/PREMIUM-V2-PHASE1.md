@@ -109,11 +109,22 @@ Avoid bright yellow, gold-on-gold fields, gratuitous animation, text truncated w
 
 **Pass when:** horizontal tables scroll inside their own containers; export buttons stay usable; changes to supplier quantities require existing confirmations.
 
+## Phase 2A: Products V2 — implemented on the same development branch
+
+- **Photo-led active-products catalogue** replaces the visual grid *only while an authenticated admin opts into Premium V2*. Each photograph is retrieved from the existing catalogue image endpoint; missing photos use an ANKH fallback. Existing products retain their current management forms.
+- **Dedicated product workspace** at \`?view=product&id=ID\`, rendering the product image, retail and Family & Friends prices, cost, indicative margin, Jay/Tony/unallocated quantities, reserved/physical totals, incoming supplier units, low-stock threshold, 30-day order quantities, latest 12 order lines and latest 8 stock movements.
+- **Safe edit handoff**: “Edit product settings” links to \`?view=products&edit_product=ID\`; the original product editor (including photo uploads and physical stock count confirmations) opens on that specific product and remains unchanged.
+- **Order history deep links** prefill the existing Orders search field, opening the corresponding record list without affecting statuses.
+- **No database schema or business-logic edits.** Prices and stock figures are read from current tables. The product workspace makes no POSTs.
+- **Regression test** \`tests/product-v2.php\` uses isolated SQLite data to confirm counts, pricing, photo links and customer-order activity; the atomic publisher verifies both new product assets.
+
+**Important:** this stage is a new UI and read-only analytics surface. The existing “create order” button leads to the normal new-order flow without automatically selecting a product. Larger product photo uploads are still served through the existing secure image endpoint; purpose-built thumbnail resizing remains a later performance improvement. The entire stage still requires real iPhone visual review.
+
 ## Next build slices after Phase 1A
 
 **Phase 1B — device QA and refinement:** collect actual iPhone screenshots at 320 / 375 / 390 / 430 CSS pixels and desktop at 1024 / 1440. Fix wrapping, sticky overlays, alerts, focus, and any conflicting accumulated CSS. Approve consistent design before making it default.
 
-**Phase 2 — Products V2:** new dedicated product detail page; large photos; grouped commercial, stock, demand, purchase-cost data; photo optimisation/thumb delivery. Avoid duplicating product fields.
+**Phase 2 — Products V2:** dedicated overview and photo-led catalogue now implemented in this branch; next: visual QA, thumbnail optimisation and deeper integrated supplier insights. Avoid duplicating editing fields.
 
 **Phase 3 — Order/Packing V2:** visual packing station and readable order journey. Define audited picking workflow that never changes delivery/payment without explicit action.
 
