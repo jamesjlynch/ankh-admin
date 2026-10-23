@@ -1,42 +1,32 @@
 <?php
 declare(strict_types=1);
+/**
+ * Live public technical index must mirror the ALREADY published
+ * customer catalogue visibility (not all active products).
+ */
 require dirname(__DIR__).'/public-catalogue-core.php';
 require dirname(__DIR__).'/customer-catalogue.php';
-function checkPublic(bool $value,string $message):void { if (!$value) throw new RuntimeException($message); }
+function checkPublic(bool $v,string $message):void { if(!$v) throw new RuntimeException($message); }
 $db=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $db->exec('PRAGMA foreign_keys=ON;CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,price INTEGER,active INTEGER,stock_qty INTEGER,cost INTEGER);
-INSERT INTO products VALUES(1,"KPV 10mg",2299,1,6,450),(2,"Retatrutide 10mg",4500,1,2,900),(3,"Pen",2000,0,3,500);');
+INSERT INTO products VALUES(1,"KPV 10mg",2299,1,6,450),(2,"Retatrutide 10mg",4500,1,2,900),(3,"Pen",2000,0,3,500),(4,"SS-31 10mg",2600,1,2,400);');
 $before=$db->query('SELECT * FROM products ORDER BY id')->fetchAll();
-checkPublic(ankhPublicCatalogueProducts($db)===[],'Public index must default to closed');
-ankhPublicReviewInit($db);
-checkPublic(ankhPublicCatalogueProducts($db)===[],'Creating review table must not publish anyone');
+checkPublic(ankhPublicCatalogueProducts($db)===[],'No visibility table must not expose all active products');
 ankhCatalogueInit($db);
-ankhCatalogueSaveContent($db,1,'KPV technical description of chemical identity and laboratory literature; technical use only.',null,false,true,['sequence'=>'Lys-Pro-Val','research'=>'Preclinical models','purity'=>'']);
-checkPublic(ankhPublicCatalogueProducts($db)===[],'Customer visibility must not grant public visibility');
-try {
- ankhPublicReviewSave($db,1,'approve',['reviewed_by'=>'A Person','review_basis'=>str_repeat('a',100),'checked_classification'=>'1']);
- throw new RuntimeException('Incomplete attestation accepted');
-} catch(InvalidArgumentException $e){}
-try {
- ankhPublicReviewSave($db,3,'approve',['reviewed_by'=>'A Person','review_basis'=>str_repeat('a',100),'checked_classification'=>'1','checked_advertising'=>'1','checked_documents'=>'1']);
- throw new RuntimeException('Inactive product approved');
-} catch(InvalidArgumentException $e){}
-ankhPublicReviewSave($db,1,'approve',[
-'reviewed_by'=>'External reviewer','review_basis'=>'Independent professional regulatory review reference 2026-10-23, product classification, intended use and non-promotional copy checked.',
-'checked_classification'=>'1','checked_advertising'=>'1','checked_documents'=>'1',
-]);
+checkPublic(ankhPublicCatalogueProducts($db)===[],'Unpublished products must stay private');
+ankhCatalogueSaveContent($db,1,'KPV scientific compound information and research details. No advice for administration.',null,false,true,['sequence'=>'Lys-Pro-Val','research'=>'Preclinical model','coa_url'=>'https://example.com/coa']);
+ankhCatalogueSaveContent($db,2,'The scientific profile contains identity and experimental evidence, but was hidden.',null,false,false,['sequence'=>'ABC']);
+ankhCatalogueSaveContent($db,3,'This inactive accessory is marked customer visible, but inactive.',null,false,true);
+ankhCatalogueSaveContent($db,4,'This visible research item has extensive scientific information.',null,false,true);
 $rows=ankhPublicCatalogueProducts($db);
-checkPublic(count($rows)===1 && $rows[0]['name']==='KPV 10mg','Only separately reviewed profile may be public');
-checkPublic(!isset($rows[0]['price'],$rows[0]['cost'],$rows[0]['stock_qty']),'Public query must not disclose business fields');
-checkPublic(isset($rows[0]['information']['sequence']) && !isset($rows[0]['information']['coa_url']),'Science allowed, COA not auto-claimed');
-checkPublic(str_contains(ankhPublicNotice(),'Not intended for human or veterinary consumption'),'Every public profile has prominent health disclaimer');
-ankhCatalogueSaveContent($db,1,'Revised laboratory-only description of chemical identity and experimental evidence.',null,false,true,['research'=>'Preclinical models']);
-checkPublic(ankhPublicCatalogueProducts($db)===[],'Editing a reviewed profile revokes public release');
-ankhPublicReviewSave($db,1,'approve',[
-'reviewed_by'=>'External reviewer','review_basis'=>'Independent professional regulatory review reference 2026-10-23, product classification, intended use and non-promotional copy checked.',
-'checked_classification'=>'1','checked_advertising'=>'1','checked_documents'=>'1',
-]);
-ankhPublicReviewSave($db,1,'hide',[]);
-checkPublic(ankhPublicCatalogueProducts($db)===[],'Revocation must immediately unpublish');
-checkPublic($before===$db->query('SELECT * FROM products ORDER BY id')->fetchAll(),'Names, prices, costs, stock and activation must not change');
-echo "Public catalogue gate, review attestations, medical warnings, confidentiality and product protection passed.\n";
+checkPublic(count($rows)===2,'Only active previously-published products should appear');
+checkPublic(array_column($rows,'name')===['KPV 10mg','SS-31 10mg'],'Product names/ordering must reflect customer visibility');
+checkPublic(!isset($rows[0]['price'],$rows[0]['cost'],$rows[0]['stock_qty'],$rows[0]['reviewed_at']),'Public listing must not expose price, stock, costs or review metadata');
+checkPublic(isset($rows[0]['information']['sequence'])&&!isset($rows[0]['information']['coa_url']),'Science included but unverified COA links not automatically exposed');
+checkPublic(str_contains(ankhPublicNotice(),'Not intended for human or veterinary consumption'),'Medical-use warning required');
+ankhCatalogueSaveContent($db,4,'Revised scientific literature and chemical identity.',null,false,false);
+checkPublic(count(ankhPublicCatalogueProducts($db))===1,'Hidden customer product must immediately disappear from public listings');
+ankhCatalogueSaveContent($db,4,'Revised scientific literature and chemical identity.',null,false,true);
+checkPublic(count(ankhPublicCatalogueProducts($db))===2,'Republished customer product should automatically return');
+checkPublic($before===$db->query('SELECT * FROM products ORDER BY id')->fetchAll(),'Names, prices, costs and stock must be unchanged');
+echo "PASS: public reference mirrors existing published active products; hidden and inactive stay hidden; no sensitive stock/price data.\n";
