@@ -16,9 +16,9 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
 <link rel="stylesheet" href="./storefront-luxury.css?v=1">
-<script defer src="./storefront.js?v=2"></script>
+<script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
-<script defer src="./storefront-luxury.js?v=1"></script>
+<script defer src="./storefront-luxury.js?v=2"></script>
 </head>
 <body class="sf-public <?=$selected?'sf-is-detail':'sf-is-collection'?>">
 <a href="#main" class="sf-skip">Skip to content</a>
