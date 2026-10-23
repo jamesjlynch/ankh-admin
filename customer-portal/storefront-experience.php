@@ -26,7 +26,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <a href="./" <?=!$selected?'aria-current="page"':''?>>Collection</a>
 <a href="./#sf-process">Our approach</a>
 <a href="./public-catalogue.php">Research library</a>
-<a href="mailto:info@ankhpeptides.com">Contact</a>
+<?php if(!empty($whatsappUrl)):?><a href="<?=pfEscape($whatsappUrl)?>" rel="noopener noreferrer" target="_blank">WhatsApp support ↗</a><?php else:?><a href="mailto:info@ankhpeptides.com">Contact</a><?php endif;?>
 </nav>
 <a class="sf-saved-entry" href="./?saved=1" aria-label="Open saved research shortlist">Saved <span data-saved-count>0</span></a>
 <a class="sf-cart-nav sf-account-entry" href="./?tab=home" aria-label="Open your ANKH customer account"><span class="sf-user-symbol" aria-hidden="true">◉</span> My Account <span aria-hidden="true">↗</span></a>
@@ -77,7 +77,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <?php foreach(['strength'=>'Strength / quantity','presentation'=>'Supplied form','appearance'=>'Appearance','peptide_type'=>'Material type','amino_length'=>'Amino-acid length','formula'=>'Formula','weight'=>'Molecular weight','sequence'=>'Sequence','cas'=>'CAS number','purity'=>'Listed purity','storage'=>'Storage'] as $key=>$label):
 if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?></dt><dd><?=pfEscape((string)$info[$key])?></dd></div><?php endforeach;?>
 </dl><p>Specifications are provided as reference information and are not a substitute for a batch-specific certificate.</p></div>
-<div class="sf-assist-card"><span class="sf-kicker">NEED CLARIFICATION?</span><h3>Talk to ANKH.</h3><p>Questions about existing orders, product documentation or your account?</p><a href="mailto:info@ankhpeptides.com?subject=ANKH%20product%20enquiry">Contact support ↗</a></div>
+<div class="sf-assist-card"><span class="sf-kicker">NEED CLARIFICATION?</span><h3>Talk to ANKH.</h3><p>Questions about existing orders, product documentation or your account?</p><?php if(!empty($whatsappUrl)):?><a href="<?=pfEscape($whatsappUrl)?>" target="_blank" rel="noopener noreferrer">WhatsApp ANKH ↗</a><?php else:?><a href="mailto:info@ankhpeptides.com?subject=ANKH%20product%20enquiry">Contact support ↗</a><?php endif;?></div>
 </aside></section>
 <?php if($related):?><section class="sf-related"><div class="sf-section-title"><div><span class="sf-kicker">MORE TO EXPLORE</span><h2>Continue researching<span class="sf-gold">.</span></h2></div></div>
 <div class="sf-grid">
