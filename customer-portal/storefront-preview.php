@@ -43,7 +43,7 @@ try {
     foreach($db->query('SELECT id,name,description,price,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE') as $row) {
         $id=(int)$row['id'];$m=$metadata[$id]??[];
         $p=['id'=>$id,'name'=>(string)$row['name'],
-            'description'=>(string)($m['description']?:$row['description']??''),
+            'description'=>(string)((isset($m['description']) && trim((string)$m['description']) !== '') ? $m['description'] : ($row['description'] ?? '')),
             'price'=>max(0,(int)$row['price']),
             'category'=>ankhCatalogueKind((string)$row['name']),
             'information'=>(array)($m['information']??[]),
@@ -100,7 +100,7 @@ foreach($_SESSION['sf_preview_cart'] as $id=>$qty) {
 $view=($_GET['view']??'')==='basket'?'basket':'browse';
 $productId=filter_var($_GET['product']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 $selected=($productId!==false && $productId!==null)?($byId[(int)$productId]??null):null;
-$search=trim((string)($_GET['q']??''));if(mb_strlen($search)>70)$search=mb_substr($search,0,70);
+$search=trim((string)($_GET['q']??''));if(strlen($search)>280)$search=substr($search,0,280);
 $category=(string)($_GET['category']??'All');
 $categories=['All','Research materials','Storage','Stationery'];
 if(!in_array($category,$categories,true))$category='All';
@@ -165,7 +165,7 @@ if($productId!==false && $productId!==null && !$selected)http_response_code(404)
  <div class="sf-grid"><?php foreach($filtered as $p):?>
  <article class="sf-card"><a class="sf-card-image" href="<?=sfE(sfLink(['product'=>$p['id']]))?>" aria-label="View <?=sfE($p['name'])?>">
  <span class="sf-card-topline"><?= $p['published']?'PUBLISHED':'STAFF ONLY' ?></span><?php if($p['photo']):?><img src="<?=sfE(sfLink(['image'=>$p['id']]))?>" loading="lazy" decoding="async" alt="<?=sfE($p['name'])?>"><?php else:?><span class="sf-card-placeholder">☥</span><?php endif;?><span class="sf-card-view">View details ↗</span></a>
- <div class="sf-card-copy"><span class="sf-kicker"><?=sfE($p['category'])?></span><h3><a href="<?=sfE(sfLink(['product'=>$p['id']]))?>"><?=sfE($p['name'])?></a></h3><p><?=sfE(mb_substr(ankhCatalogueSummary($p['description']),0,135))?><?=mb_strlen(ankhCatalogueSummary($p['description']))>135?'…':''?></p><div class="sf-card-bottom"><div><strong><?=sfP($p['price'])?></strong><small>Preview retail price</small></div><form method="post"><input type="hidden" name="csrf" value="<?=sfE($_SESSION['sf_preview_csrf'])?>"><input type="hidden" name="action" value="add"><input type="hidden" name="product_id" value="<?=$p['id']?>"><input type="hidden" name="quantity" value="1"><button type="submit" aria-label="Add <?=sfE($p['name'])?> to preview basket">＋</button></form></div></div></article>
+ <div class="sf-card-copy"><span class="sf-kicker"><?=sfE($p['category'])?></span><h3><a href="<?=sfE(sfLink(['product'=>$p['id']]))?>"><?=sfE($p['name'])?></a></h3><p><?=sfE(substr(ankhCatalogueSummary($p['description']),0,135))?><?=strlen(ankhCatalogueSummary($p['description']))>135?'…':''?></p><div class="sf-card-bottom"><div><strong><?=sfP($p['price'])?></strong><small>Preview retail price</small></div><form method="post"><input type="hidden" name="csrf" value="<?=sfE($_SESSION['sf_preview_csrf'])?>"><input type="hidden" name="action" value="add"><input type="hidden" name="product_id" value="<?=$p['id']?>"><input type="hidden" name="quantity" value="1"><button type="submit" aria-label="Add <?=sfE($p['name'])?> to preview basket">＋</button></form></div></div></article>
  <?php endforeach;?></div><?php endif;?></section>
  <section class="sf-editorial"><div><span class="sf-kicker">INSIDE THE ANKH EXPERIENCE</span><h2>Every detail.<br><em>Considered.</em></h2><p>Beautiful photography, transparent technical information and a simple path from discovery to selection. Built for a calm, premium experience on mobile and desktop.</p></div><div class="sf-editorial-emblem">☥</div></section>
 <?php endif;?>
