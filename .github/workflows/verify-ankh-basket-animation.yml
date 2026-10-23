@@ -1,0 +1,24 @@
+name: Verify ANKH Add to basket interaction
+on:
+  push:
+    branches: [feature/ankh-basket-add-microinteractions]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate cart and page asset syntax
+        run: |
+          set -euo pipefail
+          node --check customer-portal/storefront-cart.js
+          node --check customer-portal/storefront.js
+          node --check tests/customer-cart-add-animation.cjs
+      - name: Verify no auto-navigation or drawer, success feedback and accessible state
+        run: node tests/customer-cart-add-animation.cjs

@@ -14,9 +14,9 @@ $related=$selected?pfRelated($selected,$products):[];
 <title><?=pfEscape($selected?$selected['name'].' · ANKH':'ANKH · Research Collection')?></title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
-<link rel="stylesheet" href="./storefront.css?v=5">
+<link rel="stylesheet" href="./storefront.css?v=6">
 <script defer src="./storefront.js?v=2"></script>
-<script defer src="./storefront-cart.js?v=2"></script>
+<script defer src="./storefront-cart.js?v=3"></script>
 </head>
 <body class="sf-public">
 <a href="#main" class="sf-skip">Skip to content</a>
