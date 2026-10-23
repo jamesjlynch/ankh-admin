@@ -75,7 +75,7 @@ const checkServer=url=>new Promise(resolve=>http.get(url,res=>{res.resume();reso
     const cartButton=first.locator('.sf-add-cart');
     await cartButton.evaluate(el=>el.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));
     await page.waitForTimeout(130);
-    await page.screenshot({path:path.join(out,'home-before-click-'+width+'.png'),fullPage:true});
+    await page.screenshot({path:path.join(out,'home-before-click-'+width+'.png'),fullPage:false});
     const hit=await cartButton.evaluate(el=>{
       const r=el.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
       const top=document.elementFromPoint(x,y);
