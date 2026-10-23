@@ -270,7 +270,10 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         with sqlite3.connect(portal) as dbcheck:
             assert dbcheck.execute('SELECT remaining_milli FROM portal_fridge_items WHERE id=?',(fridge_item,)).fetchone()[0]==1000
         request(fridge_path,{'csrf':token,'action':'fridge_archive','item_id':fridge_item})
-        assert 'Case' not in request(fridge_path).split('pc-fridge-card')[0]
+        archived_fridge=request(fridge_path)
+        assert "Let's organise your fridge" in archived_fridge
+        with sqlite3.connect(portal) as dbcheck:
+            assert dbcheck.execute('SELECT archived FROM portal_fridge_items WHERE id=?',(fridge_item,)).fetchone()[0]==1
         print('My Fridge HTTP checks passed: delivery validation, private ownership, forecasting, updates and archiving.')
 
         home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Shop the collection' in home_page
