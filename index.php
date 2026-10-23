@@ -4001,7 +4001,7 @@ if($reportDownloadBuffer)ob_start();
 @media (min-width:1000px){
  #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
 }
-</style><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+</style><link rel="stylesheet" href="admin-visuals.css?v=20261023"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -4788,7 +4788,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <summary class="todo-accordion-summary">
 <div class="focus-card-top"><span class="focus-order-ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?> · <?=e($workGroup)?></span><strong><?=money($todo['total'])?></strong></div>
 <p class="operations-step-hint"><?=e(dashboardNextActionLabel($todo))?></p>
-<div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php orderFocusStatuses($todo);?></div>
+<div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span data-ankh-product-name="<?=e($item['name'])?>"><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php orderFocusStatuses($todo);?></div>
 <div class="focus-card-footer"><?php deliveryScheduleTags($todo,$now);?><span class="focus-order-open">View order <span aria-hidden="true">↗</span></span></div>
 </summary>
 <div class="todo-accordion-body focus-sheet-content">
@@ -5005,7 +5005,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!==''):?><span><b>Planned delivery</b><em><?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M Y'))?></em></span><?php endif;?><?php if(!empty($o['activated_at'])):?><span><b>Moved to active</b><em><?=e(date('d M Y',strtotime($o['activated_at'])))?></em></span><?php endif;?><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
 <?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>
 </details>
-<?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line"><span><?=e($i['quantity'].' × '.$i['name'].(!empty($i['presentation'])?' · '.$i['presentation']:'').((int)($i['discount']??0)>0?' · Family & Friends':'').' @ '.money($i['price']))?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
+<?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line" data-ankh-product-name="<?=e($i['name'])?>"><span><?=e($i['quantity'].' × '.$i['name'].(!empty($i['presentation'])?' · '.$i['presentation']:'').((int)($i['discount']??0)>0?' · Family & Friends':'').' @ '.money($i['price']))?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
 <?php if((int)$o['delivery_charge']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($o['delivery_charge'])?></strong></div><?php endif;?><?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
 <?php $orderPaid=(int)($o['paid_amount']??0);$orderBalance=max(0,(int)$o['total']-$orderPaid);$pq=$db->prepare('SELECT * FROM payments WHERE order_id=? ORDER BY datetime(created) DESC,id DESC');$pq->execute([(int)$o['id']]);$orderPayments=$pq->fetchAll(PDO::FETCH_ASSOC);?>
 <section class="payment-ledger"><div class="payment-ledger-head"><div><span>Payments received</span><strong><?=money($orderPaid)?></strong></div><div><span>Balance due</span><strong class="<?=$orderBalance>0?'balance-due':''?>"><?=money($orderBalance)?></strong></div></div>
@@ -7002,4 +7002,30 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
  window.matchMedia('(max-width: 760px)').addEventListener('change',event=>{if(!event.matches&&sheet.open)sheet.close();});
 })();
 </script>
+
+<?php
+// Small, read-only display model. Uploaded photos stay in the existing private catalogue table.
+$ankhVisualContent=isset($customerCatalogueContent) && is_array($customerCatalogueContent)
+  ? $customerCatalogueContent : ankhCatalogueContent($db);
+$ankhVisualStock=[];
+foreach($products as $photoStockProduct){$ankhVisualStock[(int)$photoStockProduct['id']]=$photoStockProduct;}
+$ankhVisualProducts=[];
+foreach($productCatalogForJs as $photoCatalogProduct){
+ $pid=(int)$photoCatalogProduct['id'];
+ $stock=$ankhVisualStock[$pid]??[];
+ $meta=$ankhVisualContent[$pid]??[];
+ $ankhVisualProducts[]=[
+  'id'=>$pid,
+  'name'=>(string)$photoCatalogProduct['name'],
+  'base'=>(string)$photoCatalogProduct['base'],
+  'strength'=>(string)$photoCatalogProduct['strength'],
+  'has_photo'=>(int)($meta['image_bytes']??0)>0,
+  'tracked'=>(int)($stock['stock_tracking']??0)===1,
+  'available'=>max(0,(int)($stock['stock_qty']??0)),
+  'low_at'=>max(0,(int)($stock['low_stock_at']??5))
+ ];
+}
+?>
+<script id="ankh-visual-product-data" type="application/json"><?=json_encode($ankhVisualProducts,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE)?></script>
+<script src="admin-visuals.js?v=20261023" defer></script>
 </body></html>
