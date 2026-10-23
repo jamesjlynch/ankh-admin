@@ -232,3 +232,8 @@ body.sf-public{padding-bottom:calc(71px + env(safe-area-inset-bottom))}
 .sf-detail-actions .sf-save-action{width:100%;justify-content:center}
 }
 @media(max-width:370px){.sf-saved-entry{padding:6px 7px}.sf-saved-entry span{min-width:19px;height:19px}.sf-public .sf-account-entry{font-size:10px;padding:7px}}
+
+
+.sf-basket-entry{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:8px 13px;color:#e9d19a;border-radius:24px;border:1px solid #bea46e55;font-size:11px;white-space:nowrap}
+.sf-basket-entry:hover{background:#c8a96d1b}
+@media(max-width:740px){.sf-basket-entry{display:none}}
