@@ -1,0 +1,584 @@
+{
+  "version": "2026-10-23",
+  "profiles": [
+    {
+      "key": "bpc157",
+      "aliases": [
+        "bpc-157",
+        "bpc157"
+      ],
+      "overview": "BPC-157 is a synthetic 15-amino-acid peptide investigated in preclinical tissue-injury and gastrointestinal models. Much of the published work uses rodents and mechanistic experiments; findings cannot be assumed to translate to clinical recovery in humans.",
+      "research": "Studies have examined tendon, muscle, vascular and gastrointestinal injury models, including inflammatory and repair-associated signalling. A 2026 systematic review judged the limited human evidence to be of very low certainty; reliable clinical efficacy and long-term safety have not been established.",
+      "research_focus": "Preclinical tissue repair, gastrointestinal models and inflammatory signalling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/42885452/",
+        "https://pubmed.ncbi.nlm.nih.gov/40756949/"
+      ],
+      "specifications": {
+        "amino_length": "15",
+        "peptide_type": "Synthetic pentadecapeptide",
+        "sequence": "GEPPPGKPADDAGLV",
+        "formula": "C62H98N16O22",
+        "weight": "1419.53 g/mol"
+      }
+    },
+    {
+      "key": "tb500",
+      "aliases": [
+        "tb-500",
+        "tb500"
+      ],
+      "overview": "TB-500 is a research designation associated with thymosin beta-4-derived peptide material. The commercial label TB-500 does not consistently identify the same sequence as full-length thymosin beta-4, so the exact product identity requires a batch-specific sequence or analysis certificate.",
+      "research": "Full-length thymosin beta-4 binds actin and has been studied for cellular migration, angiogenesis and repair responses in animal models. Data on full-length thymosin beta-4 must not be presented as proof of equivalent activity for an unspecified TB-500 fragment.",
+      "research_focus": "Actin dynamics, cellular migration and preclinical tissue repair.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/10469335/",
+        "https://pubmed.ncbi.nlm.nih.gov/41476424/"
+      ],
+      "specifications": {
+        "peptide_type": "Thymosin beta-4-associated research peptide; exact fragment requires batch confirmation"
+      }
+    },
+    {
+      "key": "ghkcu",
+      "aliases": [
+        "ghk-cu",
+        "ghk cu",
+        "ghkcu"
+      ],
+      "overview": "GHK-Cu is glycyl-L-histidyl-L-lysine coordinated with a copper(II) ion. This copper-binding tripeptide has been investigated in fibroblast cultures, extracellular-matrix signalling and experimental skin repair.",
+      "research": "Maquart and colleagues reported collagen-synthesis effects in cultured fibroblasts. Later animal work examined connective-tissue accumulation and glycosaminoglycan changes in experimental wound models. These experimental findings do not establish safety or effectiveness for human injection.",
+      "research_focus": "Copper coordination, extracellular matrix, collagen and experimental tissue remodelling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/3169264/",
+        "https://pubmed.ncbi.nlm.nih.gov/8227353/"
+      ],
+      "specifications": {
+        "peptide_type": "Copper(II)-binding tripeptide",
+        "amino_length": "3",
+        "sequence": "Gly-His-Lys complexed with Cu(II)",
+        "formula": "C14H24CuN6O4",
+        "weight": "403.93 g/mol",
+        "appearance": "Typically blue to violet, depending on preparation"
+      }
+    },
+    {
+      "key": "ss31",
+      "aliases": [
+        "ss-31",
+        "ss31",
+        "elamipretide"
+      ],
+      "overview": "SS-31 (elamipretide) is a synthetic aromatic-cationic tetrapeptide studied for its interaction with mitochondrial membranes and cardiolipin.",
+      "research": "Research has focused on mitochondrial membrane organisation, energetic function and oxidative-stress pathways. Clinical studies in Barth syndrome have reported mixed findings, including primary endpoints not met in the initial controlled trial, with observations from small open-label follow-up cohorts. Evidence for any particular retail preparation requires its own quality documentation.",
+      "research_focus": "Mitochondrial membranes, cardiolipin and cellular energetics.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/33077895/",
+        "https://pubmed.ncbi.nlm.nih.gov/38602181/"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic mitochondrial-targeted tetrapeptide",
+        "amino_length": "4",
+        "sequence": "D-Arg–2',6'-dimethyl-Tyr–Lys–Phe–NH2"
+      }
+    },
+    {
+      "key": "cjcdac",
+      "aliases": [
+        "cjc-1295 with dac",
+        "cjc-1295 dac",
+        "cjc 1295 with dac"
+      ],
+      "overview": "CJC-1295 with DAC is a long-acting analogue of growth hormone-releasing hormone (GHRH) designed with a drug-affinity complex for extended circulation.",
+      "research": "Human pharmacology studies reported prolonged elevations in measured growth hormone and IGF-1 after administration of the DAC-containing molecule. Those results cannot be applied to modified GRF(1–29) formulations sold without DAC. This is a research description, not a treatment recommendation.",
+      "research_focus": "GHRH receptor pharmacology, growth hormone and IGF-1 response.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/16352683/"
+      ],
+      "specifications": {
+        "peptide_type": "Long-acting GHRH analogue containing DAC"
+      }
+    },
+    {
+      "key": "cjcno",
+      "aliases": [
+        "cjc-1295 without dac",
+        "cjc-1295 no dac",
+        "cjc 1295 no dac",
+        "cjc-1295 mod without dac",
+        "modified grf"
+      ],
+      "overview": "Products described as CJC-1295 without DAC generally refer to modified GRF(1–29), a synthetic growth hormone-releasing hormone fragment. Unlike CJC-1295 with a drug-affinity complex, this material does not have the DAC extension and must not be assigned the same pharmacokinetic characteristics.",
+      "research": "The relevant research area is GHRH receptor activation and pulsatile growth hormone release. Published prolonged half-life measurements for DAC-CJC-1295 are not evidence of the behaviour of no-DAC material. Molecular identity and sequence should be verified against the specific batch.",
+      "research_focus": "GHRH receptor signalling, pituitary hormone release and peptide structure–activity.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/16352683/"
+      ],
+      "specifications": {
+        "peptide_type": "Modified GHRH(1–29) analogue without DAC",
+        "amino_length": "29"
+      }
+    },
+    {
+      "key": "ipamorelin",
+      "aliases": [
+        "ipamorelin"
+      ],
+      "overview": "Ipamorelin is a synthetic pentapeptide developed as a growth hormone secretagogue. Its biological research concerns the ghrelin or growth-hormone-secretagogue receptor and pituitary responses.",
+      "research": "Raun and colleagues described ipamorelin's growth-hormone release activity and compared its selectivity with other secretagogues in experimental models. The work is pharmacological and does not demonstrate clinical body-composition or recovery benefits for retail research material.",
+      "research_focus": "Ghrelin receptor agonism, pituitary signalling and GH selectivity.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/9849822/"
+      ],
+      "specifications": {
+        "peptide_type": "Growth hormone secretagogue pentapeptide",
+        "amino_length": "5",
+        "sequence": "Aib–His–D-2-Nal–D-Phe–Lys–NH2"
+      }
+    },
+    {
+      "key": "ghrp2",
+      "aliases": [
+        "ghrp-2",
+        "ghrp 2"
+      ],
+      "overview": "GHRP-2 is a synthetic growth hormone-releasing hexapeptide studied for activity at the growth hormone secretagogue receptor.",
+      "research": "Experimental studies of GHRP-2 evaluate pituitary hormone secretion, structure–activity relationships and endocrine responses. Selectivity differs from ipamorelin in published comparisons; results are dependent on experimental conditions.",
+      "research_focus": "Growth hormone secretagogue receptor and endocrine response.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/9849822/"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic growth hormone-releasing hexapeptide",
+        "amino_length": "6"
+      }
+    },
+    {
+      "key": "igflr3",
+      "aliases": [
+        "igf-1 lr3",
+        "igf1-lr3",
+        "igf1 lr3",
+        "igf-lr3"
+      ],
+      "overview": "IGF-1 LR3 is a modified insulin-like growth factor 1 analogue with an N-terminal extension and an arginine substitution. It is distinct from endogenous human IGF-1.",
+      "research": "Laboratory studies of insulin-like growth factors explore IGF-1 receptor signalling, cellular proliferation and protein synthesis. Experimental results for native IGF-1 should not automatically be assigned to LR3, whose binding characteristics and exposure differ.",
+      "research_focus": "IGF-1 receptor biology and cell growth signalling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=long+R3+IGF-1+receptor"
+      ],
+      "specifications": {
+        "peptide_type": "Engineered IGF-1 analogue"
+      }
+    },
+    {
+      "key": "pegmgf",
+      "aliases": [
+        "peg-mgf",
+        "peg mgf"
+      ],
+      "overview": "PEG-MGF is a name used for polyethylene-glycol-modified mechano growth factor-related peptides. The molecular composition varies with the peptide segment and PEG attachment.",
+      "research": "Studies of MGF splice variants examine IGF-1 gene expression following mechanical loading and cellular injury. Findings on endogenous MGF cannot validate an unspecified PEG-MGF commercial conjugate. Exact sequence, PEG mass and conjugation site must be documented to state a molecular formula.",
+      "research_focus": "IGF-1 splice variants, PEG conjugation and muscle cell signalling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=mechano+growth+factor+muscle+splice+variant"
+      ],
+      "specifications": {
+        "peptide_type": "PEGylated MGF-related peptide; formulation-dependent"
+      }
+    },
+    {
+      "key": "mgf",
+      "aliases": [
+        "mgf",
+        "mechano growth factor"
+      ],
+      "overview": "Mechano growth factor (MGF) refers to an IGF-1 splice-variant-associated peptide investigated in the context of mechanical loading and tissue response.",
+      "research": "The research literature examines IGF-1 splice variants and muscle-cell signalling after mechanical stress. Different synthetic MGF fragments exist, making batch sequence confirmation necessary before stating molecular formula, mass or in vivo effects.",
+      "research_focus": "IGF-1 splice variants, mechanical signalling and experimental tissue responses.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=mechano+growth+factor+muscle+splice+variant"
+      ],
+      "specifications": {
+        "peptide_type": "MGF-related research peptide; exact fragment unverified"
+      }
+    },
+    {
+      "key": "motsc",
+      "aliases": [
+        "mots-c",
+        "mots c",
+        "motsc"
+      ],
+      "overview": "MOTS-c is a 16-amino-acid peptide encoded in a small open reading frame associated with mitochondrial 12S rRNA. It has been examined as a mitochondrial-derived signalling peptide.",
+      "research": "Lee and colleagues described cellular pathways involving AMPK activation and reported effects on metabolic homeostasis in mice. These findings were largely experimental and do not establish clinical metabolic benefits in people.",
+      "research_focus": "Mitochondrial-derived signalling, AMPK and metabolic homeostasis.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/25738459/"
+      ],
+      "specifications": {
+        "peptide_type": "Mitochrial-derived signalling peptide",
+        "amino_length": "16",
+        "sequence": "MRWQEMGYIFYPRKLR"
+      }
+    },
+    {
+      "key": "nad",
+      "aliases": [
+        "nad+",
+        "nad plus",
+        "nicotinamide adenine dinucleotide"
+      ],
+      "overview": "NAD+ (nicotinamide adenine dinucleotide, oxidised form) is a cellular coenzyme rather than a peptide. It participates in redox reactions and is used by enzymes involved in DNA repair and metabolic signalling.",
+      "research": "Research has investigated NAD metabolism, NAD-dependent enzymes, cellular energy balance and ageing-associated changes in tissue NAD pools. Mechanistic literature does not by itself support benefits from a particular preparation or administration route.",
+      "research_focus": "Redox biology, energy metabolism, NAD-consuming enzymes and cellular signalling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=NAD+metabolism+cellular+redox+review"
+      ],
+      "specifications": {
+        "peptide_type": "Oxidised nicotinamide adenine dinucleotide; non-peptide coenzyme",
+        "formula": "C21H27N7O14P2",
+        "weight": "663.43 g/mol"
+      }
+    },
+    {
+      "key": "tesamorelin",
+      "aliases": [
+        "tesamorelin"
+      ],
+      "overview": "Tesamorelin is a synthetic growth hormone-releasing hormone analogue. Published clinical research has focused on body composition and visceral adipose tissue in adults with HIV-associated lipodystrophy.",
+      "research": "Randomised studies have investigated visceral adipose tissue, IGF-1 and liver-fat measures. Results from licensed or clinical-study preparations cannot certify quality, equivalence or safety of an unverified retail vial.",
+      "research_focus": "GHRH receptor biology, IGF-1 and clinical body-composition research.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/25038357/",
+        "https://pubmed.ncbi.nlm.nih.gov/20101189/"
+      ],
+      "specifications": {
+        "peptide_type": "GHRH analogue"
+      }
+    },
+    {
+      "key": "retatrutide",
+      "aliases": [
+        "retatrutide"
+      ],
+      "overview": "Retatrutide is an investigational peptide agonist of GLP-1, GIP and glucagon receptors. It has been evaluated in controlled clinical studies of obesity and metabolic outcomes.",
+      "research": "A phase 2 trial published in 2023 assessed body-weight outcomes and adverse events across experimental study groups. Clinical-trial findings relate to pharmaceutical-grade investigational material, not to the purity or safety of third-party research vials.",
+      "research_focus": "Triple-incretin receptor pharmacology, body-weight and metabolic endpoints.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/37366315/"
+      ],
+      "specifications": {
+        "peptide_type": "GLP-1/GIP/glucagon triple-receptor agonist"
+      }
+    },
+    {
+      "key": "melanotan1",
+      "aliases": [
+        "melanotan 1",
+        "melanotan i",
+        "melanotan-1",
+        "afamelanotide"
+      ],
+      "overview": "Melanotan I is a synthetic analogue of alpha-melanocyte-stimulating hormone (α-MSH), also known as afamelanotide. Research examines melanocortin receptor signalling and pigmentation responses.",
+      "research": "Clinical research on regulated afamelanotide implants includes erythropoietic protoporphyria, but those regulated formulations must not be equated with an unidentified research powder. Melanocortin receptor response is molecule- and preparation-dependent.",
+      "research_focus": "Melanocortin receptors, melanogenesis and pigmentation biology.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=afamelanotide+erythropoietic+protoporphyria+trial"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic α-MSH analogue",
+        "amino_length": "13"
+      }
+    },
+    {
+      "key": "kisspeptin",
+      "aliases": [
+        "kisspeptin-10",
+        "kisspeptin 10",
+        "kisspeptin10"
+      ],
+      "overview": "Kisspeptin-10 is a ten-amino-acid active fragment of kisspeptin, a signalling peptide involved in hypothalamic reproductive neuroendocrinology.",
+      "research": "Human experimental studies have assessed changes in gonadotropin release after kisspeptin-10 exposure. Responses can differ with participant sex and physiological context, and experiments should not be interpreted as clinical dosing advice.",
+      "research_focus": "KISS1 receptor signalling, GnRH, LH and FSH responses.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/21976724/",
+        "https://pubmed.ncbi.nlm.nih.gov/42549827/"
+      ],
+      "specifications": {
+        "peptide_type": "Kisspeptin active decapeptide",
+        "amino_length": "10"
+      }
+    },
+    {
+      "key": "dsip",
+      "aliases": [
+        "dsip",
+        "delta sleep inducing peptide"
+      ],
+      "overview": "Delta sleep-inducing peptide (DSIP) is a nine-amino-acid research peptide first characterised in experiments involving electrophysiological sleep activity.",
+      "research": "Early small human sleep studies produced inconsistent results. A controlled study in chronic insomnia found limited effects and concluded that DSIP was unlikely to offer major therapeutic benefit under the conditions tested.",
+      "research_focus": "Sleep physiology, neuropeptide signalling and electrophysiological responses.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/265572/",
+        "https://pubmed.ncbi.nlm.nih.gov/1299794/"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic nonapeptide",
+        "amino_length": "9",
+        "sequence": "Trp–Ala–Gly–Gly–Asp–Ala–Ser–Gly–Glu"
+      }
+    },
+    {
+      "key": "epitalon",
+      "aliases": [
+        "epitalon",
+        "epithalon"
+      ],
+      "overview": "Epitalon (also called Epithalon) is the synthetic tetrapeptide alanine–glutamate–aspartate–glycine (AEDG), studied in experimental cell-ageing and telomere biology.",
+      "research": "Published cell studies have reported changes in telomerase-related activity and telomere length under defined experimental conditions. Such observations do not establish increased human lifespan or a validated treatment effect.",
+      "research_focus": "Telomere biology, cellular senescence and telomerase-associated signalling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/12937682/",
+        "https://pubmed.ncbi.nlm.nih.gov/40908429/"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic tetrapeptide",
+        "amino_length": "4",
+        "sequence": "Ala–Glu–Asp–Gly (AEDG)"
+      }
+    },
+    {
+      "key": "selank",
+      "aliases": [
+        "selank"
+      ],
+      "overview": "Selank is a synthetic heptapeptide related to the naturally occurring immunomodulatory peptide tuftsin. Experimental studies have examined neurobehavioural and stress-related signalling.",
+      "research": "Animal studies assessed behavioural responses and enkephalin-degrading enzyme activity. Small human investigations have also been published, but their designs do not establish broad clinical effectiveness or the quality of research-market material.",
+      "research_focus": "Neuropeptide biology, stress responses and enkephalin metabolism.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/12432865/",
+        "https://pubmed.ncbi.nlm.nih.gov/25176261/"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic tuftsin analogue",
+        "amino_length": "7",
+        "sequence": "Thr–Lys–Pro–Arg–Pro–Gly–Pro"
+      }
+    },
+    {
+      "key": "semax",
+      "aliases": [
+        "semax"
+      ],
+      "overview": "Semax is a synthetic heptapeptide derived from an ACTH-related sequence extended by a Pro–Gly–Pro fragment. It has been examined primarily in neurological research.",
+      "research": "Rodent studies of cerebral ischaemia and hippocampal signalling reported changes in BDNF and other neurotrophin-related pathways. Animal molecular changes cannot be equated with improved cognition or recovery in humans.",
+      "research_focus": "Neurotrophin expression, BDNF–TrkB and experimental cerebral ischaemia.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/19633950/",
+        "https://pubmed.ncbi.nlm.nih.gov/16996037/"
+      ],
+      "specifications": {
+        "peptide_type": "Synthetic ACTH-derived heptapeptide",
+        "amino_length": "7",
+        "sequence": "Met–Glu–His–Phe–Pro–Gly–Pro"
+      }
+    },
+    {
+      "key": "snap8",
+      "aliases": [
+        "snap-8",
+        "snap 8",
+        "acetyl octapeptide"
+      ],
+      "overview": "SNAP-8 is a commercial designation commonly used for acetyl octapeptide-3, an eight-residue cosmetic research peptide. The product's precise acetylation and salt form should be confirmed from batch documentation.",
+      "research": "Its research context concerns biomimetic peptide design and laboratory investigation of proteins involved in neuronal vesicle exocytosis. Evidence from isolated cosmetic or in-vitro reports should not be represented as validated injection or medical benefits.",
+      "research_focus": "Cosmetic peptide biochemistry and exocytosis-related signalling.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=acetyl+octapeptide-3+SNAP-8"
+      ],
+      "specifications": {
+        "peptide_type": "Acetylated octapeptide; confirm exact identity",
+        "amino_length": "8"
+      }
+    },
+    {
+      "key": "kpv",
+      "aliases": [
+        "kpv",
+        "lys-pro-val"
+      ],
+      "overview": "KPV (lysyl–prolyl–valine) is the C-terminal tripeptide of alpha-melanocyte-stimulating hormone (α-MSH). Laboratory research has investigated its ability to alter inflammatory signalling in intestinal epithelial and immune cells.",
+      "research": "Dalmasso and colleagues described PepT1-mediated uptake of KPV, decreased NF-κB and MAPK inflammatory responses and changes in mouse-colitis models. Follow-up animal investigations reported effects on experimental inflammatory indices. These findings do not prove treatment efficacy in people.",
+      "research_focus": "PepT1 transport, intestinal epithelial biology and inflammatory pathways.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/18061177/",
+        "https://pubmed.ncbi.nlm.nih.gov/18092346/"
+      ],
+      "specifications": {
+        "peptide_type": "α-MSH-derived tripeptide",
+        "amino_length": "3",
+        "sequence": "Lys–Pro–Val (KPV)",
+        "formula": "C16H30N4O4",
+        "weight": "342.43 g/mol"
+      }
+    },
+    {
+      "key": "ara290",
+      "aliases": [
+        "ara-290",
+        "ara 290",
+        "cibinetide"
+      ],
+      "overview": "ARA-290, also known as cibinetide, is a peptide engineered from an erythropoietin-associated region and investigated for tissue-protective signalling distinct from red-blood-cell stimulation.",
+      "research": "Studies have examined innate repair receptor hypotheses and small clinical trials involving neuropathic symptom measures and corneal nerve-fibre density. Published findings do not establish approval, efficacy or product quality for any unverified research-market preparation.",
+      "research_focus": "Innate repair receptor biology, inflammation and peripheral nerve research.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/25387363/",
+        "https://pubmed.ncbi.nlm.nih.gov/24136731/"
+      ],
+      "specifications": {
+        "peptide_type": "Erythropoietin-derived research peptide",
+        "amino_length": "11"
+      }
+    },
+    {
+      "key": "tirzepatide",
+      "aliases": [
+        "tirzepatide",
+        "trizepatide",
+        "trizapatide"
+      ],
+      "overview": "Tirzepatide is a dual glucose-dependent insulinotropic polypeptide (GIP) and GLP-1 receptor agonist. It has been extensively studied in randomised clinical trials for metabolic disease.",
+      "research": "SURMOUNT trials measured body-weight and glycaemic outcomes alongside safety endpoints using regulated investigational and pharmaceutical products. These findings do not validate the identity, sterility, authorised status or equivalence of another supplier's material.",
+      "research_focus": "GIP and GLP-1 receptor pharmacology, glycaemic and metabolic endpoints.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/37385275/"
+      ],
+      "specifications": {
+        "peptide_type": "Dual GIP/GLP-1 receptor agonist"
+      }
+    },
+    {
+      "key": "glutathione",
+      "aliases": [
+        "glutathione",
+        "gsh"
+      ],
+      "overview": "Glutathione is a naturally occurring tripeptide composed of glutamate, cysteine and glycine. It functions in cellular thiol and redox chemistry; its reduced and oxidised forms are distinct.",
+      "research": "Biochemical research examines glutathione-dependent enzymes, reactive oxygen species and intracellular redox balance. The product's precise salt or oxidation state should be confirmed before assigning an analytical specification.",
+      "research_focus": "Glutathione redox cycle, thiol chemistry and antioxidant enzymes.",
+      "references": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=glutathione+redox+metabolism+review"
+      ],
+      "specifications": {
+        "peptide_type": "Endogenous redox tripeptide",
+        "amino_length": "3",
+        "sequence": "γ-Glu–Cys–Gly (reduced glutathione)"
+      }
+    },
+    {
+      "key": "blendglow",
+      "aliases": [
+        "glow stack",
+        "glow blend"
+      ],
+      "overview": "Glow Stack is a multi-component research blend. A meaningful scientific description depends on the exact active ingredients and their quantities; a marketed blend name alone does not define its chemical composition.",
+      "research": "Do not ascribe pharmacology, molecular formula or a pooled half-life to this mixture without an ingredient list and batch documentation. Each component requires separate literature and compatibility review.",
+      "research_focus": "Blend composition verification, analytical identification and component compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Multi-component research blend; composition must be confirmed"
+      }
+    },
+    {
+      "key": "blendwolverine",
+      "aliases": [
+        "wolverine stack",
+        "wolverine blend"
+      ],
+      "overview": "Wolverine Stack is a multi-component research blend. The name does not uniquely identify its active ingredients or quantities.",
+      "research": "The research focus must be assessed separately for each verified ingredient. Conclusions from studies of individual peptides cannot be assumed to apply to an uncharacterised mixture.",
+      "research_focus": "Blend identity, component-specific research and stability compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Multi-component research blend; composition must be confirmed"
+      }
+    },
+    {
+      "key": "bacwater",
+      "aliases": [
+        "bac water",
+        "bacteriostatic water"
+      ],
+      "overview": "Bacteriostatic water is a laboratory diluent containing a preservative such as benzyl alcohol; it is not a peptide. Exact formulation and intended applications depend on the manufacturer's label.",
+      "research": "Any laboratory use requires confirmation of the actual formulation, preservation system and container compatibility. This catalogue entry must not be interpreted as confirming suitability for injections.",
+      "research_focus": "Diluent formulation, preservative chemistry and laboratory compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Laboratory diluent; non-peptide",
+        "precautions": "Check container label, manufacturer documentation and applicable handling requirements. Never assume sterility, injectable suitability or a multidose lifespan without verified batch information."
+      }
+    },
+    {
+      "key": "aceticacid",
+      "aliases": [
+        "acetic acid",
+        "acetic 0.6%"
+      ],
+      "overview": "Dilute acetic acid solution is a laboratory reagent and solvent component. The labelled concentration describes the mixture rather than an isolated research peptide.",
+      "research": "Laboratory interest concerns solvent pH, buffer compatibility and analyte stability. Use the exact manufacturer label and safety data sheet to confirm concentration and safe handling.",
+      "research_focus": "Solvent chemistry, pH control and analyte compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Dilute acetic acid laboratory reagent; non-peptide",
+        "precautions": "Follow the supplier safety data sheet; verify concentration and container compatibility. Keep separate from unverified medical-use claims."
+      }
+    },
+    {
+      "key": "pen",
+      "aliases": [
+        "pen",
+        "injector pen",
+        "cartridge pen"
+      ],
+      "overview": "Research pen accessory or delivery-system component. Compatibility depends on the specific device, cartridge and supplied manufacturer instructions; this accessory does not contain a peptide by itself.",
+      "research": "Technical information should concern material compatibility, construction, dimensions and manufacturer documentation rather than peptide pharmacology.",
+      "research_focus": "Device compatibility and accessory handling.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Accessory; non-peptide",
+        "precautions": "Do not assume compatibility or clinical suitability without the exact manufacturer's instructions."
+      }
+    },
+    {
+      "key": "case",
+      "aliases": [
+        "case",
+        "carry case",
+        "storage case"
+      ],
+      "overview": "A carrying or storage accessory for compatible laboratory items. Capacity, materials and protection depend on the actual item supplied.",
+      "research": "Relevant technical information concerns dimensional fit, cleanliness and environmental protection. It does not demonstrate temperature control unless a validated specification confirms it.",
+      "research_focus": "Storage design and materials compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Storage accessory; non-peptide"
+      }
+    },
+    {
+      "key": "cartridge",
+      "aliases": [
+        "cartridge",
+        "empty cartridge"
+      ],
+      "overview": "A laboratory cartridge accessory. Its material, volume and connection specifications depend on the actual supplied design.",
+      "research": "Manufacturer compatibility and materials testing are required before the cartridge is used with a particular preparation.",
+      "research_focus": "Cartridge materials and container compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Laboratory accessory; non-peptide"
+      }
+    }
+  ]
+}
