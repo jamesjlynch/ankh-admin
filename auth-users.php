@@ -39,7 +39,7 @@ function ankhAuthRestore(PDO $db):void {
  $db->prepare('DELETE FROM admin_trusted_devices WHERE id=?')->execute([(int)$row['id']]);ankhAuthRemember($db,(int)$row['user_id']);
 }
 function ankhAuthPasswordLogin(PDO $db,string $username,string $password,bool $remember):bool {
- $q=$db->prepare('SELECT id,password_hash FROM admin_users WHERE (username=? COLLATE NOCASE OR email=? COLLATE NOCASE) AND active=1');$q->execute([trim($username),trim($username)]);$row=$q->fetch(PDO::FETCH_ASSOC);
+ $q=$db->prepare('SELECT id,password_hash FROM admin_users WHERE (username=? OR email=?) AND active=1');$q->execute([trim($username),trim($username)]);$row=$q->fetch(PDO::FETCH_ASSOC);
  if(!$row||!password_verify($password,(string)$row['password_hash']))return false;
  session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['admin_user_id']=(int)$row['id'];$_SESSION['last']=time();
  ankhAuthClearRemember($db);if($remember)ankhAuthRemember($db,(int)$row['id']);
@@ -47,7 +47,7 @@ function ankhAuthPasswordLogin(PDO $db,string $username,string $password,bool $r
 }
 
 function ankhAuthCredentialsValid(PDO $db,string $username,string $password):bool {
- $q=$db->prepare('SELECT password_hash FROM admin_users WHERE (username=? COLLATE NOCASE OR email=? COLLATE NOCASE) AND active=1');$q->execute([trim($username),trim($username)]);$hash=$q->fetchColumn();
+ $q=$db->prepare('SELECT password_hash FROM admin_users WHERE (username=? OR email=?) AND active=1');$q->execute([trim($username),trim($username)]);$hash=$q->fetchColumn();
  // Constant-time password check also for unknown users.
  return password_verify($password,$hash===false?'$2y$10$abcdefghijklmnopqrstuu9nOCyCReBJD27VyRbmbWZGE/1QNaUqG':(string)$hash);
 }
