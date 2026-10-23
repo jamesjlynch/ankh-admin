@@ -101,6 +101,9 @@ a.product-v2-item:hover{background:#ffffff07}
 .ankh-premium-v2.premium-v2-editing .product-catalog-grid .product-tile:not(.product-v2-current-edit){display:none!important}
 .ankh-premium-v2.premium-v2-editing .product-catalog-grid .product-v2-current-edit{width:100%;max-width:850px;display:block}
 .ankh-premium-v2.premium-v2-editing .product-v2-catalogue{display:none}
+.ankh-premium-v2.premium-v2-editing .hidden-product-grid .product-admin-card:not(.product-v2-current-edit){display:none!important}
+.ankh-premium-v2.premium-v2-editing :is(.product-search,.add-product-disclosure){display:none}
+
 .ankh-premium-v2.premium-v2-editing .product-v2-current-edit>summary{min-height:auto}
 .ankh-premium-v2 .product-v2-edit-intro{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:16px;margin:0 0 17px;border:1px solid #685334;background:#27231b;border-radius:15px}
 .ankh-premium-v2 .product-v2-edit-intro strong{display:block;font-size:13px}
