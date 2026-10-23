@@ -31,6 +31,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
 <header class="site-header">
   <a class="brand" href="<?=!empty($isStaffPreview)?'./preview-live.php':(!empty($isDemo)?'./preview.php':'./')?>" aria-label="ANKH home"><span class="brand-icon">☥</span><span>ANKH<span class="brand-sub">CUSTOMER PORTAL</span></span></a>
+  <?php if (empty($isStaffPreview) && empty($isDemo)): ?><a class="header-shop-link" href="./">Shop collection <span aria-hidden="true">↗</span></a><?php endif; ?>
   <?php if ($customer || !empty($isStaffPreview)): ?>
   <form method="post" action="<?=!empty($isStaffPreview)?'./preview-live.php':'./'?>" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit"><?=!empty($isStaffPreview)?'Exit staff preview':'Sign out'?> <span aria-hidden="true">↗</span></button></form>
   <?php else: ?><span class="header-note"><span class="status-pip"></span> PRIVATE ACCESS</span><?php endif; ?>
@@ -55,7 +56,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
       <span class="eyebrow"><span class="line"></span> YOUR PRIVATE SPACE</span>
       <h1>Everything in<br><em>one place.</em></h1>
       <p>View your order history, track progress and keep your details close. A simpler way to stay connected with ANKH.</p>
-      <p class="public-research-cta"><a href="./public-catalogue.php">Explore our public scientific reference <span aria-hidden="true">→</span></a></p>
+      <p class="public-research-cta"><a href="./">Browse the ANKH collection <span aria-hidden="true">→</span></a></p>
       <div class="trust-line"><span class="trust-icon">✳</span><span>Secure sign-in. No password needed.</span></div>
     </section>
     <section class="auth-card">
