@@ -1,0 +1,44 @@
+name: Verify ANKH full identity and retail preview
+on:
+  push:
+    branches: [fix/ankh-full-gallery-details-prices]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Templates, source syntax and public-pricing guardrails
+        run: |
+          set -euo pipefail
+          for file in customer-portal/storefront.php customer-portal/storefront-experience.php customer-portal/storefront-card.php customer-portal/storefront-design.php customer-portal/storefront-commerce.php customer-portal/shop-demo.php; do php -l "$file"; done
+          node --check customer-portal/storefront-luxury.js
+          node --check customer-portal/storefront-cart.js
+          node --check customer-portal/shop-demo.js
+          php tests/customer-storefront-commerce.php
+          php tests/customer-demo-basket.php
+          node tests/customer-cart-add-animation.cjs
+          python3 tests/customer-public-storefront-http.py
+          php tests/customer-portal-render.php
+      - name: Emulated iPhone widths, full specification scrolling and preview price
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.56.1
+          node tests/customer-atelier-viewport.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ankh-price-identity-viewport-checks
+          path: atelier-viewport-screenshots/
+          if-no-files-found: ignore
+          retention-days: 5
