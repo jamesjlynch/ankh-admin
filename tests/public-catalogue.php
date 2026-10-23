@@ -29,7 +29,7 @@ $rows=ankhPublicCatalogueProducts($db);
 checkPublic(count($rows)===1 && $rows[0]['name']==='KPV 10mg','Only separately reviewed profile may be public');
 checkPublic(!isset($rows[0]['price'],$rows[0]['cost'],$rows[0]['stock_qty']),'Public query must not disclose business fields');
 checkPublic(isset($rows[0]['information']['sequence']) && !isset($rows[0]['information']['coa_url']),'Science allowed, COA not auto-claimed');
-checkPublic(str_contains(ankhPublicNotice(),'Not for human or animal consumption'),'Every public profile has prominent health disclaimer');
+checkPublic(str_contains(ankhPublicNotice(),'Not intended for human or veterinary consumption'),'Every public profile has prominent health disclaimer');
 ankhCatalogueSaveContent($db,1,'Revised laboratory-only description of chemical identity and experimental evidence.',null,false,true,['research'=>'Preclinical models']);
 checkPublic(ankhPublicCatalogueProducts($db)===[],'Editing a reviewed profile revokes public release');
 ankhPublicReviewSave($db,1,'approve',[
