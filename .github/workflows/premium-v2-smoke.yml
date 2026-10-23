@@ -8,6 +8,10 @@ on:
       - 'product-v2.css'
       - 'product-v2.php'
       - 'tests/product-v2.php'
+      - 'packing-v2.php'
+      - 'packing-v2.css'
+      - 'packing-v2-support.php'
+      - 'tests/packing-v2.php'
       - 'index.php'
       - 'scripts/publish-live.sh'
       - 'tests/publish-live.sh'
@@ -21,6 +25,10 @@ on:
       - 'product-v2.css'
       - 'product-v2.php'
       - 'tests/product-v2.php'
+      - 'packing-v2.php'
+      - 'packing-v2.css'
+      - 'packing-v2-support.php'
+      - 'tests/packing-v2.php'
       - 'index.php'
       - 'scripts/publish-live.sh'
       - 'tests/publish-live.sh'
@@ -45,10 +53,14 @@ jobs:
           php -l index.php
           php -l product-v2.php
           php -l tests/product-v2.php
+          php -l packing-v2.php
+          php -l packing-v2-support.php
+          php -l tests/packing-v2.php
       - name: Check V2 visual flag and asset integrity
         run: |
           php tests/premium-v2.php
           php tests/product-v2.php
+          php tests/packing-v2.php
       - name: Check shared Krystal publisher
         run: php tests/deploy-smoke.php
       - name: Simulate isolated publish and missing-asset repair

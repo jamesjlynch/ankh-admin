@@ -14,7 +14,7 @@ if(!str_contains($phpLint,'No syntax errors detected'))throw new RuntimeExceptio
 $publisher=file_get_contents($root.'/scripts/publish-live.sh');
 if(!str_contains($deploy,'/bin/bash scripts/publish-live.sh'))throw new RuntimeException('Krystal cron must call the shared publisher.');
 if(!str_contains($cpanel,'/bin/bash scripts/publish-live.sh'))throw new RuntimeException('cPanel deployment must call the same publisher.');
-foreach(['index.php','supplier-centre.php','setup.php','style.min.css','style.core.min.css','service-worker.js','admin-visuals.js','admin-visuals.css','premium-v2.css','product-v2.css','product-v2.php'] as $required){
+foreach(['index.php','supplier-centre.php','setup.php','style.min.css','style.core.min.css','service-worker.js','admin-visuals.js','admin-visuals.css','premium-v2.css','product-v2.css','product-v2.php','packing-v2.css','packing-v2.php','packing-v2-support.php'] as $required){
  if(!str_contains($publisher,$required))throw new RuntimeException('Publisher is missing asset '.$required);
 }
 foreach(['admin-visuals.js','admin-visuals.css'] as $visualAsset){
@@ -23,6 +23,8 @@ foreach(['admin-visuals.js','admin-visuals.css'] as $visualAsset){
 }
 if(!is_file($root.'/product-v2.php')||!is_file($root.'/product-v2.css'))throw new RuntimeException('Dedicated premium product workspace missing.');
 if(!str_contains($index,'product-v2.php')||!str_contains($index,'product-v2.css'))throw new RuntimeException('Admin entrypoint must wire both product workspace assets.');
+if(!str_contains($index,"require_once __DIR__.'/packing-v2-support.php'")||!str_contains($index,"require __DIR__.'/packing-v2.php'"))throw new RuntimeException('Packing V2 must be loaded only from the authenticated admin.');
+if(!str_contains($publisher,'"$php" -l packing-v2.php')||!str_contains($publisher,'"$php" -l packing-v2-support.php'))throw new RuntimeException('Publisher must lint packing components.');
 if(!str_contains($publisher,'"$php" -l product-v2.php'))throw new RuntimeException('Product workspace must be checked before publishing.');
 if(!str_contains($publisher,'"$php" -l supplier-centre.php'))throw new RuntimeException('Publisher must lint Supplier Centre before copying.');
 if(!str_contains($publisher,'install -m 644')||!str_contains($publisher,'mv -f "$stage"'))throw new RuntimeException('Publisher must atomically install web assets.');

@@ -26,7 +26,7 @@ release="$(git rev-parse HEAD)"
 target="$home/public_html/ankh-admin"
 marker="$home/.ankh-admin-last-deployed-sha"
 php=${ANKH_DEPLOY_PHP:-/opt/cpanel/ea-php82/root/usr/bin/php}
-files=(.htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
+files=(.htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
 
 # A successful commit is not a successful deployment; compare the actual live files.
 if [[ -f "$marker" && "$(cat "$marker")" == "$release" ]]; then
@@ -46,6 +46,8 @@ done
 "$php" -l index.php
 "$php" -l customer-catalogue.php
 "$php" -l product-v2.php
+"$php" -l packing-v2.php
+"$php" -l packing-v2-support.php
 "$php" tests/customer-catalogue-visibility.php
 "$php" tests/delivery-queue.php
 "$php" tests/business-alerts.php
