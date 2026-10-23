@@ -3,7 +3,7 @@ if(!isset($p) || !is_array($p)) {http_response_code(404);exit;}
 $name=(string)$p['name'];$id=(int)$p['id'];
 $summary=pfExcerpt((string)$p['description'],165);
 $kind=pfType($name);
-$photo=!empty($p['has_photo'])?'./public-catalogue.php?image='.$id:'';
+$photo=!empty($p['has_photo'])?'./public-catalogue.php?image='.$id.'&size=thumb':'';
 $url=pfUrl(['product'=>$id]);
 ?><article class="sf-card sf-card-v2" data-profile-id="<?=$id?>">
 <a class="sf-card-image" href="<?=pfEscape($url)?>" aria-label="View <?=pfEscape($name)?>">
