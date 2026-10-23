@@ -9,11 +9,11 @@ if(!empty($isDemo)):?>
 </section>
 <?php return; endif;
 if(empty($portal)){http_response_code(503);return;}
-$fridgeError=false;$fridgeItems=[];$fridgeCandidates=[];
+$fridgeDataError=false;$fridgeItems=[];$fridgeCandidates=[];
 try{
     $fridgeItems=portalFridgeItems($portal,$customerId,$staff);
     $fridgeCandidates=portalFridgeCandidates($orders,$fridgeItems);
-}catch(Throwable $e){error_log('ANKH fridge view: '.$e->getMessage());$fridgeError=true;}
+}catch(Throwable $e){error_log('ANKH fridge view: '.$e->getMessage());$fridgeDataError=true;}
 $flash=(string)($_SESSION['fridge_flash']??'');unset($_SESSION['fridge_flash']);
 $unitsInFridge=array_sum(array_map(static fn(array $item):int=>(int)$item['units_received'],$fridgeItems));
 $hasForecast=count(array_filter($fridgeItems,static fn(array $item):bool=>(int)$item['rate_milli']>0));
@@ -23,7 +23,7 @@ $fridgeMethod='All dates are estimates based on the amount you enter and the dai
   <header class="pc-fridge-heading"><div><span class="pc-eyebrow">YOUR PERSONAL STOCK TRACKER</span><h1>My Fridge<span class="pc-dot">.</span></h1><p>One place to keep track of your research products. Know what you have, what you have used, and what might be running low.</p></div><div class="pc-fridge-heading-symbol" aria-hidden="true">☥</div></header>
   <?php if($flash!==''):?><div class="pc-notification-feedback" role="status"><?=portalEscape($flash)?></div><?php endif;?>
   <?php if(!empty($GLOBALS['fridgeError'])):?><div class="pc-notification-feedback" role="alert"><?=portalEscape($GLOBALS['fridgeError'])?></div><?php endif;?>
-  <?php if($fridgeError):?><section class="pc-panel pc-empty" role="alert"><h2>My Fridge is temporarily unavailable</h2><p>Your order records are unchanged. Please try again later.</p></section>
+  <?php if($fridgeDataError):?><section class="pc-panel pc-empty" role="alert"><h2>My Fridge is temporarily unavailable</h2><p>Your order records are unchanged. Please try again later.</p></section>
   <?php else:?>
   <div class="pc-fridge-stats">
     <div><span class="pc-eyebrow">IN YOUR FRIDGE</span><strong><?=count($fridgeItems)?></strong><small>Confirmed stock entries</small></div>
