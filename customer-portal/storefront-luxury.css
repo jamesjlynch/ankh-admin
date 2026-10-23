@@ -199,3 +199,16 @@
 .sf-quick-actions .sf-quick-add[hidden]{display:none!important}
 .sf-quick-actions .sf-quick-add.is-added{background:#f1e0b1!important}
 .sf-gallery-zoom:focus-visible,.sf-gallery-select button:focus-visible,.sf-gallery-arrows button:focus-visible,.sf-zoom-toolbar button:focus-visible{outline:3px solid #ebce8e;outline-offset:2px}
+
+
+/* Product-aware predictive search. All images are the published ANKH thumbnails. */
+.sf-public .sf-suggestions{border-radius:13px;border:1px solid #e3c48b77;background:#1a201a;box-shadow:0 22px 55px #000b;overflow:hidden;padding:8px}
+.sf-public .sf-suggestions .sf-suggest-label{padding:9px 10px;color:#cfb982;letter-spacing:.12em;font-size:9px}
+.sf-public .sf-suggestions a{display:flex;align-items:center;justify-content:flex-start;gap:12px;min-height:60px;padding:7px 8px;border-radius:9px;transition:background .2s}
+.sf-public .sf-suggestions a:hover,.sf-public .sf-suggestions a:focus-visible{background:#d4b77c25}
+.sf-suggest-thumb{width:46px;height:46px;min-width:46px;object-fit:contain;border-radius:7px;background:radial-gradient(circle,#49402d,#171b15);border:1px solid #d0b67534;padding:2px}
+.sf-suggest-fallback{display:grid;place-items:center;font:30px Georgia,serif;color:#d8b775}
+.sf-suggest-copy{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.sf-public .sf-suggestions .sf-suggest-copy strong{font:500 13px Georgia,serif;color:#f4e8d5;line-height:1.3}
+.sf-public .sf-suggestions .sf-suggest-copy small{font-size:9px;color:#b6a98b;text-align:left}
+.sf-suggest-arrow{color:#e9ce8f;font-size:14px}
