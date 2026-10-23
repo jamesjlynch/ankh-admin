@@ -59,6 +59,12 @@ function researchDetails(string $name, array $profile): array {
     foreach (($profile['specifications'] ?? []) as $field => $value) {
         if (is_string($value) && trim($value) !== '') $info[(string)$field] = trim($value);
     }
+    // Scientific evidence/identity fields are sourced from the curated
+    // research profiles and added only when the destination field is blank.
+    foreach (['evidence_level','mechanism','research_limitations','identity_notes'] as $field) {
+        $value=$profile[$field]??null;
+        if (is_string($value) && trim($value)!=='') $info[$field]=trim($value);
+    }
     $key = (string)($profile['key'] ?? '');
     $category = strtolower($info['peptide_type'] ?? '');
     $accessory = in_array($key,['pen','case','cartridge'],true);
@@ -88,7 +94,7 @@ function researchDetails(string $name, array $profile): array {
     return array_filter($info, static fn($v) => is_string($v) && trim($v) !== '');
 }
 function researchLimit(string $field, string $value): bool {
-    $limit = in_array($field,['research','applications','references','precautions','faq'],true) ? 5000 : 600;
+    $limit = in_array($field,['research','research_limitations','applications','references','precautions','faq'],true) ? 5000 : 600;
     return preg_match('//u',$value) === 1 && preg_match_all('/./us',$value) <= $limit;
 }
 $products = $db->query("SELECT id,name FROM products WHERE active=1 ORDER BY name COLLATE NOCASE")->fetchAll();
