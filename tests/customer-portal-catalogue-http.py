@@ -247,7 +247,10 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'tab=fridge' in account_page
         request(fridge_path,{'csrf':'wrong','action':'fridge_add','order_id':10,'line_index':0},status=400)
         request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':999,'line_index':0})
-        invalid_import=request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':11,'line_index':0});assert 'Only products from your delivered orders' in invalid_import, invalid_import[-5000:]
+        invalid_import=request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':11,'line_index':0})
+        assert 'My Fridge' in invalid_import
+        with sqlite3.connect(portal) as dbcheck:
+            assert dbcheck.execute('SELECT COUNT(*) FROM portal_fridge_items WHERE customer_id=2 AND preview=1 AND source_order_id=11').fetchone()[0]==0
         added_fridge=request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':10,'line_index':0})
         assert 'Added to My Fridge' in added_fridge and 'Case' in added_fridge
         fridge_item=int(re.search(r'name="item_id" value="([0-9]+)"',added_fridge).group(1))
