@@ -10,7 +10,7 @@ cd "$temp/repo"
 git init -q
 git config user.email "tests@ankh.invalid"
 git config user.name "ANKH CI"
-for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
+for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
   case "$file" in
     *.php) printf '%s\n' '<?php echo "ok";' > "$file" ;;
     *) printf '%s\n' "fixture $file" > "$file" ;;
@@ -28,6 +28,8 @@ cmp -s index.php "$temp/home/public_html/ankh-admin/index.php"
 cmp -s admin-visuals.js "$temp/home/public_html/ankh-admin/admin-visuals.js"
 cmp -s admin-visuals.css "$temp/home/public_html/ankh-admin/admin-visuals.css"
 cmp -s premium-v2.css "$temp/home/public_html/ankh-admin/premium-v2.css"
+cmp -s product-v2.css "$temp/home/public_html/ankh-admin/product-v2.css"
+cmp -s product-v2.php "$temp/home/public_html/ankh-admin/product-v2.php"
 [[ ! -e "$temp/home/ankh-admin-backups" ]] || { echo 'Publisher unexpectedly created a database backup'; exit 1; }
 
 # Repeat the same release: no needless deployment or extra backup.
