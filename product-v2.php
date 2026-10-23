@@ -5,6 +5,10 @@
  * The caller has already authenticated the administrator and loaded $products,
  * $reservedStockByProduct, $reservationDetailsByProduct and $incomingByProduct.
  */
+if (!($auth??false) || !isset($db,$products) || !($db instanceof PDO)) {
+ http_response_code(403);
+ exit('Forbidden');
+}
 $productV2Id=filter_input(INPUT_GET,'id',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 if(!$productV2Id && isset($_GET['id']) && is_scalar($_GET['id']) && ctype_digit((string)$_GET['id']))$productV2Id=(int)$_GET['id'];
 $productV2=null;
