@@ -28,6 +28,7 @@ CREATE TABLE stock_movements(id INTEGER PRIMARY KEY,product_id INTEGER,created T
 $db->exec("INSERT INTO orders VALUES(45,'Test customer',datetime('now'),'New','','Jay',0);
 INSERT INTO items(order_id,product_id,name,quantity,price,presentation) VALUES(45,7,'Test Vial 5mg',2,2500,'Vial');
 INSERT INTO stock_movements(product_id,created,movement_type,quantity_change,location,order_id) VALUES(7,datetime('now'),'Manual adjustment',3,'Jay',NULL);");
+$auth=true;
 $products=[['id'=>7,'name'=>'Test Vial 5mg','active'=>1,'stock_tracking'=>1,'price'=>3000,'family_friends_price'=>2200,'cost'=>1000,'stock_jay_qty'=>5,'stock_tony_qty'=>2,'stock_unallocated_qty'=>1,'low_stock_at'=>3,'supplier_pack_size'=>10]];
 $reservedStockByProduct=[7=>['jay'=>2,'tony'=>1]];
 $reservationDetailsByProduct=[7=>[['order_id'=>45,'quantity'=>2,'customer'=>'Test customer','location'=>'Jay']]];
