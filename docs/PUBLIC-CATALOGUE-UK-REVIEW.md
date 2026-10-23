@@ -55,16 +55,16 @@
 - Companies Act trading disclosures: https://www.gov.uk/running-a-limited-company/signs-stationery-and-promotional-material
 - Online and distance selling: https://www.gov.uk/online-and-distance-selling-for-businesses/online-selling
 
-## 5. Current application controls
+## 5. Current application controls (updated 23 October 2026)
 
-- Independent review record `catalogue_public_reviews` with default public visibility **off** for every product.
-- Authenticated review form in **Admin → Products → Product → Independent public listing review**.
-- Requires recorded reviewer, substantive legal/advertising assessment and three explicit attestations before releasing a technical profile.
-- Later editing any catalogue description/image/structured information automatically revokes public release. The review must be repeated on revised content.
-- Public endpoint `/ankh-admin/public-catalogue.php` does not need a customer account and lists **only** individually reviewed active products. It displays no retail prices, family prices, stock counts, supplier costs, orders, customer names, checkout or purchase prompts.
-- Public page shows prominent non-medical-use notice, research evidence limitations and noindex/nofollow while prelaunch review is outstanding.
-- Internal account catalogue visibility remains separate and unchanged.
-- **The gate is a workflow safeguard, not an MHRA legal determination; do not tick attestations without real documented evidence.**
+- The public technical index at `https://order.ankhpeptides.com/public-catalogue.php` reads the **existing** `customer_catalogue_visibility` flags from the same read-only Admin database used by the migrated customer portal.
+- Active products marked `visible=1` on the customer's dashboard automatically appear on the read-only public technical index. Products already hidden or inactive remain hidden.
+- On the first verified rollout, there were **28 active products, 21 previously published, 21 publicly listed**.
+- Admin → Products → Customer catalogue updates this shared visibility flag. The public index contains **no prices, family prices, stock counts, supplier costs, orders, customer identities, basket or checkout**.
+- Existing `catalogue_public_reviews` records, where present, are retained as historical audit data; they no longer control the public index. Nothing in the published/unpublished flag implies a professional legal review has been completed.
+- The public website displays research-evidence limitations, states that the materials are not intended for human/veterinary use, and is marked `noindex,nofollow`.
+- **Important**: the decision to put a research product online is not the same as lawful product classification or advertising approval. Commercial webpages referencing medicinal peptides can constitute public advertisements even without a checkout or price. Complete items 1–4 of this checklist with UK specialist advice before relying on the catalogue for commercial promotion.
+- Publication does not modify any product name, price, image, inventory, customer record, order or payment.
 
 ## Release decision
 
