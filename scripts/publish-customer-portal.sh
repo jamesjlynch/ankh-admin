@@ -26,7 +26,7 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php request-confirmation.php shop-home.php contact-settings.php my-fridge.php fridge-view.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php public-catalogue-core.php public-catalogue.php storefront.php storefront.css storefront.js storefront-design.php storefront-experience.php storefront-card.php storefront-preview.php storefront-preview.css statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php request-confirmation.php shop-home.php contact-settings.php my-fridge.php fridge-view.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php public-catalogue-core.php public-catalogue.php storefront.php storefront.css storefront.js storefront-design.php storefront-experience.php storefront-card.php storefront-commerce.php storefront-staff.php shop-checkout.php checkout.js storefront-preview.php storefront-preview.css statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
 source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
@@ -56,6 +56,9 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/storefront-design.php
 "$php" -l customer-portal/storefront-experience.php
 "$php" -l customer-portal/storefront-card.php
+"$php" -l customer-portal/storefront-commerce.php
+"$php" -l customer-portal/storefront-staff.php
+"$php" -l customer-portal/shop-checkout.php
 "$php" -l customer-portal/storefront-preview.php
 "$php" -l customer-catalogue.php
 "$php" -l customer-portal/preview-live.php
