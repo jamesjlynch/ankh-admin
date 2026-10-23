@@ -205,3 +205,30 @@ body.sf-public{padding-bottom:calc(71px + env(safe-area-inset-bottom))}
 .sf-public .sf-related .sf-card-copy{min-height:190px}
 }
 @media(max-width:355px){.sf-public .sf-grid-v2{grid-template-columns:1fr}.sf-card-v2 .sf-card-copy{min-height:0}.sf-quick-inner{padding:18px}}
+
+
+/* Research shortlist, intentionally separate from transactions and private accounts. */
+.sf-saved-entry{display:inline-flex;align-items:center;gap:8px;min-height:41px;padding:8px 13px;color:#ebd6a4;border:1px solid #ceb27555;border-radius:24px;font-size:11px}
+.sf-saved-entry:hover{background:#d5b5771b}
+.sf-saved-entry span{display:inline-grid;place-items:center;border-radius:50%;min-width:23px;height:23px;padding:0 5px;background:#d8b87a23;color:#efd7a0;font-size:10px}
+.sf-save-action{min-height:41px;white-space:nowrap;padding:8px 12px;border:1px solid #c8ab7154;border-radius:8px;background:transparent;color:#e9d19c;font-size:11px;font-weight:650;cursor:pointer}
+.sf-save-action:hover,.sf-save-action.is-saved{background:#dab77724;border-color:#e6ca8d}
+.sf-save-mini{min-height:37px;font-size:10px;padding:7px 9px}
+.sf-card-v2 .sf-card-bottom{gap:4px}
+.sf-card-v2 .sf-card-quick{white-space:nowrap}
+.sf-saved-heading{max-width:700px}
+.sf-saved-heading .sf-secondary{display:inline-block;margin-top:18px;color:#eac88a}
+.sf-saved-empty{display:grid;place-items:center;gap:13px;text-align:center;min-height:310px;background:#1b1e19;border:1px dashed #c9ad7b70;border-radius:17px;margin:20px 0 80px;padding:35px}
+.sf-saved-empty[hidden],.sf-saved-grid[hidden],.sf-saved-grid [hidden]{display:none!important}
+.sf-saved-empty h2{font:400 30px Georgia,serif;margin:0}
+.sf-saved-empty p{font-size:12px;color:#b3b5aa;max-width:440px}
+.sf-saved-grid{margin:30px 0 80px}
+.sf-card-quick:focus-visible,.sf-save-action:focus-visible,.sf-saved-entry:focus-visible{outline:3px solid #edcf87;outline-offset:3px}
+@media(max-width:600px){
+.sf-head-inner{gap:8px}.sf-saved-entry{font-size:10px;padding:8px 9px}
+.sf-card-v2 .sf-card-bottom{gap:3px}
+.sf-save-mini,.sf-card-v2 .sf-card-quick{font-size:9px;padding:6px}
+.sf-public .sf-card-v2 .sf-card-copy{min-height:198px}
+.sf-detail-actions .sf-save-action{width:100%;justify-content:center}
+}
+@media(max-width:370px){.sf-saved-entry{padding:6px 7px}.sf-saved-entry span{min-width:19px;height:19px}.sf-public .sf-account-entry{font-size:10px;padding:7px}}
