@@ -217,7 +217,7 @@
         "https://pubmed.ncbi.nlm.nih.gov/25738459/"
       ],
       "specifications": {
-        "peptide_type": "Mitochrial-derived signalling peptide",
+        "peptide_type": "Mitochondrial-derived signalling peptide",
         "amino_length": "16",
         "sequence": "MRWQEMGYIFYPRKLR"
       }
@@ -578,6 +578,66 @@
       "references": [],
       "specifications": {
         "peptide_type": "Laboratory accessory; non-peptide"
+      }
+    },
+    {
+      "key": "starterkit",
+      "aliases": [
+        "starter kit",
+        "starter pack",
+        "research starter kit"
+      ],
+      "overview": "A set of laboratory accessories supplied together as a kit. Exact inclusions, dimensions and compatibility must be checked against the product listing and packaging.",
+      "research": "Component specifications, safe handling and materials compatibility depend on the particular kit. A kit name does not validate the safety or regulatory status of contents.",
+      "research_focus": "Kit composition, component compatibility and laboratory handling.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Multi-item laboratory accessory kit; non-peptide"
+      }
+    },
+    {
+      "key": "labels",
+      "aliases": [
+        "blank label sheets",
+        "label sheets",
+        "label rolls",
+        "labels"
+      ],
+      "overview": "Blank laboratory labelling materials intended for identification and organisation. Dimensions, finish, adhesion and printer compatibility vary by product.",
+      "research": "Relevant technical specifications are printing method, legibility, durability and resistance to storage conditions rather than biological research.",
+      "research_focus": "Labelling materials, legibility and environmental durability.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Labelling accessory; non-peptide"
+      }
+    },
+    {
+      "key": "envelope",
+      "aliases": [
+        "envelopes",
+        "mailer",
+        "packaging envelopes"
+      ],
+      "overview": "Packaging supplies used to organise or ship compatible laboratory accessories and materials. Dimensions and construction depend on the actual item.",
+      "research": "Packaging performance depends on sealing, cushioning, barrier properties and suitability for the contents.",
+      "research_focus": "Protective packaging and material compatibility.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Packaging accessory; non-peptide"
+      }
+    },
+    {
+      "key": "notebook",
+      "aliases": [
+        "notebook",
+        "pocket notebook"
+      ],
+      "overview": "A paper-based accessory for logging laboratory observations or organising records. Page count, paper type and binding depend on the specific item supplied.",
+      "research": "Laboratory note-taking benefits from legible, dated records and consistent sample identification; this stationery product has no biological molecular specification.",
+      "research_focus": "Research documentation and traceability.",
+      "references": [],
+      "specifications": {
+        "peptide_type": "Stationery; non-peptide"
       }
     }
   ]
