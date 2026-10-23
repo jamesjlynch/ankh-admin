@@ -239,6 +239,37 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'Other customer reminder' not in reminders and 'Paused reminder' not in reminders and '987654' not in reminders
         assert 'No order or payment is created automatically' in reminders
         account_page=request('/preview-live.php?customer_id=2&tab=account');assert 'tab=recurring' in account_page
+        # My Fridge: delivered-order-only importing, private data and customer-controlled forecasts.
+        fridge_path='/preview-live.php?customer_id=2&tab=fridge'
+        initial_fridge=request(fridge_path)
+        assert 'My Fridge' in initial_fridge and 'Add from previous orders' in initial_fridge
+        assert 'Undelivered vial' not in initial_fridge
+        assert 'tab=fridge' in account_page
+        request(fridge_path,{'csrf':'wrong','action':'fridge_add','order_id':10,'line_index':0},status=400)
+        request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':999,'line_index':0})
+        assert 'Only products from your delivered orders' in request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':11,'line_index':0})
+        added_fridge=request(fridge_path,{'csrf':token,'action':'fridge_add','order_id':10,'line_index':0})
+        assert 'Added to My Fridge' in added_fridge and 'Case' in added_fridge
+        fridge_item=int(re.search(r'name="item_id" value="([0-9]+)"',added_fridge).group(1))
+        with sqlite3.connect(portal) as dbcheck:
+            row=dbcheck.execute('SELECT customer_id,preview,source_order_id,source_line_index,remaining_milli FROM portal_fridge_items WHERE id=?',(fridge_item,)).fetchone()
+            assert row==(2,1,10,0,1000),row
+        assert 'Case' not in request('/preview-live.php?customer_id=1&tab=fridge').split('pc-fridge-card')[0]
+        invalid_fridge=request(fridge_path,{'csrf':token,'action':'fridge_update','item_id':fridge_item,'remaining':'3e3','rate':'1','period':'week'})
+        assert 'Enter a valid non-negative quantity' in invalid_fridge
+        saved_fridge=request(fridge_path,{'csrf':token,'action':'fridge_update','item_id':fridge_item,'remaining':'1','rate':'0.5','period':'week'})
+        assert 'Your fridge estimate has been updated' in saved_fridge and 'Estimated until' in saved_fridge
+        with sqlite3.connect(portal) as dbcheck:
+            row=dbcheck.execute('SELECT remaining_milli,rate_milli,rate_period FROM portal_fridge_items WHERE id=?',(fridge_item,)).fetchone()
+            assert row==(1000,500,'week'),row
+        other_update=request('/preview-live.php?customer_id=1&tab=fridge',{'csrf':token,'action':'fridge_update','item_id':fridge_item,'remaining':'0','rate':'1','period':'day'})
+        assert 'no longer available in your account' in other_update
+        with sqlite3.connect(portal) as dbcheck:
+            assert dbcheck.execute('SELECT remaining_milli FROM portal_fridge_items WHERE id=?',(fridge_item,)).fetchone()[0]==1000
+        request(fridge_path,{'csrf':token,'action':'fridge_archive','item_id':fridge_item})
+        assert 'Case' not in request(fridge_path).split('pc-fridge-card')[0]
+        print('My Fridge HTTP checks passed: delivery validation, private ownership, forecasting, updates and archiving.')
+
         home_page=request('/preview-live.php?customer_id=2&tab=home');assert 'Shop the collection' in home_page
         other=request('/preview-live.php?customer_id=1&tab=recurring');assert 'No recurring orders set up' in other and '19 Nov 2026' not in other
         notices_path='/preview-live.php?customer_id=2&tab=notifications'
