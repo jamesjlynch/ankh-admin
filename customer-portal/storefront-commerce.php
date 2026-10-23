@@ -115,7 +115,7 @@ function sfCommerceCreateRequest(PDO $db,array $input,array $approved,string $to
     if(!is_array($input['items']??null))throw new InvalidArgumentException('Your basket is empty.');
     $computed=sfCommerceBuildLines($input['items'],$approved);
     sfCommerceInit($db);
-    $db->exec('BEGIN IMMEDIATE TRANSACTION');
+    $db->beginTransaction();
     try{
         $q=$db->prepare('SELECT id FROM storefront_guest_requests WHERE token=?');$q->execute([$token]);
         if($existing=$q->fetchColumn()){$db->commit();return (int)$existing;}
