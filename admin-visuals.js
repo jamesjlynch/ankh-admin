@@ -36,7 +36,14 @@
     img.loading = 'lazy';
     img.decoding = 'async';
     img.src = imageUrl(product);
-    img.addEventListener('error', () => wrapper.remove(), { once: true });
+    img.addEventListener('error', () => {
+      const icon = wrapper.parentElement;
+      if (icon?.classList.contains('ankh-has-photo')) {
+        icon.classList.remove('ankh-has-photo');
+        delete icon.dataset.ankhPhotoDone;
+      }
+      wrapper.remove();
+    }, { once: true });
     wrapper.append(img);
     return wrapper;
   }
