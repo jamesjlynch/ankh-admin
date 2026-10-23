@@ -14,6 +14,55 @@ const read=()=>{try{const obj=JSON.parse(localStorage.getItem(key)||'{}');
 let cart=read();
 const money=p=>'£'+(p/100).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
 const qty=v=>{const x=Number(v);return Number.isInteger(x)&&x>0&&x<=99?x:0;};
+/* A lightweight confirmation instead of interrupting shopping with the basket drawer. */
+const toast=document.createElement('div');
+toast.className='sf-cart-feedback';
+toast.setAttribute('role','status');
+toast.setAttribute('aria-live','polite');
+toast.setAttribute('aria-atomic','true');
+document.body.append(toast);
+let toastTimer=null;
+const buttonStates=new WeakMap();
+const announce=message=>{
+    if(toastTimer!==null)clearTimeout(toastTimer);
+    toast.textContent=message;
+    toast.classList.remove('is-visible');
+    // Restart the entrance animation for consecutive additions.
+    void toast.offsetWidth;
+    toast.classList.add('is-visible');
+    toastTimer=setTimeout(()=>{toast.classList.remove('is-visible');toastTimer=null;},2400);
+};
+const confirmAdded=(button,name)=>{
+    let state=buttonStates.get(button);
+    if(!state){
+        state={
+            originalNodes:Array.from(button.childNodes,child=>child.cloneNode(true)),
+            originalLabel:button.getAttribute('aria-label'),
+            timer:null
+        };
+        buttonStates.set(button,state);
+    }
+    if(state.timer!==null)clearTimeout(state.timer);
+    button.classList.remove('is-added');
+    void button.offsetWidth;
+    button.replaceChildren(document.createTextNode('✓ Added'));
+    button.classList.add('is-added');
+    button.setAttribute('aria-label',name+' added to basket');
+    state.timer=setTimeout(()=>{
+        button.replaceChildren(...state.originalNodes.map(child=>child.cloneNode(true)));
+        button.classList.remove('is-added');
+        if(state.originalLabel!==null)button.setAttribute('aria-label',state.originalLabel);
+        else button.removeAttribute('aria-label');
+        state.timer=null;
+    },1600);
+};
+const pulseBasketCount=()=>{
+    document.querySelectorAll('[data-cart-count]').forEach(node=>{
+        node.classList.remove('sf-count-pop');
+        void node.offsetWidth;
+        node.classList.add('sf-count-pop');
+    });
+};
 const sync=()=>{
     const clean={};
     for(const [id]of products)if(qty(cart[id]))clean[id]=qty(cart[id]);
@@ -62,10 +111,22 @@ const draw=()=>{
       :'Your selections are saved on this device. Eligible accessory requests are reviewed by ANKH before acceptance.';
 };
 document.querySelectorAll('[data-cart-id]').forEach(button=>button.addEventListener('click',()=>{
-    const id=Number(button.dataset.cartId);
-    if(!products.has(id))return;
-    if(!cart[id]&&Object.keys(cart).length>=20){dialog.showModal();return;}
-    cart[id]=Math.min(99,qty(cart[id])+1);draw();if(!dialog.open)dialog.showModal();
+    const id=Number(button.dataset.cartId),item=products.get(id);
+    if(!item)return;
+    if(!cart[id]&&Object.keys(cart).length>=20){
+        announce('Your basket can hold up to 20 different products.');
+        return;
+    }
+    if(qty(cart[id])>=99){
+        announce('Maximum quantity of 99 reached for '+item.name+'.');
+        return;
+    }
+    cart[id]=qty(cart[id])+1;
+    draw();
+    confirmAdded(button,item.name);
+    pulseBasketCount();
+    announce(item.name+' added to your '+(item.live?'basket.':'demo basket.')+' Keep browsing or tap Basket to review.');
+    // Do not showModal, redirect, or focus the basket when an item is added.
 }));
 document.querySelectorAll('[data-open-cart]').forEach(button=>button.addEventListener('click',()=>{
     draw();if(!dialog.open)dialog.showModal();
