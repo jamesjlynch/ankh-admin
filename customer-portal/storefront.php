@@ -68,5 +68,6 @@ if(!in_array($sort,['name','family','strength'],true))$sort='name';
 $filters=['search'=>$search,'category'=>$category,'strength'=>$strength,'format'=>$format];
 $filtered=array_values(array_filter($products,static fn($p)=>pfMatches($p,$filters)));
 pfOrder($filtered,$sort);
+$savedView=($_GET['saved']??'')==='1' && $id===null;
 $notice=ankhPublicNotice();
 require __DIR__.'/storefront-experience.php';
