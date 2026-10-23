@@ -28,6 +28,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <a href="./public-catalogue.php">Research library</a>
 <a href="mailto:info@ankhpeptides.com">Contact</a>
 </nav>
+<a class="sf-saved-entry" href="./?saved=1" aria-label="Open saved research shortlist">Saved <span data-saved-count>0</span></a>
 <a class="sf-cart-nav sf-account-entry" href="./?tab=home" aria-label="Open your ANKH customer account"><span class="sf-user-symbol" aria-hidden="true">◉</span> My Account <span aria-hidden="true">↗</span></a>
 </div></header>
 <main class="sf-shell" id="main">
@@ -51,7 +52,7 @@ $related=$selected?pfRelated($selected,$products):[];
 </div>
 <div class="sf-detail-actions">
 <a class="sf-button" href="./?tab=home">Open My Account <span aria-hidden="true">↗</span></a>
-<a class="sf-secondary" href="./public-catalogue.php?product=<?=(int)$selected['id']?>">Full scientific reference →</a>
+<a class="sf-secondary" href="./public-catalogue.php?product=<?=(int)$selected['id']?>">Full scientific reference →</a><button type="button" class="sf-save-action" data-save-id="<?=(int)$selected['id']?>" aria-pressed="false">♡ Save to research shortlist</button>
 </div>
 <p class="sf-product-warning">Technical research information only. This page does not offer medical products for sale. See the laboratory and regulatory notice below.</p>
 </div></section>
@@ -82,6 +83,13 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <div class="sf-grid">
 <?php foreach($related as $p):require __DIR__.'/storefront-card.php';endforeach;?>
 </div></section><?php endif;?>
+<?php elseif(!empty($savedView)):?>
+<section class="sf-heading sf-saved-heading"><span class="sf-kicker">YOUR RESEARCH LIST</span><h1>Saved profiles<span class="sf-gold">.</span></h1><p>Keep track of technical profiles on this device. Your shortlist is stored only in this browser and does not create an order.</p><a href="./#collection" class="sf-secondary">← Browse all profiles</a></section>
+<div class="sf-saved-empty" data-saved-empty><h2>Nothing saved yet.</h2><p>Select the heart beside any profile to add it to this list.</p><a class="sf-button" href="./#collection">Explore collection ↗</a></div>
+<section class="sf-grid sf-grid-v2 sf-saved-grid" data-saved-grid hidden aria-label="Your saved profiles">
+<?php foreach($products as $p):require __DIR__.'/storefront-card.php';endforeach;?>
+</section>
+<noscript><p>Saved lists require JavaScript enabled. Product profiles remain available through the collection.</p></noscript>
 <?php elseif($id!==false&&$id!==null):?>
 <div class="sf-heading"><span class="sf-kicker">NOT AVAILABLE</span><h1>Product not found.</h1><p>This profile is not currently published. <a href="./">Return to the collection.</a></p></div>
 <?php else:?>
@@ -126,17 +134,17 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 </section>
 <?php endif;?>
 </main>
-<footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
-<?php if(!$selected):?><dialog class="sf-quick-dialog" id="sf-quick" aria-labelledby="sf-quick-title"><div class="sf-quick-inner">
+<footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?saved=1">Saved research</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
+<dialog class="sf-quick-dialog" id="sf-quick" aria-labelledby="sf-quick-title"><div class="sf-quick-inner">
 <button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
 </div></dialog>
-<div class="sf-search-corpus" hidden aria-hidden="true">
+<?php if(!$selected):?><div class="sf-search-corpus" hidden aria-hidden="true">
 <?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
 </div>
 <?php endif;?>
 <nav class="sf-bottom-menu" aria-label="Mobile shortcuts">
 <a href="./#collection"><span aria-hidden="true">⌕</span>Explore</a>
-<a href="./public-catalogue.php"><span aria-hidden="true">☷</span>Research</a>
+<a href="./?saved=1"><span aria-hidden="true">♡</span>Saved</a>
 <a href="./?tab=orders"><span aria-hidden="true">□</span>Orders</a>
 <a href="./?tab=home"><span aria-hidden="true">◉</span>My Account</a></nav>
 </body></html>
