@@ -29,7 +29,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <?php if(!empty($whatsappUrl)):?><a href="<?=pfEscape($whatsappUrl)?>" rel="noopener noreferrer" target="_blank">WhatsApp support ↗</a><?php else:?><a href="mailto:info@ankhpeptides.com">Contact</a><?php endif;?>
 </nav>
 <a class="sf-saved-entry" href="./?saved=1" aria-label="Open saved research shortlist">Saved <span data-saved-count>0</span></a>
-<a class="sf-basket-entry" href="./?tab=basket" aria-label="Open your customer basket">Basket ↗</a>
+<button class="sf-basket-entry sf-cart-toggle" type="button" data-open-cart aria-label="Open accessory shopping basket">Basket <span data-cart-count>0</span> ↗</button>
 <a class="sf-cart-nav sf-account-entry" href="./?tab=home" aria-label="Open your ANKH customer account"><span class="sf-user-symbol" aria-hidden="true">◉</span> My Account <span aria-hidden="true">↗</span></a>
 </div></header>
 <main class="sf-shell" id="main">
@@ -51,6 +51,10 @@ $related=$selected?pfRelated($selected,$products):[];
 <div class="sf-detail-spec-mini">
 <?php foreach(['strength'=>'Quantity','presentation'=>'Presentation','purity'=>'Purity reference'] as $field=>$label):if(empty($info[$field]))continue;?><span><small><?=pfEscape($label)?></small><strong><?=pfEscape($info[$field])?></strong></span><?php endforeach;?>
 </div>
+<?php if(isset($buyable[(int)$selected['id']])):?>
+<div class="sf-shop-inline"><span>Available for accessory request · <strong>£<?=number_format($buyable[(int)$selected['id']]['price']/100,2)?></strong></span>
+<button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>" data-cart-price="<?=(int)$buyable[(int)$selected['id']]['price']?>" data-cart-name="<?=pfEscape($selected['name'])?>">Add to basket ＋</button></div>
+<?php endif;?>
 <div class="sf-detail-actions">
 <a class="sf-button" href="./?tab=home">Open My Account <span aria-hidden="true">↗</span></a>
 <a class="sf-secondary" href="./public-catalogue.php?product=<?=(int)$selected['id']?>">Full scientific reference →</a><button type="button" class="sf-save-action" data-save-id="<?=(int)$selected['id']?>" aria-pressed="false">♡ Save to research shortlist</button>
@@ -126,6 +130,19 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <?php if(!$filtered):?><div class="sf-empty"><h3>No matching profiles.</h3><p>Try a different term, strength or format.</p><a href="./#collection" class="sf-secondary">Clear filters →</a></div><?php else:?>
 <div class="sf-grid sf-grid-v2" id="sf-product-grid"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
 </section>
+<section class="sf-trust-details" id="sf-trust" aria-labelledby="sf-trust-title">
+<div class="sf-section-title"><div><span class="sf-kicker">TRANSPARENT BY DESIGN</span><h2 id="sf-trust-title">Know who you're dealing with<span class="sf-gold">.</span></h2>
+<p>Useful, factual business information. No invented reviews, unverifiable certifications or artificial countdowns.</p></div></div>
+<div class="sf-trust-columns">
+<article><span class="sf-kicker">THE COMPANY</span><h3>ANKH GLOBAL LTD</h3>
+<?php if(!empty($businessFacts['company'])):?><p><?=nl2br(pfEscape($businessFacts['company']))?></p><?php else:?><p>Company documentation and registered particulars are available on request.</p><?php endif;?></article>
+<article><span class="sf-kicker">FULFILMENT &amp; DELIVERY</span><h3>Clear expectations.</h3>
+<?php if(!empty($businessFacts['fulfilment'])):?><p><?=nl2br(pfEscape($businessFacts['fulfilment']))?></p><?php endif;?>
+<?php if(!empty($businessFacts['dispatch'])):?><p><?=nl2br(pfEscape($businessFacts['dispatch']))?></p><?php else:?><p>Availability, delivery area, charges and timing are confirmed individually before an order is accepted. No fixed delivery promise is implied.</p><?php endif;?></article>
+<article><span class="sf-kicker">HUMAN SUPPORT</span><h3>Speak to ANKH.</h3>
+<?php if(!empty($businessFacts['support'])):?><p><?=nl2br(pfEscape($businessFacts['support']))?></p><?php else:?><p>Contact ANKH directly for support availability and existing order queries.</p><?php endif;?>
+<a href="mailto:info@ankhpeptides.com">Email ANKH support ↗</a></article>
+</div><p class="sf-trust-fineprint">Research pages do not establish medical suitability or product quality. Independent batch documentation will only be linked when available and verified.</p></section>
 <section class="sf-editorial sf-editorial-v2" id="sf-process"><div><span class="sf-kicker">THE ANKH EXPERIENCE</span><h2>Every detail.<br><em>Considered.</em></h2>
 <p>Your research reference and your personal ANKH account belong in one thoughtfully designed experience.</p><a class="sf-button" href="./?tab=home">Open My Account <span aria-hidden="true">→</span></a></div><div class="sf-editorial-emblem" aria-hidden="true">☥</div></section>
 <section class="sf-process" aria-label="How ANKH works">
@@ -135,6 +152,13 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 </section>
 <?php endif;?>
 </main>
+<dialog id="sf-cart-drawer" class="sf-cart-drawer" aria-labelledby="sf-cart-heading">
+<div class="sf-cart-head"><div><span class="sf-kicker">YOUR ANKH BASKET</span><h2 id="sf-cart-heading">Your selections<span class="sf-gold">.</span></h2></div><button type="button" data-close-cart class="sf-cart-dismiss" aria-label="Close basket">×</button></div>
+<p class="sf-cart-description">Approved non-medicinal accessories only. Your selections are saved on this device. Submission is an order request, not payment.</p>
+<div id="sf-cart-lines" class="sf-cart-lines" role="status" aria-live="polite"><p>Nothing in your basket yet.</p></div>
+<div class="sf-cart-foot"><div><span>Product subtotal</span><strong id="sf-cart-subtotal">£0.00</strong></div>
+<p>Delivery is confirmed by ANKH before an order is accepted. No payment is collected here.</p>
+<a class="sf-button sf-cart-checkout" href="./shop-checkout.php" id="sf-cart-checkout">Review &amp; send request ↗</a></div></dialog>
 <footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?saved=1">Saved research</a><a href="./?tab=basket">Customer basket</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
 <dialog class="sf-quick-dialog" id="sf-quick" aria-labelledby="sf-quick-title"><div class="sf-quick-inner">
 <button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
@@ -146,6 +170,6 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <nav class="sf-bottom-menu" aria-label="Mobile shortcuts">
 <a href="./#collection"><span aria-hidden="true">⌕</span>Explore</a>
 <a href="./?saved=1"><span aria-hidden="true">♡</span>Saved</a>
-<a href="./?tab=basket"><span aria-hidden="true">▢</span>Basket</a>
+<button type="button" data-open-cart class="sf-mobile-cart"><span aria-hidden="true">▢</span>Basket <b data-cart-count>0</b></button>
 <a href="./?tab=home"><span aria-hidden="true">◉</span>My Account</a></nav>
 </body></html>
