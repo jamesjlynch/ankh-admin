@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'premium-v2.css'
+      - 'product-v2.css'
+      - 'product-v2.php'
+      - 'tests/product-v2.php'
       - 'index.php'
       - 'scripts/publish-live.sh'
       - 'tests/publish-live.sh'
@@ -15,6 +18,9 @@ on:
     branches: [main]
     paths:
       - 'premium-v2.css'
+      - 'product-v2.css'
+      - 'product-v2.php'
+      - 'tests/product-v2.php'
       - 'index.php'
       - 'scripts/publish-live.sh'
       - 'tests/publish-live.sh'
@@ -35,9 +41,14 @@ jobs:
           php-version: '8.2'
           extensions: pdo_sqlite
       - name: Lint PHP template
-        run: php -l index.php
+        run: |
+          php -l index.php
+          php -l product-v2.php
+          php -l tests/product-v2.php
       - name: Check V2 visual flag and asset integrity
-        run: php tests/premium-v2.php
+        run: |
+          php tests/premium-v2.php
+          php tests/product-v2.php
       - name: Check shared Krystal publisher
         run: php tests/deploy-smoke.php
       - name: Simulate isolated publish and missing-asset repair
