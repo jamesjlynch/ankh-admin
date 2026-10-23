@@ -50,6 +50,7 @@ jobs:
           php -l customer-portal/customer-experience.php
           php -l customer-catalogue.php
           node --check customer-portal/storefront.js
+          node --check customer-portal/storefront-luxury.js
           php -l customer-portal/storefront-experience.php
           php -l customer-portal/storefront-design.php
           php -l customer-portal/storefront-card.php

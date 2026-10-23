@@ -14,11 +14,13 @@ $related=$selected?pfRelated($selected,$products):[];
 <title><?=pfEscape($selected?$selected['name'].' · ANKH':'ANKH · Research Collection')?></title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
-<link rel="stylesheet" href="./storefront.css?v=6">
-<script defer src="./storefront.js?v=2"></script>
+<link rel="stylesheet" href="./storefront.css?v=7">
+<link rel="stylesheet" href="./storefront-luxury.css?v=1">
+<script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
+<script defer src="./storefront-luxury.js?v=2"></script>
 </head>
-<body class="sf-public">
+<body class="sf-public <?=$selected?'sf-is-detail':'sf-is-collection'?>">
 <a href="#main" class="sf-skip">Skip to content</a>
 <div class="sf-promo"><span aria-hidden="true">✦</span> ANKH GLOBAL LTD <span aria-hidden="true">✦</span> TECHNICAL RESEARCH COLLECTION</div>
 <header class="sf-header"><div class="sf-shell sf-head-inner">
@@ -37,9 +39,32 @@ $related=$selected?pfRelated($selected,$products):[];
 <?php if($selected):$info=$selected['information'];?>
 <nav class="sf-breadcrumb" aria-label="Breadcrumb"><a href="./">Collection</a><span aria-hidden="true">/</span><a href="<?=pfEscape(pfUrl(['category'=>pfType($selected['name'])]))?>"><?=pfEscape(pfType($selected['name']))?></a><span aria-hidden="true">/</span><span><?=pfEscape($selected['name'])?></span></nav>
 <section class="sf-product-hero sf-product-hero-v2">
-<div class="sf-detail-visual-column"><div class="sf-product-image sf-photo-stage">
-<?php if($selected['has_photo']):?><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" alt="<?=pfEscape($selected['name'].' product photograph')?>" fetchpriority="high" decoding="async" width="640" height="640"><?php else:?><span aria-hidden="true">☥</span><?php endif;?>
-<span class="sf-photo-mark" aria-hidden="true">☥</span></div>
+<div class="sf-detail-visual-column">
+<div class="sf-product-gallery" aria-label="Product image and technical specification gallery" data-gallery>
+  <div class="sf-gallery-track" id="sf-gallery-track" tabindex="0" aria-label="Swipe between product photograph and product specifications">
+    <div class="sf-gallery-slide sf-gallery-photo" id="sf-gallery-photo" aria-label="Product photograph">
+      <div class="sf-product-image sf-photo-stage">
+      <?php if($selected['has_photo']):?>
+       <img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=detail')?>" srcset="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=thumb')?> 420w, <?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=detail')?> 880w" sizes="(max-width: 600px) 100vw, (max-width: 1000px) 60vw, 700px" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="880" height="880">
+       <button type="button" class="sf-gallery-zoom" data-gallery-zoom aria-label="Enlarge product photograph">⌕ <span>Enlarge photo</span></button>
+      <?php else:?><span class="sf-gallery-fallback" aria-hidden="true">☥</span><?php endif;?>
+      <span class="sf-photo-mark" aria-hidden="true">☥</span></div>
+    </div>
+    <div class="sf-gallery-slide sf-gallery-specification" id="sf-gallery-specification" aria-label="Technical reference details">
+      <span class="sf-kicker">ANKH / MATERIAL REFERENCE</span><span class="sf-gallery-emblem" aria-hidden="true">☥</span>
+      <h2><?=pfEscape($selected['name'])?></h2><dl>
+       <?php foreach(['strength'=>'Quantity','presentation'=>'Presentation','appearance'=>'Appearance','peptide_type'=>'Material type'] as $field=>$label):if(empty($info[$field]))continue;?><div><dt><?=pfEscape($label)?></dt><dd><?=pfEscape((string)$info[$field])?></dd></div><?php endforeach;?>
+      </dl><small>Supplied profile specifications are not batch verification.</small>
+    </div>
+  </div>
+  <div class="sf-gallery-bar">
+    <div class="sf-gallery-select" role="group" aria-label="Select gallery view">
+      <button type="button" data-gallery-go="0" aria-pressed="true"><span class="sf-gallery-thumb"><?php if($selected['has_photo']):?><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=thumb')?>" loading="lazy" width="45" height="45" alt=""><?php else:?>☥<?php endif;?></span><span>PHOTO</span></button>
+      <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">☥</span><span>DETAILS</span></button>
+    </div>
+    <div class="sf-gallery-arrows" aria-label="Gallery navigation"><button type="button" data-gallery-prev aria-label="Previous gallery view">←</button><button type="button" data-gallery-next aria-label="Next gallery view">→</button></div>
+  </div>
+</div>
 <div class="sf-image-caption"><span>ANKH / PRODUCT PROFILE</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
 <span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
@@ -108,7 +133,7 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <div class="sf-hero-note"><span aria-hidden="true">☥</span><span>Explore with confidence<br><small>Factual profiles · Account privacy first</small></span></div></div>
 <div class="sf-hero-art sf-real-art" aria-label="ANKH product collection photography">
 <?php if($heroPhotos):?><div class="sf-hero-photo-wall">
-<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'].($j===0?'':'&size=thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
+<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'].($j===0?'&size=detail':'&size=thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
 </div><?php else:?><span class="sf-hero-symbol" aria-hidden="true">☥</span><?php endif;?>
 <span class="sf-art-label">A N K H &nbsp; / &nbsp; T H E &nbsp; C O L L E C T I O N</span>
 </div></section>
@@ -116,10 +141,10 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <section class="sf-collection" id="collection"><div class="sf-section-title"><div><span class="sf-kicker">THE COLLECTION</span><h2>Explore every detail<span class="sf-gold">.</span></h2>
 <p>Browse <?=count($products)?> published technical profiles with your existing ANKH product photography.</p></div><span class="sf-index">ANKH / 001</span></div>
 <div class="sf-category-chips" aria-label="Browse by type">
-<?php foreach($categories as $c):?><a href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfType($p['name'])===$c))?></span></a><?php endforeach;?>
+<?php foreach($categories as $c):?><a data-category-value="<?=pfEscape($c)?>" href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfType($p['name'])===$c))?></span></a><?php endforeach;?>
 </div>
 <form method="get" action="./#collection" class="sf-filter sf-filter-v2" role="search" id="sf-search-form">
-<div class="sf-search-box"><label for="sf-search">Search the collection</label><input id="sf-search" name="q" type="search" autocomplete="off" maxlength="120" placeholder="Search products or research context…" value="<?=pfEscape($search)?>" aria-describedby="sf-search-help" aria-controls="sf-suggestions"><span class="sf-search-icon" aria-hidden="true">⌕</span>
+<div class="sf-search-box"><label for="sf-search">Search the collection</label><input id="sf-search" name="q" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" autocomplete="off" maxlength="120" placeholder="Search products or research context…" value="<?=pfEscape($search)?>" aria-describedby="sf-search-help" aria-controls="sf-suggestions"><span class="sf-search-icon" aria-hidden="true">⌕</span>
 <div id="sf-suggestions" class="sf-suggestions" hidden role="status" aria-live="polite"></div><small id="sf-search-help">Type a product name or compound to find matching profiles.</small></div>
 <div class="sf-select-wrap"><label for="sf-cat">Category</label><select id="sf-cat" name="category"><?php foreach($categories as $c):?><option value="<?=pfEscape($c)?>" <?=$category===$c?'selected':''?>><?=pfEscape($c)?></option><?php endforeach;?></select></div>
 <div class="sf-select-wrap"><label for="sf-strength">Strength</label><select id="sf-strength" name="strength"><option value="">All strengths</option><?php foreach($facets['strength'] as $s=>$qty):?><option value="<?=pfEscape($s)?>" <?=$strength===$s?'selected':''?>><?=pfEscape($s)?> (<?=$qty?>)</option><?php endforeach;?></select></div>
@@ -128,9 +153,9 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <button type="submit" class="sf-filter-apply">Show products <span aria-hidden="true">↗</span></button>
 </form>
 <?php if($search!==''||$strength!==''||$format!==''||$category!=='All research'||$sort!=='name'):?><div class="sf-active-filter"><span>Showing filtered results</span><a href="./#collection">Clear all filters ×</a></div><?php endif;?>
-<p class="sf-results"><?=count($filtered)?> matching profile<?=count($filtered)===1?'':'s'?> <span>·</span> Select an image or quick view to discover more</p>
+<p class="sf-results" data-live-results><?=count($filtered)?> matching profile<?=count($filtered)===1?'':'s'?> <span>·</span> Select an image or quick view to discover more</p>
 <?php if(!$filtered):?><div class="sf-empty"><h3>No matching profiles.</h3><p>Try a different term, strength or format.</p><a href="./#collection" class="sf-secondary">Clear filters →</a></div><?php else:?>
-<div class="sf-grid sf-grid-v2" id="sf-product-grid"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
+<div class="sf-grid sf-grid-v2" id="sf-product-grid" aria-live="polite" data-full-collection="<?=($search===''&&$strength===''&&$format===''&&$category==='All research'&&$sort==='name')?'1':'0'?>"><?php foreach($filtered as $p):require __DIR__.'/storefront-card.php';endforeach;?></div><?php endif;?>
 </section>
 <section class="sf-trust-details" id="sf-trust" aria-labelledby="sf-trust-title">
 <div class="sf-section-title"><div><span class="sf-kicker">TRANSPARENT BY DESIGN</span><h2 id="sf-trust-title">Know who you're dealing with<span class="sf-gold">.</span></h2>
@@ -154,6 +179,21 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 </section>
 <?php endif;?>
 </main>
+<?php if($selected):?>
+<div class="sf-mobile-product-action" aria-label="Product actions">
+ <div class="sf-mobile-product-summary"><small>ANKH / PRODUCT PROFILE</small><strong><?=pfEscape($selected['name'])?></strong></div>
+ <?php if(isset($demoProducts[(int)$selected['id']])):?>
+ <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add">Add to basket <span aria-hidden="true">＋</span></button>
+ <?php else:?><a href="./#collection" class="sf-mobile-product-add sf-action-reference">Browse collection ↗</a><?php endif;?>
+</div>
+<?php if($selected['has_photo']):?>
+<dialog class="sf-zoom-dialog" id="sf-product-zoom" aria-label="Enlarged product photograph">
+ <div class="sf-zoom-toolbar"><span><?=pfEscape($selected['name'])?> · Product photo</span><button type="button" data-close-zoom aria-label="Close enlarged product image">×</button></div>
+ <div class="sf-zoom-scroll"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" width="900" height="900" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" decoding="async"></div>
+ <p>Pinch to zoom on supported devices, or double-tap the photograph to enlarge.</p>
+</dialog>
+<?php endif;?>
+<?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
 <?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=$eligible?(int)$eligible['price']:0?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
 </div>
@@ -166,10 +206,10 @@ if(trim((string)($info[$key]??''))==='')continue;?><div><dt><?=pfEscape($label)?
 <a class="sf-button sf-cart-checkout" href="./shop-demo.php" id="sf-cart-checkout">Review test basket ↗</a></div></dialog>
 <footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?saved=1">Saved research</a><a href="./?tab=basket">Customer basket</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
 <dialog class="sf-quick-dialog" id="sf-quick" aria-labelledby="sf-quick-title"><div class="sf-quick-inner">
-<button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
+<button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><div class="sf-quick-actions"><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><button type="button" class="sf-add-cart sf-quick-add" id="sf-quick-add" data-cart-id="0" hidden>Add to basket ＋</button></div><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
 </div></dialog>
 <?php if(!$selected):?><div class="sf-search-corpus" hidden aria-hidden="true">
-<?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
+<?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-photo="<?=!empty($p['has_photo'])?pfEscape('./public-catalogue.php?image='.(int)$p['id'].'&size=thumb'):''?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
 </div>
 <?php endif;?>
 <nav class="sf-bottom-menu" aria-label="Mobile shortcuts">

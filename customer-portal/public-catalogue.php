@@ -40,21 +40,23 @@ if ($imageId!==false && $imageId!==null) {
     if ($image===false) {http_response_code(404);exit;}
     $mime=$r['image_mime'];
     // Smaller public thumbnails when GD/WebP are available; unchanged originals otherwise.
-    if(($_GET['size']??'')==='thumb' && is_string($image) && strlen($image)<8*1024*1024
+    $requestedSize=(string)($_GET['size']??'');
+    $targetPixels=match($requestedSize){'thumb'=>420,'detail'=>880,default=>0};
+    if($targetPixels>0 && is_string($image) && strlen($image)<8*1024*1024
        && function_exists('imagecreatefromstring') && function_exists('imagewebp')) {
         $dimensions=@getimagesizefromstring($image);
         if(is_array($dimensions) && $dimensions[0]>0 && $dimensions[1]>0
            && $dimensions[0]<=2500 && $dimensions[1]<=2500
-           && max($dimensions[0],$dimensions[1])>420){
+           && max($dimensions[0],$dimensions[1])>$targetPixels){
             $src=@imagecreatefromstring($image);
             if($src!==false){
-                $ratio=min(1,420/max(imagesx($src),imagesy($src)));
+                $ratio=min(1,$targetPixels/max(imagesx($src),imagesy($src)));
                 $width=max(1,(int)round(imagesx($src)*$ratio));$height=max(1,(int)round(imagesy($src)*$ratio));
                 $dest=imagecreatetruecolor($width,$height);
                 imagealphablending($dest,false);imagesavealpha($dest,true);
                 imagefill($dest,0,0,imagecolorallocatealpha($dest,0,0,0,127));
                 imagecopyresampled($dest,$src,0,0,0,0,$width,$height,imagesx($src),imagesy($src));
-                ob_start();$ok=@imagewebp($dest,null,79);$bytes=ob_get_clean();
+                ob_start();$ok=@imagewebp($dest,null,$requestedSize==='detail'?84:79);$bytes=ob_get_clean();
                 imagedestroy($dest);imagedestroy($src);
                 if($ok&&is_string($bytes)&&$bytes!==''){$image=$bytes;$mime='image/webp';}
             }
