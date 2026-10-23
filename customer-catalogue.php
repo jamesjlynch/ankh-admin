@@ -91,6 +91,11 @@ function ankhCatalogueSaveContent(PDO $db,int $id,string $description,?array $ph
             $db->exec('CREATE TABLE IF NOT EXISTS customer_catalogue_information(product_id INTEGER PRIMARY KEY REFERENCES products(id) ON DELETE CASCADE,information TEXT NOT NULL,updated_at TEXT NOT NULL)');
             $db->prepare('INSERT INTO customer_catalogue_information(product_id,information,updated_at) VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET information=excluded.information,updated_at=excluded.updated_at')->execute([$id,json_encode($information,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE),gmdate('c')]);
         }
+        // Public catalogue review is invalidated whenever the underlying product text/photo is saved.
+        // This is independent of the signed-in customer's catalogue preference.
+        if ($db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='catalogue_public_reviews'")->fetchColumn()) {
+            $db->prepare('UPDATE catalogue_public_reviews SET public_enabled=0,updated_at=? WHERE product_id=?')->execute([gmdate('c'),$id]);
+        }
         ankhCatalogueSetVisibility($db,$id,$visible);$db->commit();
     }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
 }
@@ -154,6 +159,9 @@ function ankhCatalogueEditorText(string $description,array $information=[]):stri
         if(!empty($information[$key]))$parts[]='## '.$label."\n".$information[$key];
     }
     if(!empty($information['coa_url']))$parts[]="## Documentation\n[View analysis document](".$information['coa_url'].")";
+    $parts[]="## Research-only and medical-use warning\n".'This is a technical research material or laboratory accessory, not a medicine or medical treatment. '
+    .'Not for human or veterinary consumption, administration or self-treatment. Published studies concern '
+    .'specific experimental materials and do not establish safety, clinical efficacy, sterility, or batch quality.';
     return trim(implode("\n\n",array_filter($parts,static fn(string $part):bool=>$part!=='')));
 }
 function ankhCatalogueSections(string $text):array {
@@ -202,7 +210,7 @@ function ankhCatalogueFormat(string $text):string {
     }
     $flushParagraph();$flushBullets();return $html;
 }
-function ankhCatalogueAdminControl(array $p,array $visibility,array $content=[]): void {
+function ankhCatalogueAdminControl(array $p,array $visibility,array $content=[],array $publicReviews=[]): void {
     static $editorStyles=false;
     if(!$editorStyles){$editorStyles=true;?><style>
     .catalogue-guide-intro{margin:22px 0 16px}.catalogue-guide-intro h4{margin:0 0 8px;font-size:18px}.catalogue-guide-intro p{font-size:12px;line-height:1.8}.catalogue-guide-step{border:1px solid #484b42;border-radius:14px;margin:12px 0;background:#151b1c;overflow:hidden}.catalogue-guide-step summary{list-style:none;display:flex;align-items:center;gap:12px;cursor:pointer;padding:17px;font-size:14px;font-weight:650}.catalogue-guide-step summary::-webkit-details-marker{display:none}.catalogue-guide-step summary .step-number{display:grid;place-items:center;width:27px;height:27px;border-radius:50%;background:#e3c4771b;color:#e4c580;flex:none;font-size:11px}.catalogue-guide-step summary>span:nth-child(2){flex:1}.catalogue-guide-step summary small{display:block;color:#aaa99f;font-size:10px;font-weight:400;margin-top:4px;line-height:1.6}.catalogue-guide-step summary .step-toggle{color:#e4c580;font-size:20px}.catalogue-guide-step[open] summary .step-toggle{transform:rotate(45deg)}.catalogue-guide-fields{padding:0 17px 19px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px 14px}.catalogue-guide-fields label{display:block!important;margin:0!important;min-width:0;font-size:12px}.catalogue-guide-fields .wide{grid-column:1/-1}.catalogue-guide-fields input,.catalogue-guide-fields textarea{width:100%;box-sizing:border-box;margin-top:8px!important;min-width:0;font-size:16px!important}.catalogue-guide-fields textarea{min-height:110px;resize:vertical;line-height:1.8}.catalogue-guide-fields small{display:block;color:#a9aaa0;font-size:10px;line-height:1.7;margin-top:6px}.catalogue-guide-fields .guide-description textarea{min-height:170px}.catalogue-guide-price{margin:17px 0;padding:13px 15px;border:1px solid #786b454f;border-radius:12px;font-size:11px;line-height:1.8;color:#d5c698}.catalogue-guide-step summary:focus-visible{outline:2px solid #e4c580;outline-offset:-4px}@media(max-width:480px){.catalogue-guide-fields{grid-template-columns:1fr}.catalogue-guide-step summary{padding:15px}.catalogue-guide-fields{padding:0 15px 17px}}
@@ -221,7 +229,28 @@ foreach($guideGroups as $groupIndex=>$group):$completed=count(array_filter($grou
 <details class="catalogue-guide-step" <?=$groupIndex===0?'open':''?>><summary><span class="step-number"><?=$groupIndex+1?></span><span><?=e($group['title'])?><small><?=e($group['hint'])?><?=$completed?' · '.$completed.' filled':''?></small></span><span class="step-toggle" aria-hidden="true">+</span></summary><div class="catalogue-guide-fields">
 <?php foreach($group['fields'] as $key):$long=$key==='description'||in_array($key,ankhCatalogueLongFields(),true)||$key==='sequence';$wide=$long||in_array($key,['research_focus','coa_url','half_life','storage','prepared_storage'],true);$value=$key==='description'?(string)($content['description']??$p['description']??''):(string)($guideInfo[$key]??'');$limit=$key==='description'?40000:(in_array($key,ankhCatalogueLongFields(),true)?5000:600);?><label class="<?=$wide?'wide ':''?><?=$key==='description'?'guide-description':''?>"><?=e($key==='description'?'Product description':$guideLabels[$key])?><?php if($long):?><textarea name="<?=$key==='description'?'catalogue_description':'catalogue_information['.$key.']'?>" maxlength="<?=$limit?>" rows="<?=$key==='description'?6:3?>"><?=e($value)?></textarea><?php else:?><input type="<?=$key==='coa_url'?'url':'text'?>" name="catalogue_information[<?=$key?>]" maxlength="<?=$limit?>" value="<?=e($value)?>" <?=$key==='coa_url'?'placeholder="https://…"':''?>><?php endif;?><?php if(isset($guideHints[$key])):?><small><?=e($guideHints[$key])?></small><?php endif;?></label><?php endforeach;?>
 </div></details><?php endforeach;?>
-<p class="catalogue-guide-price">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form><?php
+<section class="catalogue-public-gate" style="margin:20px 0;border:1px solid #6d5d37;background:#201d16;border-radius:16px;padding:16px 19px">
+<h4 style="margin:0 0 8px;color:#ecd596">Public research catalogue</h4>
+<p class="muted" style="font-size:12px;line-height:1.65">Public listing is <strong>separate</strong> from the customer dashboard. It is disabled unless a documented external regulatory assessment and advertising review have been recorded. The website does not show prices, ordering or stock on public pages. Editing this catalogue entry again automatically takes it offline pending another review.</p>
+<?php $publicRow=$publicReviews[(int)$p['id']]??null;$publicOn=(int)($publicRow['public_enabled']??0)===1;?>
+<p style="font-size:12px"><strong><?= $publicOn?'Public technical profile released':'Public profile not released' ?></strong>
+ · <a href="./public-catalogue.php" target="_blank" rel="noopener noreferrer">View public page ↗</a></p>
+<?php if($publicRow && $publicOn):?>
+<p class="muted" style="font-size:11px">Reviewed <?=e($publicRow['reviewed_at']??'')?> by <?=e($publicRow['reviewed_by']??'')?>. Review details are stored in the admin database.</p>
+<?php endif;?>
+</section><p class="catalogue-guide-price">Customers see the price saved above. Family &amp; Friends customers see their saved Family &amp; Friends price, or retail price if none is set.</p><label class="check"><input type="checkbox" name="catalogue_visible" value="1" <?=$visible?'checked':''?>> Visible on customer's dashboard</label><p class="muted"><?=(int)$p['active']===1?'Tick to publish this product, then save catalogue details. Untick and save to hide it.':'This product is inactive. It will stay hidden from customers until you also make it available for new orders.'?></p><button class="quiet" type="submit">Save catalogue details</button></form>
+<form method="post" class="detail product-settings-form" style="margin:16px 0;padding:17px;border:1px solid #6d5d37;border-radius:14px">
+<?php csrf();?><input type="hidden" name="action" value="public_catalogue_review"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>">
+<h4>Independent public listing review</h4><p class="muted">Do not approve merely because a disclaimer is present. Retain documented professional advice on product classification, lawful supply and advertising. This form is an internal audit trail, not MHRA authorisation.</p>
+<label>Reviewer name<input name="reviewed_by" maxlength="120" value="<?=e($publicRow['reviewed_by']??'')?>" placeholder="Name of person who checked the external assessment"></label>
+<label>Regulatory classification and advertising assessment reference<textarea name="review_basis" maxlength="3000" rows="4" placeholder="Identify the external professional advice, review date, product formulation, and regulatory basis for public listing."><?=e($publicRow['review_basis']??'')?></textarea></label>
+<label class="check"><input type="checkbox" name="checked_classification" value="1"> Classification and lawful public supply have been independently assessed for this exact product</label>
+<label class="check"><input type="checkbox" name="checked_advertising" value="1"> All public copy, imagery and implicit medicinal claims have been checked against MHRA and CAP rules</label>
+<label class="check"><input type="checkbox" name="checked_documents" value="1"> Product identity, label and required chemical documents are verified; no unsubstantiated purity or clinical claims remain</label>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+<button class="quiet" name="review_decision" value="approve" type="submit">Record review &amp; release public reference</button>
+<button class="quiet" name="review_decision" value="hide" type="submit">Keep / take public profile offline</button>
+</div></form><?php
 }
 
 /** Customer interactions live in the private portal database, never the order database. */
