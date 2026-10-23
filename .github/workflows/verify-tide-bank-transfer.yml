@@ -1,0 +1,34 @@
+name: Verify Tide bank-transfer preference
+on:
+  push:
+    branches: [feature/ankh-tide-bank-transfer]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - name: PHP syntax and enquiry controls
+        run: |
+          set -euo pipefail
+          php -l customer-portal/request-watch.php
+          php -l customer-portal/request-list-view.php
+          php -l customer-portal/request-confirmation.php
+          php tests/customer-collection.php
+          php tests/customer-shopping-ux.php
+          php tests/customer-portal.php
+      - name: Real HTTP private-basket regression
+        run: |
+          set -euo pipefail
+          python3 tests/customer-portal-catalogue-http.py
+      - name: Confirm no banking details, payment gateway or Admin write added
+        run: |
+          set -euo pipefail
+          ! grep -Eiq '(INSERT[[:space:]]+INTO[[:space:]]+orders|INSERT[[:space:]]+INTO[[:space:]]+payments|sort.code|account.number|payment_intent)' customer-portal/request-list-view.php customer-portal/request-confirmation.php
