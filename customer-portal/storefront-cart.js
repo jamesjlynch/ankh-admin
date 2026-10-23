@@ -75,11 +75,12 @@ const draw=()=>{
     for(const [id,q]of Object.entries(cart)){
        const item=products.get(Number(id));if(!item)continue;
        count+=q;
-       if(item.live)total+=item.price*q;else hasDemo=true;
+       if(item.price>0)total+=item.price*q;
+       if(!item.live)hasDemo=true;
     }
     document.querySelectorAll('[data-cart-count]').forEach(el=>el.textContent=String(count));
     const subtotal=document.getElementById('sf-cart-subtotal');
-    if(subtotal)subtotal.textContent=hasDemo?'Demo basket':money(total);
+    if(subtotal)subtotal.textContent=hasDemo?(total>0?'Preview '+money(total):'Demo basket'):money(total);
     const list=document.getElementById('sf-cart-lines');list.replaceChildren();
     if(!count){const msg=document.createElement('p');msg.className='sf-cart-empty';
         msg.textContent='Your basket is empty. Add a product to try the shopping experience.';list.append(msg);}
@@ -87,7 +88,7 @@ const draw=()=>{
         const item=products.get(Number(idText));if(!item)continue;
         const line=document.createElement('article');line.className='sf-cart-line';
         const info=document.createElement('div'),name=document.createElement('strong'),status=document.createElement('small');
-        name.textContent=item.name;status.textContent=item.live?money(item.price)+' each':'Demo item · Checkout simulation only';
+        name.textContent=item.name;status.textContent=item.live?money(item.price)+' each':(item.price>0?'Preview '+money(item.price)+' each · Demo only':'Demo item · Checkout simulation only');
         info.append(name,status);
         const editor=document.createElement('div');editor.className='sf-cart-quantity';
         const decrement=document.createElement('button');decrement.type='button';decrement.textContent='−';decrement.setAttribute('aria-label','Reduce '+item.name+' quantity');
