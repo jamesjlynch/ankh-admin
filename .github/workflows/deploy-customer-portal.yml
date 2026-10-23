@@ -49,6 +49,10 @@ jobs:
           php -l customer-portal/lib.php
           php -l customer-portal/customer-experience.php
           php -l customer-catalogue.php
+          node --check customer-portal/storefront.js
+          php -l customer-portal/storefront-experience.php
+          php -l customer-portal/storefront-design.php
+          php -l customer-portal/storefront-card.php
           node --check customer-portal/account.js
           node --check customer-portal/sw.js
           python3 -m json.tool customer-portal/manifest.webmanifest >/dev/null
