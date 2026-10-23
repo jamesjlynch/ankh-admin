@@ -1,0 +1,48 @@
+/* Public ANKH storefront refinements. Depends on storefront-preview.css for shared layout. */
+.sf-public{background:radial-gradient(ellipse at 54% -12%,#342b1c33,transparent 35%),#0c0d0b}
+.sf-skip{position:absolute;left:14px;top:-90px;background:#eed297;color:#21190d;border-radius:6px;padding:12px 16px;z-index:999}.sf-skip:focus{top:9px}
+.sf-public .sf-promo{letter-spacing:.2em}
+.sf-account-entry{gap:9px;border:1px solid #c6ab7155;background:#dbc07b0b;padding:9px 14px;border-radius:100px;min-height:45px;color:#e7d5af;transition:border-color .2s,background .2s}
+.sf-account-entry:hover{border-color:#e4c584;background:#daba7819}
+.sf-user-symbol{font-size:17px;color:#ddbe79}
+.sf-public .sf-filter{grid-template-columns:minmax(150px,1fr) minmax(160px,.38fr) auto}
+.sf-public .sf-card-bottom{margin-top:auto}
+.sf-profile-label{font-size:11px;color:#e2cb9a}
+.sf-card-cta{display:inline-flex;align-items:center;gap:6px;border:1px solid #c6a97469;color:#edd8a7;font-size:10px;white-space:nowrap;border-radius:7px;padding:10px 12px;font-weight:650}
+.sf-card-cta:hover{background:#debd7e12}
+.sf-public .sf-card-copy{min-height:190px}
+.sf-detail-actions{display:flex;align-items:center;gap:22px;flex-wrap:wrap;margin-top:20px}
+.sf-public .sf-secondary{font-size:12px;color:#dfc48b;padding:0;min-height:44px;display:inline-flex;align-items:center}
+.sf-public .sf-product-warning{padding:17px 19px;border:1px solid #a18c5b61;border-radius:10px;background:#ddbd7910;color:#cfc1a2;margin:23px 0 15px;font-size:11px}
+.sf-public .sf-info-grid p,.sf-public .sf-info-grid ul{line-height:1.95;font-size:13px;color:#b9bcaf;overflow-wrap:anywhere}
+.sf-public .sf-info-grid li{margin-bottom:6px}
+.sf-public .sf-info-grid a{color:#edcc82;text-decoration:underline;text-underline-offset:3px}
+.sf-public .sf-editorial .sf-button{margin-top:13px}
+.sf-public .sf-hero-art{min-height:440px}
+.sf-public .sf-hero{min-height:515px}
+.sf-public .sf-hero-copy{padding:60px clamp(26px,5vw,78px)}
+.sf-public .sf-hero h1{font-size:clamp(48px,5.6vw,86px)}
+.sf-public .sf-heading a{color:#eaca8b}
+@media(max-width:800px){
+.sf-public .sf-filter{grid-template-columns:1fr 1fr}
+.sf-public .sf-filter input{grid-column:1/-1}
+.sf-public .sf-filter button{grid-column:2}
+.sf-public .sf-hero{min-height:440px}
+.sf-public .sf-hero-copy{padding:45px}
+}
+@media(max-width:600px){
+.sf-account-entry{padding:8px 10px;min-height:42px;font-size:11px}
+.sf-public .sf-hero{min-height:0}.sf-public .sf-hero-copy{padding:36px 22px}
+.sf-public .sf-hero h1{font-size:clamp(43px,11vw,64px)}
+.sf-public .sf-filter input{grid-column:1/-1}
+.sf-public .sf-card-copy{min-height:154px}
+.sf-card-cta{font-size:9px;padding:7px 9px}
+.sf-profile-label{font-size:9px}
+.sf-detail-actions{gap:7px}
+.sf-detail-actions .sf-button,.sf-detail-actions .sf-secondary{width:100%;justify-content:center}
+.sf-public .sf-product-image{min-height:275px}
+}
+@media(max-width:350px){
+.sf-public .sf-filter{grid-template-columns:1fr}
+.sf-public .sf-filter>*{grid-column:1!important}
+}
