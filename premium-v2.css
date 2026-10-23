@@ -160,6 +160,22 @@ body.ankh-premium-v2 {
 }
 .ankh-premium-v2 .ankh-notification-item{border-bottom-color:var(--v2-border)}
 .ankh-premium-v2 .ankh-notification-popover[hidden]{display:none}
+.ankh-premium-v2 .premium-v2-preview-banner{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px;
+  border:1px solid rgba(226,190,114,.17);
+  border-radius:14px;
+  padding:9px 11px 9px 14px;
+  margin:0 0 17px;
+  background:rgba(226,190,114,.055);
+  color:var(--v2-gold-bright);
+  font-size:11px;
+  font-weight:750;
+  letter-spacing:.01em;
+}
 .ankh-premium-v2 .premium-v2-preview-chip{
   display:inline-flex;align-items:center;gap:8px;
   border:1px solid rgba(226,190,114,.42);
