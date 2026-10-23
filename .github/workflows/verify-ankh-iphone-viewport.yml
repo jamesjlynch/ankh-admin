@@ -1,0 +1,33 @@
+name: ANKH iPhone viewport browser QA
+on:
+  push:
+    branches: [feature/ankh-luxury-storefront-v3]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Use runner Chrome for actual layout validation
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.56.1
+          node --check tests/customer-atelier-viewport.cjs
+          node tests/customer-atelier-viewport.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ankh-iphone-viewport-screenshots
+          path: atelier-viewport-screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
