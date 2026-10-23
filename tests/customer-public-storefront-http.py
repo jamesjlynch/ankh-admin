@@ -36,7 +36,7 @@ def verify():
             db.execute("INSERT INTO customer_catalogue_content VALUES(?,?,?,?,?,?,?)",
                 (1,"Technical overview and laboratory reference",PNG,"image/png",1,1,"now"))
             db.execute("INSERT INTO customer_catalogue_information VALUES(?,?,?)",
-                (1,'{"research_focus":"In vitro studies","evidence_level":"Preclinical laboratory observations"}',"now"))
+                (1,'{"research_focus":"In vitro studies","evidence_level":"Preclinical laboratory observations","strength":"5 mg","presentation":"Vial","appearance":"Powder","peptide_type":"Research compound","amino_length":"15 residues","formula":"C62H98N16O22","weight":"1419 g/mol","sequence":"GEPPPGKPADDAGLV","cas":"137525-51-0","purity":"Unverified manufacturer specification","storage":"See supplied documentation"}',"now"))
         with sqlite3.connect(portal) as db:
             db.execute("CREATE TABLE portal_accounts(id INTEGER PRIMARY KEY,customer_id INTEGER,phone_e164 TEXT,active INTEGER)")
         before=hashlib.sha256(admin.read_bytes()).hexdigest()
@@ -77,6 +77,7 @@ def verify():
             assert 'sf-card-quick' in home and 'sf-save-mini' in home
             demo=get("/shop-demo.php")
             assert "Visible Study Material" in demo and "Simulate checkout" in demo
+            assert 'data-demo-price="9900"' in demo and 'sf-demo-subtotal' in demo, "Demo pricing should be a preview"
             assert "Hidden Compound" not in demo and "Inactive Material" not in demo
             request=urllib.request.Request(host+"/shop-demo.php",data=b"confirmed=1",method="POST")
             try:
@@ -93,7 +94,10 @@ def verify():
             assert 'data-cart-id="1"' in get("/"), "Staff re-enabled product should be offered in demo basket"
             assert "Hidden Compound" not in home and "Inactive Material" not in home
             assert "Private Test Person" not in home
-            assert "£99" not in home and "9900" not in home and "4400" not in home
+            assert "£99.00" in home and "RETAIL PREVIEW" in home, "Published retail preview price must be visible"
+            assert "£88.88" not in home and "£30.00" not in home, "Hidden or inactive price must stay private"
+            assert "4400" not in home and "£44.00" not in home, "Admin cost must stay private"
+            assert 'data-approved-price="9900"' in home, "Demo basket should retain price preview without granting checkout"
             assert 'href="./?tab=home"' in home
             assert 'sf-cart-drawer' in home and 'sf-trust-details' in home and 'storefront-cart.js' in home
             assert "storefront-preview.php" not in home
@@ -114,6 +118,10 @@ def verify():
             assert "Visible Study Material" in profile
             assert 'sf-gallery-track' in profile and 'data-gallery-next' in profile and 'data-gallery-zoom' in profile
             assert 'sf-gallery-specification' in profile and 'sf-product-zoom' in profile
+            assert 'sf-gallery-spec-rows' in profile and 'sf-gallery-spec-row' in profile
+            assert "Molecular formula" in profile and "Amino-acid sequence" in profile and "Storage" in profile
+            assert "At a glance" in profile and "RETAIL PRICE PREVIEW" in profile and "£99.00" in profile
+            assert 'data-open-identity' in profile and 'Complete product identity' in profile
             assert 'sf-mobile-product-action' in profile and 'sf-mobile-product-add' in profile
             assert 'data-cart-id="1"' in profile and 'sf-quick-add' in home
             assert 'src="./storefront-luxury.js?v=2"' in profile
@@ -129,7 +137,7 @@ def verify():
             private=get("/?tab=orders")
             assert "Enter your mobile number" in private and "Private Test Person" not in private
             assert hashlib.sha256(admin.read_bytes()).hexdigest()==before,"Read-only homepage changed Admin database"
-            print("PASS: public homepage, published-only details/images, no prices or private data, secure account sign-in, Admin DB unchanged")
+            print("PASS: public homepage, published-only retail PREVIEW prices, expanded full product identity, no private data, secure login, Admin DB unchanged")
         finally:
             proc.terminate()
             try:proc.wait(timeout=5)
