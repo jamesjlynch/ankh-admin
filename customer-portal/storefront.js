@@ -58,6 +58,14 @@
         document.getElementById('sf-quick-summary').textContent=data.quickSummary || 'Explore the technical product profile.';
         const target=document.getElementById('sf-quick-link');
         target.href=data.quickHref || './';
+        const quickAdd=document.getElementById('sf-quick-add');
+        if(quickAdd){
+          const cartId=Number(data.quickCartId||0);
+          quickAdd.hidden=!Number.isInteger(cartId)||cartId<1;
+          quickAdd.dataset.cartId=String(cartId);
+          quickAdd.textContent='Add to basket ＋';
+          quickAdd.classList.remove('is-added');
+        }
         if(data.quickPhoto){
           photo.src=data.quickPhoto;photo.alt=data.quickName || 'Product photo';photo.hidden=false;fallback.hidden=true;
         }else {photo.hidden=true;photo.removeAttribute('src');fallback.hidden=false;}
