@@ -12,7 +12,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
 require_once __DIR__.'/public-catalogue-core.php';
-require_once __DIR__.'/customer-catalogue.php';
+require_once is_file(__DIR__.'/customer-catalogue.php') ? __DIR__.'/customer-catalogue.php' : dirname(__DIR__).'/customer-catalogue.php';
 function esc($s):string {return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 $configFile=getenv('ANKH_PORTAL_CONFIG') ?: dirname(__DIR__,2).'/ankh-customer-portal-config.php';
 try {
