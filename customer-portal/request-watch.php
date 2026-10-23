@@ -71,8 +71,10 @@ function portalCollectionSet(PDO $db,int $customerId,bool $preview,int $productI
       ON CONFLICT(customer_id,preview,product_id) DO UPDATE SET quantity=excluded.quantity,updated_at=excluded.updated_at')
       ->execute([$customerId,(int)$preview,$productId,$quantity,time()]);
 }
-function portalCollectionSend(PDO $db,int $customerId,bool $preview,array $products,array $availability,string $revision,string $token,string $message):int {
+function portalCollectionSend(PDO $db,int $customerId,bool $preview,array $products,array $availability,string $revision,string $token,string $message,string $paymentPreference='discuss'):int {
     if(!preg_match('/^[a-f0-9]{64}$/D',$token))throw new InvalidArgumentException('Refresh the list and try again.');
+    if(!in_array($paymentPreference,['discuss','bank_transfer'],true))
+        throw new InvalidArgumentException('Choose a valid payment preference.');
     $message=trim($message);
     if(strlen($message)>8000||!preg_match('//u',$message)||preg_match_all('/./us',$message)>2000)throw new InvalidArgumentException('Enter a note of up to 2,000 characters.');
     ankhCustomerInteractionInit($db);portalCollectionInit($db);
@@ -91,6 +93,9 @@ function portalCollectionSend(PDO $db,int $customerId,bool $preview,array $produ
     ],$items);
     $total=array_sum(array_map(static fn(array $line):int=>$line['unit_price']*$line['quantity'],$lines));
     $body="Please review the products in my request list and confirm the details and availability. This is an enquiry, not a completed order.";
+    $body.="\n\nPayment preference: ".($paymentPreference==='bank_transfer'
+        ? 'Tide bank transfer (only after ANKH confirms the order and provides verified instructions).'
+        : 'Discuss payment method with ANKH after confirmation.');
     if($message!=='')$body.="\n\nCustomer note: ".$message;
     $id=ankhCustomerCreateEnquiry($db,['id'=>0,'name'=>'Multi-product request','price'=>$total],$customerId,$preview,$body,$token,$lines);
     // Clear only after the enquiry and its item snapshots were recorded.
@@ -192,7 +197,7 @@ function portalCollectionController(PDO $store,PDO $admin,array $customer,bool $
         }elseif($action==='collection_send'){
             $target='request-list';
             if(!is_string($_POST['revision']??null)||!is_string($_POST['request_token']??null)||!is_string($_POST['message']??null))throw new InvalidArgumentException('Refresh the request list and try again.');
-            $enquiryId=portalCollectionSend($store,(int)$customer['id'],$preview,$products,$availability,$_POST['revision'],$_POST['request_token'],$_POST['message']);
+            $enquiryId=portalCollectionSend($store,(int)$customer['id'],$preview,$products,$availability,$_POST['revision'],$_POST['request_token'],$_POST['message'],is_string($_POST['payment_preference']??null)?$_POST['payment_preference']:'discuss');
             $_SESSION['collection_flash']='Your combined request has been sent to ANKH. No order or payment has been created.';
             $target='order-requested&enquiry='.(int)$enquiryId;
         }else{

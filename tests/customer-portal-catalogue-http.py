@@ -202,7 +202,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         revision=re.search(r'name="revision" value="([a-f0-9]+)"',listed).group(1)
         list_token=re.search(r'name="request_token" value="([a-f0-9]+)"',listed).group(1)
         combined_payload={'csrf':token,'action':'collection_send','revision':revision,'request_token':list_token,
-            'message':'Please confirm sample request','total':1,'customer_id':1}
+            'message':'Please confirm sample request','payment_preference':'bank_transfer','total':1,'customer_id':1}
         stale=request(list_path,combined_payload|{'revision':'a'*64})
         assert 'product or price has changed' in stale and 'Case' in stale
         sent=request(list_path,combined_payload)
@@ -210,6 +210,9 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         request(list_path,combined_payload)
         with sqlite3.connect(portal) as saved_db:
             enquiry=saved_db.execute("SELECT id,customer_id,preview,price FROM catalogue_enquiries WHERE product_name='Multi-product request'").fetchall()
+            transfer_note=saved_db.execute("SELECT message FROM catalogue_enquiries WHERE product_name='Multi-product request'").fetchone()[0]
+            assert 'Payment preference: Tide bank transfer' in transfer_note
+            assert 'This is an enquiry, not a completed order' in transfer_note
             assert len(enquiry)==1 and enquiry[0][1:]==(2,1,7800),enquiry
             saved_lines=saved_db.execute('SELECT product_id,quantity,unit_price FROM catalogue_enquiry_lines WHERE enquiry_id=? ORDER BY position',(enquiry[0][0],)).fetchall()
             assert saved_lines==[(3,4,1200),(1,2,1500)] or saved_lines==[(1,2,1500),(3,4,1200)],saved_lines
