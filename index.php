@@ -4001,7 +4001,7 @@ if($reportDownloadBuffer)ob_start();
 @media (min-width:1000px){
  #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
 }
-</style><link rel="stylesheet" href="admin-visuals.css?v=20261023"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
+</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head><body>
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -7029,5 +7029,5 @@ foreach($productCatalogForJs as $photoCatalogProduct){
 }
 ?>
 <script id="ankh-visual-product-data" type="application/json"><?=json_encode($ankhVisualProducts,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE)?></script>
-<script src="admin-visuals.js?v=20261023" defer></script>
+<script src="admin-visuals.js?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.js') ?: 0))?>" defer></script>
 </body></html>
