@@ -109,6 +109,7 @@ try {
 }
 // Staff-only portal management; the live Admin connection remains read-only.
 portalContactStaffController($portal);
+sfStaffController($portal,$admin);
 portalExtrasStaffController($portal,$admin);
 if(($_GET['manage']??'')==='portal'){
     portalExtrasStaffPage($portal,$admin);
