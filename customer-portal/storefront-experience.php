@@ -204,7 +204,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <?php endif;?>
 <?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
-<?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=$eligible?(int)$eligible['price']:0?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
+<?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=(int)($previewPrices[(int)$p['id']]??0)?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
 </div>
 <dialog id="sf-cart-drawer" class="sf-cart-drawer" aria-labelledby="sf-cart-heading">
 <div class="sf-cart-head"><div><span class="sf-kicker">YOUR ANKH BASKET</span><h2 id="sf-cart-heading">Your selections<span class="sf-gold">.</span></h2></div><button type="button" data-close-cart class="sf-cart-dismiss" aria-label="Close basket">×</button></div>
