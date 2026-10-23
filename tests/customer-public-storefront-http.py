@@ -77,7 +77,8 @@ def verify():
             assert "storefront-preview.php" not in home
             assert "not intended for human" in home.lower()
             assert "Order" not in home[:80] # public storefront doesn't embed customer orders
-            assert get("/?q=not-a-match").count("Visible Study Material")==0
+            no_results=get("/?q=not-a-match")
+            assert "No matching profiles." in no_results and "0 matching profiles" in no_results and "sf-grid-v2" not in no_results
             assert "Visible Study Material" in get("/?product=1")
             assert "Preclinical laboratory observations" in get("/?product=1")
             get("/?product=2",404)
