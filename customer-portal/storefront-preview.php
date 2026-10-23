@@ -7,7 +7,8 @@ declare(strict_types=1);
  */
 require_once __DIR__ . '/lib.php';
 $local = PHP_SAPI === 'cli-server' && getenv('ANKH_TEST_ALLOW_HTTP') === '1'
-    && in_array((string)($_SERVER['SERVER_ADDR'] ?? ''), ['127.0.0.1', '::1'], true);
+    && in_array((string)($_SERVER['REMOTE_ADDR'] ?? ''), ['127.0.0.1', '::1'], true)
+    && preg_match('/^(?:127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?$/D', (string)($_SERVER['HTTP_HOST'] ?? '')) === 1;
 if (!$local && ($_SERVER['HTTPS'] ?? '') !== 'on') { http_response_code(403); exit('HTTPS required.'); }
 ini_set('session.use_strict_mode', '1');
 ini_set('session.cookie_httponly', '1');
