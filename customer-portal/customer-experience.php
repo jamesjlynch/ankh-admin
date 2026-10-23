@@ -5,6 +5,7 @@ if (!defined('ANKH_PORTAL_VIEW') || empty($customer)) { http_response_code(404);
 /** Read-only customer workspace: every order here was filtered for this identity by the controller. */
 function pcIcon(string $key): string {
     $paths = [
+      'fridge'=>'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M5 11h14M9 6v2M9 15v2"/>',
       'basket'=>'<path d="M3 9h18l-2 11H5L3 9zM8 10l4-7 4 7M9 14v3M15 14v3"/>',
       'chat'=>'<path d="M20 11a8 8 0 0 1-8 8 9 9 0 0 1-4-.9L3 20l1.9-5A8 8 0 1 1 20 11z"/><path d="M8 11h8"/>',
       'home'=>'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
@@ -79,7 +80,7 @@ $staff=!empty($isStaffPreview);
 $customerId=(int)$customer['id'];
 $catalogueEnabled=true;
 $tab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
-$allowedTabs=['home','orders','vault','support','account','recurring','notifications','repeat-enquiry','insights','request-list','watchlist','basket','order-requested'];
+$allowedTabs=['home','orders','vault','support','account','recurring','notifications','repeat-enquiry','insights','request-list','watchlist','basket','order-requested','fridge'];
 if($catalogueEnabled)$allowedTabs[]='catalogue';
 if(!empty($isDemo))$allowedTabs=array_merge($allowedTabs,['basket','checkout','confirmation','test-orders']);
 if(!in_array($tab,$allowedTabs,true))$tab='home';
@@ -107,7 +108,7 @@ $outstanding=array_sum(array_map('pcBalance',$orders));
 $recent=$currentOrders[0]??($orders[0]??null);
 $events=pcEvents($orders);
 $menu=$catalogueEnabled?[['home','Home'],['catalogue','Shop'],['basket','Basket'],['orders','Orders'],['account','Account']]:[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Help'],['account','Account']];
-$activeNav=$tab==='repeat-enquiry'?'orders':(in_array($tab,['recurring','notifications','insights'],true)?'account':(in_array($tab,['basket','request-list','order-requested'],true)?'basket':(in_array($tab,['checkout','confirmation','test-orders','watchlist'],true)?'catalogue':$tab)));
+$activeNav=$tab==='repeat-enquiry'?'orders':(in_array($tab,['recurring','notifications','insights','fridge'],true)?'account':(in_array($tab,['basket','request-list','order-requested'],true)?'basket':(in_array($tab,['checkout','confirmation','test-orders','watchlist'],true)?'catalogue':$tab)));
 if(!empty($isDemo)&&in_array($tab,['basket','checkout','confirmation','test-orders'],true))$activeNav='basket';
 $recurringOrders=[];$recurringError=false;
 if(empty($isDemo) && isset($admin) && !empty($account['phone_e164'])){
@@ -182,6 +183,8 @@ if(isset($portal)&&empty($isDemo)){
      <?php require __DIR__.'/request-list-view.php'; ?>
    <?php elseif($tab==='order-requested' && empty($isDemo)):?>
      <?php require __DIR__.'/request-confirmation.php'; ?>
+   <?php elseif($tab==='fridge'):?>
+      <?php require __DIR__.'/fridge-view.php'; ?>
    <?php elseif($tab==='watchlist' && empty($isDemo)):?>
      <?php require __DIR__.'/watchlist-view.php'; ?>
    <?php elseif($catalogueEnabled && in_array($tab,['catalogue','basket','checkout','confirmation','test-orders'],true)): ?>
@@ -327,6 +330,7 @@ if(isset($portal)&&empty($isDemo)){
     <div class="pc-insights-foot"><div class="pc-panel"><span class="pc-eyebrow">AVERAGE RECORDED ORDER</span><h2><?=portalEscape(portalMoney($insights['average']))?></h2><p>Average value per non-cancelled order.</p></div><div class="pc-panel"><span class="pc-eyebrow">ACCOUNT STATEMENTS</span><h2>Your records, ready.</h2><p>View the full breakdown of orders, payments and outstanding amounts.</p><a class="pc-outline-button" href="<?=portalEscape(pcHref('vault',$staff,$customerId))?>">Open my vault <?=pcIcon('right')?></a></div></div>
   <?php elseif($tab==='account'): ?>
     <section class="pc-page-heading"><span class="pc-eyebrow">YOUR INFORMATION</span><h1>My account<span class="pc-dot">.</span></h1><p>Review the contact details ANKH has recorded for you.</p></section>
+    <a class="pcr-account-link pc-fridge-account-link" href="<?=portalEscape(pcHref('fridge',$staff,$customerId))?>"><span class="pcr-link-icon"><?=pcIcon('fridge')?></span><span><strong>My Fridge</strong><small>Track your inventory and your own estimated usage</small></span><?=pcIcon('right')?></a>
     <a class="pcr-account-link" href="<?=portalEscape(pcHref('notifications',$staff,$customerId))?>"><span class="pcr-link-icon"><?=pcIcon('bell')?></span><span><strong>Notifications</strong><small><?=$unreadNotifications?> unread update<?=$unreadNotifications===1?'':'s'?></small></span><?=pcIcon('right')?></a>
     <details class="pc-install-help" id="pc-install-help"><summary><span class="pc-install-icon"><?=pcIcon('spark')?></span><span><strong>Make ANKH your Home Screen app</strong><small>Open it full-screen from your iPhone or Android</small></span><?=pcIcon('right')?></summary><div class="pc-install-body"><p><strong>On iPhone:</strong> Open this website in Safari, tap the Share icon and select <em>Add to Home Screen</em>, then tap Add.</p><p><strong>On Android:</strong> Open this site in Chrome and choose <em>Install app</em> or <em>Add to Home screen</em> from the browser menu.</p><button type="button" class="pc-primary-link" id="pc-install-app" hidden>Install ANKH <?=pcIcon('right')?></button><p class="pc-footnote">For security, private account data is not stored offline. You will still sign in when required.</p></div></details>
     <a class="pcr-account-link" href="<?=portalEscape(pcHref('request-list',$staff,$customerId))?>"><span class="pcr-link-icon"><?=pcIcon('catalogue')?></span><span><strong>My request list</strong><small><?=$requestCount?> saved products · One combined enquiry</small></span><?=pcIcon('right')?></a>
