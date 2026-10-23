@@ -685,3 +685,37 @@ a.pc-stat:hover{transform:translateY(-2px);border-color:rgba(231,197,130,.5)}
 .pc-transfer-confirmation strong{font-size:12px;color:#f0d5a1}
 .pc-transfer-confirmation p{font-size:11px;color:#bcbab0;line-height:1.7;margin:6px 0 0}
 @media(max-width:600px){.pc-transfer-preference{padding:13px;margin:14px 0}.pc-transfer-option{padding:13px 4px}}
+
+
+/* ANKH My Account hub and protected storefront controls */
+.pc-account-hub{padding:26px 0 32px}
+.pc-account-hub-heading{display:flex;align-items:end;justify-content:space-between;gap:20px;margin:0 0 22px}
+.pc-account-hub-heading h2{font:400 clamp(27px,3.5vw,41px) Georgia,serif;letter-spacing:-.025em;margin:8px 0 6px}
+.pc-account-hub-heading p{font-size:12px;color:#acada4;margin:0}
+.pc-account-hub-heading>a{display:inline-flex;align-items:center;gap:7px;color:#e7ca90;font-size:11px;white-space:nowrap;min-height:44px}
+.pc-account-hub-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px}
+.pc-account-hub-grid a{min-height:154px;padding:20px;border:1px solid #e2c68536;border-radius:14px;background:linear-gradient(155deg,#242521,#141817);display:flex;flex-direction:column;align-items:flex-start;gap:10px;transition:transform .2s,border-color .2s}
+.pc-account-hub-grid a:hover{transform:translateY(-2px);border-color:#dfc78a9f}
+.pc-account-hub-grid a>span{display:flex;align-items:center;gap:7px;color:#c9b688;font-size:9px;letter-spacing:.08em}
+.pc-account-hub-grid a>span svg{width:16px;height:16px}
+.pc-account-hub-grid strong{font:400 clamp(23px,2.8vw,34px) Georgia,serif;color:#f5e2b8;line-height:1.18;overflow-wrap:anywhere}
+.pc-account-hub-grid small{color:#a8aaa2;font-size:10px;line-height:1.5}
+.pc-account-hub-actions{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:13px}
+.pc-account-hub-actions a{display:inline-flex;align-items:center;gap:8px;min-height:43px;padding:10px 12px;border-radius:10px;border:1px solid rgba(222,194,136,.21);color:#d9d6cb;font-size:11px}
+.pc-account-hub-actions svg{width:17px;height:17px;color:#e2bc73}
+.pc-sf-staff{margin-top:24px}
+.pc-sf-staff h3{font-size:17px;color:#e8d2a8;margin:28px 0 10px}
+.pc-sf-staff details{border-top:1px solid rgba(231,197,130,.24);padding:14px 0}
+.pc-sf-staff details summary{cursor:pointer;color:#e6d7b6;font-size:12px}
+.pc-sf-staff details form{padding:14px 0;display:grid;gap:10px}
+.pc-sf-staff details form label{display:grid;gap:6px;color:#c5c2b2;font-size:11px}
+.pc-sf-staff details form input,.pc-sf-staff details form textarea,.pc-sf-staff .pc-ops-contact-form textarea{width:100%;padding:12px;border-radius:8px;background:#131716;color:#eee8d5;border:1px solid #9d855b70;font:12px system-ui}
+.pc-sf-staff details form button{min-height:44px;border-radius:8px;border:1px solid #bea673;padding:9px 13px;color:#f0d49d;background:#231e16}
+.pc-sf-requests details p{font-size:11px;overflow-wrap:anywhere;line-height:1.7}
+@media(max-width:900px){.pc-account-hub-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){
+.pc-account-hub{padding:19px 0 27px}.pc-account-hub-heading{align-items:flex-start;flex-direction:column;gap:6px;margin-bottom:16px}
+.pc-account-hub-grid{gap:9px}.pc-account-hub-grid a{padding:15px;min-height:144px}.pc-account-hub-grid strong{font-size:25px}
+.pc-account-hub-actions{gap:7px}.pc-account-hub-actions a{width:100%;justify-content:space-between}
+.pc-sf-staff .pc-ops-contact-form{grid-template-columns:1fr}
+}

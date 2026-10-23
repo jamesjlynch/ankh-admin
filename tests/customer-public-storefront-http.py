@@ -67,6 +67,8 @@ def verify():
                 except urllib.error.HTTPError as err:status=err.code;data=err.read()
                 assert status==code,(path,status,code,data[:350])
                 return data if raw else data.decode("utf-8","replace")
+            checkout=get("/shop-checkout.php")
+            assert 'Online checkout is not available yet' in checkout
             home=get("/")
             assert "Discover the" in home and "ANKH collection" in home
             assert "Visible Study Material" in home
@@ -74,6 +76,7 @@ def verify():
             assert "Private Test Person" not in home
             assert "£99" not in home and "9900" not in home and "4400" not in home
             assert 'href="./?tab=home"' in home
+            assert 'sf-cart-drawer' in home and 'sf-trust-details' in home and 'storefront-cart.js' in home
             assert "storefront-preview.php" not in home
             assert "not intended for human" in home.lower()
             assert "Order" not in home[:80] # public storefront doesn't embed customer orders

@@ -1,0 +1,46 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__).'/customer-portal/public-catalogue-core.php';
+require_once dirname(__DIR__).'/customer-portal/storefront-commerce.php';
+function check(bool $truth,string $message):void{if(!$truth)throw new RuntimeException($message);}
+function invalid(callable $f,string $message):void{try{$f();}catch(InvalidArgumentException $e){return;}throw new RuntimeException($message);}
+$admin=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+$admin->exec('CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,price INTEGER,active INTEGER); CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER);
+INSERT INTO products VALUES(1,"Everyday carry case",1999,1),(2,"Retatrutide 10mg",6000,1),(3,"Hidden storage case",3300,1),(4,"Inactive case",2500,0);
+INSERT INTO customer_catalogue_visibility VALUES(1,1),(2,1),(3,0),(4,1);
+CREATE TABLE orders(id INTEGER PRIMARY KEY,customer TEXT,status TEXT,delivery_charge INTEGER);
+CREATE TABLE items(id INTEGER PRIMARY KEY,order_id INTEGER,price INTEGER,quantity INTEGER);
+CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER);');
+$portal=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+check(sfCommerceEligible($portal,$admin)===[],'Fail closed when approval table missing');
+sfCommerceInit($portal);
+check(sfCommerceEligible($portal,$admin)===[],'No product should be buyable by default');
+invalid(fn()=>sfCommerceSaveEligibility($portal,$admin,2,'enable','QA reviewer',str_repeat('Documented legal review ',6)),'Regulated product erroneously enabled');
+invalid(fn()=>sfCommerceSaveEligibility($portal,$admin,3,'enable','QA reviewer',str_repeat('Documented legal review ',6)),'Unpublished accessory erroneously enabled');
+invalid(fn()=>sfCommerceSaveEligibility($portal,$admin,1,'enable','QA reviewer','Too short'),'Short review accepted');
+sfCommerceSaveEligibility($portal,$admin,1,'enable','QA reviewer',str_repeat('Documented accessories compliance rationale ',4));
+$eligible=sfCommerceEligible($portal,$admin);
+check(count($eligible)===1&&$eligible[1]['price']===1999,'Allowlisted non-medicinal accessory not available');
+$fact=['company'=>'ANKH GLOBAL LTD','fulfilment'=>'Verified in-house packing process','dispatch'=>'Delivery prices are confirmed before a purchase is accepted','support'=>'Email support'];
+sfCommerceSaveFacts($portal,$fact);
+check(sfCommerceFacts($portal)['company']==='ANKH GLOBAL LTD','Business facts not saved');
+invalid(fn()=>sfCommerceSaveFacts($portal,array_replace($fact,['company'=>str_repeat('A',170)])),'Invalid company information accepted');
+$input=['name'=>'Fixture Customer','email'=>'example@example.test','phone'=>'07123456789','address'=>'24 Fictional Street, Testville, SW1A 1AA','note'=>'Leave at desk','confirmed'=>'1','items'=>['1'=>'2']];
+$token=str_repeat('a',64);$fingerprint=str_repeat('b',64);
+$first=sfCommerceCreateRequest($portal,$input,$eligible,$token,$fingerprint);
+check($first>0,'Request not recorded');
+$again=sfCommerceCreateRequest($portal,$input,$eligible,$token,$fingerprint);
+check($first===$again,'Replay creates duplicate request');
+$record=$portal->query('SELECT * FROM storefront_guest_requests')->fetchAll(PDO::FETCH_ASSOC);
+check(count($record)===1 && $record[0]['subtotal']===3998 && $record[0]['status']==='Pending staff review','Pricing or review status incorrect');
+check(count(json_decode($record[0]['lines_json'],true))===1,'Line snapshots missing');
+invalid(fn()=>sfCommerceCreateRequest($portal,array_replace($input,['items'=>['2'=>'1']]),$eligible,str_repeat('c',64),$fingerprint),'Unapproved material accepted');
+invalid(fn()=>sfCommerceCreateRequest($portal,array_replace($input,['items'=>['1'=>'100']]),$eligible,str_repeat('d',64),$fingerprint),'Invalid quantity accepted');
+invalid(fn()=>sfCommerceCreateRequest($portal,array_replace($input,['confirmed'=>'0']),$eligible,str_repeat('e',64),$fingerprint),'Unconfirmed request accepted');
+$admin->exec('UPDATE customer_catalogue_visibility SET visible=0 WHERE product_id=1');
+check(sfCommerceEligible($portal,$admin)===[],'Hidden accessory remains purchasable');
+sfCommerceSaveEligibility($portal,$admin,1,'disable','','');
+check(sfCommerceEligible($portal,$admin)===[],'Disabled accessory remains purchasable');
+check((int)$admin->query('SELECT COUNT(*) FROM orders')->fetchColumn()===0,'Portal mutated Admin orders');
+check((int)$admin->query('SELECT COUNT(*) FROM payments')->fetchColumn()===0,'Portal mutated Admin payments');
+echo "Public accessory checkout guardrails passed: publication, default deny, identity, prices, duplicate requests and no Admin writes.\n";
