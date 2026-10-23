@@ -82,6 +82,7 @@ jobs:
           python3 tests/customer-catalogue-admin-http.py
           python3 tests/customer-storefront-preview-http.py
           python3 tests/customer-public-storefront-http.py
+          php tests/customer-product-certificates.php
           php tests/customer-storefront-commerce.php
           php tests/customer-demo-basket.php
       - name: Configure deployment access
