@@ -52,8 +52,5 @@ jobs:
           test -z "$(git status --porcelain)"
           git merge --ff-only origin/main
           ANKH_DEPLOY_HOME=/home/devcouk /bin/bash scripts/publish-live.sh
-          /opt/cpanel/ea-php82/root/usr/bin/php -d display_errors=1 -d log_errors=0 -l scripts/backfill-product-research.php
-          ANKH_ADMIN_CONFIG=/home/devcouk/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php scripts/backfill-product-research.php --dry-run
-          ANKH_ADMIN_CONFIG=/home/devcouk/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php scripts/backfill-product-research.php --apply
           tail -n 12 /home/devcouk/ankh-admin-deploy.log
           REMOTE
