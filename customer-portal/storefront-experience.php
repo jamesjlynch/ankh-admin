@@ -60,7 +60,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <div class="sf-section-intro"><span class="sf-kicker">IN-DEPTH REFERENCE</span><h2>Beyond the label<span class="sf-gold">.</span></h2><p>Organised scientific information, without distracting you from the details.</p></div>
 <details class="sf-accordion" open><summary><span><b>01</b> Overview</span><span aria-hidden="true">＋</span></summary><div class="sf-accordion-content"><?=ankhCatalogueFormat((string)$selected['description'])?></div></details>
 <?php $sections=[
-  ['title'=>'Research focus &amp; scientific context','keys'=>['research_focus'=>'Research focus','research'=>'Research and literature overview','applications'=>'Experimental research topics','references'=>'Published references']],
+  ['title'=>'Research focus &amp; scientific context','keys'=>['research_focus'=>'Research focus','research'=>'Research and literature overview','evidence_level'=>'Evidence status','mechanism'=>'Experimental mechanism','research_limitations'=>'Evidence limitations','applications'=>'Experimental research topics','references'=>'Published references']],
   ['title'=>'Material identity &amp; specifications','keys'=>['peptide_type'=>'Compound type','appearance'=>'Appearance','amino_length'=>'Amino-acid length','weight'=>'Molecular weight','formula'=>'Molecular formula','sequence'=>'Amino-acid sequence','cas'=>'CAS number','pubchem'=>'PubChem CID','half_life'=>'Experimental half-life context']],
   ['title'=>'Storage &amp; handling','keys'=>['storage'=>'Storage before preparation','prepared_storage'=>'Storage after laboratory preparation','precautions'=>'Laboratory handling']],
   ['title'=>'Questions &amp; documentation','keys'=>['faq'=>'Questions &amp; answers']],
