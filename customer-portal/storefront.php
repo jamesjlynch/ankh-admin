@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Research pages are informational, not an offer of medical products.
  */
 require_once __DIR__.'/public-catalogue-core.php';
-require_once __DIR__.'/customer-catalogue.php';
+require_once is_file(__DIR__.'/customer-catalogue.php') ? __DIR__.'/customer-catalogue.php' : dirname(__DIR__).'/customer-catalogue.php';
 $loopback = PHP_SAPI==='cli-server' && getenv('ANKH_TEST_ALLOW_HTTP')==='1'
     && in_array((string)($_SERVER['REMOTE_ADDR']??''),['127.0.0.1','::1'],true)
     && preg_match('/^(?:127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?$/D',(string)($_SERVER['HTTP_HOST']??''))===1;
