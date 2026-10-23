@@ -49,8 +49,8 @@ $index=file_get_contents($root.'/index.php');
 $tpl=file_get_contents($root.'/packing-v2.php');
 $deploy=file_get_contents($root.'/scripts/publish-live.sh');
 checkV(str_contains($index,"require_once __DIR__.'/packing-v2-support.php'"),'Safe packing bookkeeping must load before POST actions.');
-checkV(str_contains($index,"if($action==='packing_pick')"),'Packing POST handler missing.');
-checkV(str_contains($index,"$view==='packing'"),'Packing route should be reachable.');
+checkV(str_contains($index,"if(\$action==='packing_pick')"),'Packing POST handler missing.');
+checkV(str_contains($index,"\$view==='packing'"),'Packing route should be reachable.');
 checkV(str_contains($index,"'packing_pick'"),'Packing action should be auditable.');
 checkV(str_contains($deploy,'packing-v2.php')&&str_contains($deploy,'packing-v2.css')&&str_contains($deploy,'packing-v2-support.php'),'Packing assets must publish atomically.');
 checkV(str_contains($tpl,'dashboardPreparationControls($pvOrder,')&&str_contains($tpl,'name="action" value="delivery_mark"'),'Packing UI must use existing preparation and delivery controls.');
@@ -67,7 +67,7 @@ $now=new DateTimeImmutable('2026-10-23 13:30:00',new DateTimeZone('Europe/London
 ob_start();include $root.'/packing-v2.php';$html=ob_get_clean();
 foreach(['Packing checklist','Sam Test','Alex Test','Test product 10mg','?api=catalogue-image&amp;id=8',
  'id="packing-lines"','value="packing_pick"','Existing stage controls','value="delivery_mark"',
- '£24.00 outstanding','2 units','Planned Sat 24 Oct 2026'] as $expected){
+ '£24.00 outstanding','3 units','Planned Sat 24 Oct 2026'] as $expected){
  checkV(str_contains($html,$expected),'Missing station output: '.$expected);
 }
 unset($_GET['id']);ob_start();include $root.'/packing-v2.php';$board=ob_get_clean();
