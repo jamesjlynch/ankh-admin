@@ -14,7 +14,7 @@ if(!str_contains($phpLint,'No syntax errors detected'))throw new RuntimeExceptio
 $publisher=file_get_contents($root.'/scripts/publish-live.sh');
 if(!str_contains($deploy,'/bin/bash scripts/publish-live.sh'))throw new RuntimeException('Krystal cron must call the shared publisher.');
 if(!str_contains($cpanel,'/bin/bash scripts/publish-live.sh'))throw new RuntimeException('cPanel deployment must call the same publisher.');
-foreach(['index.php','supplier-centre.php','setup.php','style.min.css','style.core.min.css','service-worker.js','admin-visuals.js','admin-visuals.css'] as $required){
+foreach(['index.php','supplier-centre.php','setup.php','style.min.css','style.core.min.css','service-worker.js','admin-visuals.js','admin-visuals.css','premium-v2.css'] as $required){
  if(!str_contains($publisher,$required))throw new RuntimeException('Publisher is missing asset '.$required);
 }
 foreach(['admin-visuals.js','admin-visuals.css'] as $visualAsset){
