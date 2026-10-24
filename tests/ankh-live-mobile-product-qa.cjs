@@ -76,6 +76,12 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       report(d.name+' gallery fits',metrics.galleryWidth<=metrics.viewport+1&&metrics.galleryWidth>180);
       report(d.name+' document panel fits',metrics.documentsWidth<=metrics.viewport+1&&metrics.documentsWidth>180);
       report(d.name+' gallery and zoom accessible',metrics.supportsZoom);
+      report(d.name+' uses exactly one real photo plus CMS specification panel',
+        (await page.locator('.sf-gallery-photo img').count())===1
+         && (await page.locator('.sf-gallery-specification').count())===1
+         && (await page.locator('.sf-gallery-spec-header').innerText()).includes('Product profile'));
+      report(d.name+' premium photo framing present',
+        (await page.locator('.sf-studio-brand').count())===1);
       const docStatus=await page.locator('.sf-product-document-status').innerText();
       report(d.name+' honest SDS status',docStatus.includes('Unverified safety draft'));
       const sheet=page.locator('.sf-product-doc-sds').first();
@@ -129,6 +135,26 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       }
       await context.close();
     }
+    // Test a second real product route and source-of-truth variant navigation
+    // only when Order Admin currently approves that product for publication.
+    const siblingContext=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    const sibling=await siblingContext.request.get(root+'/?product=73',{timeout:30000});
+    if(sibling.status()===200){
+      const product=await siblingContext.newPage();
+      await product.goto(root+'/?product=101',{waitUntil:'domcontentloaded'});
+      report('approved BPC-157 strengths exposed as a real variant selector',
+        (await product.locator('.sf-variants-premium').count())===1);
+      const variant=product.locator('.sf-variant-tile[href*="product=73"]');
+      report('10mg strength routes to its actual Order Admin product ID',await variant.count()===1);
+      if(await variant.count()){
+        await variant.first().click();
+        report('variant opens correct published product page',
+          (await product.title()).includes('BPC-157 10mg'));
+      }
+    } else {
+      report('hidden/unpublished BPC-157 10mg remains unavailable',sibling.status()===404);
+    }
+    await siblingContext.close();
     // Validate actual public document delivery (not only a link in a card).
     const context=await browser.newContext();
     const response=await context.request.get(root+'/product-safety-document.php?id=1',{timeout:30000});
