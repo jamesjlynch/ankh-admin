@@ -19,7 +19,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
 <link rel="stylesheet" href="./account.css?v=experience-4-7">
-<?php if (!empty($isStaffPreview)): ?><link rel="stylesheet" href="./cms-studio.css?v=staff-menu-2"><?php endif; ?>
+<?php if (!empty($isStaffPreview)): ?><link rel="stylesheet" href="./cms-studio.css?v=studio-4"><?php endif; ?>
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body><a class="pc-skip-link" href="#customer-main">Skip to account content</a>

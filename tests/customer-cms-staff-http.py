@@ -64,16 +64,30 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         assert 'BPC-157 5mg' in body and 'cms_save_draft' in body
         assert 'name="price"' not in body and 'name="stock_qty"' not in body
         assert 'cms-studio.css' in body and 'pc-studio-nav' in body
+        qa_dir=os.environ.get('ANKH_CMS_QA_DIR')
+        if qa_dir:Path(qa_dir).mkdir(parents=True,exist_ok=True);(Path(qa_dir)/'products.html').write_text(body)
         for label in ['Product CMS','Certificates','Storefront settings','Customer requests','Availability','WhatsApp','Customer preview','Sign out']:
             assert label in body,label
         for panel in ['certificates','commerce','requests','availability','contact']:
             panel_status,_,panel_body=call(base,'/preview-live.php?manage=portal&panel='+panel,cookie)
             assert panel_status==200 and 'aria-label="Admin sections"' in panel_body,(panel,panel_status,panel_body[:400])
+        for settings,heading in [('business','Business &amp; delivery details'),('basket','Basket product selection'),('checkout','Accessory checkout'),('requests','No guest requests yet')]:
+            status,_,settings_body=call(base,'/preview-live.php?manage=portal&panel=commerce&settings='+settings,cookie)
+            assert status==200 and heading in settings_body,(settings,status)
+            assert 'class="pc-panel pc-sf-staff pc-store-settings"' in settings_body
+            if settings=='business':assert 'name="company"' in settings_body and 'name="demo_product[]"' not in settings_body
+            if settings=='basket':assert 'pc-basket-search' in settings_body and 'name="company"' not in settings_body
+            if qa_dir:(Path(qa_dir)/(settings+'.html')).write_text(settings_body)
         preview_status,_,preview_body=call(base,'/preview-live.php?preview=customers',cookie)
         assert preview_status==200 and 'aria-label="Admin sections"' in preview_body and 'Choose a customer' in preview_body
 
         m=re.search('name="csrf" value="([a-f0-9]{64})"',body);assert m
         csrf=m.group(1)
+        saved,saved_headers,_=call(base,page,cookie,{'csrf':csrf,'action':'sf_facts_save','company':'Test Company','fulfilment':'Sample fulfilment','dispatch':'Sample delivery','support':'Sample support'})
+        assert saved==303 and saved_headers['Location'].endswith('settings=business'),saved_headers
+        with sqlite3.connect(portal) as db:assert db.execute('SELECT company FROM storefront_business_facts').fetchone()[0]=='Test Company'
+        saved,saved_headers,_=call(base,page,cookie,{'csrf':csrf,'action':'sf_demo_save_all','demo_product[]':'1'})
+        assert saved==303 and saved_headers['Location'].endswith('settings=basket'),saved_headers
         invalid,_,_=call(base,page,cookie,{'csrf':'not-valid','action':'cms_save_draft','product_id':'1','cms_description':'hijacked'})
         assert invalid==400,invalid
         data={'csrf':csrf,'action':'cms_save_draft','product_id':'1','cms_description':'New CMS description','cms_information[formula]':'C62H98N16O22'}
@@ -93,6 +107,15 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         assert status==303
         with sqlite3.connect(portal) as con:
             assert con.execute('SELECT has_published FROM portal_cms_product_content WHERE product_id=1').fetchone()[0]==0
+        # Live content can be inspected without overwriting an existing draft.
+        call(base,page,cookie,{'csrf':csrf,'action':'cms_save_draft','product_id':'1','cms_description':'Published version','cms_information[formula]':'LIVE','cms_intent':'publish'})
+        call(base,page,cookie,{'csrf':csrf,'action':'cms_save_draft','product_id':'1','cms_description':'Unpublished version','cms_information[formula]':'DRAFT'})
+        _,_,live_body=call(base,page+'&source=live',cookie)
+        assert '>Published version</textarea>' in live_body and 'name="cms_information[formula]"' in live_body
+        with sqlite3.connect(portal) as db:assert db.execute('SELECT draft_description,published_description FROM portal_cms_product_content WHERE product_id=1').fetchone()==('Unpublished version','Published version')
+        rejected,_,_=call(base,page,cookie,{'csrf':csrf,'action':'cms_save_draft','product_id':'2','cms_description':'Must not publish hidden content','cms_information[formula]':'HIDDEN','cms_intent':'publish'})
+        assert rejected==303
+        with sqlite3.connect(portal) as db:assert db.execute('SELECT COUNT(*) FROM portal_cms_product_content WHERE product_id=2').fetchone()[0]==0
         # Expired sessions keep the requested CMS panel and selected product through sign-in.
         _,logout_headers,_=call(base,'/preview-live.php',cookie,{'csrf':csrf,'action':'logout'})
         cookie=logout_headers.get('Set-Cookie','').split(';',1)[0] or cookie

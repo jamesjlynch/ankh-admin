@@ -8,6 +8,8 @@ cmsAssert(ankhStaffLoginDestination([])==='./preview-live.php?manage=portal&pane
 cmsAssert(ankhStaffLoginDestination(['manage'=>'portal','panel'=>'contact','return'=>'https://example.com'])==='./preview-live.php?manage=portal&panel=contact','CMS destination must be internal and allowlisted.');
 cmsAssert(ankhStaffLoginDestination(['manage'=>'portal','panel'=>['bad']])==='./preview-live.php?manage=portal&panel=products','Invalid panels must fall back to CMS.');
 cmsAssert(ankhStaffLoginDestination(['customer_id'=>'12','tab'=>'orders'])==='./preview-live.php?preview=customers&customer_id=12&tab=orders','Customer preview deep links must survive sign-in.');
+cmsAssert(ankhCatalogueFormat("## Product overview\n\n**Details**")==="<h3>Product overview</h3><p><strong>Details</strong></p>",'CMS headings and bold must render on the website.');
+cmsAssert(!str_contains(ankhCatalogueFormat('## <script>alert(1)</script>'),'<script>'),'Formatted headings must escape HTML.');
 $admin=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $admin->exec("CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTEGER,price INTEGER,stock_jay_qty INTEGER);
 CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER);

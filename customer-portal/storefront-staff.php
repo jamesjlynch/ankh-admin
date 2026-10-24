@@ -35,7 +35,8 @@ function sfStaffController(PDO $portal,PDO $admin):void {
         }
     }catch(InvalidArgumentException $e){$_SESSION['portal_staff_flash']=$e->getMessage();}
     catch(Throwable $e){error_log('ANKH shop staff controls: '.$e->getMessage());$_SESSION['portal_staff_flash']='Could not save storefront settings.';}
-    header('Location: ./preview-live.php?manage=portal&panel=commerce',true,303);exit;
+    $section=match($_POST['action']??''){'sf_demo_save_all'=>'basket','sf_eligibility_save'=>'checkout','sf_guest_review'=>'requests',default=>'business'};
+    header('Location: ./preview-live.php?manage=portal&panel=commerce&settings='.$section,true,303);exit;
 }
 function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
     sfCommerceInit($portal);
@@ -51,32 +52,40 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
     }catch(Throwable $e){error_log('ANKH demo list: '.$e->getMessage());}
     $demoAllowed=sfDemoVisible($portal,$demoCandidates);
     $requests=$portal->query('SELECT id,placed_at,name,email,phone,address,note,lines_json,subtotal,status FROM storefront_guest_requests ORDER BY CASE status WHEN "Pending staff review" THEN 0 ELSE 1 END,id DESC LIMIT 40')->fetchAll(PDO::FETCH_ASSOC);
+    $settings=is_string($_GET['settings']??null)?$_GET['settings']:'business';
+    if(!in_array($settings,['business','basket','checkout','requests'],true))$settings='business';
+    $pending=count(array_filter($requests,static fn($r)=>$r['status']==='Pending staff review'));
     ?>
-    <section class="pc-panel pc-sf-staff" id="storefront-controls">
-      <div class="pc-section-header"><div><span class="pc-eyebrow">PUBLIC STOREFRONT · STAFF ONLY</span><h2>Shopping &amp; business information</h2></div></div>
-      <p class="pc-footnote">Technical profiles remain public as configured in Admin. Products are <strong>not purchasable</strong> unless individually approved below. Only non-medicinal accessories are supported for guest checkout requests. Requests do not change live Admin orders, stock or payments.</p>
-      <h3>Verified business and delivery information</h3>
-      <p class="pc-footnote">Only enter facts you can support. Blank fields are simply omitted publicly. Do not advertise unsupported delivery promises or laboratory claims.</p>
-      <form method="post" class="pc-ops-contact-form"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_facts_save">
+    <section class="pc-panel pc-sf-staff pc-store-settings" id="storefront-controls">
+      <div class="pc-section-header"><div><span class="pc-eyebrow">WEBSITE MANAGEMENT</span><h2>Storefront settings</h2><p class="pc-footnote">Update your business details and manage the customer shopping experience.</p></div></div>
+      <nav class="pc-settings-tabs" aria-label="Storefront settings sections">
+      <?php foreach(['business'=>'Business details','basket'=>'Basket products','checkout'=>'Accessory checkout','requests'=>'Guest requests'] as $key=>$label):?><a href="./preview-live.php?manage=portal&amp;panel=commerce&amp;settings=<?=$key?>" <?=$settings===$key?'aria-current="page"':''?>><?=$esc($label)?><?php if($key==='requests'&&$pending):?><span><?=$pending?></span><?php endif;?></a><?php endforeach;?></nav>
+      <?php if($settings==='business'):?><div class="pc-settings-section">
+      <h3>Business &amp; delivery details</h3>
+      <p class="pc-footnote">This information appears on your public website. Leave a field blank to hide it; only publish details you can verify.</p>
+      <form method="post" class="pc-settings-form"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_facts_save">
         <label>Registered business details <textarea name="company" maxlength="160" rows="2" placeholder="Company name and verifiable registration details"><?=$esc($facts['company'])?></textarea></label>
         <label>Fulfilment information <textarea name="fulfilment" maxlength="700" rows="3" placeholder="Only verified packing and fulfilment information"><?=$esc($facts['fulfilment'])?></textarea></label>
         <label>Delivery arrangements <textarea name="dispatch" maxlength="700" rows="3" placeholder="Actual delivery area, times and charges if known"><?=$esc($facts['dispatch'])?></textarea></label>
         <label>Support availability <textarea name="support" maxlength="300" rows="2" placeholder="Actual support hours and response methods"><?=$esc($facts['support'])?></textarea></label>
-        <button type="submit">Publish business information</button>
+        <div class="pc-settings-save"><span>Updates appear on the website when saved.</span><button type="submit">Save business details <span aria-hidden="true">↗</span></button></div>
       </form>
-      <section class="pc-demo-manager"><h3>Demo basket products</h3>
-      <p class="pc-footnote"><strong>All published products are ticked by default.</strong> Untick any you want to exclude from the public basket simulation. This changes only the demonstration buttons; it never enables real orders, bank transfers or payments for research compounds.</p>
+      </div><?php elseif($settings==='basket'):?><section class="pc-demo-manager pc-settings-section"><div class="pc-settings-title"><div><h3>Basket product selection</h3><p class="pc-footnote">Choose which published products show a demo basket button.</p></div><span class="pc-settings-pill" data-settings-selected><?=count($demoAllowed)?> selected</span></div>
+      <p class="pc-settings-note">These switches control the demo basket only. Website visibility stays in Order Admin; enabling a demo button does not enable purchases or payments.</p>
       <form method="post" class="pc-demo-manager-form"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_demo_save_all">
+        <div class="pc-settings-filter"><label for="pc-basket-search">Find a product<input id="pc-basket-search" type="search" placeholder="Search product names…" autocomplete="off"></label><div><button type="button" class="pc-settings-secondary" data-settings-select="all">Select all</button><button type="button" class="pc-settings-secondary" data-settings-select="none">Clear all</button></div></div>
         <div class="pc-demo-manager-list">
         <?php foreach($demoCandidates as $p):$id=(int)$p['id'];?>
-         <label><input type="checkbox" name="demo_product[]" value="<?=$id?>" <?=isset($demoAllowed[$id])?'checked':''?>>
+         <label data-settings-product="<?=$esc(strtolower($p['name']))?>"><input type="checkbox" name="demo_product[]" value="<?=$id?>" <?=isset($demoAllowed[$id])?'checked':''?>>
          <span><?=$esc($p['name'])?></span></label>
         <?php endforeach;?></div>
-        <button type="submit">Save demo basket products</button>
+        <?php if(!$demoCandidates):?><p class="pc-settings-empty">No products are published yet. Choose visible products in Order Admin first.</p><?php endif;?>
+        <p class="pc-settings-empty" id="pc-basket-no-results" hidden>No products match your search.</p>
+        <div class="pc-settings-save"><span>Selection is saved only when you click save.</span><button type="submit">Save basket products</button></div>
       </form></section>
-      <h3>Eligible accessories for guest checkout requests</h3>
+      <?php elseif($settings==='checkout'):?><div class="pc-settings-section"><h3>Accessory checkout</h3>
       <p class="pc-footnote">Eligibility must be assessed separately from visibility, including the actual product, intended use and legal position. A research-use label is not regulatory authorisation. Accessory requests remain subject to ANKH confirmation.</p>
-      <?php if(!$candidates):?><p>No eligible accessory candidates are present.</p><?php endif;?>
+      <?php if(!$candidates):?><p class="pc-settings-empty">No eligible accessories to review.</p><?php endif;?>
       <div class="pc-sf-eligibility">
       <?php foreach($candidates as $p):$row=$eligibility[(int)$p['id']]??null; ?>
       <details><summary><strong><?=$esc($p['name'])?></strong> · <?=!empty($row['approved'])?'Guest requests enabled':'Checkout disabled'?></summary>
@@ -86,9 +95,9 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
       <button name="decision" value="enable">Approve accessory checkout</button>
       <button name="decision" value="disable">Disable checkout</button></form></details><?php endforeach;?>
       </div>
-      <h3>Guest checkout requests</h3>
+      </div><?php else:?><div class="pc-settings-section"><h3>Guest requests</h3>
       <p class="pc-footnote">These are requests for staff review, not paid orders. Verify product eligibility, stock, delivery and contact details before manually recording a confirmed order in ANKH Admin. Do not mark a request as paid without checking Tide.</p>
-      <?php if(!$requests):?><p>No guest checkout requests have been received.</p><?php endif;?>
+      <?php if(!$requests):?><div class="pc-settings-empty"><strong>No guest requests yet</strong><p>New guest checkout requests will appear here for you to review.</p></div><?php endif;?>
       <div class="pc-sf-requests"><?php foreach($requests as $r):?>
         <details><summary><strong>REQ-<?=str_pad((string)$r['id'],5,'0',STR_PAD_LEFT)?></strong> · <?=$esc($r['name'])?> · <?=$esc($r['status'])?></summary>
           <p><strong>Contact:</strong> <?=$esc($r['email'])?> · <?=$esc($r['phone'])?></p>
@@ -99,6 +108,7 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
           <?php if($r['status']==='Pending staff review'):?><form method="post"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_guest_review"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>">
             <button name="decision" value="Reviewed — create in Admin manually">Mark reviewed</button><button name="decision" value="Declined">Decline</button></form><?php endif;?>
         </details><?php endforeach;?></div>
+      </div><?php endif;?>
     </section>
     <?php
 }

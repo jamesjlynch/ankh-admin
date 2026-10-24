@@ -197,6 +197,7 @@ function ankhCatalogueFormat(string $text):string {
     $flushBullets=static function()use(&$html,&$bullets):void{if($bullets){$html.='<ul>';foreach($bullets as $item)$html.='<li>'.ankhCatalogueInline($item).'</li>';$html.='</ul>';$bullets=[];}};
     foreach(preg_split('/\R/u',$text)?:[] as $line){
         if(trim($line)===''){$flushParagraph();$flushBullets();}
+        elseif(preg_match('/^#{1,3}\s+(.+)$/u',$line,$m)){$flushParagraph();$flushBullets();$html.='<h3>'.ankhCatalogueInline($m[1]).'</h3>';}
         elseif(preg_match('/^\s*[-*]\s+(.+)$/u',$line,$m)){$flushParagraph();$bullets[]=$m[1];}
         else{$flushBullets();$paragraph[]=$line;}
     }
