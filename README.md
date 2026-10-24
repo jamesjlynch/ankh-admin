@@ -1,5 +1,8 @@
 # ANKH Order Desk
 
+> **Current production (October 2026):** ANKH migrated to cPanel account `devcouk`; source checkout is `/home/devcouk/repositories/ankh-admin-git`. Read [CURRENT-PRODUCTION.md](docs/CURRENT-PRODUCTION.md) and [AGENTS.md](AGENTS.md) before any deployment. `lynchdev.co.uk` and `/home/lynchde1` are retired and must not be targeted. GitHub merges do not prove live publication.
+
+
 Private, mobile-first order management in ANKH black and gold. PHP 8.1+ and PDO SQLite required. No paid third-party service is required by this app; normal hosting costs apply.
 
 ## Included
