@@ -262,6 +262,7 @@ function ankhCmsEditor(PDO $store,PDO $admin,string $csrf):void{
            <?php if($published):?><form method="post"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="product_id" value="<?=$selectedId?>"><button type="submit" name="action" value="cms_unpublish">Revert to Order Admin content</button></form><?php endif;?></div>
          </div>
          <?php ankhDocsStaffSection($store,$admin,$csrf,$selectedId); ?>
+          <?php ankhSdsStaffSection($store,$admin,$csrf,$selectedId); ?>
        <?php endif;?></div></div>
     </section>
     <?php
