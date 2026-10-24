@@ -30,14 +30,11 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         INSERT INTO customer_catalogue_information VALUES(1,'{"formula":"ADMIN"}');
     """);con.commit();con.close()
     sqlite3.connect(portal).close()
-    config=d/'config.php';password='$2y$12$m5xNopzVSYjbbG6P4ap7j.G9pPww51.PmhhCbPHYeRxDVUrDaVQ12'
+    config=d/'config.php'
+    passphrase='test-only-cms-password'
+    password=subprocess.check_output(['php','-r', 'echo password_hash("'+passphrase+'", PASSWORD_BCRYPT);'],text=True).strip()
     config.write_text("<?php return ['admin_database_path'=>'"+str(admin)+"','portal_database_path'=>'"+str(portal)+"','host'=>'example.invalid','preview_password_hash'=>'"+password+"','twilio_account_sid'=>'dummy','twilio_auth_token'=>'dummy','twilio_verify_service_sid'=>'dummy'];")
     sess=d/'sessions';sess.mkdir()
-    session='cmsstudioharness1'
-    php='session_name("ankh_staff_preview");session_id("'+session+'");session_start();'+ (
-        '$_SESSION["staff_preview_authorised"]=true;$_SESSION["staff_preview_auth_version"]=hash("sha256","'+password+'");'
-        '$_SESSION["staff_preview_last"]=time();session_write_close();')
-    subprocess.run(['php','-d','session.save_path='+str(sess),'-r',php],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
     server=subprocess.Popen(['php','-d','session.save_path='+str(sess),'-S',f'127.0.0.1:{port}','-t',str(ROOT/'customer-portal')],
         env=dict(os.environ,ANKH_PORTAL_CONFIG=str(config),ANKH_TEST_ALLOW_HTTP='1'),stdout=subprocess.DEVNULL,stderr=subprocess.PIPE)
@@ -49,9 +46,16 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
             except OSError:time.sleep(.1)
         base=f'http://127.0.0.1:{port}'
         page='/preview-live.php?manage=portal&panel=products&cms_product_id=1'
-        status,_,body=call(base,page)
+        status,headers,body=call(base,page)
         assert status==200 and 'Unlock staff preview' in body,(status,body[:280])
-        cookie='ankh_staff_preview='+session
+        cookie=headers.get('Set-Cookie','').split(';',1)[0]
+        assert cookie.startswith('ankh_staff_preview='),headers
+        csrf_login=re.search('name="csrf" value="([a-f0-9]{64})"',body)
+        assert csrf_login,body[:400]
+        logged,login_headers,_=call(base,'/preview-live.php',cookie,
+            {'csrf':csrf_login.group(1),'action':'staff_login','password':passphrase})
+        assert logged==303,(logged,login_headers)
+        cookie=login_headers.get('Set-Cookie','').split(';',1)[0] or cookie
         status,_,body=call(base,page,cookie)
         assert status==200 and 'Product page editor' in body,(status,body[:450])
         assert 'BPC-157 5mg' in body and 'cms_save_draft' in body
