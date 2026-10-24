@@ -13,16 +13,27 @@ function ankhSdsInit(PDO $db):void {
       source_url TEXT NOT NULL DEFAULT '',
       created_at INTEGER NOT NULL,
       published INTEGER NOT NULL DEFAULT 0 CHECK(published IN(0,1)),
+      public_draft INTEGER NOT NULL DEFAULT 0 CHECK(public_draft IN(0,1)),
       reviewed_by TEXT NOT NULL DEFAULT '',
       review_note TEXT NOT NULL DEFAULT '',
       reviewed_at INTEGER NOT NULL DEFAULT 0
     );
     CREATE INDEX IF NOT EXISTS idx_portal_sds_visible ON portal_product_sds(product_id,published,id);");
+    if(!ankhSdsHasPublicDraftColumn($db))
+        $db->exec("ALTER TABLE portal_product_sds ADD COLUMN public_draft INTEGER NOT NULL DEFAULT 0 CHECK(public_draft IN(0,1))");
+}
+function ankhSdsHasPublicDraftColumn(PDO $db):bool {
+    foreach($db->query("PRAGMA table_info(portal_product_sds)") as $col)
+        if(($col['name']??'')==='public_draft')return true;
+    return false;
 }
 function ankhSdsPublished(PDO $store,int $productId):array {
     if($productId<1)return [];
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn())return [];
-    $q=$store->prepare("SELECT id,product_id,pdf_name,reviewed_at FROM portal_product_sds WHERE product_id=? AND published=1 AND reviewed_at>0 ORDER BY id DESC LIMIT 1");
+    $draftColumn=ankhSdsHasPublicDraftColumn($store);
+    $previewColumn=$draftColumn?'public_draft':'0 AS public_draft';
+    $where=$draftColumn?'((published=1 AND reviewed_at>0) OR public_draft=1)':'(published=1 AND reviewed_at>0)';
+    $q=$store->prepare("SELECT id,product_id,pdf_name,published,reviewed_at,$previewColumn FROM portal_product_sds WHERE product_id=? AND $where ORDER BY (published=1 AND reviewed_at>0) DESC,id DESC LIMIT 1");
     $q->execute([$productId]);return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 /** Check existing authenticated Content Studio session. Never grant a preview from a query parameter alone. */
@@ -35,7 +46,8 @@ function ankhSdsStaffPreviewAllowed(array $config,array $session,int $now):bool 
 }
 function ankhSdsAll(PDO $store,int $productId):array {
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn())return [];
-    $q=$store->prepare("SELECT id,product_id,pdf_name,pdf_sha256,source_url,created_at,published,reviewed_at,reviewed_by FROM portal_product_sds WHERE product_id=? ORDER BY id DESC LIMIT 15");
+    $previewColumn=ankhSdsHasPublicDraftColumn($store)?'public_draft':'0 AS public_draft';
+    $q=$store->prepare("SELECT id,product_id,pdf_name,pdf_sha256,source_url,created_at,published,reviewed_at,reviewed_by,$previewColumn FROM portal_product_sds WHERE product_id=? ORDER BY id DESC LIMIT 15");
     $q->execute([$productId]);return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 function ankhSdsSaveBytes(PDO $store,PDO $admin,int $productId,string $filename,string $bytes,string $source=''):int {
@@ -118,10 +130,10 @@ function ankhSdsStaffSection(PDO $store,PDO $admin,string $csrf,int $productId):
     ?>
     <section class="pc-panel ankh-sds-admin" id="ankh-sds" style="border:1px solid #bfa46b60;border-radius:18px;padding:clamp(16px,3vw,28px);margin-top:20px;background:linear-gradient(140deg,#25251d,#131613)">
       <div class="pc-section-header"><div><span class="pc-eyebrow">ANKH / PRODUCT SAFETY</span><h2>Safety Data Sheets</h2></div></div>
-      <p class="pc-footnote">SDSs are separate from Certificates of Analysis. Attach drafts here, check every chemical identity and safety section, then explicitly approve public release. Hiding a product hides its SDS automatically.</p>
+      <p class="pc-footnote">SDSs are separate from Certificates of Analysis. Some legacy rebranded sheets may be shared publicly as clearly marked unverified working copies, but are not an approved SDS until the chemical identity, hazards, handling and emergency information have been technically checked. Hiding a product hides its documents automatically.</p>
       <?php foreach($docs as $doc):?>
         <div class="ankh-sds-row" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:18px;margin:12px 0;border:1px solid #cfb78355;border-radius:12px">
-          <div><strong><?=$esc($doc['pdf_name'])?></strong><a href="./product-safety-document.php?id=<?=(int)$doc['id']?>&amp;staff=1" target="_blank" rel="noopener noreferrer" style="display:block;margin-top:9px;color:#e5c580">Preview SDS PDF ↗</a><small style="display:block;margin-top:5px"><?=$doc['published']?'Published · reviewed by '.$esc($doc['reviewed_by']):'Private draft · not customer-visible'?></small></div>
+          <div><strong><?=$esc($doc['pdf_name'])?></strong><a href="./product-safety-document.php?id=<?=(int)$doc['id']?>&amp;staff=1" target="_blank" rel="noopener noreferrer" style="display:block;margin-top:9px;color:#e5c580">Preview SDS PDF ↗</a><small style="display:block;margin-top:5px"><?=$doc['published']&&$doc['reviewed_at']?'Approved SDS · reviewed by '.$esc($doc['reviewed_by']):($doc['public_draft']?'Live draft reference · unverified':'Private draft · not customer-visible')?></small></div>
           <form method="post" style="display:grid;gap:9px;min-width:min(100%,270px)">
             <input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="product_id" value="<?=$productId?>">
             <input type="hidden" name="sds_id" value="<?=(int)$doc['id']?>">
