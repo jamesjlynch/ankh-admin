@@ -135,14 +135,20 @@ def verify():
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             profile=get("/?product=1")
-            assert 'storefront-product-polish.css?v=1' in profile, "Product page must load the scoped final mobile stylesheet"
+            assert 'storefront-product-polish.css?v=2' in profile, "Product page must load the scoped final mobile stylesheet"
+            assert 'storefront-product-interactions.js?v=1' in profile, "Mobile interaction controller missing"
+            assert 'data-product-sticky-action' in profile and 'sf-mobile-product-action' in profile, "Adaptive iPhone action rail missing"
+            assert 'data-share-product' in profile and 'data-share-title="Visible Study Material"' in profile, "Native product share button missing"
+            assert 'sf-product-document-status' in profile and 'Unverified safety draft' in profile, "Document status must identify public safety drafts"
+            assert '1 analytical report' not in profile, "Do not claim unpublished certificates are available"
+            assert '0 analytical reports' in profile, "Product analytical document count incorrect"
             assert 'sf-mobile-hero-intro' in profile, "Product identity must be visible before the image on iPhone"
             assert 'sf-mobile-hero-links' in profile and 'href="#sf-product-documents"' in profile, "Mobile quick jumps absent"
             assert 'href="#sf-product-research"' in profile and 'data-open-identity' in profile, "Research/specification shortcuts missing"
             assert 'PRICE PREVIEW' in profile, "Product preview amount must remain clearly labelled"
             assert "Product at a glance" in profile, "Mobile summary accessibility label missing"
             assert "Visible Study Material" in profile
-            assert 'Certificates &amp; product data' in profile
+            assert 'Product documents' in profile
             assert 'product-specification.php?product=1' in profile
             assert 'A corresponding analytical report has not yet been published' in profile
             spec_pdf=get("/product-specification.php?product=1",200,raw=True)
