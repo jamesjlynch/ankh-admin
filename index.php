@@ -3362,6 +3362,30 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $cataloguePhoto=ankhCataloguePhotoUpload($_FILES['catalogue_photo']??[]);
    ankhCatalogueSaveContent($db,(int)$catalogueProductId,(string)($_POST['catalogue_description']??''),$cataloguePhoto,($_POST['remove_catalogue_photo']??'')==='1',($_POST['catalogue_visible']??'')==='1',($_POST['catalogue_editor']??'')==='unified'?[]:(isset($_POST['catalogue_information'])?(is_array($_POST['catalogue_information'])?$_POST['catalogue_information']:throw new Exception('Check product information.')):null));
   }
+  if($action==='product_catalogue_visibility_bulk'){
+   if(($_POST['visibility_confirmation']??'')!=='yes')throw new Exception('Confirm the customer visibility changes.');
+   $ids=$_POST['catalogue_ids']??[];
+   if(!is_array($ids)||count($ids)>1000)throw new Exception('Invalid visibility selection.');
+   $selected=[];
+   foreach($ids as $input){
+    $id=filter_var($input,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+    if($id===false)throw new Exception('Invalid product selection.');
+    $selected[(int)$id]=true;
+   }
+   ankhCatalogueInit($db);
+   $allActive=$db->query('SELECT id FROM products WHERE active=1')->fetchAll(PDO::FETCH_COLUMN);
+   $valid=array_fill_keys(array_map('intval',$allActive),true);
+   foreach($selected as $id=>$used)if(!isset($valid[$id]))throw new Exception('A selected product is inactive or missing.');
+   $db->beginTransaction();
+   try{
+    $save=$db->prepare('INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(?,?,?) ON CONFLICT(product_id) DO UPDATE SET visible=excluded.visible,updated_at=excluded.updated_at');
+    $timestamp=gmdate('c');
+    foreach($allActive as $id)$save->execute([(int)$id,isset($selected[(int)$id])?1:0,$timestamp]);
+    $db->commit();
+   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
+   $_SESSION['flash']='Website visibility updated for '.count($allActive).' active products. Prices and stock were not changed.';
+   header('Location: ./?view=products#ankh-visibility-controls',true,303);exit;
+  }
   if($action==='product_catalogue_visibility'){
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    if($catalogueProductId===false || $catalogueProductId===null)throw new Exception('Choose a valid product.');
@@ -5163,6 +5187,43 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php elseif($view==='products'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
 <div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><a class="quick-action" href="?view=stock">Stock control →</a></div>
+<style>
+.ankh-visibility-manager{border:1px solid #d2af6a66;background:linear-gradient(140deg,#1b201b,#10140f);border-radius:17px;margin:17px 0 22px;padding:23px}
+.ankh-visibility-top{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
+.ankh-visibility-top h2{font:400 28px Georgia,serif;color:#f2dfa9;margin:5px 0}
+.ankh-visibility-top small{font-size:11px;color:#bdbaaf}
+.ankh-visibility-header{font-size:10px;letter-spacing:.12em;color:#d5b872;text-transform:uppercase}
+.ankh-visibility-description{font-size:12px;color:#acb1a7;max-width:850px;margin:8px 0 19px;line-height:1.7}
+.ankh-visibility-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;max-height:395px;overflow:auto;padding-right:5px}
+.ankh-visibility-item{display:flex!important;align-items:center;gap:11px;padding:13px;border:1px solid #ffffff24;border-radius:10px;background:#0e130f;cursor:pointer;min-width:0}
+.ankh-visibility-item:has(input:checked){border-color:#debd7e77;background:#d0ad6714}
+.ankh-visibility-item input{width:18px;height:18px;flex:none;accent-color:#d7b573}
+.ankh-visibility-item span{display:grid;min-width:0;gap:2px}
+.ankh-visibility-item strong{font-size:12px;color:#f2ead5;line-height:1.4;overflow-wrap:anywhere}
+.ankh-visibility-item small{font-size:10px;color:#aaa89e}
+.ankh-visibility-footer{display:flex;flex-wrap:wrap;align-items:center;gap:13px;margin-top:17px}
+.ankh-visibility-footer button{min-height:43px;border-radius:9px}
+.ankh-visibility-footer .ankh-visibility-publish{background:#d7b472;color:#151916;padding:11px 16px;font-weight:750}
+.ankh-visibility-footer .ankh-visibility-select{background:transparent;color:#ead0a0;border:1px solid #d7b47255;padding:10px 12px}
+.ankh-visibility-count{font-size:11px;color:#d8c39a}
+@media(max-width:580px){.ankh-visibility-manager{padding:15px;margin:13px 0}.ankh-visibility-grid{grid-template-columns:1fr;max-height:355px}}
+</style>
+<section class="ankh-visibility-manager" id="ankh-visibility-controls" aria-label="Customer storefront product visibility">
+ <div class="ankh-visibility-top"><div><span class="ankh-visibility-header">ANKH / CUSTOMER STOREFRONT</span><h2>Choose visible products</h2><small>Only active products are shown here.</small></div>
+ <span class="ankh-visibility-count" id="ankh-visibility-count"><?=count(array_filter($products,static fn($row)=>(int)$row['active']===1 && (int)($customerCatalogueVisibility[(int)$row['id']]??0)===1))?> currently visible</span></div>
+ <p class="ankh-visibility-description">Tick the products to show on the customer website; untick to hide. These switches control visibility only. Prices, costs, quantities and existing orders remain untouched and continue to be managed in ANKH Order Admin.</p>
+ <form method="post" id="ankh-visibility-form"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_visibility_bulk"><input type="hidden" name="return" value="products">
+ <input type="hidden" name="visibility_confirmation" value="yes">
+ <div class="ankh-visibility-grid"><?php foreach($products as $item):if((int)$item['active']!==1)continue;$id=(int)$item['id'];$checked=(int)($customerCatalogueVisibility[$id]??0)===1;?>
+  <label class="ankh-visibility-item"><input type="checkbox" name="catalogue_ids[]" value="<?=$id?>" <?=$checked?'checked':''?>><span><strong><?=e($item['name'])?></strong><small><?=$checked?'Published':'Not published'?></small></span></label>
+ <?php endforeach;?></div>
+ <div class="ankh-visibility-footer"><button type="button" class="ankh-visibility-select" data-visibility="all">Select all</button><button type="button" class="ankh-visibility-select" data-visibility="none">Clear all</button>
+ <button type="submit" class="ankh-visibility-publish">Save website visibility</button><span class="ankh-visibility-count" id="ankh-visibility-selected">Choose the products you want published</span></div>
+ </form>
+ <script>(function(){const panel=document.getElementById('ankh-visibility-form');if(!panel)return;const inputs=[...panel.querySelectorAll('input[name="catalogue_ids[]"]')],label=document.getElementById('ankh-visibility-selected');
+ const update=()=>{if(label)label.textContent=inputs.filter(x=>x.checked).length+' of '+inputs.length+' products selected';};inputs.forEach(x=>x.addEventListener('change',update));
+ panel.querySelectorAll('[data-visibility]').forEach(b=>b.addEventListener('click',()=>{for(const x of inputs)x.checked=b.dataset.visibility==='all';update();}));update();})();</script>
+</section>
 <div class="product-history-note"><strong>Historical prices are protected</strong><span>Changing retail, Family &amp; Friends or cost prices here only affects future orders. Reports keep the selling price and cost saved on each original order.</span></div>
 <label class="product-search"><span>Find a product</span><input id="product-filter" type="search" placeholder="Search by name or strength" autocomplete="off" aria-label="Search products by name or strength"><span class="product-search-icon" aria-hidden="true">⌕</span></label>
 <details class="add-product-disclosure"><summary><span class="add-product-plus" aria-hidden="true">＋</span><span><strong>Add new product</strong><small>Set up a product and its prices</small></span><span class="add-product-chevron" aria-hidden="true">＋</span></summary>
