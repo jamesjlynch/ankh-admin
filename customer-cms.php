@@ -21,7 +21,9 @@ $cmsCount=count(array_filter($cmsActive,fn($p)=>(int)($cmsVisibility[(int)$p['id
  <h2>Website manager</h2><a href="#cms-edit" class="cms-side-link">✎ Product content</a><a href="#cms-visibility" class="cms-side-link">◉ Website visibility</a><a href="#cms-guide" class="cms-side-link">ⓘ Connected data</a>
  <label class="cms-search-label" for="cms-search">Find a product</label><input type="search" id="cms-search" placeholder="Search products…" autocomplete="off">
  <div class="cms-products" id="cms-products"><?php foreach($cmsProducts as $p):$id=(int)$p['id'];$on=(int)($cmsVisibility[$id]??0)===1;?>
- <a data-cms-search="<?=e(strtolower((string)$p['name']))?>" class="cms-product <?=$id===$cmsSelected?'selected':''?>" href="?view=website_cms&amp;id=<?=$id?>#cms-edit"><span><?=e($p['name'])?></span><small><?=$on?'● Visible':'○ Hidden'?></small></a>
+ <a data-cms-search="<?=e(strtolower((string)$p['name']))?>" class="cms-product <?=$id===$cmsSelected?'selected':''?>" href="?view=website_cms&amp;id=<?=$id?>#cms-edit">
+ <?php if((int)($cmsContent[$id]['image_bytes']??0)>0):?><img class="cms-product-thumb" src="?api=catalogue-image&amp;id=<?=$id?>" loading="lazy" alt=""><?php else:?><span class="cms-product-placeholder" aria-hidden="true">☥</span><?php endif;?>
+ <span class="cms-product-title"><?=e($p['name'])?></span><small><?=$on?'● Visible':'○ Hidden'?></small></a>
  <?php endforeach;?></div>
 </aside>
 <div class="cms-main">
