@@ -12,6 +12,7 @@ header('Referrer-Policy: strict-origin-when-cross-origin');
 header('X-Frame-Options: DENY');
 header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
 require_once __DIR__.'/public-catalogue-core.php';
+require_once __DIR__.'/content-studio.php';
 require_once is_file(__DIR__.'/customer-catalogue.php') ? __DIR__.'/customer-catalogue.php' : dirname(__DIR__).'/customer-catalogue.php';
 function esc($s):string {return htmlspecialchars((string)$s,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 $configFile=getenv('ANKH_PORTAL_CONFIG') ?: dirname(__DIR__,2).'/ankh-customer-portal-config.php';
@@ -23,6 +24,13 @@ try {
     $db=new PDO('sqlite:'.$file,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     $db->exec('PRAGMA query_only=ON; PRAGMA busy_timeout=2000');
     $products=ankhPublicCatalogueProducts($db);
+    $portalPath=$config['portal_database_path']??null;
+    if(is_string($portalPath)&&is_file($portalPath)){
+      $store=new PDO('sqlite:'.$portalPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+      $store->exec('PRAGMA query_only=ON');
+      $products=ankhCmsOverlay($store,$products);
+    }
+
 } catch(Throwable $e) {
     error_log('ANKH public catalogue unavailable: '.$e->getMessage());
     http_response_code(503);
@@ -33,6 +41,12 @@ if ($imageId!==false && $imageId!==null) {
     // Only serve photos for active products already marked visible in the catalogue.
     $allowed=array_values(array_filter($products,static fn($p)=>(int)$p['id']===(int)$imageId));
     if (!$allowed || !$allowed[0]['has_photo']) {http_response_code(404);exit;}
+    if(!empty($allowed[0]['cms_photo'])){
+      $size=(string)($_GET['size']??'thumb');
+      header('Location: ./cms-product-image.php?product='.(int)$imageId.'&size='.rawurlencode($size),true,302);
+      exit;
+    }
+
     $q=$db->prepare('SELECT image_data,image_mime FROM customer_catalogue_content WHERE product_id=?');
     $q->execute([(int)$imageId]);$r=$q->fetch(PDO::FETCH_ASSOC);
     if (!$r || !in_array($r['image_mime'],['image/png','image/jpeg','image/webp'],true)) {http_response_code(404);exit;}
