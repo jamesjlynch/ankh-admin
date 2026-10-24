@@ -77,3 +77,5 @@
 .ankh-cms-publish-actions form:last-child button{background:transparent;border-color:#f0d8a05a;color:#e8ce95}
 @media(max-width:970px){.ankh-cms-grid{grid-template-columns:1fr}.ankh-cms-library{position:static;max-height:250px}.ankh-cms-library nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}}
 @media(max-width:640px){.pc-ops{width:calc(100% - 24px);margin-top:14px}.pc-ops-heading{display:block}.pc-ops-heading>a{margin-top:15px}.pc-studio-nav a{padding:9px 12px;font-size:11px}.pc-ops .pc-panel{padding:17px 13px;border-radius:12px}.ankh-cms-grid{margin-top:15px}.ankh-cms-library nav{grid-template-columns:1fr}.ankh-cms-fields{grid-template-columns:1fr}.ankh-cms-heading,.ankh-cms-publish{flex-direction:column;align-items:flex-start}.ankh-cms-field>textarea[data-cms-text]{min-height:225px}}
+
+.ankh-cms-library nav a[hidden]{display:none}
