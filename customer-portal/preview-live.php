@@ -7,8 +7,10 @@ declare(strict_types=1);
  */
 require_once __DIR__.'/lib.php';
 require_once __DIR__.'/product-certificates.php';
+require_once __DIR__.'/content-studio.php';
 $localHttp = PHP_SAPI === 'cli-server' && getenv('ANKH_TEST_ALLOW_HTTP') === '1'
-    && in_array((string)($_SERVER['SERVER_ADDR'] ?? ''), ['127.0.0.1','::1'], true);
+    && in_array((string)($_SERVER['REMOTE_ADDR'] ?? ''), ['127.0.0.1','::1'], true)
+    && preg_match('/^(?:127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?$/D',(string)($_SERVER['HTTP_HOST']??''))===1;
 if (!$localHttp && ($_SERVER['HTTPS'] ?? '') !== 'on') {
     http_response_code(403); exit('HTTPS required.');
 }
@@ -113,6 +115,7 @@ portalContactStaffController($portal);
 sfStaffController($portal,$admin);
 portalExtrasStaffController($portal,$admin);
 ankhDocsStaffController($portal,$admin);
+ankhCmsStaffController($portal,$admin);
 if(($_GET['manage']??'')==='portal'){
     portalExtrasStaffPage($portal,$admin);
     exit;

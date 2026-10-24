@@ -45,7 +45,7 @@ $related=$selected?pfRelated($selected,$products):[];
     <div class="sf-gallery-slide sf-gallery-photo" id="sf-gallery-photo" aria-label="Product photograph">
       <div class="sf-product-image sf-photo-stage">
       <?php if($selected['has_photo']):?>
-       <img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=detail')?>" srcset="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=thumb')?> 420w, <?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=detail')?> 880w" sizes="(max-width: 600px) 100vw, (max-width: 1000px) 60vw, 700px" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="880" height="880">
+       <img src="<?=pfEscape(ankhCmsPhotoUrl($selected,'detail'))?>" srcset="<?=pfEscape(ankhCmsPhotoUrl($selected,'thumb'))?> 420w, <?=pfEscape(ankhCmsPhotoUrl($selected,'detail'))?> 880w" sizes="(max-width: 600px) 100vw, (max-width: 1000px) 60vw, 700px" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="880" height="880">
        <button type="button" class="sf-gallery-zoom" data-gallery-zoom aria-label="Enlarge product photograph">⌕ <span>Enlarge photo</span></button>
       <?php else:?><span class="sf-gallery-fallback" aria-hidden="true">☥</span><?php endif;?>
       <span class="sf-photo-mark" aria-hidden="true">☥</span></div>
@@ -63,7 +63,7 @@ $related=$selected?pfRelated($selected,$products):[];
   </div>
   <div class="sf-gallery-bar">
     <div class="sf-gallery-select" role="group" aria-label="Select gallery view">
-      <button type="button" data-gallery-go="0" aria-pressed="true"><span class="sf-gallery-thumb"><?php if($selected['has_photo']):?><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'].'&size=thumb')?>" loading="lazy" width="45" height="45" alt=""><?php else:?>☥<?php endif;?></span><span>PHOTO</span></button>
+      <button type="button" data-gallery-go="0" aria-pressed="true"><span class="sf-gallery-thumb"><?php if($selected['has_photo']):?><img src="<?=pfEscape(ankhCmsPhotoUrl($selected,'thumb'))?>" loading="lazy" width="45" height="45" alt=""><?php else:?>☥<?php endif;?></span><span>PHOTO</span></button>
       <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">☥</span><span>DETAILS</span></button>
     </div>
     <div class="sf-gallery-arrows" aria-label="Gallery navigation"><button type="button" data-gallery-prev aria-label="Previous gallery view">←</button><button type="button" data-gallery-next aria-label="Next gallery view">→</button></div>
@@ -158,7 +158,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <div class="sf-hero-note"><span aria-hidden="true">☥</span><span>Explore with confidence<br><small>Factual profiles · Account privacy first</small></span></div></div>
 <div class="sf-hero-art sf-real-art" aria-label="ANKH product collection photography">
 <?php if($heroPhotos):?><div class="sf-hero-photo-wall">
-<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$h['id'].($j===0?'&size=detail':'&size=thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
+<?php foreach($heroPhotos as $j=>$h):?><a href="<?=pfEscape(pfUrl(['product'=>$h['id']]))?>" class="sf-hero-photo sf-hero-photo-<?=$j?>" title="<?=pfEscape($h['name'])?>"><img src="<?=pfEscape(ankhCmsPhotoUrl($h,$j===0?'detail':'thumb'))?>" alt="<?=pfEscape($h['name'])?>" <?= $j===0?'fetchpriority="high"':'loading="lazy"'?> decoding="async"><span><?=pfEscape($h['name'])?></span></a><?php endforeach;?>
 </div><?php else:?><span class="sf-hero-symbol" aria-hidden="true">☥</span><?php endif;?>
 <span class="sf-art-label">A N K H &nbsp; / &nbsp; T H E &nbsp; C O L L E C T I O N</span>
 </div></section>
@@ -214,7 +214,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <?php if($selected['has_photo']):?>
 <dialog class="sf-zoom-dialog" id="sf-product-zoom" aria-label="Enlarged product photograph">
  <div class="sf-zoom-toolbar"><span><?=pfEscape($selected['name'])?> · Product photo</span><button type="button" data-close-zoom aria-label="Close enlarged product image">×</button></div>
- <div class="sf-zoom-scroll"><img src="<?=pfEscape('./public-catalogue.php?image='.(int)$selected['id'])?>" width="900" height="900" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" decoding="async"></div>
+ <div class="sf-zoom-scroll"><img src="<?=pfEscape(ankhCmsPhotoUrl($selected,'detail'))?>" width="900" height="900" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" decoding="async"></div>
  <p>Pinch to zoom on supported devices, or double-tap the photograph to enlarge.</p>
 </dialog>
 <?php endif;?>
@@ -234,7 +234,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><div class="sf-quick-actions"><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><button type="button" class="sf-add-cart sf-quick-add" id="sf-quick-add" data-cart-id="0" hidden>Add to basket ＋</button></div><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
 </div></dialog>
 <?php if(!$selected):?><div class="sf-search-corpus" hidden aria-hidden="true">
-<?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-photo="<?=!empty($p['has_photo'])?pfEscape('./public-catalogue.php?image='.(int)$p['id'].'&size=thumb'):''?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
+<?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-photo="<?=!empty($p['has_photo'])?pfEscape(ankhCmsPhotoUrl($p,'thumb')):''?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
 </div>
 <?php endif;?>
 <nav class="sf-bottom-menu" aria-label="Mobile shortcuts">

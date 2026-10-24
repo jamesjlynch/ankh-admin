@@ -1,0 +1,40 @@
+name: Verify storefront content studio
+on:
+  push:
+    branches: [feature/ankh-storefront-cms-redesign]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring, gd, fileinfo
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test CMS and the existing portal
+        run: |
+          set -euo pipefail
+          php -l customer-portal/content-studio.php
+          php -l customer-portal/cms-product-image.php
+          php -l customer-portal/account-features.php
+          php -l customer-portal/preview-live.php
+          php -l customer-portal/storefront-experience.php
+          php -l customer-portal/storefront-card.php
+          php -l customer-portal/storefront.php
+          node --check customer-portal/cms-editor.js
+          php tests/customer-product-cms.php
+          php tests/customer-product-certificates.php
+          php tests/customer-storefront-commerce.php
+          php tests/customer-account-features.php
+          php tests/customer-portal-render.php
+          python3 tests/customer-cms-staff-http.py
+          python3 tests/customer-public-storefront-http.py
+          python3 tests/customer-storefront-preview-http.py
+          python3 tests/customer-catalogue-admin-http.py

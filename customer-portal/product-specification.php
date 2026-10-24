@@ -5,6 +5,7 @@ declare(strict_types=1);
  * Not an analytical certificate. Only displays existing product identity data.
  */
 require_once __DIR__.'/public-catalogue-core.php';
+require_once __DIR__.'/content-studio.php';
 function apQuote(string $value):string{
     if(function_exists('iconv'))$value=(string)@iconv('UTF-8','ASCII//TRANSLIT//IGNORE',$value);
     $value=preg_replace('/[^\x20-\x7e]/','',$value)??'';
@@ -121,6 +122,12 @@ try{
     $product=null;
     foreach(ankhPublicCatalogueProducts($db) as $row)if((int)$row['id']===(int)$id){$product=$row;break;}
     if(!$product){http_response_code(404);exit;}
+    if(is_string($config['portal_database_path']??null) && is_file($config['portal_database_path'])){
+      $store=new PDO('sqlite:'.$config['portal_database_path'],null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+      $store->exec('PRAGMA query_only=ON');
+      $override=ankhCmsOverlay($store,[$product]);$product=$override[0];
+    }
+
     $pdf=apBuildPdf((string)$product['name'],(array)$product['information'],(int)$id);
     header('Content-Type: application/pdf');
     header('Cache-Control: private, no-store');
