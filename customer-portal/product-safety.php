@@ -113,7 +113,7 @@ function ankhSdsStaffSection(PDO $store,PDO $admin,string $csrf,int $productId):
       <p class="pc-footnote">SDSs are separate from Certificates of Analysis. Attach drafts here, check every chemical identity and safety section, then explicitly approve public release. Hiding a product hides its SDS automatically.</p>
       <?php foreach($docs as $doc):?>
         <div class="ankh-sds-row" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;padding:18px;margin:12px 0;border:1px solid #cfb78355;border-radius:12px">
-          <div><strong><?=$esc($doc['pdf_name'])?></strong><small style="display:block;margin-top:5px"><?=$doc['published']?'Published · reviewed by '.$esc($doc['reviewed_by']):'Private draft · not customer-visible'?></small></div>
+          <div><strong><?=$esc($doc['pdf_name'])?></strong><a href="./product-safety-document.php?id=<?=(int)$doc['id']?>&amp;staff=1" target="_blank" rel="noopener noreferrer" style="display:block;margin-top:9px;color:#e5c580">Preview SDS PDF ↗</a><small style="display:block;margin-top:5px"><?=$doc['published']?'Published · reviewed by '.$esc($doc['reviewed_by']):'Private draft · not customer-visible'?></small></div>
           <form method="post" style="display:grid;gap:9px;min-width:min(100%,270px)">
             <input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="product_id" value="<?=$productId?>">
             <input type="hidden" name="sds_id" value="<?=(int)$doc['id']?>">
