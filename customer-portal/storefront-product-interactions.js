@@ -5,44 +5,38 @@
   if (!document.body || !document.body.classList.contains('sf-is-detail')) return;
   const bar = document.querySelector('[data-product-sticky-action]');
   const primary = document.querySelector('.sf-shop-inline [data-cart-id], .sf-reference-state');
+  const footer = document.querySelector('.sf-footer');
   const dialogs = Array.from(document.querySelectorAll('dialog'));
-  let primaryVisible = true;
-  let footerVisible = false;
 
-  if (bar && primary && 'IntersectionObserver' in window) {
+  if (bar && primary) {
+    // Derive visibility from actual live element positions on each scroll.
+    // An observer alone can miss scroll transitions when browser viewports resize.
     const updateBar = () => {
+      const primaryBottom = primary.getBoundingClientRect().bottom;
+      const footerTop = footer ? footer.getBoundingClientRect().top : Infinity;
       const modalOpen = dialogs.some(dialog => dialog.open);
-      // Do not show the rail before the visitor reaches the primary action.
-      // Off-screen below the fold is different from scrolled past it.
-      const scrolledPastAction = primary.getBoundingClientRect().bottom < 72;
-      const show = !primaryVisible && scrolledPastAction && !footerVisible && !modalOpen
+      const scrolledPastAction = primaryBottom < 72;
+      const reachedFooter = footerTop < window.innerHeight - 108;
+      const show = scrolledPastAction && !reachedFooter && !modalOpen
         && window.matchMedia('(max-width: 600px)').matches;
       bar.classList.toggle('is-visible', show);
       bar.inert = !show;
       bar.setAttribute('aria-hidden', show ? 'false' : 'true');
     };
-    // The bar only takes the screen after the primary action scrolls out.
-    // Without JavaScript the original product action remains usable.
     bar.inert = true;
     bar.setAttribute('aria-hidden', 'true');
     document.body.classList.add('sf-detail-interactions-ready');
-    const actionObserver = new IntersectionObserver(entries => {
-      for (const entry of entries) if (entry.target === primary) primaryVisible = entry.isIntersecting;
-      updateBar();
-    }, { threshold: 0, rootMargin: '0px 0px -92px 0px' });
-    actionObserver.observe(primary);
-
-    const footer = document.querySelector('.sf-footer');
-    if (footer) {
-      const footerObserver = new IntersectionObserver(entries => {
-        for (const entry of entries) footerVisible = entry.isIntersecting;
-        updateBar();
-      }, { threshold: 0 });
-      footerObserver.observe(footer);
+    let frame = 0;
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => { frame = 0; updateBar(); });
+    };
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate, { passive: true });
+    if ('MutationObserver' in window) {
+      const modalObserver = new MutationObserver(scheduleUpdate);
+      dialogs.forEach(dialog => modalObserver.observe(dialog, { attributes: true, attributeFilter: ['open'] }));
     }
-    const modalObserver = new MutationObserver(updateBar);
-    dialogs.forEach(dialog => modalObserver.observe(dialog, { attributes: true, attributeFilter: ['open'] }));
-    window.addEventListener('resize', updateBar, { passive: true });
     updateBar();
   }
 
