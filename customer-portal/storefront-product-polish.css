@@ -234,3 +234,22 @@
 @media(prefers-reduced-motion:reduce){
  .sf-is-detail .sf-mobile-product-action,.sf-is-detail .sf-product-doc-link,.sf-is-detail .sf-product-share{transition:none!important}
 }
+
+
+/* Narrow-screen navigation: bottom tabs already contain Saved, Basket and Account.
+   Do not duplicate them in a compressed top header or enlarge the layout viewport. */
+@media(max-width:600px){
+ .sf-public.sf-is-detail .sf-head-inner{min-width:0;max-width:100%;justify-content:space-between;gap:8px}
+ .sf-public.sf-is-detail .sf-head-inner>.sf-saved-entry,
+ .sf-public.sf-is-detail .sf-head-inner>.sf-account-entry,
+ .sf-public.sf-is-detail .sf-head-inner>.sf-basket-entry{display:none!important}
+ .sf-public.sf-is-detail .sf-header .sf-logo{min-width:0;max-width:100%}
+ .sf-public.sf-is-detail .sf-header .sf-logo span{min-width:0}
+}
+/* Tablet headers should not force 900px of links into 768px.
+   The logo and product breadcrumbs still lead back to the collection. */
+@media(min-width:601px) and (max-width:960px){
+ .sf-public.sf-is-detail .sf-head-inner{gap:10px;min-width:0}
+ .sf-public.sf-is-detail .sf-head-inner>.sf-links{display:none!important}
+ .sf-public.sf-is-detail .sf-head-inner>.sf-saved-entry{margin-left:auto}
+}
