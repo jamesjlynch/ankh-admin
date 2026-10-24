@@ -318,6 +318,12 @@
 .sf-product-doc-link>span:last-child{color:#e8ca85;font-size:20px}
 .sf-doc-symbol{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:10px;background:#cdb27722;
  border:1px solid #cdb27772;color:#e6c88b;font:26px Georgia,serif}
+.sf-sds-staff-preview{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:18px 20px;margin:0 0 20px;background:#28241a;border:1px solid #e0bb6f;border-radius:14px;color:#f4e1bd;box-shadow:0 8px 28px #0004}
+.sf-sds-staff-preview .sf-sds-staff-mark{display:grid;place-items:center;width:42px;height:42px;border:1px solid #d6b373;border-radius:10px;color:#e6c887;font-size:28px}
+.sf-sds-staff-preview>div{flex:1;min-width:190px}
+.sf-sds-staff-preview strong{font-size:14px;color:#f5d8a4}
+.sf-sds-staff-preview p{font-size:11px;line-height:1.65;margin:5px 0 0;color:#d1c6af}
+.sf-sds-staff-preview a{color:#f3d191;font-size:11px;text-decoration:underline;text-underline-offset:3px}
 .sf-product-doc-sds{background:linear-gradient(118deg,#26261b,#151912);border-color:#d5b77599;box-shadow:inset 0 1px 0 #e6c88718}
 .sf-product-doc-sds .sf-doc-symbol{background:#d5b77525;border-color:#d5b775aa;color:#f0d6a0}
 .sf-product-doc-sds strong{font-size:14px;color:#f5ddaa}
