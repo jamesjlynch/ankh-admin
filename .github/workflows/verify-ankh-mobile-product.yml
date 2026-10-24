@@ -1,0 +1,38 @@
+name: ANKH mobile product browser QA
+on:
+  push:
+    branches: [feature/ankh-customer-portal]
+    paths:
+      - 'customer-portal/storefront-product-polish.css'
+      - 'tests/customer-mobile-product-premium.cjs'
+      - '.github/workflows/verify-ankh-mobile-product.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  chrome:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Real Chromium mobile layout and interaction tests
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.56.1
+          node --check tests/customer-mobile-product-premium.cjs
+          node tests/customer-mobile-product-premium.cjs
+      - name: Save mobile screenshots for visual inspection
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ankh-premium-mobile-product-screenshots
+          path: atelier-viewport-screenshots/
+          if-no-files-found: warn
+          retention-days: 7
