@@ -1,0 +1,40 @@
+name: Audit ANKH mobile product experience
+on:
+  push:
+    branches:
+      - feature/ankh-customer-portal
+    paths:
+      - tests/ankh-live-mobile-product-qa.cjs
+      - .github/workflows/audit-ankh-catalogue-mobile.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install standalone browser test runner
+        run: |
+          set -euo pipefail
+          npm install --no-save --prefix "$RUNNER_TEMP/ankh-mobile-audit" playwright@1.56.1
+          "$RUNNER_TEMP/ankh-mobile-audit/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Test real public ANKH catalogue at mobile viewport sizes
+        env:
+          ANKH_LIVE_CATALOGUE: https://order.ankhpeptides.com
+          ANKH_QA_SCREENSHOTS: ankh-mobile-qa-screenshots
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/ankh-mobile-audit/node_modules" node tests/ankh-live-mobile-product-qa.cjs
+      - name: Save mobile experience screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ankh-live-product-mobile-qa
+          path: ankh-mobile-qa-screenshots/
+          if-no-files-found: warn
+          retention-days: 7
