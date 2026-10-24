@@ -17,6 +17,7 @@ on:
       - 'tests/customer-product-safety.php'
       - 'scripts/prepare-ankh-sds.py'
       - 'scripts/import-ankh-sds.php'
+      - 'scripts/release-ankh-sds-drafts.php'
       - '.github/workflows/deploy-customer-portal.yml'
   workflow_dispatch:
 permissions:
@@ -64,6 +65,7 @@ jobs:
           php -l customer-portal/product-safety.php
           php -l customer-portal/product-safety-document.php
           php -l scripts/import-ankh-sds.php
+          php -l scripts/release-ankh-sds-drafts.php
           php -l customer-portal/content-studio.php
           php -l customer-portal/cms-product-image.php
           node --check customer-portal/cms-editor.js
@@ -133,7 +135,7 @@ jobs:
           mkdir -p "$S"
           git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
           git -C "$R" merge-base --is-ancestor "$release_sha" origin/feature/ankh-customer-portal
-          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php scripts/import-ankh-sds.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php tests/customer-product-safety.php | tar -x -C "$S"
+          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php scripts/import-ankh-sds.php scripts/release-ankh-sds-drafts.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php tests/customer-product-safety.php | tar -x -C "$S"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php "$S/scripts/check-public-catalogue.php"
           REMOTE
@@ -167,3 +169,37 @@ jobs:
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php /home/devcouk/ankh-customer-portal-staging/scripts/import-ankh-sds.php "$folder"
           rm -rf -- "$folder"
           REMOTE
+
+      - name: Release fourteen explicitly unverified SDS draft references
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[release-ankh-sds-drafts]') }}
+        env:
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" \
+            'ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php /home/devcouk/ankh-customer-portal-staging/scripts/release-ankh-sds-drafts.php'
+
+      - name: Verify all fourteen SDS draft links on public ANKH product pages
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[release-ankh-sds-drafts]') }}
+        run: |
+          set -euo pipefail
+          for product_id in 101 97 108 110 104 75 72 78 55 94 95 53 96 60; do
+            html="$(curl --fail --location --retry 2 --max-time 22 --silent --show-error \
+              -H 'Cache-Control: no-cache' "https://order.ankhpeptides.com/?product=$product_id")"
+            printf '%s' "$html" | grep -Fq 'Draft SDS reference' || {
+              echo "SDS draft card missing from public product $product_id"
+              exit 1
+            }
+            printf '%s' "$html" | grep -Fq 'not a technically approved Safety Data Sheet' || {
+              echo "Mandatory draft disclaimer missing from product $product_id"
+              exit 1
+            }
+            echo "PUBLIC-DRAFT-CARD-VERIFIED product_id=$product_id"
+          done
+          hidden="$(curl --fail --max-time 22 --silent --show-error 'https://order.ankhpeptides.com/?product=73')"
+          if printf '%s' "$hidden" | grep -Fq 'Draft SDS reference'; then
+            echo 'Unexpected SDS draft published to unmatched BPC-157 10mg'
+            exit 1
+          fi
+          echo 'SUCCESS: 14 public unverified SDS cards visible; unmatched product remains without SDS.'
