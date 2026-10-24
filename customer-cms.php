@@ -11,7 +11,9 @@ $cmsProduct=null;foreach($cmsProducts as $p)if((int)$p['id']===$cmsSelected){$cm
 $cmsInfo=$cmsContent[$cmsSelected]??[];
 $cmsCount=count(array_filter($cmsActive,fn($p)=>(int)($cmsVisibility[(int)$p['id']]??0)===1));
 ?>
-<link rel="stylesheet" href="customer-cms.css?v=1">
+<link rel="stylesheet" href="customer-cms.css?v=2">
+<script src="catalogue-admin.js?v=unified-2" defer></script>
+<script src="customer-cms.js?v=2" defer></script>
 <div class="heading"><div><p class="cms-kicker">ANKH / CONTENT MANAGEMENT</p><h1>Customer website CMS</h1><p class="muted">Edit customer-facing information and choose what appears on your website.</p></div><a class="quick-action" href="?view=products">Order Admin products →</a></div>
 <div class="cms-stats"><div><strong><?=count($cmsProducts)?></strong><span>Total products</span></div><div><strong><?=$cmsCount?></strong><span>Visible</span></div><div><strong><?=count($cmsActive)-$cmsCount?></strong><span>Hidden active</span></div></div>
 <div class="cms-layout">
@@ -30,14 +32,21 @@ $cmsCount=count(array_filter($cmsActive,fn($p)=>(int)($cmsVisibility[(int)$p['id
  <form method="post" enctype="multipart/form-data" class="cms-form">
  <?php csrf();?><input type="hidden" name="action" value="product_catalogue_content"><input type="hidden" name="product_id" value="<?=$cmsSelected?>"><input type="hidden" name="return" value="website_cms"><input type="hidden" name="catalogue_visible" value="<?=(int)($cmsVisibility[$cmsSelected]??0)===1?'1':'0'?>">
  <label for="cms-description">Product description</label><p class="cms-help">Use short paragraphs, headings and factual product information. Existing text is preserved when you open the editor.</p>
- <textarea id="cms-description" name="catalogue_description" rows="9" maxlength="40000"><?=e((string)($cmsInfo['description']??''))?></textarea>
+ <div class="catalogue-document-editor cms-document-editor">
+ <div class="cms-editor-toolbar" role="toolbar" aria-label="Description formatting">
+ <button type="button" data-catalogue-insert="heading">Heading</button><button type="button" data-catalogue-insert="bold"><strong>Bold</strong></button><button type="button" data-catalogue-insert="bullet">• List</button><button type="button" data-catalogue-insert="link">↗ Link</button>
+ <button type="button" id="cms-preview-toggle" aria-expanded="false" aria-controls="cms-preview">Preview</button></div>
+ <textarea data-catalogue-document id="cms-description" name="catalogue_description" rows="12" maxlength="40000"><?=e((string)($cmsInfo['description']??''))?></textarea>
+ <div class="cms-editor-bottom"><span>Use headings and paragraphs like in a document editor.</span><span data-catalogue-count></span></div>
+ <div id="cms-preview" class="cms-preview" hidden aria-live="polite"></div>
+ </div>
  <h3>Technical and research information</h3><p class="cms-help">Only enter independently verifiable information. Empty fields are omitted from the customer website.</p>
  <div class="cms-fields"><?php foreach(ankhCatalogueInformationFields() as $key=>$label):$val=(string)($cmsInfo['information'][$key]??'');?>
  <label><?=e($label)?><?php if(in_array($key,ankhCatalogueLongFields(),true)):?><textarea name="catalogue_information[<?=e($key)?>]" rows="4"><?=e($val)?></textarea><?php else:?><input name="catalogue_information[<?=e($key)?>]" value="<?=e($val)?>" maxlength="600"><?php endif;?></label>
  <?php endforeach;?></div>
  <h3>Product image</h3><?php if((int)($cmsInfo['image_bytes']??0)>0):?><img class="cms-photo" src="?api=catalogue-image&amp;id=<?=$cmsSelected?>" alt="Current product photo"><?php endif;?>
- <label>Replace product image<input type="file" name="catalogue_photo" accept="image/jpeg,image/png,image/webp"></label>
- <label class="cms-check"><input type="checkbox" name="remove_catalogue_photo" value="1"> Remove existing image</label>
+ <label>Replace product image<input type="file" name="catalogue_photo" data-catalogue-photo accept="image/jpeg,image/png,image/webp"></label>
+ <p class="cms-help" data-photo-status>No new photo selected.</p><img hidden class="cms-photo" data-photo-preview alt="Photo upload preview"><label class="cms-check"><input type="checkbox" name="remove_catalogue_photo" value="1"> Remove existing image</label>
  <div class="cms-actions"><button type="submit">Save website content</button><a href="?view=product&amp;id=<?=$cmsSelected?>">Open operational product record ↗</a></div>
  </form>
 </section>
