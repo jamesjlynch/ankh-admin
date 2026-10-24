@@ -3,6 +3,7 @@
 if(!isset($products,$filtered,$notice)) {http_response_code(404);exit;}
 $heroPhotos=array_slice(array_values(array_filter($products,static fn($p)=>!empty($p['has_photo']))),0,3);
 $variants=$selected?pfVariants($selected,$products):[];
+$variantSelector=$selected?pfVariantSelector($selected,$variants):['strengths'=>[],'formats'=>[]];
 $related=$selected?pfRelated($selected,$products):[];
 ?>
 <!doctype html>
@@ -64,37 +65,49 @@ $related=$selected?pfRelated($selected,$products):[];
        <img src="<?=pfEscape(ankhCmsPhotoUrl($selected,'detail'))?>" srcset="<?=pfEscape(ankhCmsPhotoUrl($selected,'thumb'))?> 420w, <?=pfEscape(ankhCmsPhotoUrl($selected,'detail'))?> 880w" sizes="(max-width: 600px) 100vw, (max-width: 1000px) 60vw, 700px" alt="<?=pfEscape($selected['name'].' supplied product photograph')?>" fetchpriority="high" decoding="async" width="880" height="880">
        <button type="button" class="sf-gallery-zoom" data-gallery-zoom aria-label="Enlarge product photograph">⌕ <span>Enlarge photo</span></button>
       <?php else:?><span class="sf-gallery-fallback" aria-hidden="true">☥</span><?php endif;?>
-      <span class="sf-photo-mark" aria-hidden="true">☥</span></div>
+      <span class="sf-photo-mark" aria-hidden="true">☥</span><span class="sf-studio-brand" aria-hidden="true">ANKH <span> / </span> RESEARCH COLLECTION</span></div>
     </div>
     <div class="sf-gallery-slide sf-gallery-specification" id="sf-gallery-specification" aria-label="Complete product identity and technical specifications" tabindex="0">
-      <div class="sf-gallery-spec-header"><span class="sf-kicker">ANKH / PRODUCT IDENTITY</span><span class="sf-gallery-emblem" aria-hidden="true">☥</span>
-       <h2>At a glance<span class="sf-gold">.</span></h2>
-       <p><?=pfEscape($selected['name'])?> · <?=count($identityRows)?> documented specification<?=count($identityRows)===1?'':'s'?></p>
+      <div class="sf-gallery-spec-header"><span class="sf-kicker">ANKH / DYNAMIC SPECIFICATION CARD</span><span class="sf-gallery-emblem" aria-hidden="true">☥</span>
+       <h2>Product profile<span class="sf-gold">.</span></h2>
+       <p><?=pfEscape($selected['name'])?> · Automatically generated from the product CMS</p>
       </div>
-      <?php if($identityRows):?><dl class="sf-gallery-spec-rows">
-       <?php foreach($identityRows as $identity):?><div class="sf-gallery-spec-row"><dt><?=pfEscape($identity['label'])?></dt><dd><?=pfEscape($identity['value'])?></dd></div><?php endforeach;?>
-      </dl><?php else:?><p class="sf-gallery-spec-empty">Detailed technical specifications for this product have not yet been published.</p><?php endif;?>
-      <p class="sf-gallery-spec-disclaimer">Specifications are supplied as research references and are not a substitute for a verified batch-specific certificate.</p>
+      <?php $specHighlights=pfSpecHighlights($identityRows);if($specHighlights):?><dl class="sf-gallery-spec-rows">
+       <?php foreach($specHighlights as $identity):?><div class="sf-gallery-spec-row"><dt><?=pfEscape($identity['label'])?></dt><dd><?=pfEscape($identity['value'])?></dd></div><?php endforeach;?>
+      </dl><?php else:?><p class="sf-gallery-spec-empty">Additional material specifications are not yet published for this product.</p><?php endif;?>
+      <div class="sf-spec-card-footer"><span>☥ ANKH / TECHNICAL REFERENCE</span><a href="#sf-product-research">Full product information ↗</a></div>
+      <p class="sf-gallery-spec-disclaimer">Manufacturer and CMS reference data. Not an independent batch test, sterility certificate or technical safety approval.</p>
     </div>
   </div>
   <div class="sf-gallery-bar">
     <div class="sf-gallery-select" role="group" aria-label="Select gallery view">
       <button type="button" data-gallery-go="0" aria-pressed="true"><span class="sf-gallery-thumb"><?php if($selected['has_photo']):?><img src="<?=pfEscape(ankhCmsPhotoUrl($selected,'thumb'))?>" loading="lazy" width="45" height="45" alt=""><?php else:?>☥<?php endif;?></span><span>PHOTO</span></button>
-      <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">☥</span><span>SPECIFICATIONS</span></button>
+      <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">▤</span><span>PRODUCT SPECS</span></button>
     </div>
     <div class="sf-gallery-arrows" aria-label="Gallery navigation"><button type="button" data-gallery-prev aria-label="Previous gallery view">←</button><button type="button" data-gallery-next aria-label="Next gallery view">→</button></div>
   </div>
 </div>
-<div class="sf-image-caption"><span>SWIPE BETWEEN PRODUCT PHOTO &amp; SPECIFICATIONS</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
+<div class="sf-image-caption"><span>PRODUCT PHOTO · AUTOMATIC SPECIFICATIONS</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
 <div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> / ANKH RESEARCH</span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
 <span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
 <h1><?=pfEscape($selected['name'])?></h1>
 <div class="sf-tags"><span>Laboratory reference</span><span>Technical specifications</span></div>
 <p class="sf-lead"><?=pfEscape(pfExcerpt((string)$selected['description'],340))?></p>
-<?php if(count($variants)>1):?><div class="sf-variants"><strong>Related formats &amp; strengths</strong><div class="sf-variant-items">
-<?php foreach($variants as $v):?><a href="<?=pfEscape(pfUrl(['product'=>$v['id']]))?>" <?=$v['id']===$selected['id']?'aria-current="page"':''?> title="<?=pfEscape($v['name'])?>"><?=pfEscape(pfStrength($v)?:$v['name'])?></a><?php endforeach;?>
-</div></div><?php endif;?>
+<?php if($variantSelector['strengths']||$variantSelector['formats']):?>
+<div class="sf-variants sf-variants-premium" aria-label="Available product variations">
+  <div class="sf-variant-header"><span class="sf-variant-eyebrow">ANKH / PRODUCT OPTIONS</span><strong>Choose your variant<span class="sf-gold">.</span></strong><p>Select a strength or presentation to view its actual product record. The corresponding price and product details load automatically.</p></div>
+  <?php if($variantSelector['strengths']):?><div class="sf-variant-group" role="group" aria-label="Choose product strength">
+    <div class="sf-variant-group-head"><strong>Strength</strong><span><?=pfEscape((string)$variantSelector['current_strength'])?></span></div>
+    <div class="sf-variant-tile-grid">
+    <?php foreach($variantSelector['strengths'] as $option):?><a class="sf-variant-tile <?=$option['selected']?'is-selected':''?>" href="<?=pfEscape(pfUrl(['product'=>$option['id']]))?>" <?=$option['selected']?'aria-current="page"':''?> aria-label="<?=pfEscape('View '.$option['label'].' strength')?>"><span class="sf-variant-tile-name"><?=pfEscape($option['label'])?></span><small><?=pfEscape($option['sub_label'])?></small><?php if($option['selected']):?><span class="sf-variant-check" aria-hidden="true">✓</span><?php endif;?></a><?php endforeach;?>
+    </div></div><?php endif;?>
+  <?php if($variantSelector['formats']):?><div class="sf-variant-group" role="group" aria-label="Choose product format">
+    <div class="sf-variant-group-head"><strong>Presentation</strong><span><?=pfEscape((string)$variantSelector['current_format'])?></span></div>
+    <div class="sf-variant-tile-grid">
+    <?php foreach($variantSelector['formats'] as $option):?><a class="sf-variant-tile <?=$option['selected']?'is-selected':''?>" href="<?=pfEscape(pfUrl(['product'=>$option['id']]))?>" <?=$option['selected']?'aria-current="page"':''?> aria-label="<?=pfEscape('View '.$option['label'].' format')?>"><span class="sf-variant-tile-name"><?=pfEscape($option['label'])?></span><small><?=pfEscape($option['sub_label'])?></small><?php if($option['selected']):?><span class="sf-variant-check" aria-hidden="true">✓</span><?php endif;?></a><?php endforeach;?>
+    </div></div><?php endif;?>
+</div><?php endif;?>
 <div class="sf-detail-spec-mini">
 <?php foreach(['strength'=>'Quantity','presentation'=>'Presentation','purity'=>'Purity reference'] as $field=>$label):if(empty($info[$field]))continue;?><span><small><?=pfEscape($label)?></small><strong><?=pfEscape($info[$field])?></strong></span><?php endforeach;?>
 </div>
