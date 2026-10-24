@@ -21,6 +21,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: ankh-protected-customer-portal
   cancel-in-progress: false
@@ -135,4 +136,34 @@ jobs:
           git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php scripts/import-ankh-sds.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php "$S/scripts/check-public-catalogue.php"
+          REMOTE
+
+      - name: Prepare fourteen private SDS draft files from existing CI artifact
+        if: \${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check 'pymupdf>=1.24,<1.28' 'pillow>=10,<12' 'numpy>=1.26,<3'
+          mkdir -p sds-source
+          gh run download 40102041108 --repo "$GITHUB_REPOSITORY" --name ANKH-SDS-REBRAND-DRAFT-20261024 --dir sds-source
+          python3 scripts/prepare-ankh-sds.py
+          test "$(find sds-ready -maxdepth 1 -name 'ANKH-SDS-*.pdf' -type f | wc -l)" -eq 14
+
+      - name: Attach ANKH SDS batch privately to matched live CMS products
+        if: \${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}
+        env:
+          KRYSTAL_HOST: \${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: \${{ secrets.KRYSTAL_USER }}
+        run: |
+          set -euo pipefail
+          remote="/home/devcouk/ankh-sds-stage-$GITHUB_SHA"
+          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" "install -d -m 700 '$remote'"
+          scp -i "$HOME/.ssh/id_rsa" -P 722 -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes sds-ready/ANKH-SDS-*.pdf "$KRYSTAL_USER@$KRYSTAL_HOST:$remote/"
+          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" "bash -se -- '$remote'" <<'REMOTE'
+          set -Eeuo pipefail
+          folder="$1"
+          chmod 600 "$folder"/*.pdf
+          ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php /home/devcouk/ankh-customer-portal-staging/scripts/import-ankh-sds.php "$folder"
+          rm -rf -- "$folder"
           REMOTE
