@@ -219,7 +219,10 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         assert 'Start with something you like' in request(list_path)
         assert 'Multi-product request' not in request('/preview-live.php?customer_id=1&tab=catalogue&view_enquiries=1')
         # Staff switches the public label without altering the read-only Admin SQLite data.
-        manage_path='/preview-live.php?manage=portal'
+        # Availability now has its own studio panel; the default opens Product CMS.
+        studio=request('/preview-live.php?manage=portal')
+        assert 'Product page editor' in studio and 'pc-studio-nav' in studio
+        manage_path='/preview-live.php?manage=portal&panel=availability'
         staff=request(manage_path);assert 'Product availability labels' in staff
         coming=request(manage_path,{'csrf':csrf(staff),'action':'portal_availability','product_id':3,'label':'coming_soon'})
         assert 'Saved successfully' in coming

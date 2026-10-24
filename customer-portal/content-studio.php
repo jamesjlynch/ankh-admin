@@ -47,7 +47,8 @@ function ankhCmsSetDraft(PDO $store,PDO $admin,int $id,string $description,array
     $product=ankhCmsProduct($admin,$id);
     if(!$product)throw new InvalidArgumentException('That product is not in Order Admin.');
     $description=trim($description);
-    if(mb_strlen($description)>20000)throw new InvalidArgumentException('Description is too long.');
+    if(strlen($description)>80000 || !preg_match('//u',$description) || preg_match_all('/./us',$description)>20000)
+        throw new InvalidArgumentException('Description must be valid text of at most 20,000 characters.');
     $information=ankhCatalogueValidateInformation($information);
     // The COA must continue to come from the separately verified document manager.
     unset($information['coa_url']);
@@ -152,7 +153,7 @@ function ankhCmsEditor(PDO $store,PDO $admin,string $csrf):void{
     ?>
     <section class="pc-panel ankh-cms" id="cms-products">
       <div class="pc-section-header"><div><span class="pc-eyebrow">CONTENT STUDIO / PRODUCT LIBRARY</span><h2>Product page editor</h2></div>
-      <a href="./?tab=shop" target="_blank" rel="noopener">View storefront ↗</a></div>
+      <a href="./" target="_blank" rel="noopener">View storefront ↗</a></div>
       <p class="pc-footnote">Create a draft, update product information and publish when ready. Prices, stock, product names and visibility are read directly from ANKH Order Admin and cannot be edited here.</p>
       <div class="ankh-cms-grid"><aside class="ankh-cms-library"><label for="ankh-cms-search">Find a product</label><input id="ankh-cms-search" type="search" placeholder="Search all products" autocomplete="off">
        <nav aria-label="Choose a product"><?php foreach($products as $product):
