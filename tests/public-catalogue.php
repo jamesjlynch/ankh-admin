@@ -14,7 +14,7 @@ $before=$db->query('SELECT * FROM products ORDER BY id')->fetchAll();
 checkPublic(ankhPublicCatalogueProducts($db)===[],'No visibility table must not expose all active products');
 ankhCatalogueInit($db);
 checkPublic(ankhPublicCatalogueProducts($db)===[],'Unpublished products must stay private');
-ankhCatalogueSaveContent($db,1,'KPV scientific compound information and research details. No advice for administration.',null,false,true,['sequence'=>'Lys-Pro-Val','research'=>'Preclinical model','coa_url'=>'https://example.com/coa']);
+ankhCatalogueSaveContent($db,1,'KPV scientific compound information and research details. No advice for administration.',null,false,true,['sequence'=>'Lys-Pro-Val','research'=>'Preclinical model','coa_url'=>'https://example.com/coa','sds_url'=>'https://example.com/sds']);
 ankhCatalogueSaveContent($db,2,'The scientific profile contains identity and experimental evidence, but was hidden.',null,false,false,['sequence'=>'ABC']);
 ankhCatalogueSaveContent($db,3,'This inactive accessory is marked customer visible, but inactive.',null,false,true);
 ankhCatalogueSaveContent($db,4,'This visible research item has extensive scientific information.',null,false,true);
@@ -23,6 +23,8 @@ checkPublic(count($rows)===2,'Only active previously-published products should a
 checkPublic(array_column($rows,'name')===['KPV 10mg','SS-31 10mg'],'Product names/ordering must reflect customer visibility');
 checkPublic(!isset($rows[0]['price'],$rows[0]['cost'],$rows[0]['stock_qty'],$rows[0]['reviewed_at']),'Public listing must not expose price, stock, costs or review metadata');
 checkPublic(isset($rows[0]['information']['sequence'])&&!isset($rows[0]['information']['coa_url']),'Science included but unverified COA links not automatically exposed');
+checkPublic(($rows[0]['information']['sds_url']??'')==='https://example.com/sds','Visible product must expose its supplied safety document link.');
+checkPublic(!in_array('Retatrutide 10mg',array_column($rows,'name'),true),'Hidden products cannot expose SDS links or catalogue information.');
 checkPublic(str_contains(ankhPublicNotice(),'Not intended for human or veterinary consumption'),'Medical-use warning required');
 ankhCatalogueSaveContent($db,4,'Revised scientific literature and chemical identity.',null,false,false);
 checkPublic(count(ankhPublicCatalogueProducts($db))===1,'Hidden customer product must immediately disappear from public listings');
