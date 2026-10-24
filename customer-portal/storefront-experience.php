@@ -16,9 +16,11 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
 <link rel="stylesheet" href="./storefront-luxury.css?v=3">
+<link rel="stylesheet" href="./storefront-product-mobile.css?v=1">
 <script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
 <script defer src="./storefront-luxury.js?v=3"></script>
+<script defer src="./storefront-product-mobile.js?v=1"></script>
 </head>
 <body class="sf-public <?=$selected?'sf-is-detail':'sf-is-collection'?>">
 <a href="#main" class="sf-skip">Skip to content</a>
@@ -71,6 +73,7 @@ $related=$selected?pfRelated($selected,$products):[];
 </div>
 <div class="sf-image-caption"><span>ANKH / PRODUCT PROFILE</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
+<div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> / ANKH RESEARCH</span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
 <span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
 <h1><?=pfEscape($selected['name'])?></h1>
 <div class="sf-tags"><span>Laboratory reference</span><span>Technical specifications</span></div>
@@ -92,13 +95,14 @@ $related=$selected?pfRelated($selected,$products):[];
 <div class="sf-shop-inline"><span><?=$selectedCommercial?'Eligible accessory order request':'Demo basket · No payment or order'?></span>
 <button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>">Add to basket ＋</button></div>
 <?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>
+<div class="sf-mobile-product-quicklinks" aria-label="Jump to product information"><a href="#sf-product-documents">Documents ↗</a><a href="#sf-product-research">Research ↗</a><a href="#sf-gallery-track" data-open-identity>Specifications ↗</a></div>
 <div class="sf-detail-actions">
 <a class="sf-button" href="./?tab=home">Open My Account <span aria-hidden="true">↗</span></a>
 <a class="sf-secondary" href="./public-catalogue.php?product=<?=(int)$selected['id']?>">Full scientific reference →</a><button type="button" class="sf-save-action" data-save-id="<?=(int)$selected['id']?>" aria-pressed="false">♡ Save to research shortlist</button>
 </div>
 <p class="sf-product-warning">Technical research information only. This page does not offer medical products for sale. See the laboratory and regulatory notice below.</p>
 </div></section>
-<section class="sf-public-documents" aria-label="Product documentation">
+<section class="sf-public-documents" id="sf-product-documents" aria-label="Product documentation">
  <?php if(!empty($sdsStaffPreview)):?>
   <div class="sf-sds-staff-preview" role="note">
    <span class="sf-sds-staff-mark" aria-hidden="true">☥</span>
@@ -127,7 +131,7 @@ $related=$selected?pfRelated($selected,$products):[];
  </div>
  <?php if(!$productDocuments):?><p class="sf-docs-notice">A corresponding analytical report has not yet been published for this product. The specification document does not claim independent batch testing.</p><?php endif;?>
 </section>
-<section class="sf-profile-content" aria-label="Product profile">
+<section class="sf-profile-content" id="sf-product-research" aria-label="Product profile">
 <div class="sf-profile-main">
 <div class="sf-section-intro"><span class="sf-kicker">IN-DEPTH REFERENCE</span><h2>Beyond the label<span class="sf-gold">.</span></h2><p>Organised scientific information, without distracting you from the details.</p></div>
 <details class="sf-accordion" open><summary><span><b>01</b> Overview</span><span aria-hidden="true">＋</span></summary><div class="sf-accordion-content"><?=ankhCatalogueFormat((string)$selected['description'])?></div></details>
