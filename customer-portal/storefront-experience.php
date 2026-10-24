@@ -238,7 +238,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 </main>
 <?php if($selected):?>
 <div class="sf-mobile-product-action" aria-label="Product actions">
- <div class="sf-mobile-product-summary"><small>ANKH / PRODUCT PROFILE</small><strong><?=pfEscape($selected['name'])?></strong></div>
+ <div class="sf-mobile-product-summary"><small><?=$selectedPreviewPrice!==null?($selectedCommercial?'PRICE £':'PREVIEW £').number_format((int)$selectedPreviewPrice/100,2):'ANKH / PRODUCT PROFILE'?></small><strong><?=pfEscape($selected['name'])?></strong></div>
  <?php if(isset($demoProducts[(int)$selected['id']])):?>
  <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add">Add to basket <span aria-hidden="true">＋</span></button>
  <?php else:?><a href="./#collection" class="sf-mobile-product-add sf-action-reference">Browse collection ↗</a><?php endif;?>
