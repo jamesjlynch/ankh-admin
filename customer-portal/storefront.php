@@ -41,6 +41,20 @@ try {
     $config=require $path;
     $expectedHost=strtolower((string)($config['host']??'order.ankhpeptides.com'));
     if(!$loopback && $expectedHost!==strtolower((string)($_SERVER['HTTP_HOST']??''))){http_response_code(404);exit;}
+    $sdsStaffPreview=false;
+    if(($_GET['staff_sds_preview']??'')==='1') {
+        $sdsProductId=filter_var($_GET['product']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        if(!$sdsProductId){http_response_code(404);exit;}
+        ini_set('session.use_strict_mode','1');
+        session_name('ankh_staff_preview');
+        session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>!$loopback,'httponly'=>true,'samesite'=>'Strict']);
+        session_start();
+        if(!ankhSdsStaffPreviewAllowed($config,$_SESSION,time())) {
+            http_response_code(403);
+            exit('<!doctype html><html lang="en-GB"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ANKH Staff Preview</title><body style="background:#0c100d;color:#f4dfb7;padding:10vh 7vw;font:16px system-ui"><h1>Staff sign-in required</h1><p>Log into ANKH Content Studio before viewing private SDS previews.</p><a style="color:#e5c580" href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id='.(int)$sdsProductId.'">Sign in to Content Studio</a></body></html>');
+        }
+        $sdsStaffPreview=true;
+    }
     $dbPath=is_array($config)?($config['admin_database_path']??null):null;
     if(!is_string($dbPath)||!is_file($dbPath))throw new RuntimeException('The catalogue database is unavailable.');
     $db=new PDO('sqlite:'.$dbPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
@@ -87,6 +101,10 @@ try{
         if(isset($_GET['product'])){
             $productDocuments=ankhDocsPublished($store,(int)($_GET['product']??0));
             $productSds=ankhSdsPublished($store,(int)($_GET['product']??0));
+            if($sdsStaffPreview) {
+                $privateSheets=ankhSdsAll($store,(int)($_GET['product']??0));
+                if($privateSheets)$productSds=[reset($privateSheets)];
+            }
         }
     }
 }catch(Throwable $e){error_log('ANKH public shop setup: '.$e->getMessage());}
