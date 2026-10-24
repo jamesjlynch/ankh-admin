@@ -12,7 +12,10 @@
   if (bar && primary && 'IntersectionObserver' in window) {
     const updateBar = () => {
       const modalOpen = dialogs.some(dialog => dialog.open);
-      const show = !primaryVisible && !footerVisible && !modalOpen
+      // Do not show the rail before the visitor reaches the primary action.
+      // Off-screen below the fold is different from scrolled past it.
+      const scrolledPastAction = primary.getBoundingClientRect().bottom < 72;
+      const show = !primaryVisible && scrolledPastAction && !footerVisible && !modalOpen
         && window.matchMedia('(max-width: 600px)').matches;
       bar.classList.toggle('is-visible', show);
       bar.inert = !show;
