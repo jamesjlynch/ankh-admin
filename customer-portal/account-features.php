@@ -218,16 +218,13 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     $esc=static fn(mixed $v):string=>(string)htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $csrf=$esc($_SESSION['portal_csrf']??'');
     ?>
-    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css"><link rel="stylesheet" href="./cms-studio.css?v=1"></head>
+    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css"><link rel="stylesheet" href="./cms-studio.css?v=staff-menu-2"></head>
     <body class="pc-ops-body"><main class="pc-ops">
     <?php $panel=(string)($_GET['panel']??'products');if(!in_array($panel,['products','certificates','commerce','requests','availability','contact'],true))$panel='products'; ?>
     <header class="pc-ops-header"><span class="pc-eyebrow">☥ ANKH / PRIVATE CONTROL CENTRE</span>
-      <div class="pc-ops-heading"><div><h1>Storefront studio<span class="pc-dot">.</span></h1><p>Manage content and customer-facing experiences in one organised workspace.</p></div><a class="pc-outline-button" href="./preview-live.php">← Customer preview</a></div>
+      <div class="pc-ops-heading"><div><h1>Storefront studio<span class="pc-dot">.</span></h1><p>Manage content and customer-facing experiences in one organised workspace.</p></div><a class="pc-outline-button" href="./preview-live.php?preview=customers">Customer preview →</a></div>
     </header>
-    <nav class="pc-studio-nav" aria-label="Admin sections">
-    <?php foreach(['products'=>['◈','Product CMS'],'certificates'=>['▤','Certificates'],'commerce'=>['▦','Storefront'],'requests'=>['↗','Customer requests'],'availability'=>['◎','Availability'],'contact'=>['✳','WhatsApp']] as $key=>$nav):?>
-      <a href="./preview-live.php?manage=portal&amp;panel=<?=$key?>" class="<?=$panel===$key?'selected':''?>" <?=$panel===$key?'aria-current="page"':''?>><span aria-hidden="true"><?=$nav[0]?></span><?=$nav[1]?></a>
-    <?php endforeach;?></nav>
+    <?php ankhStaffNavigation($panel,(string)($_SESSION['portal_csrf']??'')); ?>
     <?php if($flash!==''):?><p class="pc-notification-feedback" role="status"><?=$esc($flash)?></p><?php endif;?>
     <div class="pc-ops-stack">
     <?php if($panel==='products'):ankhCmsEditor($store,$admin,(string)($_SESSION['portal_csrf']??''));endif;?>

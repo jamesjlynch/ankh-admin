@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
     con=sqlite3.connect(admin)
     con.executescript("""
         CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,description TEXT,price INTEGER,active INTEGER);
-        CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT);
+        CREATE TABLE customers(id INTEGER PRIMARY KEY,name TEXT,phone TEXT,address TEXT,archived INTEGER DEFAULT 0);
         CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER,updated_at TEXT);
         CREATE TABLE customer_catalogue_content(product_id INTEGER PRIMARY KEY,description TEXT,image_mime TEXT);
         CREATE TABLE customer_catalogue_information(product_id INTEGER PRIMARY KEY,information TEXT);
@@ -49,7 +49,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         base=f'http://127.0.0.1:{port}'
         page='/preview-live.php?manage=portal&panel=products&cms_product_id=1'
         status,headers,body=call(base,page)
-        assert status==200 and 'Unlock staff preview' in body,(status,body[:280])
+        assert status==200 and 'Open staff workspace' in body,(status,body[:280])
         cookie=headers.get('Set-Cookie','').split(';',1)[0]
         assert cookie.startswith('ankh_staff_preview='),headers
         csrf_login=re.search('name="csrf" value="([a-f0-9]{64})"',body)
@@ -57,12 +57,21 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         logged,login_headers,_=call(base,'/preview-live.php',cookie,
             {'csrf':csrf_login.group(1),'action':'staff_login','password':passphrase})
         assert logged==303,(logged,login_headers)
+        assert login_headers.get('Location')=='./preview-live.php?manage=portal&panel=products',login_headers
         cookie=login_headers.get('Set-Cookie','').split(';',1)[0] or cookie
         status,_,body=call(base,page,cookie)
         assert status==200 and 'Product page editor' in body,(status,body[:450])
         assert 'BPC-157 5mg' in body and 'cms_save_draft' in body
         assert 'name="price"' not in body and 'name="stock_qty"' not in body
         assert 'cms-studio.css' in body and 'pc-studio-nav' in body
+        for label in ['Product CMS','Certificates','Storefront settings','Customer requests','Availability','WhatsApp','Customer preview','Sign out']:
+            assert label in body,label
+        for panel in ['certificates','commerce','requests','availability','contact']:
+            panel_status,_,panel_body=call(base,'/preview-live.php?manage=portal&panel='+panel,cookie)
+            assert panel_status==200 and 'aria-label="Admin sections"' in panel_body,(panel,panel_status,panel_body[:400])
+        preview_status,_,preview_body=call(base,'/preview-live.php?preview=customers',cookie)
+        assert preview_status==200 and 'aria-label="Admin sections"' in preview_body and 'Choose a customer' in preview_body
+
         m=re.search('name="csrf" value="([a-f0-9]{64})"',body);assert m
         csrf=m.group(1)
         invalid,_,_=call(base,page,cookie,{'csrf':'not-valid','action':'cms_save_draft','product_id':'1','cms_description':'hijacked'})
@@ -84,7 +93,17 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         assert status==303
         with sqlite3.connect(portal) as con:
             assert con.execute('SELECT has_published FROM portal_cms_product_content WHERE product_id=1').fetchone()[0]==0
-        print('PASS: authenticated CMS page, editor visibility, CSRF, draft/publish/revert and untouched Admin prices.')
+        # Expired sessions keep the requested CMS panel and selected product through sign-in.
+        _,logout_headers,_=call(base,'/preview-live.php',cookie,{'csrf':csrf,'action':'logout'})
+        cookie=logout_headers.get('Set-Cookie','').split(';',1)[0] or cookie
+        logged_out,_,logged_out_body=call(base,page,cookie)
+        assert logged_out==200 and 'Product page editor' not in logged_out_body
+        target=re.search(r'<form method="post" action="([^"]+)"',logged_out_body).group(1).replace('&amp;','&')
+        assert 'cms_product_id=1' in target and 'panel=products' in target,target
+        login_csrf=re.search('name="csrf" value="([a-f0-9]{64})"',logged_out_body).group(1)
+        again,again_headers,_=call(base,target.replace('./','/',1),cookie,{'csrf':login_csrf,'action':'staff_login','password':passphrase})
+        assert again==303 and again_headers.get('Location')==target,(again,again_headers)
+        print('PASS: staff login lands in CMS; deep links survive login; all panels and customer preview share navigation; authenticated editing, CSRF and Admin price isolation.')
     finally:
         server.terminate()
         try:

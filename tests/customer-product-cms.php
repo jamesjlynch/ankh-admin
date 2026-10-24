@@ -4,6 +4,10 @@ require_once __DIR__.'/../customer-catalogue.php';
 require_once __DIR__.'/../customer-portal/content-studio.php';
 function cmsAssert(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);}
 function cmsReject(callable $f):void{try{$f();}catch(InvalidArgumentException $e){return;}throw new RuntimeException('Expected CMS validation to reject this request.');}
+cmsAssert(ankhStaffLoginDestination([])==='./preview-live.php?manage=portal&panel=products','Staff sign-in must default to CMS.');
+cmsAssert(ankhStaffLoginDestination(['manage'=>'portal','panel'=>'contact','return'=>'https://example.com'])==='./preview-live.php?manage=portal&panel=contact','CMS destination must be internal and allowlisted.');
+cmsAssert(ankhStaffLoginDestination(['manage'=>'portal','panel'=>['bad']])==='./preview-live.php?manage=portal&panel=products','Invalid panels must fall back to CMS.');
+cmsAssert(ankhStaffLoginDestination(['customer_id'=>'12','tab'=>'orders'])==='./preview-live.php?preview=customers&customer_id=12&tab=orders','Customer preview deep links must survive sign-in.');
 $admin=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $admin->exec("CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTEGER,price INTEGER,stock_jay_qty INTEGER);
 CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER);

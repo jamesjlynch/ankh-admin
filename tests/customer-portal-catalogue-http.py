@@ -125,7 +125,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
         html = request('/preview.php?screen=account&tab=test-orders')
         assert reference not in html and 'No test requests' in html
         html = request('/preview-live.php?customer_id=1&tab=catalogue')
-        assert 'Preview access' in html and 'Everyday carry case' not in html
+        assert 'Staff sign in' in html and 'Everyday carry case' not in html
         token = csrf(html)
         request('/preview-live.php', {'csrf': token, 'action': 'staff_login', 'password': 'test-password'})
         html = request('/preview-live.php?customer_id=1&tab=catalogue')

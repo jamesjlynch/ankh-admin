@@ -19,11 +19,12 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
 <link rel="stylesheet" href="./account.css?v=experience-4-7">
+<?php if (!empty($isStaffPreview)): ?><link rel="stylesheet" href="./cms-studio.css?v=staff-menu-2"><?php endif; ?>
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
 <body><a class="pc-skip-link" href="#customer-main">Skip to account content</a>
 <?php if (!empty($isStaffPreview)): ?>
-<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Staff access · live Admin records are read-only; portal requests can be reviewed separately.</span><a href="./preview-live.php?manage=portal">Customer controls</a><a href="./preview.php">Fictional demo</a></div>
+<div class="staff-preview-strip" role="note"><strong>STAFF PREVIEW · LIVE DATA</strong><span>Staff access · live Admin records are read-only; portal requests can be reviewed separately.</span><a href="./preview-live.php?manage=portal&amp;panel=products">Product CMS &amp; website controls</a><a href="./preview.php">Fictional demo</a></div>
 <?php endif; ?>
 <?php if (!empty($isDemo)): ?>
 <div class="demo-strip" role="note"><strong>DEMO PREVIEW</strong><span>Fictional customer and orders. No real SMS or customer data.</span><nav aria-label="Demo screens"><a href="./preview.php?screen=login">Login</a><a href="./preview.php?screen=account">Customer dashboard</a></nav></div>
@@ -36,6 +37,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
   <form method="post" action="<?=!empty($isStaffPreview)?'./preview-live.php':'./'?>" class="header-signout"><input type="hidden" name="csrf" value="<?=portalEscape($_SESSION['portal_csrf'])?>"><input type="hidden" name="action" value="logout"><button type="submit"><?=!empty($isStaffPreview)?'Exit staff preview':'Sign out'?> <span aria-hidden="true">↗</span></button></form>
   <?php else: ?><span class="header-note"><span class="status-pip"></span> PRIVATE ACCESS</span><?php endif; ?>
 </header>
+<?php if (!empty($isStaffPreview)): ankhStaffNavigation('preview',(string)($_SESSION['portal_csrf']??'')); endif; ?>
 <main id="customer-main" tabindex="-1" class="page <?= $customer ? 'account' : 'auth' ?>">
 <?php if (!empty($isStaffPreview)): ?>
 <details class="staff-switcher" <?php if (!$customer): ?>open<?php endif; ?>><summary><?= $customer ? 'Staff preview · Viewing '.portalEscape((string)$customer['name']).' — switch customer' : 'Choose a customer to preview' ?><span aria-hidden="true">⌄</span></summary><section class="staff-customer-search">

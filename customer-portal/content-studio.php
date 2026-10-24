@@ -5,6 +5,42 @@ declare(strict_types=1);
  * Admin database. Product IDs, publication visibility, prices and stock always
  * come from Admin. Drafts are never public until deliberately published.
  */
+function ankhStaffLoginDestination(array $query):string {
+    $panels=['products','certificates','commerce','requests','availability','contact'];
+    if(($query['manage']??'')==='portal'){
+        $panel=is_string($query['panel']??null)&&in_array($query['panel'],$panels,true)?$query['panel']:'products';
+        $params=['manage'=>'portal','panel'=>$panel];
+        $id=filter_var($query['cms_product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        if($panel==='products'&&$id)$params['cms_product_id']=$id;
+    }elseif(isset($query['customer_id'])||isset($query['q'])||($query['preview']??'')==='customers'){
+        $params=['preview'=>'customers'];
+        $id=filter_var($query['customer_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+        if($id)$params['customer_id']=$id;
+        if(is_string($query['q']??null))$params['q']=substr($query['q'],0,80);
+        if(is_string($query['tab']??null)&&in_array($query['tab'],['home','orders','vault','support','account','insights','recurring','notifications','catalogue','basket','fridge'],true))$params['tab']=$query['tab'];
+    }else $params=['manage'=>'portal','panel'=>'products'];
+    return './preview-live.php?'.http_build_query($params,'','&',PHP_QUERY_RFC3986);
+}
+/** Only rendered by authenticated staff pages; never by customer accounts. */
+function ankhStaffNavigation(string $active,string $csrf):void {
+    $esc=static fn(string $v):string=>htmlspecialchars($v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+    $items=['products'=>['Product CMS','Descriptions & images'],'certificates'=>['Certificates','Product documents'],
+        'commerce'=>['Storefront settings','Business & basket settings'],'requests'=>['Customer requests','Review requests'],
+        'availability'=>['Availability','Public stock labels'],'contact'=>['WhatsApp','Contact settings'],
+        'preview'=>['Customer preview','View customer accounts']];
+    ?>
+    <section class="ankh-staff-menu" aria-label="Staff workspace">
+      <div class="ankh-staff-menu-heading"><a class="ankh-staff-home" href="./preview-live.php?manage=portal&amp;panel=products">☥ ANKH <span>STAFF WORKSPACE</span></a>
+        <div class="ankh-staff-menu-actions"><a href="./" target="_blank" rel="noopener">View website ↗</a>
+        <form method="post" action="./preview-live.php"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><button name="action" value="logout">Sign out</button></form></div></div>
+      <details class="ankh-staff-menu-disclosure" open><summary>Staff menu <span><?=$esc($items[$active][0]??'Product CMS')?> <b aria-hidden="true">⌄</b></span></summary>
+        <nav class="pc-studio-nav" aria-label="Admin sections"><?php foreach($items as $key=>[$label,$hint]):$href=$key==='preview'?'./preview-live.php?preview=customers':'./preview-live.php?manage=portal&panel='.$key;?>
+          <a href="<?=$esc($href)?>" class="<?=$active===$key?'selected':''?>" <?=$active===$key?'aria-current="page"':''?>><strong><?=$esc($label)?></strong><small><?=$esc($hint)?></small></a>
+        <?php endforeach;?></nav>
+      </details>
+    </section>
+    <?php
+}
 function ankhCmsInit(PDO $db):void {
     $db->exec("CREATE TABLE IF NOT EXISTS portal_cms_product_content(
         product_id INTEGER PRIMARY KEY,

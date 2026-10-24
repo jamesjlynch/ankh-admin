@@ -27,6 +27,7 @@ header('X-Robots-Tag: noindex, nofollow, noarchive');
 header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; worker-src 'self'; manifest-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'");
 if (!$localHttp) header('Strict-Transport-Security: max-age=31536000');
 $_SESSION['portal_csrf'] ??= bin2hex(random_bytes(32));
+$staffLoginDestination=ankhStaffLoginDestination($_GET);
 
 try {
     $config = portalConfig();
@@ -74,7 +75,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $_SESSION['staff_preview_authorised']=true;
             $_SESSION['staff_preview_auth_version']=$loginFingerprint;
             $_SESSION['staff_preview_last']=time();
-            header('Location: ./preview-live.php',true,303);
+            header('Location: '.$staffLoginDestination,true,303);
             exit;
         }
     }
@@ -84,21 +85,21 @@ if (!$loggedIn) {
     // Do not touch the live Admin database before authenticating.
     ?>
     <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="robots" content="noindex"><title>Staff preview · ANKH</title>
+    <meta name="robots" content="noindex"><title>Staff sign in · ANKH</title>
     <link rel="stylesheet" href="./style.css"></head><body>
     <header class="site-header"><span class="brand"><span class="brand-icon">☥</span>ANKH</span><span class="header-note">PRIVATE STAFF PREVIEW</span></header>
-    <main class="page auth"><div class="auth-layout"><section class="welcome-copy"><span class="eyebrow">ANKH · STAFF ACCESS</span><h1>Real data.<br><em>Private review.</em></h1>
-    <p>Preview the customer experience using actual order records, without enabling customer SMS logins.</p></section>
-    <section class="auth-card"><div class="card-top"><span class="card-symbol">☥</span><span class="step-badge">STAFF ONLY</span></div><h2>Preview access</h2>
-    <p class="card-intro">This preview contains real customer information. Enter the temporary staff preview password to continue.</p>
+    <main class="page auth"><div class="auth-layout"><section class="welcome-copy"><span class="eyebrow">ANKH · STAFF ACCESS</span><h1>Your website.<br><em>In your hands.</em></h1>
+    <p>Edit product content, manage website settings and review the customer experience from one private workspace.</p></section>
+    <section class="auth-card"><div class="card-top"><span class="card-symbol">☥</span><span class="step-badge">STAFF ONLY</span></div><h2>Staff sign in</h2>
+    <p class="card-intro">Use your existing staff password to open the CMS and website controls.</p>
     <?php if($error):?><p class="feedback error" role="alert"><?=portalEscape($error)?></p><?php endif;?>
-    <form method="post" action="./preview-live.php" autocomplete="off">
+    <form method="post" action="<?=portalEscape($staffLoginDestination)?>" autocomplete="off">
     <input type="hidden" name="csrf" value="<?=portalEscape((string)$_SESSION['portal_csrf'])?>">
     <input type="hidden" name="action" value="staff_login">
-    <label for="preview_password">Preview password</label>
+    <label for="preview_password">Staff password</label>
     <input id="preview_password" class="code-input staff-password-input" name="password" type="password" autocomplete="current-password" required>
-    <button class="primary-button" type="submit">Unlock staff preview <span>→</span></button></form>
-    <div class="privacy-note"><p>Access expires after 20 minutes of inactivity. No real customer can sign in here.</p></div>
+    <button class="primary-button" type="submit">Open staff workspace <span>→</span></button></form>
+    <div class="privacy-note"><p>Access expires after 20 minutes of inactivity. This sign-in is for staff only.</p></div>
     </section></div></main></body></html>
     <?php
     exit;
