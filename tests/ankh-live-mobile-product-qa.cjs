@@ -64,7 +64,14 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
           supportsZoom:!!document.querySelector('[data-gallery-zoom]')
         };
       });
-      report(d.name+' no page-level horizontal overflow',metrics.scrollWidth<=metrics.viewport+2,JSON.stringify({viewport:metrics.viewport,scrollWidth:metrics.scrollWidth}));
+      report(d.name+' no page-level horizontal overflow',metrics.scrollWidth<=d.width+2,JSON.stringify({deviceWidth:d.width,innerWidth:metrics.viewport,scrollWidth:metrics.scrollWidth}));
+      if(metrics.scrollWidth>d.width+2){
+        const offenders=await page.evaluate(width=>[...document.querySelectorAll('body *')].map(el=>({el,r:el.getBoundingClientRect()}))
+          .filter(x=>x.r.width>0&&x.r.right>width+2&&getComputedStyle(x.el).position!=='absolute')
+          .sort((a,b)=>b.r.right-a.r.right).slice(0,16)
+          .map(x=>({tag:x.el.tagName,cls:typeof x.el.className==='string'?x.el.className.slice(0,90):'',right:Math.round(x.r.right),width:Math.round(x.r.width)})),d.width);
+        console.log('OVERFLOW-CANDIDATES '+d.name+' '+JSON.stringify(offenders));
+      }
       report(d.name+' product heading visible',metrics.h1.some(x=>x.includes('BPC-157')));
       report(d.name+' gallery fits',metrics.galleryWidth<=metrics.viewport+1&&metrics.galleryWidth>180);
       report(d.name+' document panel fits',metrics.documentsWidth<=metrics.viewport+1&&metrics.documentsWidth>180);
@@ -85,11 +92,22 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
         const originalAction=page.locator('.sf-shop-inline [data-cart-id]');
         if(await originalAction.count()){
           await originalAction.scrollIntoViewIfNeeded();
-          await page.evaluate(()=>window.scrollBy(0,650));
+          await page.evaluate(()=>{
+            const el=document.querySelector('.sf-shop-inline [data-cart-id]');
+            if(!el)return;
+            window.scrollTo({top:window.scrollY+el.getBoundingClientRect().bottom+120,behavior:'instant'});
+          });
           await wait(450);
           const bar=page.locator('[data-product-sticky-action]');
           const visible=await bar.evaluate(el=>el.classList.contains('is-visible')&&getComputedStyle(el).visibility==='visible');
-          report('iPhone action rail appears after primary CTA',visible);
+          const barDebug=await page.evaluate(()=>{
+            const bar=document.querySelector('[data-product-sticky-action]');
+            const primary=document.querySelector('.sf-shop-inline [data-cart-id]');
+            const footer=document.querySelector('.sf-footer');
+            return {scrollY:scrollY,bodyClass:document.body.className,barClass:bar?.className,barDisplay:getComputedStyle(bar).display,
+              barInert:bar?.inert,primaryBottom:primary?.getBoundingClientRect().bottom,footerTop:footer?.getBoundingClientRect().top};
+          });
+          report('iPhone action rail appears after primary CTA',visible,JSON.stringify(barDebug));
           if(visible){
             const bottomSafe=await page.evaluate(()=>{
               const bar=document.querySelector('[data-product-sticky-action]');
@@ -99,7 +117,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
             });
             report('action rail does not overlap bottom navigation',bottomSafe);
           }
-          await page.locator('[data-open-cart]').first().click();
+          await page.locator('.sf-bottom-menu [data-open-cart]').click();
           report('basket drawer opens',await page.locator('#sf-cart-drawer').evaluate(el=>el.open));
           report('sticky rail hides behind basket',await bar.evaluate(el=>!el.classList.contains('is-visible')));
           await page.locator('#sf-cart-drawer [data-close-cart]').click();
