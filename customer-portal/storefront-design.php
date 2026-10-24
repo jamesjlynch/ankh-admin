@@ -61,9 +61,103 @@ function pfRelated(array $selected,array $products,int $limit=4):array {
         ?: strnatcasecmp((string)$a['name'],(string)$b['name']));
     return array_slice($other,0,$limit);
 }
+/**
+ * Related strengths and physical formats must resolve to real, storefront-approved
+ * product IDs, never artificial SKUs. The caller passes only visible active products.
+ * Keep accessory families separate from compounds; a shared word must not create
+ * a bogus product relationship.
+ */
+function pfVariantFamily(array $product):string {
+    $family=pfFamily((string)$product['name']);
+    if(pfType((string)$product['name'])!=='Research compound')return $family;
+    // Common *presentation suffixes*, not arbitrary words from compound names.
+    $family=preg_replace('/(?:\s+(?:vial|cartridge|refill|refill only|with pen|pen included|pen bundle))+\s*$/iu','',$family)??$family;
+    return trim($family);
+}
+function pfVariantPresentation(array $product):string {
+    $name=(string)$product['name'];
+    // A physical-format suffix in a product title is more specific than a generic
+    // CMS phrase such as "powder", "lyophilised", or "research vial".
+    if(preg_match('/\bwith[\s-]+pen\b/i',$name))return 'With pen';
+    if(preg_match('/\bcartridge\b/i',$name))return 'Cartridge';
+    if(preg_match('/\brefill\b/i',$name))return 'Refill';
+    if(preg_match('/\bvial\b/i',$name))return 'Vial';
+    $format=pfFormat($product);
+    if(preg_match('/\bcartridge\b/i',$format))return 'Cartridge';
+    if(preg_match('/\bwith[\s-]+pen\b/i',$format))return 'With pen';
+    if(preg_match('/\brefill\b/i',$format))return 'Refill';
+    if(preg_match('/\bvial\b/i',$format))return 'Vial';
+    return $format==='Other'?'Standard':$format;
+}
 function pfVariants(array $selected,array $products):array {
-    $family=pfFamily((string)$selected['name']);
-    return array_values(array_filter($products,static fn($p)=>pfFamily((string)$p['name'])===$family));
+    $family=pfVariantFamily($selected);
+    $kind=pfType((string)$selected['name']);
+    $variants=array_values(array_filter($products,static fn($p)=>
+        pfType((string)$p['name'])===$kind &&
+        pfVariantFamily($p)===$family
+    ));
+    usort($variants,static function($a,$b):int {
+        $s=strnatcasecmp(pfStrength($a),pfStrength($b));
+        return $s?:strnatcasecmp(pfVariantPresentation($a),pfVariantPresentation($b));
+    });
+    return $variants;
+}
+/**
+ * Build two independent selections. Strength cards try to retain the current
+ * presentation; format cards always retain the current strength. Navigation uses
+ * the selected real product ID, so price, image and eligibility reload from
+ * Order Admin rather than being modified client-side.
+ */
+function pfVariantSelector(array $selected,array $variants):array {
+    $currentStrength=pfStrength($selected);
+    $currentFormat=pfVariantPresentation($selected);
+    $strengthGroups=[];$formatGroups=[];
+    foreach($variants as $variant){
+        $strength=pfStrength($variant);
+        $format=pfVariantPresentation($variant);
+        if($strength!=='')$strengthGroups[$strength][]=$variant;
+        if($strength===$currentStrength)$formatGroups[$format][]=$variant;
+    }
+    uksort($strengthGroups,'strnatcasecmp');
+    uksort($formatGroups,'strnatcasecmp');
+    $strengthCards=[];
+    foreach($strengthGroups as $strength=>$options){
+        $candidate=null;
+        foreach($options as $option){
+            if(pfVariantPresentation($option)===$currentFormat){$candidate=$option;break;}
+        }
+        if($candidate===null)$candidate=$options[0];
+        $strengthCards[]=[
+            'label'=>$strength,'id'=>(int)$candidate['id'],
+            'selected'=>$strength===$currentStrength,
+            'sub_label'=>count($options)>1 ? count($options).' formats' : pfVariantPresentation($candidate)
+        ];
+    }
+    $formatCards=[];
+    foreach($formatGroups as $format=>$options){
+        $candidate=$options[0];
+        $formatCards[]=[
+            'label'=>$format,'id'=>(int)$candidate['id'],
+            'selected'=>$format===$currentFormat,
+            'sub_label'=>pfStrength($candidate)
+        ];
+    }
+    // If a product is unlabelled, do not invent a strength or format.
+    return [
+        'strengths'=>count($strengthCards)>1?$strengthCards:[],
+        'formats'=>count($formatCards)>1?$formatCards:[],
+        'current_strength'=>$currentStrength,
+        'current_format'=>$currentFormat
+    ];
+}
+/** Prioritised factual slide; all remaining CMS data stays in the detail below. */
+function pfSpecHighlights(array $identityRows):array {
+    $priority=['strength','presentation','formula','cas','weight','sequence','storage'];
+    $ordered=[];
+    foreach($priority as $key)foreach($identityRows as $row){
+        if(($row['key']??'')===$key){$ordered[]=$row;break;}
+    }
+    return array_slice($ordered,0,5);
 }
 function pfValidHTTPS(string $url):bool {
     $parts=parse_url($url);
