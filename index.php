@@ -5185,7 +5185,16 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 
 <?php elseif($view==='enquiries'):ankhCustomerInbox($db);?>
 <?php elseif($view==='product'):require __DIR__.'/product-v2.php';?>
-<?php elseif($view==='website_cms'):require __DIR__.'/customer-cms.php';?>
+<?php elseif($view==='website_cms'):
+ try {
+  if(!is_file(__DIR__.'/customer-cms.php'))throw new RuntimeException('Customer CMS module missing from server release.');
+  require __DIR__.'/customer-cms.php';
+ } catch(Throwable $cmsError) {
+  error_log('ANKH customer website CMS rendering failed: '.$cmsError->getMessage());
+  http_response_code(503);
+  echo '<section class="panel" role="alert" style="margin:20px auto;padding:25px;border:1px solid #bc9658;border-radius:14px;max-width:850px;background:#151a16;color:#f5e9d2"><h1>Customer website manager temporarily unavailable</h1><p>The CMS files may not have finished deploying or a server error prevented this section from loading. Your existing orders, stock and prices have not been changed by opening this page.</p><p><a href="?view=products" style="color:#e8c789">Return to Products</a></p></section>';
+ }
+?>
 <?php elseif($view==='products'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
 <div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="quick-action" href="?view=website_cms">✎ Customer website CMS</a><a class="quick-action" href="?view=stock">Stock control →</a></div></div>
