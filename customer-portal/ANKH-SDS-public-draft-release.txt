@@ -1,0 +1,6 @@
+ANKH product safety references public draft release
+Date: 2026-10-24
+Scope: 14 exact product-linked ANKH SDS working drafts already imported.
+Publication status: UNVERIFIED DRAFT; no chemical safety technical sign-off claimed.
+Seven unmatched product variants remain without SDS references.
+This file is a release marker, not published to the website.
