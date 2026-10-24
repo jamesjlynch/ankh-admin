@@ -35,7 +35,7 @@ function sfStaffController(PDO $portal,PDO $admin):void {
         }
     }catch(InvalidArgumentException $e){$_SESSION['portal_staff_flash']=$e->getMessage();}
     catch(Throwable $e){error_log('ANKH shop staff controls: '.$e->getMessage());$_SESSION['portal_staff_flash']='Could not save storefront settings.';}
-    header('Location: ./preview-live.php?manage=portal',true,303);exit;
+    header('Location: ./preview-live.php?manage=portal&panel=commerce',true,303);exit;
 }
 function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
     sfCommerceInit($portal);
