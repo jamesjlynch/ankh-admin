@@ -46,6 +46,7 @@ done
 "$php" -l index.php
 "$php" -l customer-catalogue.php
 "$php" -l customer-cms.php
+"$php" tests/customer-cms.php
 "$php" -l public-catalogue-core.php
 "$php" -l public-catalogue.php
 "$php" tests/public-catalogue.php
