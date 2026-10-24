@@ -117,6 +117,7 @@ sfStaffController($portal,$admin);
 portalExtrasStaffController($portal,$admin);
 ankhDocsStaffController($portal,$admin);
 ankhCmsStaffController($portal,$admin);
+if(($_GET['manage']??'')==='portal'&&($_GET['panel']??'')==='certificates'){header('Location: ./preview-live.php?manage=portal&panel=products',true,303);exit;}
 if(($_GET['manage']??'')==='portal'){
     portalExtrasStaffPage($portal,$admin);
     exit;

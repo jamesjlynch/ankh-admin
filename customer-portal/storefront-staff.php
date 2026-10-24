@@ -44,7 +44,7 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
     $facts=sfCommerceFacts($portal)??['company'=>'','fulfilment'=>'','dispatch'=>'','support'=>''];
     $eligibility=[];
     foreach($portal->query("SELECT product_id,approved,reviewer,review_note FROM storefront_checkout_eligibility") as $row)$eligibility[(int)$row['product_id']]=$row;
-    $candidates=$admin->query('SELECT id,name,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+    $candidates=$admin->query('SELECT p.id,p.name,p.active FROM products p JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 WHERE p.active=1 ORDER BY p.name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
     $candidates=array_values(array_filter($candidates,static fn($p)=>function_exists('ankhPublicType')&&ankhPublicType((string)$p['name'])==='Research accessory'));
     $demoCandidates=[];
     try{

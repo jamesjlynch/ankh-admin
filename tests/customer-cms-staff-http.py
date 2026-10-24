@@ -7,9 +7,9 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,req,fp,code,msg,headers,newurl):return None
-def call(base,path,cookie='',data=None):
-    req=urllib.request.Request(base+path,data=None if data is None else urllib.parse.urlencode(data).encode(),
-        headers=({'Cookie':cookie} if cookie else {})|({'Content-Type':'application/x-www-form-urlencoded'} if data is not None else {}))
+def call(base,path,cookie='',data=None,content_type=None):
+    req=urllib.request.Request(base+path,data=None if data is None else (data if isinstance(data,bytes) else urllib.parse.urlencode(data).encode()),
+        headers=({'Cookie':cookie} if cookie else {})|({'Content-Type':content_type or 'application/x-www-form-urlencoded'} if data is not None else {}))
     try:
         with urllib.request.build_opener(NoRedirect()).open(req,timeout=9) as r:
             return r.status,dict(r.headers),r.read().decode('utf-8','replace')
@@ -24,8 +24,8 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER,updated_at TEXT);
         CREATE TABLE customer_catalogue_content(product_id INTEGER PRIMARY KEY,description TEXT,image_mime TEXT);
         CREATE TABLE customer_catalogue_information(product_id INTEGER PRIMARY KEY,information TEXT);
-        INSERT INTO products VALUES(1,'BPC-157 5mg','Admin description',3500,1),(2,'Hidden Item','Hidden',2500,1);
-        INSERT INTO customer_catalogue_visibility VALUES(1,1,'now'),(2,0,'now');
+        INSERT INTO products VALUES(1,'BPC-157 5mg','Admin description',3500,1),(2,'Hidden Item','Hidden',2500,1),(3,'Other approved product','Other',2000,1),(4,'Inactive Item','Inactive',2500,0);
+        INSERT INTO customer_catalogue_visibility VALUES(1,1,'now'),(2,0,'now'),(3,1,'now'),(4,1,'now');
         INSERT INTO customer_catalogue_content VALUES(1,'Admin content','');
         INSERT INTO customer_catalogue_information VALUES(1,'{"formula":"ADMIN"}');
     """);con.commit();con.close()
@@ -68,9 +68,17 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         if qa_dir:Path(qa_dir).mkdir(parents=True,exist_ok=True);(Path(qa_dir)/'products.html').write_text(body)
         for label in ['Product CMS','Certificates','Storefront settings','Customer requests','Availability','WhatsApp','Customer preview','Sign out']:
             assert label in body,label
-        for panel in ['certificates','commerce','requests','availability','contact']:
+        for panel in ['commerce','requests','availability','contact']:
             panel_status,_,panel_body=call(base,'/preview-live.php?manage=portal&panel='+panel,cookie)
             assert panel_status==200 and 'aria-label="Admin sections"' in panel_body,(panel,panel_status,panel_body[:400])
+        old_status,old_headers,_=call(base,'/preview-live.php?manage=portal&panel=certificates',cookie)
+        assert old_status==303 and old_headers['Location'].endswith('panel=products')
+        assert 'Hidden Item' not in body and 'Inactive Item' not in body
+        assert 'Certificates &amp; documents' in body and 'name="original_pdf"' in body
+        assert '<select name="product_id"' not in body
+        for hidden in [2,4]:
+            _,_,hidden_body=call(base,'/preview-live.php?manage=portal&panel=products&cms_product_id='+str(hidden),cookie)
+            assert 'cms_save_draft' not in hidden_body and 'name="original_pdf"' not in hidden_body
         for settings,heading in [('business','Business &amp; delivery details'),('basket','Basket product selection'),('checkout','Accessory checkout'),('requests','No guest requests yet')]:
             status,_,settings_body=call(base,'/preview-live.php?manage=portal&panel=commerce&settings='+settings,cookie)
             assert status==200 and heading in settings_body,(settings,status)
@@ -88,6 +96,30 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         with sqlite3.connect(portal) as db:assert db.execute('SELECT company FROM storefront_business_facts').fetchone()[0]=='Test Company'
         saved,saved_headers,_=call(base,page,cookie,{'csrf':csrf,'action':'sf_demo_save_all','demo_product[]':'1'})
         assert saved==303 and saved_headers['Location'].endswith('settings=basket'),saved_headers
+        # Actual multipart uploads stay with the selected product and return there.
+        def upload_document(product_id,filename):
+            boundary='AnkhTestBoundary'
+            fields={'csrf':csrf,'action':'ankh_document_upload','product_id':str(product_id),'document_kind':'original_coa','issuer':'Sample Laboratory','publish_now':'1'}
+            chunks=[]
+            for key,value in fields.items():chunks.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+key+'"\r\n\r\n'+value+'\r\n').encode())
+            pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%'+b' sample report'*12+b'\n%%EOF\n'
+            chunks.append(('--'+boundary+'\r\nContent-Disposition: form-data; name="original_pdf"; filename="'+filename+'"\r\nContent-Type: application/pdf\r\n\r\n').encode()+pdf+b'\r\n')
+            chunks.append(('--'+boundary+'--\r\n').encode())
+            return call(base,page,cookie,b''.join(chunks),'multipart/form-data; boundary='+boundary)
+        uploaded,upload_headers,_=upload_document(1,'product-one.pdf')
+        assert uploaded==303 and 'cms_product_id=1#ankh-certificates' in upload_headers['Location'],upload_headers
+        upload_document(3,'product-three.pdf')
+        _,_,product_body=call(base,page,cookie)
+        assert 'product-one.pdf' in product_body and 'product-three.pdf' not in product_body
+        with sqlite3.connect(portal) as db:
+            docs=db.execute('SELECT id,product_id,published FROM portal_product_documents ORDER BY id').fetchall()
+            assert len(docs)==2 and docs[0][1:]==(1,1) and docs[1][1:]==(3,1),docs
+        doc_id=docs[0][0]
+        hidden_status,hide_headers,_=call(base,page,cookie,{'csrf':csrf,'action':'ankh_document_visibility','document_id':doc_id,'product_id':'1','visibility':'hide'})
+        assert hidden_status==303 and 'cms_product_id=1#ankh-certificates' in hide_headers['Location']
+        with sqlite3.connect(portal) as db:assert db.execute('SELECT published FROM portal_product_documents WHERE id=?',(doc_id,)).fetchone()[0]==0
+        upload_document(2,'blocked-hidden.pdf')
+        with sqlite3.connect(portal) as db:assert db.execute('SELECT COUNT(*) FROM portal_product_documents').fetchone()[0]==2
         invalid,_,_=call(base,page,cookie,{'csrf':'not-valid','action':'cms_save_draft','product_id':'1','cms_description':'hijacked'})
         assert invalid==400,invalid
         data={'csrf':csrf,'action':'cms_save_draft','product_id':'1','cms_description':'New CMS description','cms_information[formula]':'C62H98N16O22'}
@@ -116,6 +148,16 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         rejected,_,_=call(base,page,cookie,{'csrf':csrf,'action':'cms_save_draft','product_id':'2','cms_description':'Must not publish hidden content','cms_information[formula]':'HIDDEN','cms_intent':'publish'})
         assert rejected==303
         with sqlite3.connect(portal) as db:assert db.execute('SELECT COUNT(*) FROM portal_cms_product_content WHERE product_id=2').fetchone()[0]==0
+        # Order Admin approval is re-read on each visit; hiding never deletes content/documents.
+        with sqlite3.connect(admin) as db:db.execute('UPDATE customer_catalogue_visibility SET visible=0 WHERE product_id=1')
+        _,_,unapproved_body=call(base,page,cookie)
+        assert 'BPC-157 5mg' not in unapproved_body and 'name="original_pdf"' not in unapproved_body
+        with sqlite3.connect(portal) as db:
+            assert db.execute('SELECT COUNT(*) FROM portal_product_documents WHERE product_id=1').fetchone()[0]==1
+            assert db.execute('SELECT draft_description FROM portal_cms_product_content WHERE product_id=1').fetchone()[0]=='Unpublished version'
+        with sqlite3.connect(admin) as db:db.execute('UPDATE customer_catalogue_visibility SET visible=1 WHERE product_id=1')
+        _,_,approved_again=call(base,page,cookie)
+        assert 'product-one.pdf' in approved_again and 'Unpublished version' in approved_again
         # Expired sessions keep the requested CMS panel and selected product through sign-in.
         _,logout_headers,_=call(base,'/preview-live.php',cookie,{'csrf':csrf,'action':'logout'})
         cookie=logout_headers.get('Set-Cookie','').split(';',1)[0] or cookie

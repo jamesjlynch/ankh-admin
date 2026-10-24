@@ -37,7 +37,7 @@ function ankhCmsIcon(string $key):string {
 }
 function ankhStaffNavigation(string $active,string $csrf):void {
     $esc=static fn(string $v):string=>htmlspecialchars($v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
-    $items=['products'=>['Product CMS','Descriptions & images'],'certificates'=>['Certificates','Product documents'],
+    $items=['products'=>['Product CMS','Content & certificates'],
         'commerce'=>['Storefront settings','Business & basket settings'],'requests'=>['Customer requests','Review requests'],
         'availability'=>['Availability','Public stock labels'],'contact'=>['WhatsApp','Contact settings'],
         'preview'=>['Customer preview','View customer accounts']];
@@ -94,7 +94,7 @@ function ankhCmsProduct(PDO $admin,int $id):?array {
 }
 function ankhCmsSetDraft(PDO $store,PDO $admin,int $id,string $description,array $information,array $file,bool $removePhoto):void {
     $product=ankhCmsProduct($admin,$id);
-    if(!$product)throw new InvalidArgumentException('That product is not in Order Admin.');
+    if(!$product||!(int)$product['active']||!(int)$product['visible'])throw new InvalidArgumentException('This product must be approved for the shop in Order Admin before editing it in the CMS.');
     $description=trim($description);
     if(strlen($description)>80000 || !preg_match('//u',$description) || preg_match_all('/./us',$description)>20000)
         throw new InvalidArgumentException('Description must be valid text of at most 20,000 characters.');
@@ -166,6 +166,8 @@ function ankhCmsStaffController(PDO $store,PDO $admin):void {
     $id=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
     try{
         if(!$id)throw new InvalidArgumentException('Choose a product.');
+        $cmsProduct=ankhCmsProduct($admin,(int)$id);
+        if(!$cmsProduct||!(int)$cmsProduct['active']||!(int)$cmsProduct['visible'])throw new InvalidArgumentException('This product is not approved to show on the shop.');
         if($action==='cms_save_draft'){
             $saveAndPublish=($_POST['cms_intent']??'')==='publish';
             if($saveAndPublish){
@@ -192,12 +194,13 @@ function ankhCmsStaffController(PDO $store,PDO $admin):void {
 function ankhCmsEditor(PDO $store,PDO $admin,string $csrf):void{
     $esc=static fn(mixed $v):string=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $products=$admin->query("SELECT p.id,p.name,p.active,COALESCE(v.visible,0) AS visible,COALESCE(c.image_mime,'') AS image_mime FROM products p
-        LEFT JOIN customer_catalogue_visibility v ON v.product_id=p.id LEFT JOIN customer_catalogue_content c ON c.product_id=p.id ORDER BY p.name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
+        INNER JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 LEFT JOIN customer_catalogue_content c ON c.product_id=p.id WHERE p.active=1 ORDER BY p.name COLLATE NOCASE")->fetchAll(PDO::FETCH_ASSOC);
     foreach($products as &$libraryProduct)$libraryProduct['has_photo']=in_array($libraryProduct['image_mime'],['image/jpeg','image/png','image/webp'],true);
     unset($libraryProduct);
     $products=ankhCmsOverlay($store,$products);
     $selectedId=(int)($_GET['cms_product_id']??0);
-    $selected=$selectedId?ankhCmsProduct($admin,$selectedId):null;
+    $allowedIds=array_column($products,'id');
+    $selected=$selectedId&&in_array($selectedId,array_map('intval',$allowedIds),true)?ankhCmsProduct($admin,$selectedId):null;
     $draft=$selected?ankhCmsRead($store,$selectedId):null;
     $fallbackInfo=$selected?json_decode((string)$selected['information'],true):[];
     if(!is_array($fallbackInfo))$fallbackInfo=[];
@@ -215,20 +218,21 @@ function ankhCmsEditor(PDO $store,PDO $admin,string $csrf):void{
     ];
     ?>
     <section class="pc-panel ankh-cms" id="cms-products">
-      <div class="cms-library-heading"><div><h2>Product page editor</h2><p>Manage descriptions, imagery and product information.</p></div><div class="cms-library-count"><strong><?=count($products)?></strong> products <span>·</span> <?=$visibleCount?> visible</div></div>
-      <div class="ankh-cms-grid"><aside class="ankh-cms-library"><label for="ankh-cms-search">Find a product</label><input id="ankh-cms-search" type="search" placeholder="Search all products" autocomplete="off">
+      <div class="cms-library-heading"><div><h2>Product page editor</h2><p>Manage descriptions, imagery and product information.</p></div><div class="cms-library-count"><strong><?=count($products)?></strong> shop-approved products</div></div>
+      <div class="ankh-cms-grid"><aside class="ankh-cms-library"><label for="ankh-cms-search">Find a product</label><input id="ankh-cms-search" type="search" placeholder="Search approved products" autocomplete="off">
        <nav aria-label="Choose a product"><?php foreach($products as $product):
           $id=(int)$product['id'];$visible=(int)$product['visible']===1&&(int)$product['active']===1;
           ?><a href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=$id?>" data-cms-name="<?=$esc(strtolower($product['name']))?>" class="<?=$selectedId===$id?'current':''?>">
           <span class="ankh-cms-vial" aria-hidden="true"><?php if($visible&&!empty($product['has_photo'])):?><img src="<?=$esc(ankhCmsPhotoUrl($product,'thumb'))?>" alt="" loading="lazy"><?php else:?><?=ankhCmsIcon('products')?><?php endif;?></span><span class="ankh-cms-item-name"><strong><?=$esc($product['name'])?></strong><small><?=$visible?'Visible':'Hidden in Order Admin'?></small></span><span aria-hidden="true">›</span></a><?php endforeach;?></nav><p class="cms-library-empty" hidden>No matching products.</p></aside>
        <div class="ankh-cms-main"><?php if(!$selected):?>
-          <div class="ankh-cms-empty"><span class="ankh-cms-empty-icon" aria-hidden="true">☥</span><h3>Choose a product to edit</h3><p>Everything in one place: descriptions, imagery, molecular information, research references and published content.</p></div>
+          <div class="ankh-cms-empty"><span class="ankh-cms-empty-icon" aria-hidden="true">☥</span><h3><?=$products?'Choose a product to edit':'No products approved for the shop'?></h3><p>Only active products approved to show on the shop in Order Admin appear here. Descriptions, images and certificates are managed together.</p></div>
        <?php else:
          $isVisible=(int)$selected['active']===1&&(int)$selected['visible']===1;
          $published=$draft&&(int)$draft['has_published']===1;
          ?>
          <div class="ankh-cms-heading"><div><span class="pc-eyebrow">PRODUCT / #<?=str_pad((string)$selectedId,3,'0',STR_PAD_LEFT)?></span><h3><?=$esc($selected['name'])?></h3></div>
            <span class="ankh-cms-status <?=$isVisible?'visible':'hidden'?>"><?=$isVisible?'● Visible on storefront':'○ Hidden in Order Admin'?></span></div>
+         <div class="cms-product-shortcuts"><a href="#ankh-certificates">Certificates &amp; documents ↓</a></div>
          <div class="cms-editor-meta"><span><i class="cms-status-dot"></i><?=$draft?'Saved draft':'Existing website content'?><?php if($draft):?> · <?=gmdate('d M Y, H:i',(int)$draft['updated_at'])?> UTC<?php endif;?></span><?php if($isVisible):?><a href="./?product=<?=$selectedId?>" target="_blank" rel="noopener">View live page ↗</a><?php endif;?></div>
          <div class="cms-content-tabs"><a class="<?=$editingLive?'':'selected'?>" href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=$selectedId?>">Edit draft</a><a class="<?=$editingLive?'selected':''?>" href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=$selectedId?>&amp;source=live">Load live text</a></div>
          <?php if($editingLive):?><p class="cms-editor-note">The current website description and product information are loaded below. Your saved draft stays unchanged until you click Save draft.</p><?php endif;?>
@@ -257,6 +261,7 @@ function ankhCmsEditor(PDO $store,PDO $admin,string $csrf):void{
            <div class="ankh-cms-publish-actions"><form method="post"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="product_id" value="<?=$selectedId?>"><button type="submit" name="action" value="cms_publish" <?=$draft&&$isVisible?'':'disabled'?>>Publish saved draft</button></form>
            <?php if($published):?><form method="post"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="product_id" value="<?=$selectedId?>"><button type="submit" name="action" value="cms_unpublish">Revert to Order Admin content</button></form><?php endif;?></div>
          </div>
+         <?php ankhDocsStaffSection($store,$admin,$csrf,$selectedId); ?>
        <?php endif;?></div></div>
     </section>
     <?php

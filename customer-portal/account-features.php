@@ -210,7 +210,7 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     portalExtrasInit($store);
     $availability=portalExtrasAvailabilityMap($store);
     $whatsapp=portalContactWhatsApp($store);
-    $products=$admin->query('SELECT id,name,active FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+    $products=$admin->query('SELECT p.id,p.name,p.active FROM products p JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 WHERE p.active=1 ORDER BY p.name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
     $delivery=$store->query("SELECT * FROM portal_delivery_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END,id DESC LIMIT 70")->fetchAll(PDO::FETCH_ASSOC);
     $next=$store->query("SELECT * FROM portal_next_order_requests ORDER BY CASE status WHEN 'Pending' THEN 0 ELSE 1 END,id DESC LIMIT 70")->fetchAll(PDO::FETCH_ASSOC);
     $names=[];$customers=$admin->query('SELECT id,name FROM customers');foreach($customers as $c)$names[(int)$c['id']]=$c['name'];
@@ -218,7 +218,7 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     $esc=static fn(mixed $v):string=>(string)htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $csrf=$esc($_SESSION['portal_csrf']??'');
     ?>
-    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css?v=studio-4"><link rel="stylesheet" href="./cms-studio.css?v=studio-4"></head>
+    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css?v=studio-4"><link rel="stylesheet" href="./cms-studio.css?v=product-docs-5"></head>
     <body class="pc-ops-body"><a class="cms-skip" href="#cms-main-content">Skip to workspace</a><main class="pc-ops">
     <?php $panel=(string)($_GET['panel']??'products');if(!in_array($panel,['products','certificates','commerce','requests','availability','contact'],true))$panel='products'; ?>
     <?php $sectionTitles=['products'=>['Product CMS','Create, refine and publish your product pages.'],'certificates'=>['Certificates','Manage the documents customers can view.'],'commerce'=>['Storefront settings','Keep the details of your business up to date.'],'requests'=>['Customer requests','Review requests and delivery preferences.'],'availability'=>['Availability','Manage the availability labels on your website.'],'contact'=>['WhatsApp','Make it easy for customers to reach you.']]; ?>
@@ -239,7 +239,7 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     </section>
     <?php endif;?>
     <?php if($panel==='commerce'):sfStaffSection($store,$admin,$csrf);endif; ?>
-    <?php if($panel==='certificates'):ankhDocsStaffSection($store,$admin,(string)($_SESSION['portal_csrf']??''));endif; ?>
+
     <?php if($panel==='requests'):?><section class="pc-panel"><div class="pc-section-header"><div><span class="pc-eyebrow">PRIVATE REQUESTS</span><h2>Next orders &amp; skips</h2></div><span class="pc-count"><?=count($next)?></span></div><p class="pc-footnote">Approve to acknowledge the request. Manually create orders or change recurring schedules in Admin. Approval here never places an order or changes an Admin date.</p>
     <?php if(!$next):?><p>No requests yet.</p><?php endif;?>
     <?php foreach($next as $r):?><details class="pc-ops-request"><summary><strong><?=$esc($names[(int)$r['customer_id']]??'Customer #'.$r['customer_id'])?></strong> · <?=$r['kind']==='skip'?'Skip cycle':'Request now'?> · <?=$esc($r['status'])?> <?=$r['preview']?'· STAFF TEST':''?></summary><p><?=$esc($r['product_name'])?> · Due <?=$esc($r['due_date'])?> · Source order #<?=(int)$r['source_order_id']?></p><p><?=$r['kind']==='skip'?'Requested to skip this cycle. An Admin schedule update may be needed.':'Customer would like the next order arranged. No order has been created.'?></p><?php if($r['status']==='Pending'):?><form method="post"><input type="hidden" name="csrf" value="<?=$csrf?>"><input type="hidden" name="action" value="portal_review"><input type="hidden" name="request_type" value="next"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>"><label>Customer response (optional)<textarea name="reviewer_note" maxlength="500" rows="2"></textarea></label><div class="pc-ops-decisions"><button name="decision" value="approve">Accept request</button><button name="decision" value="decline">Decline request</button></div></form><?php else:?><p><?=$esc($r['reviewer_note'])?></p><?php endif;?></details><?php endforeach;?></section>

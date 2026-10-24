@@ -31,10 +31,11 @@ function ankhDocsPublished(PDO $store,int $productId):array {
     $q->execute([$productId]);
     return $q->fetchAll(PDO::FETCH_ASSOC);
 }
-function ankhDocsAll(PDO $store):array {
+function ankhDocsAll(PDO $store,?int $productId=null):array {
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_documents'")->fetchColumn())return [];
-    return $store->query("SELECT id,product_id,document_kind,issuer,batch_ref,report_ref,pdf_name,
-        created_at,published,superseded FROM portal_product_documents ORDER BY id DESC LIMIT 150")->fetchAll(PDO::FETCH_ASSOC);
+    $q=$store->prepare("SELECT id,product_id,document_kind,issuer,batch_ref,report_ref,pdf_name,
+        created_at,published,superseded FROM portal_product_documents".($productId!==null?' WHERE product_id=?':'')." ORDER BY id DESC LIMIT 150");
+    $q->execute($productId!==null?[$productId]:[]);return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 function ankhDocsProductAllowed(PDO $admin,int $id,bool $mustBePublished):bool {
     if($id<1)return false;
@@ -108,7 +109,15 @@ function ankhDocsStaffController(PDO $store,PDO $admin):void {
        !hash_equals((string)($_SESSION['portal_csrf']??''),(string)$_POST['csrf'])){
         http_response_code(400);exit('Invalid staff request.');
     }
+    $returnProductId=(int)($_POST['product_id']??0);
     try{
+        if($action==='ankh_document_visibility'){
+            $q=$store->prepare('SELECT product_id FROM portal_product_documents WHERE id=?');$q->execute([(int)($_POST['document_id']??0)]);
+            $actualProductId=(int)$q->fetchColumn();
+            if(!$actualProductId||($returnProductId&&$returnProductId!==$actualProductId))throw new InvalidArgumentException('This certificate does not belong to the selected product.');
+            $returnProductId=$actualProductId;
+        }
+        if(!ankhDocsProductAllowed($admin,$returnProductId,true))throw new InvalidArgumentException('Only shop-approved products can be managed in the CMS.');
         if($action==='ankh_document_upload'){
             ankhDocsUpload($store,$admin,$_POST,$_FILES['original_pdf']??[]);
             $_SESSION['portal_staff_flash']='Product documentation uploaded. Review the public status below.';
@@ -118,7 +127,7 @@ function ankhDocsStaffController(PDO $store,PDO $admin):void {
         }
     }catch(InvalidArgumentException $e){$_SESSION['portal_staff_flash']=$e->getMessage();}
     catch(Throwable $e){error_log('ANKH certificate manager: '.$e->getMessage());$_SESSION['portal_staff_flash']='The document could not be saved.';}
-    header('Location: ./preview-live.php?manage=portal&panel=certificates#ankh-certificates',true,303);exit;
+    header('Location: ./preview-live.php?manage=portal&panel=products&cms_product_id='.$returnProductId.'#ankh-certificates',true,303);exit;
 }
 function ankhDocsKindName(string $kind):string {
     return match($kind){
@@ -128,20 +137,24 @@ function ankhDocsKindName(string $kind):string {
       default=>'Documentation'
     };
 }
-function ankhDocsStaffSection(PDO $store,PDO $admin,string $csrf):void {
-    $documents=ankhDocsAll($store);
-    $products=$admin->query('SELECT id,name FROM products WHERE active=1 ORDER BY name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
+function ankhDocsStaffSection(PDO $store,PDO $admin,string $csrf,?int $productId=null):void {
+    if($productId!==null&&!ankhDocsProductAllowed($admin,$productId,true))return;
+    $documents=ankhDocsAll($store,$productId);
+    $q=$admin->prepare('SELECT p.id,p.name FROM products p JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 WHERE p.active=1'.($productId!==null?' AND p.id=?':'').' ORDER BY p.name COLLATE NOCASE');
+    $q->execute($productId!==null?[$productId]:[]);$products=$q->fetchAll(PDO::FETCH_ASSOC);
     $names=[];foreach($products as $p)$names[(int)$p['id']]=(string)$p['name'];
     $esc=static fn(mixed $value):string=>(string)htmlspecialchars((string)$value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+    $formAction='./preview-live.php?manage=portal&panel=products'.($productId!==null?'&cms_product_id='.$productId:'').'#ankh-certificates';
     ?>
     <section class="pc-panel ankh-cert-admin" id="ankh-certificates">
-      <div class="pc-section-header"><div><span class="pc-eyebrow">DOCUMENT CONTROL</span><h2>Certificates of analysis</h2></div></div>
+      <div class="pc-section-header"><div><span class="pc-eyebrow">DOCUMENT CONTROL</span><h2>Certificates &amp; documents</h2></div></div>
       <p class="pc-footnote">Upload the original report for a specific product. Keep the laboratory/issuing organisation and analytical information intact. Publish, unpublish or replace documents as new test reports arrive. Unpublished products never show public PDFs.</p>
-      <form method="post" enctype="multipart/form-data" class="ankh-coa-form" action="./preview-live.php?manage=portal&panel=certificates#ankh-certificates">
+      <form method="post" enctype="multipart/form-data" class="ankh-coa-form" action="<?=$esc($formAction)?>">
         <input type="hidden" name="csrf" value="<?=$esc($csrf)?>">
         <input type="hidden" name="action" value="ankh_document_upload">
+        <?php if($productId!==null):?><input type="hidden" name="product_id" value="<?=$productId?>"><p class="cms-document-product">Documents for <strong><?=$esc($names[$productId])?></strong></p><?php else:?>
         <label>Product<select name="product_id" required><option value="">Choose product</option>
-        <?php foreach($products as $p):?><option value="<?=(int)$p['id']?>"><?=$esc($p['name'])?></option><?php endforeach;?></select></label>
+        <?php foreach($products as $p):?><option value="<?=(int)$p['id']?>"><?=$esc($p['name'])?></option><?php endforeach;?></select></label><?php endif;?>
         <label>Document type<select name="document_kind" required>
           <option value="original_coa">Original COA / external report</option>
           <option value="ankh_batch_coa">ANKH batch-tested report</option>
@@ -162,11 +175,12 @@ function ankhDocsStaffSection(PDO $store,PDO $admin,string $csrf):void {
       <div class="ankh-coa-row"><div><strong><?=$esc($names[(int)$doc['product_id']])?></strong>
         <small><?=$esc(ankhDocsKindName((string)$doc['document_kind']))?> · <?=$esc($doc['issuer'])?>
         <?php if($doc['batch_ref']!==''):?> · Batch <?=$esc($doc['batch_ref'])?><?php endif;?></small>
+        <?php if($doc['published']&&!$doc['superseded']):?><a href="./product-document.php?id=<?=(int)$doc['id']?>" target="_blank" rel="noopener">View certificate ↗</a><?php endif;?>
         <small><?=$esc($doc['pdf_name'])?> · <?=$doc['superseded']?'Archived':($doc['published']?'Public':'Hidden')?></small></div>
-      <?php if(!$doc['superseded']):?><form method="post" action="./preview-live.php?manage=portal&panel=certificates#ankh-certificates">
+      <?php if(!$doc['superseded']):?><form method="post" action="<?=$esc($formAction)?>">
         <input type="hidden" name="csrf" value="<?=$esc($csrf)?>">
         <input type="hidden" name="action" value="ankh_document_visibility">
-        <input type="hidden" name="document_id" value="<?=(int)$doc['id']?>">
+        <input type="hidden" name="document_id" value="<?=(int)$doc['id']?>"><input type="hidden" name="product_id" value="<?=(int)$doc['product_id']?>">
         <button type="submit" name="visibility" value="<?=$doc['published']?'hide':'publish'?>"><?=$doc['published']?'Hide':'Publish'?></button>
       </form><?php endif;?></div><?php endforeach;?></div>
     </section>
