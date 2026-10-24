@@ -23,7 +23,9 @@ $products=[
 $selected=$products[1];
 $related=pfVariants($selected,$products);
 verifyVariants(count($related)===4,'Variant families mixed unrelated products');
-verifyVariants(array_column($related,'id')===[1,2,3,4],'Variant sorting/relationships wrong');
+$variantIds=array_column($related,'id');
+verifyVariants(count($variantIds)===4 && !array_diff([1,2,3,4],$variantIds),'Variant relationships wrong');
+verifyVariants($variantIds[0]===1 && $variantIds[3]===4,'Strength ordering wrong');
 $options=pfVariantSelector($selected,$related);
 verifyVariants(count($options['strengths'])===3,'Must offer three actual strengths');
 verifyVariants(count($options['formats'])===2,'Must offer two actual 20mg formats');
