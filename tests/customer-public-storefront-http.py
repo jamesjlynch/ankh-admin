@@ -75,6 +75,10 @@ def verify():
             assert 'data-cart-id="1"' in home, "Published product must show a no-login demo Add to basket button"
             assert 'data-approved-id="1"' in home and 'data-approved-live="0"' in home
             assert 'sf-card-quick' in home and 'sf-save-mini' in home
+            forbidden_preview=get("/?product=1&staff_sds_preview=1",403)
+            assert "Staff sign-in required" in forbidden_preview, "Private SDS preview must reject unauthenticated visitors"
+            public_product=get("/?product=1")
+            assert "Private SDS storefront preview" not in public_product, "A normal product page must not show the staff-only preview"
             demo=get("/shop-demo.php")
             assert "Visible Study Material" in demo and "Simulate checkout" in demo
             assert 'data-demo-price="9900"' in demo and 'sf-demo-subtotal' in demo, "Demo pricing should be a preview"
