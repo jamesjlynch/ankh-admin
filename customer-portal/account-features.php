@@ -218,7 +218,7 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     $esc=static fn(mixed $v):string=>(string)htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $csrf=$esc($_SESSION['portal_csrf']??'');
     ?>
-    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css"></head>
+    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css"><link rel="stylesheet" href="./cms-studio.css?v=1"></head>
     <body class="pc-ops-body"><main class="pc-ops">
     <?php $panel=(string)($_GET['panel']??'products');if(!in_array($panel,['products','certificates','commerce','requests','availability','contact'],true))$panel='products'; ?>
     <header class="pc-ops-header"><span class="pc-eyebrow">☥ ANKH / PRIVATE CONTROL CENTRE</span>
