@@ -99,6 +99,13 @@ $related=$selected?pfRelated($selected,$products):[];
 <p class="sf-product-warning">Technical research information only. This page does not offer medical products for sale. See the laboratory and regulatory notice below.</p>
 </div></section>
 <section class="sf-public-documents" aria-label="Product documentation">
+ <?php if(!empty($sdsStaffPreview)):?>
+  <div class="sf-sds-staff-preview" role="note">
+   <span class="sf-sds-staff-mark" aria-hidden="true">☥</span>
+   <div><strong>Private SDS storefront preview</strong><p>This is the real ANKH product-page layout. The Safety Data Sheet below is an unapproved draft, visible here only to signed-in staff. Customers cannot access this document until a competent technical review is recorded in Content Studio.</p></div>
+   <a href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=(int)$selected['id']?>#ankh-sds">Return to SDS review ↗</a>
+  </div>
+ <?php endif;?>
  <div class="sf-section-title"><div><span class="sf-kicker">ANKH / DOCUMENTATION</span><h2>Certificates &amp; product data<span class="sf-gold">.</span></h2>
  <p>View the product specification, independently issued analytical reports and approved safety information separately. Each document belongs to this product.</p></div></div>
  <div class="sf-product-doc-links">
@@ -106,8 +113,8 @@ $related=$selected?pfRelated($selected,$products):[];
     <span class="sf-doc-symbol" aria-hidden="true">☥</span><span><strong>ANKH product specification</strong><small>Product identity &amp; technical information · Not an analytical certificate</small></span><span aria-hidden="true">↗</span>
   </a>
   <?php foreach($productSds as $sds):?>
-   <a class="sf-product-doc-link sf-product-doc-sds" href="./product-safety-document.php?id=<?=(int)$sds['id']?>" target="_blank" rel="noopener noreferrer" aria-label="View Safety Data Sheet PDF">
-    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong>Safety Data Sheet</strong><small>Approved hazard and laboratory handling information · PDF</small></span><span aria-hidden="true">↗</span>
+   <a class="sf-product-doc-link sf-product-doc-sds" href="./product-safety-document.php?id=<?=(int)$sds['id']?><?=!empty($sdsStaffPreview)?'&amp;staff=1':''?>" target="_blank" rel="noopener noreferrer" aria-label="View Safety Data Sheet PDF">
+    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong>Safety Data Sheet<?=!empty($sdsStaffPreview)&&!(int)($sds['published']??0)?' · Staff draft':''?></strong><small><?=!empty($sdsStaffPreview)&&!(int)($sds['published']??0)?'Not yet verified or approved · Internal preview only':'Approved hazard and laboratory handling information · PDF'?></small></span><span aria-hidden="true">↗</span>
    </a>
   <?php endforeach;?>
   <?php foreach($productDocuments as $doc):?>
