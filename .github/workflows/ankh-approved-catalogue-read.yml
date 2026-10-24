@@ -1,4 +1,4 @@
-name: ANKH approved catalogue inventory (read only)
+name: ANKH public catalogue product audit
 on:
   pull_request:
     paths:
@@ -7,48 +7,34 @@ on:
 permissions:
   contents: read
 jobs:
-  approved-products:
+  public-products:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Configure existing Krystal SSH connection
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
-          SSH_KNOWN_HOSTS: ${{ secrets.KRYSTAL_KNOWN_HOSTS }}
+      - name: Read only public catalogue page (no credentials or database)
         run: |
           set -euo pipefail
-          test -n "$SSH_PRIVATE_KEY"
-          test -n "$SSH_KNOWN_HOSTS"
-          install -d -m 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_rsa"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/id_rsa" "$HOME/.ssh/known_hosts"
-      - name: List only active and customer-visible product names
-        env:
-          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
-          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
-        run: |
-          set -euo pipefail
-          test -n "$KRYSTAL_HOST"
-          test -n "$KRYSTAL_USER"
-          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" 'python3 -' <<'PY'
-          import json
-          import sqlite3
-
-          db_path = "/home/devcouk/ankh-admin-private/orders.sqlite"
-          connection = sqlite3.connect("file:" + db_path + "?mode=ro", uri=True)
-          connection.row_factory = sqlite3.Row
-          try:
-              rows = connection.execute("""
-                  SELECT p.id AS product_id, p.name AS product_name
-                  FROM products p
-                  JOIN customer_catalogue_visibility v
-                    ON v.product_id=p.id AND v.visible=1
-                  WHERE p.active=1
-                  ORDER BY p.name COLLATE NOCASE
-              """).fetchall()
-              print("APPROVED_CATALOGUE_ONLY " + json.dumps([dict(r) for r in rows], ensure_ascii=True))
-              print("APPROVED_COUNT " + str(len(rows)))
-          finally:
-              connection.close()
+          curl --retry 2 --max-time 25 --fail --location -A "ANKH public catalogue audit" \
+            -o /tmp/ankh-public-catalogue.html \
+            https://order.ankhpeptides.com/public-catalogue.php
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Collector(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.in_h2 = False
+                  self.names = []
+              def handle_starttag(self, tag, attrs):
+                  if tag.lower() == "h2": self.in_h2 = True
+              def handle_endtag(self, tag):
+                  if tag.lower() == "h2": self.in_h2 = False
+              def handle_data(self, data):
+                  if self.in_h2 and data.strip(): self.names.append(data.strip())
+          p=Collector()
+          p.feed(Path('/tmp/ankh-public-catalogue.html').read_text())
+          print("PUBLIC_CATALOGUE_VISIBLE_NAMES")
+          for n in p.names:
+              print(n)
+          print("HEADING_COUNT", len(p.names))
           PY
