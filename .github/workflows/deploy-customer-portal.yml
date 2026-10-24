@@ -139,9 +139,9 @@ jobs:
           REMOTE
 
       - name: Prepare fourteen private SDS draft files from existing CI artifact
-        if: \${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check 'pymupdf>=1.24,<1.28' 'pillow>=10,<12' 'numpy>=1.26,<3'
@@ -151,10 +151,10 @@ jobs:
           test "$(find sds-ready -maxdepth 1 -name 'ANKH-SDS-*.pdf' -type f | wc -l)" -eq 14
 
       - name: Attach ANKH SDS batch privately to matched live CMS products
-        if: \${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}
         env:
-          KRYSTAL_HOST: \${{ secrets.KRYSTAL_HOST }}
-          KRYSTAL_USER: \${{ secrets.KRYSTAL_USER }}
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
         run: |
           set -euo pipefail
           remote="/home/devcouk/ankh-sds-stage-$GITHUB_SHA"
