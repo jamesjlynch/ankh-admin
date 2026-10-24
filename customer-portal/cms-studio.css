@@ -103,3 +103,6 @@
 .ankh-cms-main .ankh-cert-admin{margin-top:28px;scroll-margin-top:20px;padding:22px 0 0;border:0;border-top:1px solid var(--cms-line);border-radius:0;background:transparent;box-shadow:none}
 .cms-document-product{grid-column:1/-1;margin:0;color:var(--cms-muted);font-size:12px}.cms-document-product strong{color:var(--cms-text)}
 .cms-product-shortcuts{margin:6px 0 12px;font-size:12px}.cms-product-shortcuts a{text-decoration:none}.ankh-coa-row a{font-size:11px;text-decoration:none}
+
+/* Product media: the existing single photo is deliberately the only required asset. */
+.cms-one-photo-note{grid-column:1/-1;margin:0 0 12px;padding:12px 15px;border:1px solid #c9a96f55;border-radius:11px;background:linear-gradient(120deg,#27291e,#171d18);font-size:12px;line-height:1.7;color:#dfcfaf}
