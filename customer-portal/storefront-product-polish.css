@@ -193,3 +193,44 @@
  .sf-is-detail .sf-mobile-hero-links>a,
  .sf-is-detail .sf-mobile-hero-links>button{animation:none!important;transition:none!important}
 }
+
+
+/* ANKH / PRODUCT EXPERIENCE 05 — functional refinement
+   Tactile secondary actions, clearly separated safety documentation,
+   and an adaptive action rail which never obscures the real purchase CTA. */
+.sf-is-detail .sf-product-share{
+ display:inline-flex;align-items:center;justify-content:center;gap:9px;
+ border:1px solid #ddc48a6e;border-radius:11px;min-height:47px;
+ background:#c7b38511;color:#ebdab5;font:650 12px/1.35 inherit;
+ padding:11px 14px;cursor:pointer;transition:background .18s,border-color .18s;
+}
+.sf-is-detail .sf-product-share:hover,.sf-is-detail .sf-product-share:focus-visible{background:#d3b87626;border-color:#e4c78b}
+.sf-is-detail .sf-product-share span{font-size:19px;line-height:1}
+.sf-is-detail .sf-product-document-status{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 17px}
+.sf-is-detail .sf-product-document-status>span{
+ display:inline-flex;gap:7px;align-items:center;min-height:36px;
+ color:#dbc9a7;border:1px solid #dac28a43;border-radius:9px;
+ padding:8px 11px;background:#171d17;font-size:11px;line-height:1.25;
+}
+.sf-is-detail .sf-product-document-status>span>span{color:#dec085;font-size:16px}
+.sf-is-detail .sf-product-doc-link{
+ transition:background .2s,border-color .2s,transform .2s;
+}
+.sf-is-detail .sf-product-doc-link:focus-visible{outline:2px solid #f4d394;outline-offset:3px}
+.sf-is-detail .sf-product-doc-sds:has(+ .sf-sds-public-draft-notice){border-color:#cfaf6f}
+@media(max-width:600px){
+ .sf-is-detail .sf-product-document-status{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+ .sf-is-detail .sf-product-document-status>span{min-width:0;padding:9px 10px;line-height:1.4;font-size:10px}
+ .sf-is-detail .sf-product-document-status>span:first-child{grid-column:1/-1}
+ .sf-is-detail .sf-detail-actions .sf-product-share{grid-column:1/-1;min-height:46px;order:3;width:100%;font-size:12px}
+ .sf-is-detail .sf-mobile-product-action{transition:opacity .22s ease,transform .22s ease,visibility .22s ease}
+ .sf-detail-interactions-ready.sf-is-detail .sf-mobile-product-action:not(.is-visible){
+   opacity:0;visibility:hidden;pointer-events:none;transform:translateY(18px);
+ }
+ .sf-detail-interactions-ready.sf-is-detail .sf-mobile-product-action.is-visible{
+   opacity:1;visibility:visible;pointer-events:auto;transform:translateY(0);
+ }
+}
+@media(prefers-reduced-motion:reduce){
+ .sf-is-detail .sf-mobile-product-action,.sf-is-detail .sf-product-doc-link,.sf-is-detail .sf-product-share{transition:none!important}
+}
