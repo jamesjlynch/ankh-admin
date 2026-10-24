@@ -4,7 +4,7 @@ if(!isset($p) || !is_array($p)){http_response_code(404);exit;}
 $name=(string)$p['name'];$id=(int)$p['id'];
 $summary=pfExcerpt((string)$p['description'],115);
 $kind=pfType($name);$strength=pfStrength($p);$format=pfFormat($p);
-$photo=!empty($p['has_photo'])?'./public-catalogue.php?image='.$id.'&size=thumb':'';
+$photo=!empty($p['has_photo'])?ankhCmsPhotoUrl($p,'thumb'):'';
 $url=pfUrl(['product'=>$id]);
 $hasDemo=isset($demoProducts[$id]);
 $canRequest=isset($buyable[$id]);
