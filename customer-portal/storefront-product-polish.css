@@ -201,7 +201,7 @@
 .sf-is-detail .sf-product-share{
  display:inline-flex;align-items:center;justify-content:center;gap:9px;
  border:1px solid #ddc48a6e;border-radius:11px;min-height:47px;
- background:#c7b38511;color:#ebdab5;font:650 12px/1.35 inherit;
+ background:#c7b38511;color:#ebdab5;font-family:inherit;font-size:12px;font-weight:650;line-height:1.35;
  padding:11px 14px;cursor:pointer;transition:background .18s,border-color .18s;
 }
 .sf-is-detail .sf-product-share:hover,.sf-is-detail .sf-product-share:focus-visible{background:#d3b87626;border-color:#e4c78b}
