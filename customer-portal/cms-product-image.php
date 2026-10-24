@@ -28,9 +28,34 @@ try{
     }
     $data=is_resource($row['published_image'])?stream_get_contents($row['published_image']):(string)$row['published_image'];
     if(!is_string($data)||strlen($data)<12||strlen($data)>8*1024*1024)throw new RuntimeException('Invalid image');
-    header('Content-Type: '.$row['published_image_mime']);
-    header('Content-Length: '.strlen($data));
+    $mime=(string)$row['published_image_mime'];
+    $size=(string)($_GET['size']??'');
+    $pixels=match($size){'thumb'=>420,'detail'=>880,default=>0};
+    if($pixels>0 && function_exists('imagecreatefromstring') && function_exists('imagewebp')){
+        $dimensions=@getimagesizefromstring($data);
+        if(is_array($dimensions) && $dimensions[0]>0 && $dimensions[1]>0 &&
+           $dimensions[0]<=2500 && $dimensions[1]<=2500 && max($dimensions[0],$dimensions[1])>$pixels){
+            $source=@imagecreatefromstring($data);
+            if($source!==false){
+                $ratio=min(1,$pixels/max(imagesx($source),imagesy($source)));
+                $width=max(1,(int)round(imagesx($source)*$ratio));
+                $height=max(1,(int)round(imagesy($source)*$ratio));
+                $resized=imagecreatetruecolor($width,$height);
+                imagealphablending($resized,false);imagesavealpha($resized,true);
+                imagefill($resized,0,0,imagecolorallocatealpha($resized,0,0,0,127));
+                imagecopyresampled($resized,$source,0,0,0,0,$width,$height,imagesx($source),imagesy($source));
+                ob_start();$ok=@imagewebp($resized,null,$size==='detail'?84:79);$compressed=ob_get_clean();
+                imagedestroy($resized);imagedestroy($source);
+                if($ok&&is_string($compressed)&&$compressed!==''){$data=$compressed;$mime='image/webp';}
+            }
+        }
+    }
+    $etag='"'.hash('sha256',$data).'"';
+    header('ETag: '.$etag);
     header('Cache-Control: public, max-age=300');
+    if(trim((string)($_SERVER['HTTP_IF_NONE_MATCH']??''))===$etag){http_response_code(304);exit;}
+    header('Content-Type: '.$mime);
+    header('Content-Length: '.strlen($data));
     header('X-Content-Type-Options: nosniff');
     header('X-Robots-Tag: noindex');
     echo $data;
