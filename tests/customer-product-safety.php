@@ -1,0 +1,25 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__).'/customer-portal/product-safety.php';
+function ok(bool $v,string $message):void{if(!$v)throw new RuntimeException($message);}
+function denied(callable $fn,string $message):void{try{$fn();}catch(InvalidArgumentException $e){return;}throw new RuntimeException($message);}
+$admin=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+$admin->exec('CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTEGER); CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER); INSERT INTO products VALUES(101,"BPC-157 5mg",1),(73,"BPC-157 10mg",1),(125,"Glow Stack",0); INSERT INTO customer_catalogue_visibility VALUES(101,1),(73,0),(125,1);');
+$store=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+ankhSdsInit($store);
+$pdf="%PDF-1.4\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Count 0/Kids []>>\nendobj\ntrailer\n<</Root 1 0 R>>\n%%EOF\n";
+$id=ankhSdsSaveBytes($store,$admin,101,'ANKH-SDS-BPC-157-5mg.pdf',$pdf);
+ok($id>0,'SDS insert returned no id');
+ok(count(ankhSdsPublished($store,101))===0,'New drafts must remain private');
+ok(ankhSdsSaveBytes($store,$admin,101,'same.pdf',$pdf)===$id,'Same PDF must be idempotent');
+denied(fn()=>ankhSdsSaveBytes($store,$admin,73,'hidden.pdf',$pdf),'Hidden product accepted SDS');
+denied(fn()=>ankhSdsSaveBytes($store,$admin,125,'inactive.pdf',$pdf),'Inactive product accepted SDS');
+denied(fn()=>ankhSdsPublish($store,$admin,$id,true,'A','too brief'),'SDS publication without review basis accepted');
+ankhSdsPublish($store,$admin,$id,true,'Competent Reviewer','Verified chemical identity, composition, hazards, emergency contacts and all 16 safety sections against source manufacturer documentation.');
+ok(count(ankhSdsPublished($store,101))===1,'Reviewed publication not visible');
+ankhSdsPublish($store,$admin,$id,false);
+ok(count(ankhSdsPublished($store,101))===0,'Hidden SDS still appeared');
+$store->prepare('UPDATE portal_product_sds SET published=1 WHERE id=?')->execute([$id]);
+$admin->exec('UPDATE customer_catalogue_visibility SET visible=0 WHERE product_id=101');
+ok(!ankhDocsProductAllowed($admin,101,true),'Hidden-product gate must be checked on SDS download');
+echo "PASS: SDS upload private by default, idempotent, exact published product gate and explicit technical review required.\n";
