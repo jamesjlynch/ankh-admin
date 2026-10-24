@@ -137,6 +137,7 @@ function ankhDocsStaffSection(PDO $store,PDO $admin,string $csrf):void {
     <section class="pc-panel ankh-cert-admin" id="ankh-certificates">
       <div class="pc-section-header"><div><span class="pc-eyebrow">DOCUMENT CONTROL</span><h2>Certificates of analysis</h2></div></div>
       <p class="pc-footnote">Upload the original report for a specific product. Keep the laboratory/issuing organisation and analytical information intact. Publish, unpublish or replace documents as new test reports arrive. Unpublished products never show public PDFs.</p>
+      <?php if(function_exists("ankhBulkCoaStaffForm"))ankhBulkCoaStaffForm($csrf); ?>
       <form method="post" enctype="multipart/form-data" class="ankh-coa-form" action="./preview-live.php?manage=portal#ankh-certificates">
         <input type="hidden" name="csrf" value="<?=$esc($csrf)?>">
         <input type="hidden" name="action" value="ankh_document_upload">
