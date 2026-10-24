@@ -2,8 +2,9 @@
 declare(strict_types=1);
 /** Isolated read-only selector tests: no Admin/portal DB writes. */
 function pfType(string $name):string {
-    if(preg_match('/\b(?:pen|cartridge|case|starter kit)\b/i',$name))return
-        preg_match('/\bretatrutide\b/i',$name)?'Research compound':'Research accessory';
+    // Deliberately imitate the real broad category rule: "cartridge" is
+    // categorised as an accessory even when in a compound title.
+    if(preg_match('/\b(?:pen|cartridge|case|starter kit)\b/i',$name))return 'Research accessory';
     if(preg_match('/\b(?:stack|blend)\b/i',$name))return 'Multi-component research blend';
     return 'Research compound';
 }
