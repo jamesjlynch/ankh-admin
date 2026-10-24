@@ -7,6 +7,7 @@ declare(strict_types=1);
  */
 require_once __DIR__.'/lib.php';
 require_once __DIR__.'/product-certificates.php';
+require_once __DIR__.'/product-safety.php';
 require_once __DIR__.'/content-studio.php';
 $localHttp = PHP_SAPI === 'cli-server' && getenv('ANKH_TEST_ALLOW_HTTP') === '1'
     && in_array((string)($_SERVER['REMOTE_ADDR'] ?? ''), ['127.0.0.1','::1'], true)
@@ -116,6 +117,7 @@ portalContactStaffController($portal);
 sfStaffController($portal,$admin);
 portalExtrasStaffController($portal,$admin);
 ankhDocsStaffController($portal,$admin);
+ankhSdsStaffController($portal,$admin);
 ankhCmsStaffController($portal,$admin);
 if(($_GET['manage']??'')==='portal'&&($_GET['panel']??'')==='certificates'){header('Location: ./preview-live.php?manage=portal&panel=products',true,303);exit;}
 if(($_GET['manage']??'')==='portal'){
