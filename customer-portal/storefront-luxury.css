@@ -318,5 +318,10 @@
 .sf-product-doc-link>span:last-child{color:#e8ca85;font-size:20px}
 .sf-doc-symbol{display:grid;place-items:center;flex:none;width:42px;height:42px;border-radius:10px;background:#cdb27722;
  border:1px solid #cdb27772;color:#e6c88b;font:26px Georgia,serif}
+.sf-product-doc-sds{background:linear-gradient(118deg,#26261b,#151912);border-color:#d5b77599;box-shadow:inset 0 1px 0 #e6c88718}
+.sf-product-doc-sds .sf-doc-symbol{background:#d5b77525;border-color:#d5b775aa;color:#f0d6a0}
+.sf-product-doc-sds strong{font-size:14px;color:#f5ddaa}
+.sf-product-doc-sds small{color:#c4c1b4}
+.sf-product-doc-sds:focus-visible{outline:2px solid #efce86;outline-offset:3px}
 .sf-docs-notice{font-size:11px;color:#aeb2a4;margin:18px 0 0;line-height:1.7}
 @media(max-width:600px){.sf-public-documents{padding:17px;border-radius:14px;margin:24px 0 35px}}
