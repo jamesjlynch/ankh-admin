@@ -1,5 +1,8 @@
 # ANKH Admin Operations Release
 
+> **HISTORICAL DOCUMENT — PRE-MIGRATION DEPLOYMENT INFORMATION.** The `/home/lynchde1` paths, jobs and URLs below are retired and MUST NOT be run. The current verified paths and safeguards are in [CURRENT-PRODUCTION.md](CURRENT-PRODUCTION.md) and [AGENTS.md](../AGENTS.md). Do not infer live publication from GitHub alone.
+
+
 This release keeps the existing test-access behaviour and preserves the current black-and-gold layout. It upgrades daily operations without enabling or deploying any account-enrolment changes.
 
 ## What is included
