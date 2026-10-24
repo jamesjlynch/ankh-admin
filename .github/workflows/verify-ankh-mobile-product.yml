@@ -28,6 +28,16 @@ jobs:
           npm install --no-save --no-package-lock playwright@1.56.1
           node --check tests/customer-mobile-product-premium.cjs
           node tests/customer-mobile-product-premium.cjs
+      - name: Confirm new product layout and CSS are served by the live Krystal domain
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 25 --silent --show-error             -o /tmp/ankh-mobile-page.html 'https://order.ankhpeptides.com/?product=101'
+          grep -Fq 'sf-mobile-hero-intro' /tmp/ankh-mobile-page.html
+          grep -Fq 'storefront-product-polish.css?v=1' /tmp/ankh-mobile-page.html
+          curl --fail --location --retry 2 --max-time 25 --silent --show-error             -o /tmp/ankh-product-polish.css 'https://order.ankhpeptides.com/storefront-product-polish.css?v=1'
+          grep -Fq '.sf-mobile-hero-intro' /tmp/ankh-product-polish.css
+          grep -Fq '.sf-is-detail .sf-gallery-select' /tmp/ankh-product-polish.css
+          echo 'PASS: Live ANKH product page serves the redesigned mobile HTML and CSS.'
       - name: Save mobile screenshots for visual inspection
         uses: actions/upload-artifact@v4
         if: always()
