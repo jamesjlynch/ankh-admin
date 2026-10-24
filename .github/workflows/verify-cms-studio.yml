@@ -34,6 +34,7 @@ jobs:
           php tests/customer-storefront-commerce.php
           php tests/customer-account-features.php
           php tests/customer-portal-render.php
+          python3 tests/customer-cms-staff-http.py
           python3 tests/customer-public-storefront-http.py
           python3 tests/customer-storefront-preview-http.py
           python3 tests/customer-catalogue-admin-http.py
