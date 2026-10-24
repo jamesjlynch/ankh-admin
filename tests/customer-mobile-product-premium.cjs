@@ -95,12 +95,9 @@ const checkServer=url=>new Promise(resolve=>http.get(url,res=>{res.resume();reso
     assert(firstScreen.intro<firstScreen.gallery, 'Product information must precede the photo on mobile');
     assert((await page.locator('.sf-mobile-hero-price').innerText()).includes('£12.99'), 'First-screen price preview missing');
     await page.screenshot({path:path.join(out,'premium-top-'+width+'.png'),fullPage:false});
-    console.log('MOBILE-GALLERY-DEBUG', width, JSON.stringify(await page.evaluate(()=>{
-      const box=selector=>{const el=document.querySelector(selector),r=el.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,width:r.width,height:r.height,display:getComputedStyle(el).display,position:getComputedStyle(el).position,zIndex:getComputedStyle(el).zIndex};};
-      const control=document.querySelector('[data-gallery-go="1"]');const r=control.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);
-      return {gallery:box('.sf-product-gallery'),bar:box('.sf-gallery-bar'),selector:box('[data-gallery-go="1"]'),hero:box('.sf-product-hero-v2'),details:box('.sf-product-details'),detailsH1:box('.sf-product-details>h1'),hit:hit?.outerHTML.slice(0,260),scrollY};
-    })));
-    await page.locator('[data-gallery-go="1"]').click({timeout:5000});
+    assert.equal(await page.locator('link[href*="storefront-product-polish.css"]').count(),1,'Premium product CSS not loaded');
+    assert.equal(await page.locator('link[href*="storefront-product-mobile.css"]').count(),0,'Conflicting experimental product CSS must not override the mobile layout');
+    await page.locator('[data-gallery-go="1"]').click({timeout:7000});
     await page.waitForTimeout(100);
     const fullIdentity=page.locator('#sf-gallery-specification');
     assert((await fullIdentity.innerText()).includes('Molecular formula'),'Full identity absent from gallery slide');
