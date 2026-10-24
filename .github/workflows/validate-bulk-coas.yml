@@ -1,0 +1,30 @@
+name: Validate ANKH bulk COA importer
+on:
+  push:
+    branches: [feature/ankh-bulk-coa-attachment]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, fileinfo, zip
+      - name: Validate bulk import and original customer portal
+        run: |
+          set -euo pipefail
+          php -r 'if(!class_exists("ZipArchive"))exit(1);'
+          php -l customer-portal/product-coa-bulk.php
+          php -l customer-portal/product-certificates.php
+          php -l customer-portal/preview-live.php
+          php tests/customer-bulk-coa.php
+          php tests/customer-product-certificates.php
+          php tests/customer-storefront-commerce.php
+          python3 tests/customer-public-storefront-http.py
+          python3 tests/customer-storefront-preview-http.py
+          php tests/customer-portal-render.php
