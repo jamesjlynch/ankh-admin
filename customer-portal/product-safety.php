@@ -25,6 +25,14 @@ function ankhSdsPublished(PDO $store,int $productId):array {
     $q=$store->prepare("SELECT id,product_id,pdf_name,reviewed_at FROM portal_product_sds WHERE product_id=? AND published=1 AND reviewed_at>0 ORDER BY id DESC LIMIT 1");
     $q->execute([$productId]);return $q->fetchAll(PDO::FETCH_ASSOC);
 }
+/** Check existing authenticated Content Studio session. Never grant a preview from a query parameter alone. */
+function ankhSdsStaffPreviewAllowed(array $config,array $session,int $now):bool {
+    $hash=$config['preview_password_hash']??'';
+    if(!is_string($hash)||(!preg_match('/^\\$2[aby]\\$/',$hash)&&!str_starts_with($hash,'$argon2')))return false;
+    return !empty($session['staff_preview_authorised'])
+        &&hash_equals(hash('sha256',$hash),(string)($session['staff_preview_auth_version']??''))
+        &&(int)($session['staff_preview_last']??0)>$now-1200;
+}
 function ankhSdsAll(PDO $store,int $productId):array {
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn())return [];
     $q=$store->prepare("SELECT id,product_id,pdf_name,pdf_sha256,source_url,created_at,published,reviewed_at,reviewed_by FROM portal_product_sds WHERE product_id=? ORDER BY id DESC LIMIT 15");
