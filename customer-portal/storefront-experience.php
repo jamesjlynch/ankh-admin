@@ -16,10 +16,11 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
 <link rel="stylesheet" href="./storefront-luxury.css?v=3">
-<link rel="stylesheet" href="./storefront-product-polish.css?v=1">
+<link rel="stylesheet" href="./storefront-product-polish.css?v=2">
 <script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
 <script defer src="./storefront-luxury.js?v=3"></script>
+<script defer src="./storefront-product-interactions.js?v=1"></script>
 </head>
 <body class="sf-public <?=$selected?'sf-is-detail':'sf-is-collection'?>">
 <a href="#main" class="sf-skip">Skip to content</a>
@@ -110,6 +111,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>
 <div class="sf-mobile-product-quicklinks" aria-label="Jump to product information"><a href="#sf-product-documents">Documents ↗</a><a href="#sf-product-research">Research ↗</a><a href="#sf-gallery-track" data-open-identity>Specifications ↗</a></div>
 <div class="sf-detail-actions">
+<button type="button" class="sf-product-share" data-share-product aria-label="Share this ANKH product" data-share-title="<?=pfEscape($selected['name'])?>"><span aria-hidden="true">↗</span> Share product</button>
 <a class="sf-button" href="./?tab=home">Open My Account <span aria-hidden="true">↗</span></a>
 <a class="sf-secondary" href="./public-catalogue.php?product=<?=(int)$selected['id']?>">Full scientific reference →</a><button type="button" class="sf-save-action" data-save-id="<?=(int)$selected['id']?>" aria-pressed="false">♡ Save to research shortlist</button>
 </div>
@@ -123,8 +125,13 @@ $related=$selected?pfRelated($selected,$products):[];
    <a href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=(int)$selected['id']?>#ankh-sds">Return to SDS review ↗</a>
   </div>
  <?php endif;?>
- <div class="sf-section-title"><div><span class="sf-kicker">ANKH / DOCUMENTATION</span><h2>Certificates &amp; product data<span class="sf-gold">.</span></h2>
+ <div class="sf-section-title"><div><span class="sf-kicker">ANKH / DOCUMENTATION</span><h2>Product documents<span class="sf-gold">.</span></h2>
  <p>View the product specification, independently issued analytical reports and available safety information separately. Any unverified draft is clearly identified and is not an approved SDS.</p></div></div>
+ <div class="sf-product-document-status" aria-label="Available product document types">
+ <span><span aria-hidden="true">▧</span> Product specification</span>
+ <span><span aria-hidden="true">▤</span> <?=count($productDocuments)?> analytical report<?=count($productDocuments)===1?'':'s'?></span>
+ <span><span aria-hidden="true">◇</span> <?=$productSds?(int)($productSds[0]['reviewed_at']??0)>0?'Reviewed SDS':'Unverified safety draft':'No safety sheet listed'?></span>
+ </div>
  <div class="sf-product-doc-links">
   <a class="sf-product-doc-link sf-product-doc-reference" href="./product-specification.php?product=<?=(int)$selected['id']?>" target="_blank" rel="noopener">
     <span class="sf-doc-symbol" aria-hidden="true">☥</span><span><strong>ANKH product specification</strong><small>Product identity &amp; technical information · Not an analytical certificate</small></span><span aria-hidden="true">↗</span>
@@ -235,7 +242,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <?php endif;?>
 </main>
 <?php if($selected):?>
-<div class="sf-mobile-product-action" aria-label="Product actions">
+<div class="sf-mobile-product-action" aria-label="Product actions" data-product-sticky-action>
  <div class="sf-mobile-product-summary"><small><?=$selectedPreviewPrice!==null?($selectedCommercial?'PRICE £':'PREVIEW £').number_format((int)$selectedPreviewPrice/100,2):'ANKH / PRODUCT PROFILE'?></small><strong><?=pfEscape($selected['name'])?></strong></div>
  <?php if(isset($demoProducts[(int)$selected['id']])):?>
  <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add">Add to basket <span aria-hidden="true">＋</span></button>
