@@ -117,7 +117,7 @@ $related=$selected?pfRelated($selected,$products):[];
    </a>
   <?php endforeach;?>
  </div>
- <?php if(!$productDocuments):?><p class="sf-docs-notice">No published batch analysis document is available for this product. The specification is not a Certificate of Analysis.</p><?php endif;?>
+ <?php if(!$productDocuments):?><p class="sf-docs-notice">A corresponding analytical report has not yet been published for this product. The specification document does not claim independent batch testing.</p><?php endif;?>
 </section>
 <section class="sf-profile-content" aria-label="Product profile">
 <div class="sf-profile-main">
