@@ -167,7 +167,7 @@ def verify():
             assert 'sf-studio-brand' in profile, "Premium one-photo ANKH gallery framing missing"
             assert 'sf-variants-premium' not in profile, "Do not create meaningless variant choices for a single approved product"
             assert "Molecular formula" in profile and "Amino-acid sequence" in profile and "Storage" in profile
-            assert "At a glance" in profile and "RETAIL PRICE PREVIEW" in profile and "£99.00" in profile
+            assert "Product profile" in profile and "RETAIL PRICE PREVIEW" in profile and "£99.00" in profile
             assert 'data-open-identity' in profile and 'Complete product identity' in profile
             assert 'sf-mobile-product-action' in profile and 'sf-mobile-product-add' in profile
             assert 'data-cart-id="1"' in profile and 'sf-quick-add' in home
