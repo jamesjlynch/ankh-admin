@@ -29,7 +29,9 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         INSERT INTO customer_catalogue_content VALUES(1,'Admin content','');
         INSERT INTO customer_catalogue_information VALUES(1,'{"formula":"ADMIN"}');
     """);con.commit();con.close()
-    sqlite3.connect(portal).close()
+    with sqlite3.connect(portal) as p:
+        p.executescript("CREATE TABLE portal_rate_limits(rate_key TEXT PRIMARY KEY,attempts INTEGER NOT NULL,started_at INTEGER NOT NULL);")
+
     config=d/'config.php'
     passphrase='test-only-cms-password'
     password=subprocess.check_output(['php','-r', 'echo password_hash("'+passphrase+'", PASSWORD_BCRYPT);'],text=True).strip()
