@@ -107,14 +107,15 @@ $related=$selected?pfRelated($selected,$products):[];
   </div>
  <?php endif;?>
  <div class="sf-section-title"><div><span class="sf-kicker">ANKH / DOCUMENTATION</span><h2>Certificates &amp; product data<span class="sf-gold">.</span></h2>
- <p>View the product specification, independently issued analytical reports and approved safety information separately. Each document belongs to this product.</p></div></div>
+ <p>View the product specification, independently issued analytical reports and available safety information separately. Any unverified draft is clearly identified and is not an approved SDS.</p></div></div>
  <div class="sf-product-doc-links">
   <a class="sf-product-doc-link sf-product-doc-reference" href="./product-specification.php?product=<?=(int)$selected['id']?>" target="_blank" rel="noopener">
     <span class="sf-doc-symbol" aria-hidden="true">☥</span><span><strong>ANKH product specification</strong><small>Product identity &amp; technical information · Not an analytical certificate</small></span><span aria-hidden="true">↗</span>
   </a>
-  <?php foreach($productSds as $sds):?>
+  <?php foreach($productSds as $sds):$unverifiedDraft=(int)($sds['reviewed_at']??0)===0;?>
+   <?php if($unverifiedDraft):?><div class="sf-sds-public-draft-notice" role="note"><strong>Unverified draft safety information</strong><p>This is an ANKH rebranded working document, not a technically approved Safety Data Sheet. Its hazards, chemical identity and handling details have not been independently verified. Do not rely on it for safe handling; contact ANKH for current verified safety information.</p></div><?php endif;?>
    <a class="sf-product-doc-link sf-product-doc-sds" href="./product-safety-document.php?id=<?=(int)$sds['id']?><?=!empty($sdsStaffPreview)?'&amp;staff=1':''?>" target="_blank" rel="noopener noreferrer" aria-label="View Safety Data Sheet PDF">
-    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong>Safety Data Sheet<?=!empty($sdsStaffPreview)&&!(int)($sds['published']??0)?' · Staff draft':''?></strong><small><?=!empty($sdsStaffPreview)&&!(int)($sds['published']??0)?'Not yet verified or approved · Internal preview only':'Approved hazard and laboratory handling information · PDF'?></small></span><span aria-hidden="true">↗</span>
+    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong><?=$unverifiedDraft?'Draft SDS reference · Unverified':'Safety Data Sheet'?></strong><small><?=$unverifiedDraft?'Preliminary reference PDF · Not an approved SDS':'Technically reviewed hazard and laboratory handling information · PDF'?></small></span><span aria-hidden="true">↗</span>
    </a>
   <?php endforeach;?>
   <?php foreach($productDocuments as $doc):?>
