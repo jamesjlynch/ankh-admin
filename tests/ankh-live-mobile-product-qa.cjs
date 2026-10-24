@@ -86,6 +86,9 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       report(d.name+' no JS crashes',jsErrors.length===0,jsErrors.join('; ').slice(0,250));
       await page.screenshot({path:path.join(out,d.name+'-product.png'),fullPage:true,animations:'disabled'});
       if(d.width===390){
+        await page.evaluate(()=>window.scrollTo({top:0,behavior:'instant'}));
+        await wait(100);
+        report('iPhone sticky action initially hidden',await page.locator('[data-product-sticky-action]').evaluate(el=>!el.classList.contains('is-visible')));
         const selectors=page.locator('.sf-gallery-select [data-gallery-go]');
         await selectors.nth(1).click();
         report('gallery controls work',await selectors.nth(1).getAttribute('aria-pressed')==='true');
