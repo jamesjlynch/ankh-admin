@@ -26,7 +26,7 @@ if [[ ! -f "$config" ]]; then
   exit 2
 fi
 cd "$repo"
-files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php request-confirmation.php shop-home.php contact-settings.php my-fridge.php fridge-view.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php public-catalogue-core.php public-catalogue.php storefront.php storefront.css storefront-luxury.css storefront.js storefront-luxury.js storefront-cart.js storefront-design.php storefront-experience.php storefront-card.php storefront-commerce.php storefront-staff.php product-certificates.php product-document.php product-specification.php shop-checkout.php checkout.js shop-demo.php shop-demo.js storefront-preview.php storefront-preview.css statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
+files=(customer-catalogue.php account-features.php request-watch.php request-list-view.php request-confirmation.php shop-home.php contact-settings.php my-fridge.php fridge-view.php watchlist-view.php manifest.webmanifest sw.js touch-icon.png lib.php live-catalogue.php public-catalogue-core.php public-catalogue.php storefront.php storefront.css storefront-luxury.css storefront.js storefront-luxury.js storefront-cart.js storefront-design.php storefront-experience.php storefront-card.php storefront-commerce.php storefront-staff.php product-certificates.php content-studio.php cms-product-image.php cms-editor.js product-document.php product-specification.php shop-checkout.php checkout.js shop-demo.php shop-demo.js storefront-preview.php storefront-preview.css statement.php catalogue-demo.php catalogue-view.php customer-experience.php style.css account.css account.js icon.svg .htaccess view.php index.php preview.php preview-live.php)
 source_for() { if [[ "$1" == "customer-catalogue.php" ]]; then printf "%s" "customer-catalogue.php"; else printf "customer-portal/%s" "$1"; fi; }
 echo "STEP 1/4: Checking complete portal release"
 for file in "${files[@]}"; do
@@ -58,6 +58,8 @@ echo "STEP 2/4: Running portal checks"
 "$php" -l customer-portal/storefront-card.php
 "$php" -l customer-portal/storefront-commerce.php
 "$php" -l customer-portal/product-certificates.php
+"$php" -l customer-portal/content-studio.php
+"$php" -l customer-portal/cms-product-image.php
 "$php" -l customer-portal/product-document.php
 "$php" -l customer-portal/product-specification.php
 "$php" -l customer-portal/storefront-staff.php
