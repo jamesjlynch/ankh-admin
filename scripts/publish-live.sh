@@ -4,11 +4,16 @@
 set -Eeuo pipefail
 umask 077
 
-home=${ANKH_DEPLOY_HOME:-/home/lynchde1}
+# The active cPanel user supplies HOME; ANKH_DEPLOY_HOME may override it.
+home="${ANKH_DEPLOY_HOME:-${HOME:-}}"
 # Keep the original hosting account frozen during the new-server authentication migration.
 if [[ "$home" == "/home/lynchde1" ]]; then
   echo "ANKH: old hosting account deployment intentionally disabled; original installation unchanged." >&2
   exit 0
+fi
+if [[ -z "$home" || "$home" != /* || ! -d "$home/public_html" ]]; then
+  echo "ANKH: Refusing publish without a valid active cPanel public_html path." >&2
+  exit 1
 fi
 log="$home/ankh-admin-deploy.log"
 exec >> "$log" 2>&1
@@ -25,7 +30,14 @@ fi
 release="$(git rev-parse HEAD)"
 target="$home/public_html/ankh-admin"
 marker="$home/.ankh-admin-last-deployed-sha"
-php=${ANKH_DEPLOY_PHP:-/opt/cpanel/ea-php82/root/usr/bin/php}
+php="${ANKH_DEPLOY_PHP:-/opt/cpanel/ea-php82/root/usr/bin/php}"
+if [[ ! -x "$php" ]]; then
+  php="$(command -v php || true)"
+fi
+if [[ -z "$php" || ! -x "$php" ]]; then
+  echo "ANKH: Missing PHP CLI; cannot verify release." >&2
+  exit 1
+fi
 files=(.htaccess business-alerts.php auth-users.php customer-catalogue.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
 
 # A successful commit is not a successful deployment; compare the actual live files.
