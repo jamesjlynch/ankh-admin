@@ -39,6 +39,16 @@ def verify():
                 (1,'{"research_focus":"In vitro studies","evidence_level":"Preclinical laboratory observations","strength":"5 mg","presentation":"Vial","appearance":"Powder","peptide_type":"Research compound","amino_length":"15 residues","formula":"C62H98N16O22","weight":"1419 g/mol","sequence":"GEPPPGKPADDAGLV","cas":"137525-51-0","purity":"Unverified manufacturer specification","storage":"See supplied documentation"}',"now"))
         with sqlite3.connect(portal) as db:
             db.execute("CREATE TABLE portal_accounts(id INTEGER PRIMARY KEY,customer_id INTEGER,phone_e164 TEXT,active INTEGER)")
+            db.execute("""CREATE TABLE portal_product_sds(
+                  id INTEGER PRIMARY KEY,product_id INTEGER,pdf_name TEXT,pdf_sha256 TEXT,pdf_bytes BLOB,
+                  source_url TEXT,created_at INTEGER,published INTEGER,reviewed_at INTEGER,public_draft INTEGER
+                )""")
+            example_pdf=b"%PDF-1.4\n1 0 obj\n<</Type/Catalog>>\nendobj\n%%EOF\n"
+            for doc_id,product_id in [(11,1),(12,2)]:
+                db.execute("INSERT INTO portal_product_sds VALUES(?,?,?,?,?,?,?,?,?,?)",
+                    (doc_id,product_id,"ANKH-SDS-DRAFT.pdf",hashlib.sha256(example_pdf).hexdigest(),example_pdf,
+                     "https://www.uk-peptides.com/safety-data-sheets/",int(time.time()),0,0,1))
+
         before=hashlib.sha256(admin.read_bytes()).hexdigest()
         config=work/"config.php"
         config.write_text(
@@ -79,6 +89,12 @@ def verify():
             assert "Staff sign-in required" in forbidden_preview, "Private SDS preview must reject unauthenticated visitors"
             public_product=get("/?product=1")
             assert "Private SDS storefront preview" not in public_product, "A normal product page must not show the staff-only preview"
+            assert "Draft SDS reference" in public_product, "A released unverified draft must appear on its product page"
+            assert "not a technically approved Safety Data Sheet" in public_product, "Draft warning missing"
+            assert "product-safety-document.php?id=11" in public_product, "Draft link must use exact per-product document id"
+            assert get("/product-safety-document.php?id=11",raw=True)==example_pdf, "The released public reference must be the exact PDF"
+            get("/product-safety-document.php?id=12",404)
+
             demo=get("/shop-demo.php")
             assert "Visible Study Material" in demo and "Simulate checkout" in demo
             assert 'data-demo-price="9900"' in demo and 'sf-demo-subtotal' in demo, "Demo pricing should be a preview"
