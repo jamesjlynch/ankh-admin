@@ -117,13 +117,14 @@ function ankhSdsStaffSection(PDO $store,PDO $admin,string $csrf,int $productId):
           <form method="post" style="display:grid;gap:9px;min-width:min(100%,270px)">
             <input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="product_id" value="<?=$productId?>">
             <input type="hidden" name="sds_id" value="<?=(int)$doc['id']?>">
+            <input type="hidden" name="visibility" value="<?=$doc['published']?'hide':'publish'?>">
             <?php if(!$doc['published']):?>
               <label>Reviewer<input type="text" name="reviewed_by" maxlength="120" placeholder="Competent reviewer" required></label>
               <label>Review basis<textarea name="review_note" minlength="20" maxlength="1500" rows="3" placeholder="Chemical identity, hazard, handling, emergency information and source verified" required></textarea></label>
               <label class="ankh-check"><input type="checkbox" name="review_confirmed" value="1" required> Technical content checked and approved for ANKH supply</label>
             <?php endif;?>
             <button type="submit" name="action" value="ankh_sds_visibility" formaction="./preview-live.php?manage=portal&panel=products&cms_product_id=<?=$productId?>">
-              <input type="hidden" name="visibility" value="<?=$doc['published']?'hide':'publish'?>"><?=$doc['published']?'Hide from storefront':'Approve & publish SDS'?>
+              <?=$doc['published']?'Hide from storefront':'Approve & publish SDS'?>
             </button>
           </form>
         </div>
