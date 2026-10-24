@@ -14,6 +14,9 @@ on:
       - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
       - 'tests/customer-catalogue-visibility.php'
+      - 'tests/customer-product-safety.php'
+      - 'scripts/prepare-ankh-sds.py'
+      - 'scripts/import-ankh-sds.php'
       - '.github/workflows/deploy-customer-portal.yml'
   workflow_dispatch:
 permissions:
@@ -57,6 +60,9 @@ jobs:
           php -l customer-portal/storefront-commerce.php
           php -l customer-portal/storefront-staff.php
           php -l customer-portal/product-certificates.php
+          php -l customer-portal/product-safety.php
+          php -l customer-portal/product-safety-document.php
+          php -l scripts/import-ankh-sds.php
           php -l customer-portal/content-studio.php
           php -l customer-portal/cms-product-image.php
           node --check customer-portal/cms-editor.js
@@ -86,6 +92,7 @@ jobs:
           python3 tests/customer-storefront-preview-http.py
           python3 tests/customer-public-storefront-http.py
           php tests/customer-product-certificates.php
+          php tests/customer-product-safety.php
           php tests/customer-product-cms.php
           python3 tests/customer-cms-staff-http.py
           php tests/customer-storefront-commerce.php
@@ -125,7 +132,7 @@ jobs:
           mkdir -p "$S"
           git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
           git -C "$R" merge-base --is-ancestor "$release_sha" origin/feature/ankh-customer-portal
-          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
+          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php scripts/import-ankh-sds.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php | tar -x -C "$S"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php "$S/scripts/check-public-catalogue.php"
           REMOTE
