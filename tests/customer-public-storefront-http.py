@@ -135,7 +135,7 @@ def verify():
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             profile=get("/?product=1")
-            assert 'storefront-product-polish.css?v=3' in profile, "Product page must load the scoped final mobile stylesheet"
+            assert 'storefront-product-polish.css?v=4' in profile, "Product page must load the scoped final mobile stylesheet"
             assert 'storefront-product-interactions.js?v=1' in profile, "Mobile interaction controller missing"
             script=get('/storefront-product-interactions.js')
             assert 'sf-detail-interactions-ready' in script, "Required live interaction controller missing"
@@ -163,6 +163,9 @@ def verify():
             assert 'sf-gallery-track' in profile and 'data-gallery-next' in profile and 'data-gallery-zoom' in profile
             assert 'sf-gallery-specification' in profile and 'sf-product-zoom' in profile
             assert 'sf-gallery-spec-rows' in profile and 'sf-gallery-spec-row' in profile
+            assert 'DYNAMIC SPECIFICATION CARD' in profile and 'Automatically generated from the product CMS' in profile, "CMS facts must generate specification card"
+            assert 'sf-studio-brand' in profile, "Premium one-photo ANKH gallery framing missing"
+            assert 'sf-variants-premium' not in profile, "Do not create meaningless variant choices for a single approved product"
             assert "Molecular formula" in profile and "Amino-acid sequence" in profile and "Storage" in profile
             assert "At a glance" in profile and "RETAIL PRICE PREVIEW" in profile and "£99.00" in profile
             assert 'data-open-identity' in profile and 'Complete product identity' in profile
