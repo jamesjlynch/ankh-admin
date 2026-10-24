@@ -324,6 +324,12 @@
 .sf-sds-staff-preview strong{font-size:14px;color:#f5d8a4}
 .sf-sds-staff-preview p{font-size:11px;line-height:1.65;margin:5px 0 0;color:#d1c6af}
 .sf-sds-staff-preview a{color:#f3d191;font-size:11px;text-decoration:underline;text-underline-offset:3px}
+/* Public, explicitly unverified SDS references must never resemble certified safety data. */
+.sf-sds-public-draft-notice{grid-column:1/-1;padding:16px 18px;border:1px solid #d3aa6699;background:linear-gradient(135deg,#332a1b,#231f17);color:#f1dbb6;border-radius:12px}
+.sf-sds-public-draft-notice strong{display:block;font-size:13px;letter-spacing:.005em;color:#ffdca1}
+.sf-sds-public-draft-notice p{font-size:11px;line-height:1.75;color:#e0d1b8;margin:7px 0 0;max-width:78ch}
+.sf-public-documents .sf-product-doc-sds:has(+ .sf-sds-public-draft-notice){border-color:#c9a36a}
+@media(max-width:600px){.sf-sds-public-draft-notice{padding:14px 15px}.sf-sds-public-draft-notice p{font-size:12px}}
 .sf-product-doc-sds{background:linear-gradient(118deg,#26261b,#151912);border-color:#d5b77599;box-shadow:inset 0 1px 0 #e6c88718}
 .sf-product-doc-sds .sf-doc-symbol{background:#d5b77525;border-color:#d5b775aa;color:#f0d6a0}
 .sf-product-doc-sds strong{font-size:14px;color:#f5ddaa}
