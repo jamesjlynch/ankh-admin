@@ -3384,7 +3384,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $db->commit();
    }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
    $_SESSION['flash']='Website visibility updated for '.count($allActive).' active products. Prices and stock were not changed.';
-   header('Location: ./?view=products#ankh-visibility-controls',true,303);exit;
+   header('Location: ./?view='.(($_POST['return']??'')==='website_cms'?'website_cms':'products').(($_POST['return']??'')==='website_cms'?'#cms-visibility':'#ankh-visibility-controls'),true,303);exit;
   }
   if($action==='product_catalogue_visibility'){
    $catalogueProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
@@ -3800,7 +3800,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $returnFridge=in_array($_POST['return_fridge']??'combined',['combined','jay','tony'],true)?(string)($_POST['return_fridge']??'combined'):'combined';
   header('Location: ./?view=stock'.$returnFilter.'&fridge='.urlencode($returnFridge).'#stock-product-'.(int)($_POST['product_id']??0));exit;
  }
- if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
+ if($action==='product_catalogue_content' && $returnView==='website_cms')header('Location: ./?view=website_cms&id='.(int)($_POST['product_id']??0).'#cms-edit');
+ else if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
  else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['all','payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).'#dashboard-actions');
  else if($returnView==='packing' && (int)($_POST['id']??0)>0)header('Location: ./?view=packing&id='.(int)$_POST['id'].'#packing-lines');
  else if($returnView==='backorders')header('Location: ./?view=orders&section=backorders');
@@ -3955,7 +3956,7 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','new','edit','products','product','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
@@ -5184,9 +5185,10 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 
 <?php elseif($view==='enquiries'):ankhCustomerInbox($db);?>
 <?php elseif($view==='product'):require __DIR__.'/product-v2.php';?>
+<?php elseif($view==='website_cms'):require __DIR__.'/customer-cms.php';?>
 <?php elseif($view==='products'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
-<div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><a class="quick-action" href="?view=stock">Stock control →</a></div>
+<div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="quick-action" href="?view=website_cms">✎ Customer website CMS</a><a class="quick-action" href="?view=stock">Stock control →</a></div></div>
 <style>
 .ankh-visibility-manager{border:1px solid #d2af6a66;background:linear-gradient(140deg,#1b201b,#10140f);border-radius:17px;margin:17px 0 22px;padding:23px}
 .ankh-visibility-top{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
