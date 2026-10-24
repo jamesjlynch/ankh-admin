@@ -186,7 +186,7 @@ function portalExtrasStaffController(PDO $store,PDO $admin):void {
         $_SESSION['portal_staff_flash']='Saved successfully.';
     }catch(InvalidArgumentException $e){$_SESSION['portal_staff_flash']=$e->getMessage();}
     catch(Throwable $e){error_log('ANKH staff portal extras: '.$e->getMessage());$_SESSION['portal_staff_flash']='Could not save your change.';}
-    header('Location: ./preview-live.php?manage=portal',true,303);exit;
+    header('Location: ./preview-live.php?manage=portal&panel='.(($_POST['action']??'')==='portal_availability'?'availability':'requests'),true,303);exit;
 }
 function portalExtrasInsights(array $orders):array {
     $valid=array_values(array_filter($orders,static fn(array $o):bool=>(string)($o['status']??'')!=='Cancelled'));
