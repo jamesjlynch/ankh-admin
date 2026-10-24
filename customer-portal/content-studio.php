@@ -94,7 +94,7 @@ function ankhCmsOverlay(PDO $store,array $products):array{
        $row=$byId[(int)$product['id']]??null;if(!$row)continue;
        $product['description']=(string)$row['published_description'];
        $info=json_decode((string)$row['published_information'],true);
-       if(is_array($info))$product['information']=array_merge((array)$product['information'],$info);
+       if(is_array($info))$product['information']=$info;
        unset($product['information']['coa_url']);
        if(in_array($row['published_image_mime'],['image/png','image/jpeg','image/webp'],true)){
           $product['has_photo']=true;$product['cms_photo']=true;
