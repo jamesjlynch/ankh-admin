@@ -82,6 +82,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       report(d.name+' safety sheet available',await sheet.count()===1);
       const sheetUrl=await sheet.getAttribute('href');
       report(d.name+' correct SDS document linked',sheetUrl?.includes('product-safety-document.php?id=1'));
+      report(d.name+' live interaction controller loaded',await page.evaluate(()=>document.body.classList.contains('sf-detail-interactions-ready')));
       report(d.name+' no JS crashes',jsErrors.length===0,jsErrors.join('; ').slice(0,250));
       await page.screenshot({path:path.join(out,d.name+'-product.png'),fullPage:true,animations:'disabled'});
       if(d.width===390){
