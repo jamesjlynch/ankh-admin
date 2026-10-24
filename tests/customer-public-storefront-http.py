@@ -135,8 +135,11 @@ def verify():
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             profile=get("/?product=1")
-            assert 'storefront-product-polish.css?v=2' in profile, "Product page must load the scoped final mobile stylesheet"
+            assert 'storefront-product-polish.css?v=3' in profile, "Product page must load the scoped final mobile stylesheet"
             assert 'storefront-product-interactions.js?v=1' in profile, "Mobile interaction controller missing"
+            script=get('/storefront-product-interactions.js')
+            assert 'sf-detail-interactions-ready' in script, "Required live interaction controller missing"
+            assert 'scrolledPastAction' in script, "Correct visibility guard missing"
             assert 'data-product-sticky-action' in profile and 'sf-mobile-product-action' in profile, "Adaptive iPhone action rail missing"
             assert 'data-share-product' in profile and 'data-share-title="Visible Study Material"' in profile, "Native product share button missing"
             assert 'sf-product-document-status' in profile and 'Unverified safety draft' in profile, "Document status must identify public safety drafts"
