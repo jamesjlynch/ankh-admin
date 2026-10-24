@@ -11,6 +11,7 @@
 .sf-is-detail .sf-breadcrumb a{color:#e9ce92;text-decoration:none}
 .sf-is-detail .sf-breadcrumb a:hover{text-decoration:underline;text-underline-offset:4px}
 .sf-is-detail .sf-breadcrumb>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:min(36vw,330px)}
+.sf-mobile-hero-intro,.sf-mobile-product-heading,.sf-mobile-product-quicklinks{display:none}
 .sf-mobile-hero-intro{display:none}
 .sf-is-detail .sf-product-hero-v2{margin:0 0 32px;gap:clamp(24px,4vw,60px);align-items:start}
 .sf-is-detail .sf-detail-visual-column{min-width:0;width:100%}
