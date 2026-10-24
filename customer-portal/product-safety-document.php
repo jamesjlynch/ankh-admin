@@ -10,6 +10,18 @@ $local=PHP_SAPI==='cli-server'&&getenv('ANKH_TEST_ALLOW_HTTP')==='1'
     &&in_array((string)($_SERVER['REMOTE_ADDR']??''),['127.0.0.1','::1'],true);
 if(!$local&&($_SERVER['HTTPS']??'')!=='on'){http_response_code(403);exit;}
 if(!$local&&strtolower((string)($_SERVER['HTTP_HOST']??''))!==strtolower((string)($config['host']??'order.ankhpeptides.com'))){http_response_code(404);exit;}
+$staffRequested=($_GET['staff']??'')==='1';
+$staffAllowed=false;
+if($staffRequested){
+    ini_set('session.use_strict_mode','1');
+    session_name('ankh_staff_preview');
+    session_set_cookie_params(['lifetime'=>0,'path'=>'/','secure'=>!$local,'httponly'=>true,'samesite'=>'Strict']);
+    session_start();
+    $fingerprint=hash('sha256',(string)($config['preview_password_hash']??''));
+    $staffAllowed=!empty($_SESSION['staff_preview_authorised'])
+        &&hash_equals($fingerprint,(string)($_SESSION['staff_preview_auth_version']??''))
+        &&(int)($_SESSION['staff_preview_last']??0)>time()-1200;
+}
 $id=filter_var($_GET['id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 if(!$id){http_response_code(404);exit;}
 try{
@@ -17,9 +29,9 @@ try{
     $store=new PDO('sqlite:'.$config['portal_database_path'],null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     $admin->exec('PRAGMA query_only=ON');$store->exec('PRAGMA query_only=ON');
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn()){http_response_code(404);exit;}
-    $q=$store->prepare('SELECT product_id,pdf_sha256,pdf_bytes FROM portal_product_sds WHERE id=? AND published=1 AND reviewed_at>0');
+    $q=$store->prepare('SELECT product_id,pdf_sha256,pdf_bytes,published,reviewed_at FROM portal_product_sds WHERE id=?');
     $q->execute([$id]);$doc=$q->fetch(PDO::FETCH_ASSOC);
-    if(!$doc||!ankhDocsProductAllowed($admin,(int)$doc['product_id'],true)){http_response_code(404);exit;}
+    if(!$doc||!ankhDocsProductAllowed($admin,(int)$doc['product_id'],true)||(!$staffAllowed&&(!(int)$doc['published']||!(int)$doc['reviewed_at']))){http_response_code(404);exit;}
     $pdf=is_resource($doc['pdf_bytes'])?stream_get_contents($doc['pdf_bytes']):(string)$doc['pdf_bytes'];
     if(!hash_equals((string)$doc['pdf_sha256'],hash('sha256',$pdf)))throw new RuntimeException('Document integrity failure');
     header('Content-Type: application/pdf');
