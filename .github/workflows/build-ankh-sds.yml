@@ -1,0 +1,29 @@
+name: Build ANKH SDS working-copy pack
+on:
+  pull_request:
+    paths:
+      - 'scripts/rebrand_uk_sds.py'
+      - '.github/workflows/build-ankh-sds.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install PDF rendering dependencies
+        run: pip install --disable-pip-version-check 'pymupdf>=1.24,<1.28' 'beautifulsoup4>=4.12,<5'
+      - name: Build exact-source ANKH rebrand working copies
+        run: python scripts/rebrand_uk_sds.py
+      - name: Archive ANKH SDS batch
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANKH-SDS-REBRAND-DRAFT-20261024
+          path: sds-output/
+          if-no-files-found: error
+          retention-days: 30
