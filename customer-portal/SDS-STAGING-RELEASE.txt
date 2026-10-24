@@ -1,0 +1,4 @@
+ANKH internal SDS import manifest
+2026-10-24
+14 exact matching ANKH products (IDs checked in scripts/import-ankh-sds.php)
+Private draft attachment only. No public SDS publication.
