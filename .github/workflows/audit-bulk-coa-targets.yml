@@ -1,0 +1,54 @@
+name: Audit live ANKH COA product matches (read-only)
+on:
+  push:
+    branches: [feature/ankh-bulk-coa-attachment]
+    paths:
+      - 'scripts/check-bulk-coa-targets.php'
+      - 'customer-portal/product-coa-bulk.php'
+      - '.github/workflows/audit-bulk-coa-targets.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  remote-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up existing Krystal deployment SSH credentials
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.KRYSTAL_KNOWN_HOSTS }}
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$KRYSTAL_HOST"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_rsa"
+          chmod 600 "$HOME/.ssh/id_rsa"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          else
+            ssh-keyscan -T 10 -p 722 -H "$KRYSTAL_HOST" > "$HOME/.ssh/known_hosts"
+          fi
+          chmod 600 "$HOME/.ssh/known_hosts"
+      - name: Query live product identity (read-only, no deployment)
+        env:
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
+          AUDIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" "bash -se -- '$AUDIT_SHA'" <<'REMOTE'
+          set -Eeuo pipefail
+          sha="$1"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          R=/home/devcouk/repositories/ankh-admin-git
+          T="$(mktemp -d /home/devcouk/ankh-customer-portal-staging/coa-check.XXXXXX)"
+          trap 'rm -rf -- "$T"' EXIT
+          git -C "$R" fetch origin feature/ankh-bulk-coa-attachment:refs/remotes/origin/feature/ankh-bulk-coa-attachment
+          git -C "$R" merge-base --is-ancestor "$sha" origin/feature/ankh-bulk-coa-attachment
+          git -C "$R" archive "$sha" customer-portal/product-coa-bulk.php scripts/check-bulk-coa-targets.php | tar -x -C "$T"
+          ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php "$T/scripts/check-bulk-coa-targets.php"
+          REMOTE
