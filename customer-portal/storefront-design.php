@@ -69,7 +69,9 @@ function pfRelated(array $selected,array $products,int $limit=4):array {
  */
 function pfVariantFamily(array $product):string {
     $family=pfFamily((string)$product['name']);
-    if(pfType((string)$product['name'])!=='Research compound')return $family;
+    // ANKH's general category helper classifies "Cartridge" and "With Pen" as
+    // accessories even in a compound title. Group by the compound/family name,
+    // not by that broad browsing category.
     // Common *presentation suffixes*, not arbitrary words from compound names.
     $family=preg_replace('/(?:\s+(?:vial|cartridge|refill|refill only|with pen|pen included|pen bundle))+\s*$/iu','',$family)??$family;
     return trim($family);
@@ -91,10 +93,10 @@ function pfVariantPresentation(array $product):string {
 }
 function pfVariants(array $selected,array $products):array {
     $family=pfVariantFamily($selected);
-    $kind=pfType((string)$selected['name']);
+    $selectedHasStrength=pfStrength($selected)!=='';
     $variants=array_values(array_filter($products,static fn($p)=>
-        pfType((string)$p['name'])===$kind &&
-        pfVariantFamily($p)===$family
+        pfVariantFamily($p)===$family &&
+        (pfStrength($p)!=='')===$selectedHasStrength
     ));
     usort($variants,static function($a,$b):int {
         $s=strnatcasecmp(pfStrength($a),pfStrength($b));
