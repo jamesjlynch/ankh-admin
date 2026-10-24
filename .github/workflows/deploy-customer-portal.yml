@@ -57,6 +57,9 @@ jobs:
           php -l customer-portal/storefront-commerce.php
           php -l customer-portal/storefront-staff.php
           php -l customer-portal/product-certificates.php
+          php -l customer-portal/content-studio.php
+          php -l customer-portal/cms-product-image.php
+          node --check customer-portal/cms-editor.js
           php -l customer-portal/product-document.php
           php -l customer-portal/product-specification.php
           php -l customer-portal/shop-checkout.php
