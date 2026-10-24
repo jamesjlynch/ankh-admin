@@ -135,6 +135,12 @@ def verify():
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             profile=get("/?product=1")
+            assert 'storefront-product-polish.css?v=1' in profile, "Product page must load the scoped final mobile stylesheet"
+            assert 'sf-mobile-hero-intro' in profile, "Product identity must be visible before the image on iPhone"
+            assert 'sf-mobile-hero-links' in profile and 'href="#sf-product-documents"' in profile, "Mobile quick jumps absent"
+            assert 'href="#sf-product-research"' in profile and 'data-open-identity' in profile, "Research/specification shortcuts missing"
+            assert 'PRICE PREVIEW' in profile, "Product preview amount must remain clearly labelled"
+            assert "Product at a glance" in profile, "Mobile summary accessibility label missing"
             assert "Visible Study Material" in profile
             assert 'Certificates &amp; product data' in profile
             assert 'product-specification.php?product=1' in profile
