@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-/** Customer-facing SDS PDFs are only available once reviewed, explicitly published and product-visible. */
+/** Customer-facing approved SDS or clearly identified unverified draft PDF, product-visible only. */
 require_once __DIR__.'/product-safety.php';
 $cfg=getenv('ANKH_PORTAL_CONFIG')?:dirname(__DIR__,2).'/ankh-customer-portal-config.php';
 if(!is_file($cfg)){http_response_code(503);exit;}
@@ -29,17 +29,21 @@ try{
     $store=new PDO('sqlite:'.$config['portal_database_path'],null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
     $admin->exec('PRAGMA query_only=ON');$store->exec('PRAGMA query_only=ON');
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn()){http_response_code(404);exit;}
-    $q=$store->prepare('SELECT product_id,pdf_sha256,pdf_bytes,published,reviewed_at FROM portal_product_sds WHERE id=?');
+    $previewColumn=ankhSdsHasPublicDraftColumn($store)?'public_draft':'0 AS public_draft';
+    $q=$store->prepare("SELECT product_id,pdf_sha256,pdf_bytes,published,reviewed_at,$previewColumn FROM portal_product_sds WHERE id=?");
     $q->execute([$id]);$doc=$q->fetch(PDO::FETCH_ASSOC);
-    if(!$doc||!ankhDocsProductAllowed($admin,(int)$doc['product_id'],true)||(!$staffAllowed&&(!(int)$doc['published']||!(int)$doc['reviewed_at']))){http_response_code(404);exit;}
+    $isApproved=$doc&&(int)$doc['published']===1&&(int)$doc['reviewed_at']>0;
+    $isUnverifiedPublicDraft=$doc&&(int)$doc['public_draft']===1;
+    if(!$doc||!ankhDocsProductAllowed($admin,(int)$doc['product_id'],true)||(!$staffAllowed&&!$isApproved&&!$isUnverifiedPublicDraft)){http_response_code(404);exit;}
     $pdf=is_resource($doc['pdf_bytes'])?stream_get_contents($doc['pdf_bytes']):(string)$doc['pdf_bytes'];
     if(!hash_equals((string)$doc['pdf_sha256'],hash('sha256',$pdf)))throw new RuntimeException('Document integrity failure');
     header('Content-Type: application/pdf');
+    header('X-ANKH-Document-Status: '.($isApproved?'reviewed-sds':'unverified-draft-not-approved-sds'));
     header('Content-Length: '.strlen($pdf));
     header('Cache-Control: private, no-store');
     header('X-Content-Type-Options: nosniff');
     header('X-Robots-Tag: noindex,nofollow');
     header("Content-Security-Policy: default-src 'none'; sandbox");
-    header('Content-Disposition: inline; filename="ankh-safety-data-sheet.pdf"');
+    header('Content-Disposition: inline; filename="'.($isApproved?'ankh-safety-data-sheet.pdf':'ankh-unverified-sds-draft.pdf').'"');
     echo $pdf;
 }catch(Throwable $e){error_log('ANKH SDS download: '.$e->getMessage());http_response_code(503);exit;}
