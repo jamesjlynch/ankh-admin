@@ -16,6 +16,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
 <link rel="stylesheet" href="./storefront-luxury.css?v=3">
+<link rel="stylesheet" href="./storefront-product-polish.css?v=1">
 <link rel="stylesheet" href="./storefront-product-mobile.css?v=1">
 <script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=3"></script>
@@ -40,6 +41,20 @@ $related=$selected?pfRelated($selected,$products):[];
 <main class="sf-shell" id="main">
 <?php if($selected):$info=$selected['information'];$identityRows=pfIdentityRows($info);$selectedPreviewPrice=$previewPrices[(int)$selected['id']]??null;$selectedCommercial=isset($buyable[(int)$selected['id']]);?>
 <nav class="sf-breadcrumb" aria-label="Breadcrumb"><a href="./">Collection</a><span aria-hidden="true">/</span><a href="<?=pfEscape(pfUrl(['category'=>pfType($selected['name'])]))?>"><?=pfEscape(pfType($selected['name']))?></a><span aria-hidden="true">/</span><span><?=pfEscape($selected['name'])?></span></nav>
+<section class="sf-mobile-hero-intro" aria-label="Product at a glance">
+ <div class="sf-mobile-hero-eyebrow"><span><?=pfEscape(pfType($selected['name']))?></span><span>ANKH / <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span></div>
+ <h1><?=pfEscape($selected['name'])?></h1>
+ <div class="sf-mobile-hero-meta">
+  <?php if(pfStrength($selected)!==''):?><span class="sf-mobile-hero-strength"><?=pfEscape(pfStrength($selected))?></span><?php endif;?>
+  <?php if($selectedPreviewPrice!==null):?><span class="sf-mobile-hero-price"><small><?=$selectedCommercial?'PRICE':'PRICE PREVIEW'?></small><strong>£<?=number_format((int)$selectedPreviewPrice/100,2)?></strong></span><?php endif;?>
+ </div>
+ <p class="sf-mobile-hero-description"><?=pfEscape(pfExcerpt((string)$selected['description'],155))?></p>
+ <div class="sf-mobile-hero-links" aria-label="Go to product sections">
+   <a href="#sf-product-documents">Documents <span aria-hidden="true">↗</span></a>
+   <button type="button" data-open-identity>Specs <span aria-hidden="true">↗</span></button>
+   <a href="#sf-product-research">Research <span aria-hidden="true">↓</span></a>
+ </div>
+</section>
 <section class="sf-product-hero sf-product-hero-v2">
 <div class="sf-detail-visual-column">
 <div class="sf-product-gallery" aria-label="Product image and technical specification gallery" data-gallery>
@@ -66,12 +81,12 @@ $related=$selected?pfRelated($selected,$products):[];
   <div class="sf-gallery-bar">
     <div class="sf-gallery-select" role="group" aria-label="Select gallery view">
       <button type="button" data-gallery-go="0" aria-pressed="true"><span class="sf-gallery-thumb"><?php if($selected['has_photo']):?><img src="<?=pfEscape(ankhCmsPhotoUrl($selected,'thumb'))?>" loading="lazy" width="45" height="45" alt=""><?php else:?>☥<?php endif;?></span><span>PHOTO</span></button>
-      <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">☥</span><span>DETAILS</span></button>
+      <button type="button" data-gallery-go="1" aria-pressed="false"><span class="sf-gallery-thumb sf-gallery-thumb-spec" aria-hidden="true">☥</span><span>SPECIFICATIONS</span></button>
     </div>
     <div class="sf-gallery-arrows" aria-label="Gallery navigation"><button type="button" data-gallery-prev aria-label="Previous gallery view">←</button><button type="button" data-gallery-next aria-label="Next gallery view">→</button></div>
   </div>
 </div>
-<div class="sf-image-caption"><span>ANKH / PRODUCT PROFILE</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
+<div class="sf-image-caption"><span>SWIPE BETWEEN PRODUCT PHOTO &amp; SPECIFICATIONS</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
 <div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> / ANKH RESEARCH</span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
 <span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
