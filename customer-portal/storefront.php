@@ -13,6 +13,7 @@ require_once is_file(__DIR__.'/customer-catalogue.php') ? __DIR__.'/customer-cat
 require_once __DIR__.'/storefront-design.php';
 require_once __DIR__.'/storefront-commerce.php';
 require_once __DIR__.'/product-certificates.php';
+require_once __DIR__.'/product-safety.php';
 require_once __DIR__.'/content-studio.php';
 $loopback = PHP_SAPI==='cli-server' && getenv('ANKH_TEST_ALLOW_HTTP')==='1'
     && in_array((string)($_SERVER['REMOTE_ADDR']??''),['127.0.0.1','::1'],true)
@@ -72,7 +73,7 @@ try{$previewPrices=sfRetailPreviewPrices($db,$products);}
 catch(Throwable $e){error_log('ANKH storefront retail preview: '.$e->getMessage());}
 // Public site reads only explicitly approved accessory IDs and staff-verified business facts.
 // An absent private database/table means no items can be checked out (fail closed).
-$buyable=[];$businessFacts=null;$demoProducts=[];$productDocuments=[];
+$buyable=[];$businessFacts=null;$demoProducts=[];$productDocuments=[];$productSds=[];
 foreach($products as $p)$demoProducts[(int)$p['id']]=true; // Demo basket defaults to all published products.
 try{
     $portalPath=is_array($config)?($config['portal_database_path']??''):'';
@@ -83,7 +84,10 @@ try{
         $demoProducts=sfDemoVisible($store,$products);
         $businessFacts=sfCommerceFacts($store);
         $products=ankhCmsOverlay($store,$products);
-        if(isset($_GET['product']))$productDocuments=ankhDocsPublished($store,(int)($_GET['product']??0));
+        if(isset($_GET['product'])){
+            $productDocuments=ankhDocsPublished($store,(int)($_GET['product']??0));
+            $productSds=ankhSdsPublished($store,(int)($_GET['product']??0));
+        }
     }
 }catch(Throwable $e){error_log('ANKH public shop setup: '.$e->getMessage());}
 if(isset($_GET['image'])) {http_response_code(404);exit;}
