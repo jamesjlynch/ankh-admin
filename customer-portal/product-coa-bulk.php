@@ -31,7 +31,7 @@ function ankhBulkResolveProduct(array $rows,string $label,bool $isFullLengthConf
     $label=ankhBulkNormalise($label);
     if(str_starts_with($label,'tb500')&&!$isFullLengthConfirmed)
         return ['id'=>null,'error'=>'TB-500 requires confirmation of full-length thymosin beta-4 identity.'];
-    $target=preg_replace('/full-lengthtb4/','',$label)??$label;
+    $target=preg_replace('/fulllengthtb4$/','',$label)??$label;
     $candidates=[];
     foreach($rows as $row){
         if((int)$row['active']!==1)continue;
