@@ -26,7 +26,7 @@ function ankhAccessoryUpgradeEditorial(PDO $db):array {
     $db->beginTransaction();
     try{
         foreach($new as $sku=>$description){
-            if(!is_string($description)||mb_strlen($description)<1100||mb_strlen($description)>10000
+            if(!is_string($description)||strlen($description)<1100||strlen($description)>10000
                ||!str_contains($description,'ANKH')||!str_contains($description,'## Frequently asked questions'))
                 throw new RuntimeException('Editorial content failed quality checks for '.$sku);
             $find->execute([$sku]);$row=$find->fetch(PDO::FETCH_ASSOC);
