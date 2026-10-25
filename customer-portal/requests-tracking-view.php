@@ -30,14 +30,22 @@ $trackingFlash=(string)($_SESSION['guest_claim_flash']??'');unset($_SESSION['gue
  <section class="pc-tracking-stack" id="pc-tracking-requests">
   <div class="pc-section-header"><div><span class="pc-eyebrow">01 / WHAT YOU'VE REQUESTED</span><h2>Requests &amp; enquiries</h2></div></div>
   <?php if(!$trackedGuest&&!$trackedEnquiries):?><div class="pc-panel pc-tracking-empty"><span aria-hidden="true">☥</span><h3>No linked requests yet</h3><p>Requests sent from your signed-in account appear here automatically. Guest accessory requests can be linked using the receipt code from checkout.</p><a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>" class="pc-outline-button">Explore the catalogue <?=pcIcon('right')?></a></div><?php endif;?>
-  <?php foreach($trackedGuest as $g):$status=(string)$g['status'];$isPending=$status==='Pending staff review';$isDeclined=$status==='Declined';?>
+  <?php foreach($trackedGuest as $g):$status=(string)$g['status'];$isPending=$status==='Pending staff review';$isDeclined=$status==='Declined';
+    $recordedLink=null;
+    foreach($orders as $possibleOrder)if((int)$possibleOrder['id']===(int)($g['linked_order_id']??0)){$recordedLink=$possibleOrder;break;}
+  ?>
    <details class="pc-tracking-card">
-    <summary><div class="pc-tracking-ref"><span class="pc-eyebrow">GUEST ACCESSORY REQUEST</span><strong>REQ-<?=str_pad((string)$g['id'],5,'0',STR_PAD_LEFT)?></strong><small><?=portalEscape(portalDate(date('c',(int)$g['placed_at'])))?> · <?=count($g['lines'])?> line item<?=count($g['lines'])===1?'':'s'?></small></div><span class="pc-tracking-badge <?=$isDeclined?'is-declined':($isPending?'is-pending':'is-reviewed')?>"><?=portalEscape($isPending?'Awaiting staff review':($isDeclined?'Declined':'Reviewed by ANKH'))?></span><?=pcIcon('right')?></summary>
+    <summary><div class="pc-tracking-ref"><span class="pc-eyebrow">GUEST ACCESSORY REQUEST</span><strong>REQ-<?=str_pad((string)$g['id'],5,'0',STR_PAD_LEFT)?></strong><small><?=portalEscape(portalDate(date('c',(int)$g['placed_at'])))?> · <?=count($g['lines'])?> line item<?=count($g['lines'])===1?'':'s'?></small></div><span class="pc-tracking-badge <?=$isDeclined?'is-declined':($isPending?'is-pending':'is-reviewed')?>"><?=portalEscape($recordedLink?'Order recorded':($isPending?'Awaiting staff review':($isDeclined?'Declined':'Reviewed by ANKH')))?></span><?=pcIcon('right')?></summary>
     <div class="pc-tracking-detail">
      <p class="pc-tracking-context">A guest accessory request is not an accepted order. Staff review does not automatically create an Admin order or confirm delivery.</p>
      <?php foreach($g['lines'] as $line):?><div class="pc-tracking-line"><span><?=max(0,(int)($line['quantity']??0))?> × <?=portalEscape((string)($line['name']??'Product'))?></span><strong><?=portalEscape(portalMoney(max(0,(int)($line['unit_price']??0))*max(0,(int)($line['quantity']??0))))?></strong></div><?php endforeach;?>
      <div class="pc-tracking-line pc-tracking-total"><span>Recorded request value</span><strong><?=portalEscape(portalMoney(max(0,(int)$g['subtotal'])))?></strong></div>
-     <p class="pc-tracking-context">Current request stage: <strong><?=portalEscape($status)?></strong>. For any order subsequently created by ANKH, use the linked Order History below.</p>
+     <?php if($recordedLink):[$stage,$stageDescription]=pcRecordedOrderStage($recordedLink);?><section class="pc-linked-order" aria-label="Linked Order Admin record">
+    <span class="pc-eyebrow">LINKED TO YOUR VERIFIED ADMIN ORDER</span><strong><?=portalEscape(pcOrderRef($recordedLink))?> · <?=portalEscape($stage)?></strong>
+    <p><?=portalEscape($stageDescription)?></p>
+    <a href="<?=portalEscape(pcHref('orders',$staff,$customerId,['order'=>(int)$recordedLink['id']]))?>">Follow recorded order <?=pcIcon('right')?></a>
+    </section>
+    <?php else:?><p class="pc-tracking-context">Current request stage: <strong><?=portalEscape($status)?></strong>. Only an accepted and securely linked Admin order appears under My Orders. Staff review alone does not create one.</p><?php endif;?>
     </div>
    </details>
   <?php endforeach;?>
