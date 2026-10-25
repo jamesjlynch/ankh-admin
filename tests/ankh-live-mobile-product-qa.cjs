@@ -83,11 +83,11 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       report(d.name+' premium photo framing present',
         (await page.locator('.sf-studio-brand').count())===1);
       const docStatus=await page.locator('.sf-product-document-status').innerText();
-      report(d.name+' honest SDS status',docStatus.includes('Unverified safety draft'));
+      report(d.name+' honest SDS status',docStatus.includes('ANKH reviewed SDS'));
       const sheet=page.locator('.sf-product-doc-sds').first();
       report(d.name+' safety sheet available',await sheet.count()===1);
       const sheetUrl=await sheet.getAttribute('href');
-      report(d.name+' correct SDS document linked',sheetUrl?.includes('product-safety-document.php?id=1'));
+      report(d.name+' correct SDS document linked',/product-safety-document\.php\?id=[1-9][0-9]*/.test(sheetUrl||''));
       report(d.name+' live interaction controller loaded',await page.evaluate(()=>document.body.classList.contains('sf-detail-interactions-ready')));
       report(d.name+' no JS crashes',jsErrors.length===0,jsErrors.join('; ').slice(0,250));
       await page.screenshot({path:path.join(out,d.name+'-product.png'),fullPage:true,animations:'disabled'});
@@ -103,12 +103,12 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
         await sdsReference.click();
         const viewer=page.locator('#sf-doc-viewer');
         report('premium document viewer opens in-page',await viewer.evaluate(el=>el.open));
-        report('unverified SDS warning preserved in viewer',
-          await page.locator('#sf-doc-viewer-warning').evaluate(el=>!el.hidden));
+        report('reviewed SDS has no unverified warning in viewer',
+          await page.locator('#sf-doc-viewer-warning').evaluate(el=>el.hidden));
         report('document viewer uses exact published safety PDF',
-          (await page.locator('#sf-doc-viewer-frame').getAttribute('src'))?.includes('product-safety-document.php?id=1'));
+          (await page.locator('#sf-doc-viewer-frame').getAttribute('src'))?.includes(sheetUrl));
         report('PDF download remains available',
-          (await page.locator('#sf-doc-viewer-download').getAttribute('href'))?.includes('product-safety-document.php?id=1'));
+          (await page.locator('#sf-doc-viewer-download').getAttribute('href'))?.includes(sheetUrl));
         await page.screenshot({path:path.join(out,'iphone-390-document-viewer.png'),animations:'disabled'});
         await page.locator('#sf-doc-viewer [data-doc-close]').first().click();
         report('PDF viewer closes and frees frame',await viewer.evaluate(el=>!el.open)
@@ -184,11 +184,15 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await siblingContext.close();
     // Validate actual public document delivery (not only a link in a card).
     const context=await browser.newContext();
-    const response=await context.request.get(root+'/product-safety-document.php?id=1',{timeout:30000});
+    const listing=await context.request.get(root+'/?product=101',{timeout:30000});
+    const html=await listing.text();
+    const current=html.match(/product-safety-document\.php\?id=([1-9][0-9]*)/);
+    report('public product has reviewed SDS download reference',!!current);
+    const response=await context.request.get(root+'/product-safety-document.php?id='+(current?.[1]||'0'),{timeout:30000});
     report('SDS PDF link returns 200',response.ok(),'HTTP '+response.status());
     const bytes=await response.body();
     const headers=response.headers();
-    report('SDS remains an unverified draft',headers['x-ankh-document-status']==='unverified-draft-not-approved-sds');
+    report('SDS records ANKH owner review',headers['x-ankh-document-status']==='reviewed-sds');
     report('SDS response is a PDF',headers['content-type']?.includes('application/pdf')&&bytes.subarray(0,5).toString()==='%PDF-');
     await context.close();
   } finally {await browser.close();}
