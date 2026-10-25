@@ -191,6 +191,12 @@ document.querySelectorAll('[data-cart-id]').forEach(button=>button.addEventListe
 }));
 const openBasket=()=>{
   draw();closePeek();if(!dialog.open)dialog.showModal();
+  // Hide product rail before the next animation frame.
+  document.querySelectorAll('[data-product-sticky-action]').forEach(bar=>{
+    bar.classList.remove('is-visible');
+    bar.inert=true;
+    bar.setAttribute('aria-hidden','true');
+  });
 };
 document.querySelectorAll('[data-open-cart]').forEach(button=>button.addEventListener('click',openBasket));
 document.querySelectorAll('[data-cart-peek-dismiss]').forEach(button=>button.addEventListener('click',closePeek));
