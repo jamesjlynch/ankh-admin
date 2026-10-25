@@ -6,7 +6,7 @@ declare(strict_types=1);
  * come from Admin. Drafts are never public until deliberately published.
  */
 function ankhStaffLoginDestination(array $query):string {
-    $panels=['products','certificates','commerce','requests','availability','contact'];
+    $panels=['products','documents','certificates','commerce','requests','availability','contact'];
     if(($query['manage']??'')==='portal'){
         $panel=is_string($query['panel']??null)&&in_array($query['panel'],$panels,true)?$query['panel']:'products';
         $params=['manage'=>'portal','panel'=>$panel];
@@ -28,6 +28,7 @@ function ankhCmsIcon(string $key):string {
     $paths=match($key){
       'products'=>'<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
       'certificates'=>'<path d="M6 3h9l3 3v15H6zM14 3v5h4M9 12h6M9 16h4"/>',
+      'documents'=>'<path d="M4 3h11l5 5v13H4zM14 3v6h6M7 13h10M7 17h7"/>',
       'commerce'=>'<path d="M3 10h18M5 10v11h14V10M3 10l2-7h14l2 7M9 21v-7h6v7"/>',
       'requests'=>'<path d="M4 4h16v12H9l-5 5zM8 8h8M8 12h5"/>',
       'availability'=>'<path d="M3 12s3-7 9-7 9 7 9 7-3 7-9 7-9-7-9-7z"/><circle cx="12" cy="12" r="3"/>',
@@ -37,7 +38,7 @@ function ankhCmsIcon(string $key):string {
 }
 function ankhStaffNavigation(string $active,string $csrf):void {
     $esc=static fn(string $v):string=>htmlspecialchars($v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
-    $items=['products'=>['Product CMS','Content & certificates'],
+    $items=['products'=>['Product CMS','Descriptions & images'],'documents'=>['Document Control','Safety sheets & COAs'],
         'commerce'=>['Storefront settings','Business & basket settings'],'requests'=>['Customer requests','Review requests'],
         'availability'=>['Availability','Public stock labels'],'contact'=>['WhatsApp','Contact settings'],
         'preview'=>['Customer preview','View customer accounts']];
@@ -232,7 +233,7 @@ function ankhCmsEditor(PDO $store,PDO $admin,string $csrf):void{
          ?>
          <div class="ankh-cms-heading"><div><span class="pc-eyebrow">PRODUCT / #<?=str_pad((string)$selectedId,3,'0',STR_PAD_LEFT)?></span><h3><?=$esc($selected['name'])?></h3></div>
            <span class="ankh-cms-status <?=$isVisible?'visible':'hidden'?>"><?=$isVisible?'● Visible on storefront':'○ Hidden in Order Admin'?></span></div>
-         <div class="cms-product-shortcuts"><a href="#ankh-certificates">Certificates &amp; documents ↓</a><a href="#ankh-sds">Safety Data Sheets ↓</a><?php if($isVisible):?><a href="./?product=<?=$selectedId?>&amp;staff_sds_preview=1" target="_blank" rel="noopener noreferrer">Preview SDS on storefront ↗</a><?php endif;?></div>
+         <div class="cms-product-shortcuts"><a href="./preview-live.php?manage=portal&amp;panel=documents">Document Control ↗</a><a href="#ankh-certificates">Certificates &amp; documents ↓</a><a href="#ankh-sds">Safety Data Sheets ↓</a><?php if($isVisible):?><a href="./?product=<?=$selectedId?>&amp;staff_sds_preview=1" target="_blank" rel="noopener noreferrer">Preview SDS on storefront ↗</a><?php endif;?></div>
          <div class="cms-editor-meta"><span><i class="cms-status-dot"></i><?=$draft?'Saved draft':'Existing website content'?><?php if($draft):?> · <?=gmdate('d M Y, H:i',(int)$draft['updated_at'])?> UTC<?php endif;?></span><?php if($isVisible):?><a href="./?product=<?=$selectedId?>" target="_blank" rel="noopener">View live page ↗</a><?php endif;?></div>
          <div class="cms-content-tabs"><a class="<?=$editingLive?'':'selected'?>" href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=$selectedId?>">Edit draft</a><a class="<?=$editingLive?'selected':''?>" href="./preview-live.php?manage=portal&amp;panel=products&amp;cms_product_id=<?=$selectedId?>&amp;source=live">Load live text</a></div>
          <?php if($editingLive):?><p class="cms-editor-note">The current website description and product information are loaded below. Your saved draft stays unchanged until you click Save draft.</p><?php endif;?>
