@@ -26,7 +26,37 @@ function portalFridgeInit(PDO $db):void {
       updated_at INTEGER NOT NULL,
       UNIQUE(customer_id,preview,source_order_id,source_line_index)
     );
-    CREATE INDEX IF NOT EXISTS portal_fridge_owner ON portal_fridge_items(customer_id,preview,archived,updated_at);");
+    CREATE INDEX IF NOT EXISTS portal_fridge_owner ON portal_fridge_items(customer_id,preview,archived,updated_at);
+    CREATE TABLE IF NOT EXISTS portal_fridge_activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      customer_id INTEGER NOT NULL,
+      preview INTEGER NOT NULL CHECK(preview IN (0,1)),
+      item_id INTEGER NOT NULL,
+      product_name TEXT NOT NULL,
+      event TEXT NOT NULL CHECK(event IN ('added','updated','archived','restored')),
+      remaining_milli INTEGER NOT NULL,
+      rate_milli INTEGER NOT NULL,
+      rate_period TEXT NOT NULL,
+      unit TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS portal_fridge_activity_owner ON portal_fridge_activity(customer_id,preview,id);");
+}
+function portalFridgeRecordActivity(PDO $db,int $customerId,bool $preview,int $id,array $row,string $event):void {
+    $db->prepare('INSERT INTO portal_fridge_activity(customer_id,preview,item_id,product_name,event,remaining_milli,rate_milli,rate_period,unit,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?)')->execute([
+      $customerId,(int)$preview,$id,(string)$row['product_name'],$event,
+      max(0,(int)$row['remaining_milli']),max(0,(int)$row['rate_milli']),
+      (string)$row['rate_period'],(string)$row['unit'],time()
+    ]);
+}
+function portalFridgeHistory(PDO $db,int $customerId,bool $preview,int $limit=18):array {
+    portalFridgeInit($db);
+    $limit=max(1,min(80,$limit));
+    $q=$db->prepare('SELECT item_id,product_name,event,remaining_milli,rate_milli,rate_period,unit,created_at
+      FROM portal_fridge_activity WHERE customer_id=? AND preview=? ORDER BY id DESC LIMIT '.$limit);
+    $q->execute([$customerId,(int)$preview]);
+    return $q->fetchAll(PDO::FETCH_ASSOC);
 }
 function portalFridgeDate():string {
     return (new DateTimeImmutable('now',new DateTimeZone('Europe/London')))->format('Y-m-d');
@@ -134,6 +164,8 @@ function portalFridgeAdd(PDO $db,int $customerId,bool $preview,array $orders,int
           unit=?,unit_amount_milli=?,remaining_milli=?,rate_milli=0,rate_period='none',as_of_date=?,updated_at=?
           WHERE id=? AND customer_id=? AND preview=?")
           ->execute([(string)$chosen['name'],(string)($chosen['presentation']??''),$units,$measure['unit'],$total,$total,$date,$now,(int)$existing['id'],$customerId,(int)$preview]);
+        $restored=portalFridgeOwned($db,$customerId,$preview,(int)$existing['id']);
+        portalFridgeRecordActivity($db,$customerId,$preview,(int)$existing['id'],$restored,'restored');
         return (int)$existing['id'];
     }
     $db->prepare("INSERT INTO portal_fridge_items(customer_id,preview,source_order_id,source_line_index,product_name,
@@ -141,7 +173,10 @@ function portalFridgeAdd(PDO $db,int $customerId,bool $preview,array $orders,int
        VALUES(?,?,?,?,?,?,?,?,?,?,0,'none',?,?,?)")->execute([
         $customerId,(int)$preview,$orderId,$lineIndex,(string)$chosen['name'],(string)($chosen['presentation']??''),
         $units,$measure['unit'],$total,$total,$date,$now,$now]);
-    return (int)$db->lastInsertId();
+    $id=(int)$db->lastInsertId();
+    $added=portalFridgeOwned($db,$customerId,$preview,$id);
+    portalFridgeRecordActivity($db,$customerId,$preview,$id,$added,'added');
+    return $id;
 }
 function portalFridgeUpdate(PDO $db,int $customerId,bool $preview,int $id,mixed $remaining,mixed $rate,mixed $period):void {
     portalFridgeInit($db);
@@ -154,11 +189,14 @@ function portalFridgeUpdate(PDO $db,int $customerId,bool $preview,int $id,mixed 
     if($balance>999999999||$rateMilli>999999999)throw new InvalidArgumentException('Please enter a smaller quantity.');
     $db->prepare('UPDATE portal_fridge_items SET remaining_milli=?,rate_milli=?,rate_period=?,as_of_date=?,updated_at=? WHERE id=? AND customer_id=? AND preview=? AND archived=0')
       ->execute([$balance,$rateMilli,$period,portalFridgeDate(),time(),$id,$customerId,(int)$preview]);
+    $after=portalFridgeOwned($db,$customerId,$preview,$id);
+    portalFridgeRecordActivity($db,$customerId,$preview,$id,$after,'updated');
 }
 function portalFridgeArchive(PDO $db,int $customerId,bool $preview,int $id):void {
-    portalFridgeOwned($db,$customerId,$preview,$id);
+    $before=portalFridgeOwned($db,$customerId,$preview,$id);
     $db->prepare('UPDATE portal_fridge_items SET archived=1,updated_at=? WHERE id=? AND customer_id=? AND preview=?')
       ->execute([time(),$id,$customerId,(int)$preview]);
+    portalFridgeRecordActivity($db,$customerId,$preview,$id,$before,'archived');
 }
 function portalFridgeController(PDO $store,array $customer,array $orders,bool $preview):void {
     if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST'||!in_array($_POST['action']??null,['fridge_add','fridge_update','fridge_archive'],true))return;
