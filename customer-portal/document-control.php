@@ -25,8 +25,10 @@ function ankhDocumentControlRows(PDO $store,PDO $admin):array {
         $q->execute([$table]);return (bool)$q->fetchColumn();
     };
     if($hasTable($store,'portal_product_sds')){
-        $draftColumn=function_exists('ankhSdsHasPublicDraftColumn')&&ankhSdsHasPublicDraftColumn($store)
-            ?'public_draft':'0 AS public_draft';
+        // Inspect the storage schema directly: avoids coupling this read-only
+        // overview to the SDS editor's optional helper inclusion order.
+        $sdsColumns=array_column($store->query("PRAGMA table_info(portal_product_sds)")->fetchAll(PDO::FETCH_ASSOC),'name');
+        $draftColumn=in_array('public_draft',$sdsColumns,true)?'public_draft':'0 AS public_draft';
         $query=$store->query("SELECT id,product_id,published,reviewed_at,created_at,$draftColumn
             FROM portal_product_sds ORDER BY id DESC");
         foreach($query as $doc){
