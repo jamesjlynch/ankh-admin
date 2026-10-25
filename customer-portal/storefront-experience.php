@@ -276,7 +276,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
  <div class="sf-doc-viewer-head"><div><span class="sf-kicker">ANKH / DOCUMENT CENTRE</span><h2 id="sf-doc-viewer-title">Product document</h2><p id="sf-doc-viewer-status">View the original PDF and its recorded status.</p></div><button type="button" data-doc-close aria-label="Close document viewer">×</button></div>
  <p class="sf-doc-viewer-warning" id="sf-doc-viewer-warning" role="note" hidden>Unverified draft reference only. This PDF has not been technically approved as a Safety Data Sheet; hazards, identity and handling information have not been independently verified. Do not rely on it for safe handling.</p>
  <div class="sf-doc-viewer-frame"><iframe id="sf-doc-viewer-frame" title="ANKH product document PDF preview" loading="lazy" referrerpolicy="no-referrer"></iframe><p>Can't see the PDF on your device? Open it in your browser using the action below.</p></div>
- <div class="sf-doc-viewer-actions"><a id="sf-doc-viewer-open" href="./" target="_blank" rel="noopener noreferrer">Open full PDF ↗</a><button type="button" id="sf-doc-viewer-share">Share / copy link ↗</button><button type="button" data-doc-close>Close</button></div>
+ <div class="sf-doc-viewer-actions"><a id="sf-doc-viewer-open" href="./" target="_blank" rel="noopener noreferrer">Open full PDF ↗</a><a id="sf-doc-viewer-download" href="./" download="ankh-product-document.pdf">Download PDF ↓</a><button type="button" id="sf-doc-viewer-share">Share / copy link ↗</button><button type="button" data-doc-close>Close</button></div>
 </dialog>
 <?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
