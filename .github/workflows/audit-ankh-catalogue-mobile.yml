@@ -6,6 +6,10 @@ on:
     paths:
       - tests/ankh-live-mobile-product-qa.cjs
       - tests/ankh-live-account-mobile-qa.cjs
+      - tests/ankh-order-match-mobile-qa.cjs
+      - tests/customer-request-order-link.php
+      - customer-portal/request-order-match.css
+      - customer-portal/request-order-match-view.php
       - .github/workflows/audit-ankh-catalogue-mobile.yml
   workflow_dispatch:
 permissions:
@@ -31,6 +35,23 @@ jobs:
         run: |
           set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/ankh-mobile-audit/node_modules" node tests/ankh-live-mobile-product-qa.cjs
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite
+      - name: Render safe fictional staff matching fixture
+        env:
+          ANKH_MATCH_RENDER_FILE: ${{ runner.temp }}/ankh-staff-match-fictional.html
+        run: |
+          set -euo pipefail
+          php tests/customer-request-order-link.php
+      - name: Audit responsive staff order matching and confirmations
+        env:
+          ANKH_MATCH_RENDER_FILE: ${{ runner.temp }}/ankh-staff-match-fictional.html
+          ANKH_QA_SCREENSHOTS: ankh-mobile-qa-screenshots
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/ankh-mobile-audit/node_modules" node tests/ankh-order-match-mobile-qa.cjs
       - name: Audit fictional mobile customer account, requests and orders
         env:
           ANKH_LIVE_CATALOGUE: https://order.ankhpeptides.com
