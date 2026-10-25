@@ -164,6 +164,7 @@ if($customer && $account && ($_GET['download']??'')==='statement') {
     require_once __DIR__.'/statement.php';
     portalStatementDownload($orders,$customer);
 }
+if($customer && $account)ankhGuestTrackingController($portal,$customer,$account,false);
 if($customer && $account)portalOrderRequestController($portal,$admin,$customer,$account,$orders,false);
 if($customer && $account)portalNotificationController($portal,$admin,$customer,$account,$orders,false);
 if($customer && $account)portalExtrasController($portal,$admin,$customer,$account,$orders,false);
