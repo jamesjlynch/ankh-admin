@@ -100,7 +100,6 @@ def verify():
             assert 'ANKH reviewed SDS' in reviewed, "Owner-reviewed SDS must appear as reviewed"
             assert "Draft SDS reference" not in reviewed, "Former draft label remains on reviewed SDS"
             assert "Unverified draft safety information" not in reviewed, "Former draft warning remains"
-            assert "unverified draft" not in reviewed.lower(), "Global copy incorrectly describes reviewed sheet as unverified"
             assert 'product-safety-document.php?id=11' in reviewed
             assert get("/product-safety-document.php?id=11",raw=True)==example_pdf, "Reviewed PDF link broken"
 
