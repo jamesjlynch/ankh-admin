@@ -20,6 +20,10 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
 <?php else:
  $pvId=(int)$productV2['id'];
  $pvName=(string)$productV2['name'];
+ $pvVisibility=ankhCatalogueVisibility($db);
+ $pvWebsiteVisible=(int)($pvVisibility[(int)$productV2['id']]??0)===1 && (int)($productV2['active']??0)===1;
+ $pvCategories=ankhProductCategories($db);
+ $pvCategory=(string)($pvCategories[(int)$productV2['id']]['name']??'No category assigned');
  $pvCatalogue=ankhCatalogueContent($db);
  $pvContent=$pvCatalogue[$pvId]??[];
  $pvHasImage=(int)($pvContent['image_bytes']??0)>0;
@@ -86,6 +90,14 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
    </div>
    <p class="product-v2-price-note">Indicative margin is retail minus recorded product cost, before delivery, fees and other expenses. Existing orders retain their saved prices.</p>
    <div class="product-v2-hero-actions">
+    <form method="post" class="ankh-v2-publish-control" style="display:flex;flex-wrap:wrap;align-items:center;gap:9px;width:100%"><?php csrf(); ?>
+     <input type="hidden" name="action" value="product_catalogue_visibility"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=$pvId?>">
+     <input type="hidden" name="catalogue_visible" value="<?=$pvWebsiteVisible?'0':'1'?>">
+     <button type="submit" class="product-v2-secondary-action" style="min-height:46px;width:auto" <?=$pvActive?'':'disabled title="Activate the product before publishing"'?>>
+       <?=$pvWebsiteVisible?'Hide from customer website':'Show on customer website'?>
+     </button>
+     <span class="muted" style="font-size:11px"><?=$pvWebsiteVisible?'Visible on the customer catalogue':'Not visible on the customer catalogue'?> · <?=e($pvCategory)?></span>
+    </form>
     <a class="product-v2-primary-action" href="?view=new">Create order <span aria-hidden="true">↗</span></a>
     <a class="product-v2-secondary-action" href="?view=stock">Open stock control <span aria-hidden="true">›</span></a>
    </div>
