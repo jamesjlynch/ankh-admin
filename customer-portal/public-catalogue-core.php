@@ -71,7 +71,15 @@ function ankhPublicCatalogueProducts(PDO $db):array {
         ' WHERE p.active=1
           ORDER BY p.name COLLATE NOCASE';
     $rows=$db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    // Only display categories assigned in Order Admin. Legacy products retain
+    // their existing research-type grouping; no new eligibility is implied.
+    $categoryMap=[];
+    if(isset($tables['catalogue_categories'],$tables['catalogue_product_categories'])){
+        foreach($db->query('SELECT m.product_id,c.name FROM catalogue_product_categories m JOIN catalogue_categories c ON c.id=m.category_id') as $categoryRow)
+            $categoryMap[(int)$categoryRow['product_id']]=(string)$categoryRow['name'];
+    }
     foreach ($rows as &$row) {
+        $row['category']=$categoryMap[(int)$row['id']]??'';
         $row['description']=(string)($row['description']??'');
         $row['information']=$hasInfo?json_decode((string)($row['information']??''),true):[];
         if (!is_array($row['information'])) $row['information']=[];
