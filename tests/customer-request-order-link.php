@@ -10,13 +10,13 @@ $store->exec("CREATE TABLE storefront_guest_requests(
  id INTEGER PRIMARY KEY,placed_at INTEGER,name TEXT,email TEXT,phone TEXT,address TEXT,
  note TEXT,lines_json TEXT,subtotal INTEGER,status TEXT);
  INSERT INTO storefront_guest_requests VALUES
- (10,1720000000,'Valid Person','private@example.test','07700900123','Private residence','',
+ (10,1792756800,'Valid Person','private@example.test','07700900123','Private residence','',
  '[{\"id\":8,\"name\":\"Accessory case\",\"quantity\":1,\"unit_price\":1900}]',1900,'Pending staff review'),
- (20,1720000000,'Other Person','other@example.test','07700900456','Other residence','',
+ (20,1792756800,'Other Person','other@example.test','07700900456','Other residence','',
  '[]',0,'Reviewed — create in Admin manually'),
- (30,1720000000,'Valid Person','private@example.test','07700900123','Private residence','',
+ (30,1792756800,'Valid Person','private@example.test','07700900123','Private residence','',
  '[{\"id\":9,\"name\":\"Retatrutide 10mg\",\"quantity\":1,\"unit_price\":6500}]',6500,'Reviewed — create in Admin manually'),
- (40,1720000000,'Valid Person','private@example.test','07700900123','Private residence','',
+ (40,1792756800,'Valid Person','private@example.test','07700900123','Private residence','',
  '[{\"id\":8,\"name\":\"Accessory case\",\"quantity\":1,\"unit_price\":1900}]',1900,'Reviewed — create in Admin manually');");
 $admin->exec("CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTEGER,price INTEGER);
  INSERT INTO products VALUES (8,'Accessory case',1,1900),(9,'Retatrutide 10mg',1,6500);
@@ -40,8 +40,8 @@ $admin->exec("CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTE
  CREATE TABLE payments(id INTEGER PRIMARY KEY,order_id INTEGER,amount INTEGER,created TEXT,method TEXT);");
 sfCommerceInit($store);
  $store->exec("INSERT INTO storefront_checkout_eligibility(product_id,approved,reviewer,review_note,updated_at)
- VALUES(8,1,'Research admin','Approved non-medical research accessory',1720000000),
-       (9,1,'Research admin','Synthetic compound should not become an accessory',1720000000)");
+ VALUES(8,1,'Research admin','Approved non-medical research accessory',1792756800),
+       (9,1,'Research admin','Synthetic compound should not become an accessory',1792756800)");
 ankhGuestTrackingInit($store);
 ankhGuestOrderLinkInit($store);
 $code=ankhGuestTrackingIssue($store,10);
