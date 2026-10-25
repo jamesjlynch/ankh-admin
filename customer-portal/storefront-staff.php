@@ -19,6 +19,13 @@ function sfStaffController(PDO $portal,PDO $admin):void {
             case 'sf_guest_link_order':
                 $requestId=filter_var($_POST['request_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
                 $orderId=filter_var($_POST['order_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
+                if(($_POST['confirm_link']??'')!=='yes')
+                    throw new InvalidArgumentException('Confirm that you checked the existing Order Admin record.');
+                $match=ankhRequestMatchValidate($portal,$admin,$requestId,$orderId);
+                $expected=ankhRequestMatchToken($match,(string)($_SESSION['portal_csrf']??''),$requestId);
+                $supplied=$_POST['match_proof']??null;
+                if(!is_string($supplied)||!hash_equals($expected,$supplied))
+                    throw new InvalidArgumentException('The suggested order has changed. Refresh the request and confirm the latest details.');
                 ankhGuestOrderLink($portal,$admin,$requestId,$orderId,(string)($_POST['reviewer']??''));
                 $_SESSION['portal_staff_flash']='Reviewed request linked to an existing Order Admin order. No stock, order or delivery details were modified.';
                 break;
@@ -118,11 +125,7 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
             <button name="decision" value="Reviewed — create in Admin manually">Mark reviewed</button><button name="decision" value="Declined">Decline</button></form><?php endif;?>
           <?php if($r['status']!=='Pending staff review' && $r['status']!=='Declined'):?>
             <?php if(!empty($r['linked_order_id'])):?><p class="pc-sf-linked-order"><strong>Linked to Order Admin #<?=(int)$r['linked_order_id']?></strong>. The customer sees progress after secure receipt claiming and account verification.</p>
-            <?php else:?><form method="post" class="pc-sf-link-order"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_guest_link_order"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>">
-             <p class="pc-footnote">Only link an order after it exists in Order Admin. The recorded order and request phone numbers must match. Claimed receipts also require verified customer ownership.</p>
-             <label>Existing Order Admin number<input type="number" name="order_id" min="1" step="1" required placeholder="e.g. 105"></label>
-             <label>Confirmed by<input name="reviewer" maxlength="120" required placeholder="Staff name"></label>
-             <button type="submit">Link existing Admin order</button></form><?php endif;?>
+            <?php else:?><?php sfGuestMatchPanel($portal,$admin,$r,$csrf);?><?php endif;?>
           <?php endif;?>
         </details><?php endforeach;?></div>
       </div><?php endif;?>
