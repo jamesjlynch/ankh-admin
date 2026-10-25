@@ -63,6 +63,25 @@ verifyLink($throws(static fn()=>ankhRequestMatchValidate($store,$admin,10,90)),'
 verifyLink($throws(static fn()=>ankhRequestMatchSuggestions($store,$admin,30)),'Research compound must never generate a transactional order suggestion');
 $token=ankhRequestMatchToken($before[0],str_repeat('f',32),10);
 verifyLink(strlen($token)===64&&$token!==ankhRequestMatchToken($before[1],str_repeat('f',32),10),'Suggested proof must bind to exact Admin order evidence');
+$renderCss=file_get_contents(dirname(__DIR__).'/customer-portal/request-order-match.css');
+ob_start();sfGuestMatchPanel($store,$admin,['id'=>10],str_repeat('f',32));
+$rendered=(string)ob_get_clean();
+verifyLink(substr_count($rendered,'class="pc-request-match-card"')===2,'Suggested matches must render exactly two confirmation cards');
+verifyLink(substr_count($rendered,'name="match_proof"')===2 && substr_count($rendered,'name="confirm_link"')===2,
+ 'Both candidates must have signed proofs and required explicit confirmation checkboxes');
+verifyLink(str_contains($rendered,'Quantities differ')&&str_contains($rendered,'Verify order number'),
+ 'UI must warn on quantity differences and offer verified manual lookup');
+verifyLink(!str_contains($rendered,'other@example.test'),'Another customer email leaked into matching cards');
+$fixturePath=getenv('ANKH_MATCH_RENDER_FILE');
+if(is_string($fixturePath)&&$fixturePath!==''){
+    $html='<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ANKH fictional staff matching audit</title><style>body{margin:0;padding:20px;background:#131912;color:#f0e0c3;font-family:system-ui}main{max-width:1100px;margin:auto}.pc-footnote{font-size:11px;color:#b5bbaf}a{color:#edd1a0}input,button{font:inherit}</style><style>'.$renderCss.'</style></head><body><main>'.$rendered.'</main></body></html>';
+    if(file_put_contents($fixturePath,$html)===false)throw new RuntimeException('Could not render fictional staff fixture');
+}
+$admin->exec("UPDATE orders SET status='Packed' WHERE id=70");
+$changed=ankhRequestMatchValidate($store,$admin,10,70);
+verifyLink(!hash_equals($token,ankhRequestMatchToken($changed,str_repeat('f',32),10)),
+ 'Order Admin status changes must invalidate an earlier staff confirmation proof');
+$admin->exec("UPDATE orders SET status='New' WHERE id=70");
 verifyLink($throws(static fn()=>ankhRequestMatchToken($before[0],'short',10)),'Missing CSRF secret must block link proof');
 ankhGuestOrderLink($store,$admin,10,70,'Tester');
 ankhGuestOrderLink($store,$admin,10,70,'Tester');
