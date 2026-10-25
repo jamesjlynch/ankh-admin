@@ -1,0 +1,4 @@
+Reviewed SDS release — 25 October 2026
+The fourteen ANKH customer SDSs were confirmed as reviewed by the business owner.
+Final published PDF copies use hash-checked private file storage, original versions retained in SQLite.
+No independent laboratory certification is implied. Existing product visibility and prices are unchanged.
