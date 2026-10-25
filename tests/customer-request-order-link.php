@@ -15,9 +15,9 @@ $store->exec("CREATE TABLE storefront_guest_requests(
  (20,1720000000,'Other Person','other@example.test','07700900456','Other residence','',
  '[]',0,'Reviewed — create in Admin manually'),
  (30,1720000000,'Valid Person','private@example.test','07700900123','Private residence','',
- '[{"id":9,"name":"Retatrutide 10mg","quantity":1,"unit_price":6500}]',6500,'Reviewed — create in Admin manually'),
+ '[{\"id\":9,\"name\":\"Retatrutide 10mg\",\"quantity\":1,\"unit_price\":6500}]',6500,'Reviewed — create in Admin manually'),
  (40,1720000000,'Valid Person','private@example.test','07700900123','Private residence','',
- '[{"id":8,"name":"Accessory case","quantity":1,"unit_price":1900}]',1900,'Reviewed — create in Admin manually');");
+ '[{\"id\":8,\"name\":\"Accessory case\",\"quantity\":1,\"unit_price\":1900}]',1900,'Reviewed — create in Admin manually');");
 $admin->exec("CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTEGER,price INTEGER);
  INSERT INTO products VALUES (8,'Accessory case',1,1900),(9,'Retatrutide 10mg',1,6500);
  CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER);
