@@ -32,6 +32,14 @@ function sfCommerceInit(PDO $db):void {
  * Never exports stock, cost, family/friends rates or private customer data.
  * Research-compound values are clearly labelled as demo previews in the UI.
  */
+function sfLabSourcingPending(PDO $admin):array {
+    $exists=$admin->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lab_accessory_sourcing'")->fetchColumn();
+    if(!$exists)return [];
+    $out=[];
+    foreach($admin->query("SELECT product_id FROM lab_accessory_sourcing WHERE price_status IN ('reference_unconfirmed','needs_amazon_price')") as $row)
+        $out[(int)$row['product_id']]=true;
+    return $out;
+}
 function sfRetailPreviewPrices(PDO $admin,array $published):array {
     $ids=[];
     foreach($published as $p){
@@ -44,7 +52,9 @@ function sfRetailPreviewPrices(PDO $admin,array $published):array {
       WHERE p.active=1 AND p.id IN ($placeholders)");
     $query->execute(array_keys($ids));
     $prices=[];
+    $pending=sfLabSourcingPending($admin);
     foreach($query as $row){
+        if(isset($pending[(int)$row['id']]))continue;
         $price=filter_var($row['price'],FILTER_VALIDATE_INT);
         if($price!==false && $price>0 && $price<=100000000)$prices[(int)$row['id']]=$price;
     }
@@ -61,8 +71,10 @@ function sfCommerceEligible(PDO $portal,PDO $admin):array {
     $hasVis=$admin->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='customer_catalogue_visibility'")->fetchColumn();
     if(!$hasVis)return [];
     $result=[];
+    $pending=sfLabSourcingPending($admin);
     $stmt=$admin->prepare("SELECT p.id,p.name,p.price FROM products p JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 WHERE p.id=? AND p.active=1");
     foreach($ids as $id){
+        if(isset($pending[$id]))continue;
         $stmt->execute([$id]);$p=$stmt->fetch(PDO::FETCH_ASSOC);
         if(!$p||!function_exists('ankhPublicType')||ankhPublicType((string)$p['name'])!=='Research accessory')continue;
         $price=(int)$p['price'];
@@ -96,6 +108,7 @@ function sfCommerceSaveEligibility(PDO $db,PDO $admin,int $id,string $decision,s
     $p=$q->fetch(PDO::FETCH_ASSOC);
     if(!$p)throw new InvalidArgumentException('Product no longer exists.');
     if($decision==='enable'){
+        if(isset(sfLabSourcingPending($admin)[$id]))throw new InvalidArgumentException('Verify the supplier, final selling price and stock before accepting orders for this draft accessory.');
         if((int)$p['active']!==1 || !function_exists('ankhPublicType') || ankhPublicType((string)$p['name'])!=='Research accessory')
             throw new InvalidArgumentException('Online checkout is currently limited to approved non-medicinal accessories.');
         if(strlen(trim($reviewer))<3||strlen(trim($reviewer))>120||strlen(trim($basis))<80||strlen(trim($basis))>2000)
