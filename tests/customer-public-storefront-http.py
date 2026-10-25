@@ -102,6 +102,22 @@ def verify():
             assert "Unverified draft safety information" not in reviewed, "Former draft warning remains"
             assert 'product-safety-document.php?id=11' in reviewed
             assert get("/product-safety-document.php?id=11",raw=True)==example_pdf, "Reviewed PDF link broken"
+            # New private-file revisions keep the original BLOB archived and
+            # serve only a hash-checked, non-public approved PDF file.
+            approved_pdf=example_pdf[:-6]+b" " * 20000+b"\n%%EOF\n"
+            approved_hash=hashlib.sha256(approved_pdf).hexdigest()
+            approved_name="ANKH-SDS-Test-"+approved_hash[:12]+".pdf"
+            private_vault=work/"approved-sds"
+            private_vault.mkdir(mode=0o700)
+            (private_vault/approved_name).write_bytes(approved_pdf)
+            with sqlite3.connect(portal) as db:
+                db.execute("ALTER TABLE portal_product_sds ADD COLUMN approved_pdf_file TEXT NOT NULL DEFAULT ''")
+                db.execute("UPDATE portal_product_sds SET approved_pdf_file=?,pdf_bytes=X'',pdf_sha256=? WHERE id=11",
+                           (approved_name,approved_hash))
+            assert get("/product-safety-document.php?id=11",raw=True)==approved_pdf, "Reviewed private-file PDF not served"
+            with sqlite3.connect(portal) as db:
+                db.execute("UPDATE portal_product_sds SET approved_pdf_file='',pdf_bytes=?,pdf_sha256=? WHERE id=11",
+                           (example_pdf,hashlib.sha256(example_pdf).hexdigest()))
             with sqlite3.connect(portal) as db:
                 db.execute("UPDATE portal_product_sds SET published=0,public_draft=1,reviewed_at=0 WHERE id=11")
 
