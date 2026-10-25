@@ -59,4 +59,7 @@ fcheck(count(portalFridgeItems($db,8,false))===1,'Archiving one customer removed
 $restored=portalFridgeAdd($db,7,false,$orders,21,0);
 fcheck($restored===$id && (int)portalFridgeOwned($db,7,false,$id)['remaining_milli']===10000,'Restoring archived order line failed');
 fcheck(count(portalFridgeCandidates($orders,portalFridgeItems($db,7,false)))===1,'Already imported source shown again');
+fcheck(count(portalFridgeHistory($db,7,false))===4,'Own inventory history should include add, edit, archive and restore');
+fcheck(count(portalFridgeHistory($db,8,false))===1,'Other customer history must be isolated');
+fcheck(count(portalFridgeHistory($db,7,true))===2,'Staff preview history must not show live records');
 echo "My Fridge: order eligibility, quantities, forecasts, decimals, customer isolation, staff isolation and archiving passed.\n";
