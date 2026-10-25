@@ -16,7 +16,7 @@ jobs:
         env:
           KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
           KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
-          KRYSTAL_SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_PRIVATE_KEY }}
+          KRYSTAL_SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
         run: |
           set -Eeuo pipefail
           mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
