@@ -64,7 +64,7 @@ if((int)$latest['published']===1&&(int)$latest['reviewed_at']>0 && hash_equals((
 if((int)$latest['id']!==$oldId||(int)$old['public_draft']!==1)
  throw new RuntimeException('Unexpected SDS release state');
 $reviewNote='ANKH catalogue owner confirmed review and approval of these SDSs on 25 October 2026. This revision removes legacy draft markings without changing the technical content. No independent certification or laboratory verification is implied. Original PDF remains archived privately.';
-$db->exec('BEGIN IMMEDIATE');
+if(!$db->beginTransaction())throw new RuntimeException('Could not start SDS revision transaction');
 try {
  $archive=$db->prepare('UPDATE portal_product_sds SET public_draft=0,published=0 WHERE id=? AND product_id=? AND public_draft=1 AND published=0');
  $archive->execute([$oldId,$productId]);
