@@ -9,10 +9,22 @@ if(!empty($isDemo)):?>
 </section>
 <?php return; endif;
 if(empty($portal)){http_response_code(503);return;}
-$fridgeDataError=false;$fridgeItems=[];$fridgeCandidates=[];
+$fridgeDataError=false;$fridgeItems=[];$fridgeCandidates=[];$fridgeHistory=[];$fridgePhotos=[];
 try{
     $fridgeItems=portalFridgeItems($portal,$customerId,$staff);
     $fridgeCandidates=portalFridgeCandidates($orders,$fridgeItems);
+    $fridgeHistory=portalFridgeHistory($portal,$customerId,$staff);
+    $fridgePhotoMatches=[];
+    foreach(ankhCatalogueProducts($admin,$customerId) as $photoProduct){
+      if(empty($photoProduct['has_photo']))continue;
+      $key=mb_strtolower(trim((string)$photoProduct['name']),'UTF-8');
+      $fridgePhotoMatches[$key]??=[];
+      $fridgePhotoMatches[$key][]=(int)$photoProduct['id'];
+    }
+    foreach($fridgeItems as $entry){
+      $key=mb_strtolower(trim((string)$entry['product_name']),'UTF-8');
+      if(count($fridgePhotoMatches[$key]??[])===1)$fridgePhotos[(int)$entry['id']]=$fridgePhotoMatches[$key][0];
+    }
 }catch(Throwable $e){error_log('ANKH fridge view: '.$e->getMessage());$fridgeDataError=true;}
 $flash=(string)($_SESSION['fridge_flash']??'');unset($_SESSION['fridge_flash']);
 $unitsInFridge=array_sum(array_map(static fn(array $item):int=>(int)$item['units_received'],$fridgeItems));
@@ -47,7 +59,8 @@ $fridgeMethod='All dates are estimates based on the amount you enter and the dai
     $class=$hasRate&&$daysLeft!==null&&$daysLeft<=7?'pc-fridge-soon':($hasRate&&$daysLeft!==null&&$daysLeft<=21?'pc-fridge-watch':'');
     ?>
     <article class="pc-fridge-card <?=$class?>">
-      <header><div class="pc-fridge-mark" aria-hidden="true">☥</div><div><small class="pc-eyebrow"><?=portalEscape((string)$entry['presentation']?:'SAVED INVENTORY')?></small><h3><?=portalEscape((string)$entry['product_name'])?></h3><small>From order <?=portalEscape('ANK-'.str_pad((string)$entry['source_order_id'],4,'0',STR_PAD_LEFT))?> · <?=$entry['units_received']?> item<?=$entry['units_received']===1?'':'s'?> received</small></div></header>
+      <header><div class="pc-fridge-mark" aria-hidden="true"><?php if(isset($fridgePhotos[(int)$entry['id']])):?><img src="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['catalogue_image'=>$fridgePhotos[(int)$entry['id']]]))?>" width="78" height="78" loading="lazy" alt=""><?php else:?>☥<?php endif;?></div><div><small class="pc-eyebrow"><?=portalEscape((string)$entry['presentation']?:'SAVED INVENTORY')?></small><h3><?=portalEscape((string)$entry['product_name'])?></h3><small>From order <?=portalEscape('ANK-'.str_pad((string)$entry['source_order_id'],4,'0',STR_PAD_LEFT))?> · <?=$entry['units_received']?> item<?=$entry['units_received']===1?'':'s'?> received</small></div></header>
+      <p class="pc-fridge-last-update">Last stock entry: <?=portalEscape(portalDate(date('c',(int)$entry['updated_at'])))?> · Based on your own recorded figures</p>
       <div class="pc-fridge-level"><div><span><?= $projection['estimated']?'Estimated remaining':'Last recorded remaining' ?></span><strong><?=$remaining?> <small><?=portalEscape($unit)?></small></strong></div><div class="pc-fridge-track" role="meter" aria-label="Estimated remaining as a percentage of recorded starting stock" aria-valuemin="0" aria-valuemax="100" aria-valuenow="<?=$level?>"><span style="width:<?=$level?>%"></span></div></div>
       <div class="pc-fridge-forecast">
         <?php if($hasRate&&$daysLeft!==null&&$daysLeft===0):?><span class="pc-fridge-forecast-icon"><?=pcIcon('clock')?></span><div><strong>Possibly out of stock</strong><small>Update your actual remaining amount to correct this estimate.</small></div>
@@ -87,5 +100,14 @@ $fridgeMethod='All dates are estimates based on the amount you enter and the dai
     <?php endif;?>
   </section>
   <?php endif;?>
+  <section class="pc-fridge-history" aria-labelledby="pc-fridge-history-heading">
+  <div class="pc-fridge-heading-row"><div><span class="pc-eyebrow">PRIVATE ACCOUNT ACTIVITY</span><h2 id="pc-fridge-history-heading">Stock history</h2><p>Each saved change to your own inventory is recorded here. This is not a record of doses or laboratory usage.</p></div></div>
+  <?php if(!$fridgeHistory):?><div class="pc-panel pc-fridge-no-history">Your future stock changes will appear here after you save or archive an item. Previously recorded changes are not reconstructed.</div>
+  <?php else:?><div class="pc-fridge-history-list">
+   <?php foreach($fridgeHistory as $activity):$activityLabel=match($activity['event']){'added'=>'Added to My Fridge','updated'=>'Updated remaining quantity','restored'=>'Restored saved stock','archived'=>'Removed from My Fridge',default=>'Inventory change'};?>
+    <div class="pc-fridge-history-entry"><span class="pc-fridge-history-mark" aria-hidden="true">☥</span><div><strong><?=portalEscape((string)$activity['product_name'])?></strong><small><?=portalEscape($activityLabel)?> · <?=portalEscape(portalDate(date('c',(int)$activity['created_at'])))?></small></div><span class="pc-fridge-history-quantity"><?=portalEscape(portalFridgeFormat((int)$activity['remaining_milli']))?> <?=portalEscape((string)$activity['unit'])?><small>recorded</small></span></div>
+   <?php endforeach;?>
+  </div><?php endif;?>
+  </section>
   <aside class="pc-fridge-disclaimer"><?=pcIcon('shield')?><div><strong>For inventory tracking only</strong><p><?=portalEscape($fridgeMethod)?></p><p>These products are sold for laboratory research only, not human or animal consumption. This tool gives no dosing, medical, storage-stability or treatment advice. It does not automatically order products or send you reminders.</p></div></aside>
 </section>
