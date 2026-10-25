@@ -70,4 +70,61 @@
       }
     });
   }
+
+  // The product's published documents can be viewed in-app without losing the
+  // current product. New-tab PDF access remains a fallback on every device.
+  const documentViewer=document.getElementById('sf-doc-viewer');
+  if(documentViewer && typeof documentViewer.showModal==='function'){
+    const frame=document.getElementById('sf-doc-viewer-frame');
+    const titleNode=document.getElementById('sf-doc-viewer-title');
+    const statusNode=document.getElementById('sf-doc-viewer-status');
+    const warning=document.getElementById('sf-doc-viewer-warning');
+    const openLink=document.getElementById('sf-doc-viewer-open');
+    const shareControl=document.getElementById('sf-doc-viewer-share');
+    let activeUrl='';
+    const allowedPaths=['/product-document.php','/product-specification.php','/product-safety-document.php'];
+    document.querySelectorAll('#sf-product-documents .sf-product-doc-link').forEach(link=>{
+      link.addEventListener('click',event=>{
+        if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+        let target;
+        try{target=new URL(link.getAttribute('href'),location.href);}catch(_){return;}
+        if(target.origin!==location.origin||!allowedPaths.includes(target.pathname))return;
+        event.preventDefault();
+        const unverified=link.classList.contains('sf-product-doc-sds')
+          && !!link.querySelector('strong')?.textContent.includes('Unverified');
+        const name=link.querySelector('strong')?.textContent.trim()||'Product document';
+        const metadata=link.querySelector('small')?.textContent.trim()||'Published ANKH reference';
+        activeUrl=target.toString();
+        if(titleNode)titleNode.textContent=name;
+        if(statusNode)statusNode.textContent=metadata;
+        if(warning)warning.hidden=!unverified;
+        if(openLink)openLink.href=activeUrl;
+        if(frame)frame.src=activeUrl;
+        documentViewer.showModal();
+      });
+    });
+    const close=()=>{
+      if(documentViewer.open)documentViewer.close();
+      if(frame)frame.removeAttribute('src');
+      activeUrl='';
+    };
+    documentViewer.querySelectorAll('[data-doc-close]').forEach(button=>button.addEventListener('click',close));
+    documentViewer.addEventListener('click',event=>{
+      if(event.target===documentViewer)close();
+    });
+    documentViewer.addEventListener('close',()=>{if(frame)frame.removeAttribute('src');activeUrl='';});
+    shareControl?.addEventListener('click',async()=>{
+      if(!activeUrl)return;
+      const original=shareControl.textContent;
+      try{
+        if(navigator.share)await navigator.share({title:titleNode?.textContent||'ANKH product document',url:activeUrl});
+        else if(navigator.clipboard?.writeText){
+          await navigator.clipboard.writeText(activeUrl);shareControl.textContent='✓ Link copied';
+        }else{
+          window.prompt('Copy document address',activeUrl);
+        }
+      }catch(error){if(error?.name!=='AbortError')shareControl.textContent='Open the PDF to share';}
+      window.setTimeout(()=>{shareControl.textContent=original;},2300);
+    });
+  }
 })();
