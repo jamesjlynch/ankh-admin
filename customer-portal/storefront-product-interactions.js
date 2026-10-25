@@ -80,6 +80,7 @@
     const statusNode=document.getElementById('sf-doc-viewer-status');
     const warning=document.getElementById('sf-doc-viewer-warning');
     const openLink=document.getElementById('sf-doc-viewer-open');
+    const downloadLink=document.getElementById('sf-doc-viewer-download');
     const shareControl=document.getElementById('sf-doc-viewer-share');
     let activeUrl='';
     const allowedPaths=['/product-document.php','/product-specification.php','/product-safety-document.php'];
@@ -99,6 +100,10 @@
         if(statusNode)statusNode.textContent=metadata;
         if(warning)warning.hidden=!unverified;
         if(openLink)openLink.href=activeUrl;
+        if(downloadLink){
+          downloadLink.href=activeUrl;
+          downloadLink.download=unverified?'ankh-unverified-reference.pdf':'ankh-product-document.pdf';
+        }
         if(frame)frame.src=activeUrl;
         documentViewer.showModal();
       });
