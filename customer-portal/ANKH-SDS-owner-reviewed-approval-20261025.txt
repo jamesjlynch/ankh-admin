@@ -1,0 +1,6 @@
+ANKH SDS document release record
+Business review confirmed by ANKH catalogue owner: 25 October 2026.
+Scope: the fourteen existing published ANKH SDS references only, matched to live product IDs.
+Action: remove legacy internal draft footer and PDF metadata; publish owner-reviewed versions; archive originals privately.
+No independent laboratory certification is asserted by this action.
+No changes to Order Admin stock, products, orders, payments or price sources.
