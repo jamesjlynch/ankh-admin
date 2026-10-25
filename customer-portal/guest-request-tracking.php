@@ -18,6 +18,57 @@ function ankhGuestTrackingInit(PDO $db):void {
     CREATE INDEX IF NOT EXISTS portal_guest_request_claim_customer
       ON portal_guest_request_claims(customer_id,request_id);");
 }
+/**
+ * Staff must explicitly connect an accessory request to a pre-existing Admin
+ * order. Nothing here creates orders, changes stock or marks delivery.
+ */
+function ankhGuestOrderLinkInit(PDO $db):void {
+    $db->exec("CREATE TABLE IF NOT EXISTS portal_guest_order_links (
+      request_id INTEGER PRIMARY KEY,
+      order_id INTEGER NOT NULL UNIQUE,
+      linked_at INTEGER NOT NULL,
+      linked_by TEXT NOT NULL DEFAULT 'ANKH staff'
+    )");
+}
+function ankhGuestOrderLink(PDO $store,PDO $admin,int $requestId,int $orderId,string $reviewer='ANKH staff'):void {
+    if($requestId<1||$orderId<1)throw new InvalidArgumentException('Choose a valid request and recorded Order Admin order.');
+    ankhGuestTrackingInit($store);ankhGuestOrderLinkInit($store);
+    $q=$store->prepare('SELECT g.id,g.phone,g.status,c.customer_id FROM storefront_guest_requests g
+      LEFT JOIN portal_guest_request_claims c ON c.request_id=g.id WHERE g.id=?');
+    $q->execute([$requestId]);$guest=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$guest||$guest['status']==='Pending staff review'||$guest['status']==='Declined')
+        throw new InvalidArgumentException('Review and approve the accessory request before linking an order.');
+    $q=$admin->prepare('SELECT id,customer,phone FROM orders WHERE id=?');
+    $q->execute([$orderId]);$order=$q->fetch(PDO::FETCH_ASSOC);
+    if(!$order||!function_exists('portalMobile')||
+      !portalMobile((string)$guest['phone'])||
+      portalMobile((string)$order['phone'])!==portalMobile((string)$guest['phone']))
+        throw new InvalidArgumentException('Order and request phone numbers do not match. Check the customer record in Order Admin.');
+    // Where a receipt is already claimed, require Admin's actual owner link,
+    // not just a shared telephone number.
+    if($guest['customer_id']!==null){
+        $customerId=(int)$guest['customer_id'];
+        $q=$admin->prepare('SELECT id,name,phone,address,archived FROM customers WHERE id=?');
+        $q->execute([$customerId]);$customer=$q->fetch(PDO::FETCH_ASSOC);
+        if(!$customer||(int)$customer['archived']!==0||
+          portalMobile((string)$customer['phone'])!==portalMobile((string)$guest['phone']))
+            throw new InvalidArgumentException('The verified customer record cannot be confirmed.');
+        $claimedCustomerOrders=portalOrderHistory($admin,$customer,portalMobile((string)$guest['phone']));
+        if(!in_array($orderId,array_map(static fn(array $o):int=>(int)$o['id'],$claimedCustomerOrders),true))
+            throw new InvalidArgumentException('That order is not securely linked to the verified customer in Order Admin.');
+    }
+    $existing=$store->prepare('SELECT request_id,order_id FROM portal_guest_order_links WHERE request_id=? OR order_id=?');
+    $existing->execute([$requestId,$orderId]);
+    foreach($existing as $row){
+        if((int)$row['request_id']===$requestId && (int)$row['order_id']===$orderId)return;
+        throw new InvalidArgumentException('The request or order is already linked to another record.');
+    }
+    $reviewer=trim($reviewer);
+    if(strlen($reviewer)<2||strlen($reviewer)>120)throw new InvalidArgumentException('Enter the staff member confirming the link.');
+    $store->prepare('INSERT INTO portal_guest_order_links(request_id,order_id,linked_at,linked_by) VALUES(?,?,?,?)')
+          ->execute([$requestId,$orderId,time(),$reviewer]);
+}
+
 function ankhGuestTrackingIssue(PDO $db,int $requestId):?string {
     if($requestId<1)throw new InvalidArgumentException('Invalid request reference.');
     ankhGuestTrackingInit($db);
@@ -57,8 +108,11 @@ function ankhGuestTrackingRows(PDO $db,int $customerId):array {
     if($customerId<1)return [];
     $present=$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_guest_request_claims'")->fetchColumn();
     if(!$present)return [];
-    $q=$db->prepare('SELECT g.id,g.placed_at,g.lines_json,g.subtotal,g.status
-      FROM portal_guest_request_claims c JOIN storefront_guest_requests g ON g.id=c.request_id
+    $hasLink=(bool)$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_guest_order_links'")->fetchColumn();
+    $linkSelect=$hasLink?'l.order_id AS linked_order_id':'NULL AS linked_order_id';
+    $linkJoin=$hasLink?' LEFT JOIN portal_guest_order_links l ON l.request_id=g.id':'';
+    $q=$db->prepare('SELECT g.id,g.placed_at,g.lines_json,g.subtotal,g.status,'.$linkSelect.'
+      FROM portal_guest_request_claims c JOIN storefront_guest_requests g ON g.id=c.request_id'.$linkJoin.'
       WHERE c.customer_id=? ORDER BY g.placed_at DESC,g.id DESC LIMIT 100');
     $q->execute([$customerId]);
     $rows=[];
