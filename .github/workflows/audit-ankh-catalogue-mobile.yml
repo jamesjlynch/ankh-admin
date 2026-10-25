@@ -9,6 +9,8 @@ on:
       - tests/ankh-order-match-mobile-qa.cjs
       - tests/customer-request-order-link.php
       - customer-portal/request-order-match.css
+      - customer-portal/storefront-lab-supplies.css
+      - customer-portal/storefront-experience.php
       - customer-portal/request-order-match-view.php
       - .github/workflows/audit-ankh-catalogue-mobile.yml
   workflow_dispatch:
