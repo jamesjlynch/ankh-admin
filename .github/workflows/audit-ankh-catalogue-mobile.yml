@@ -5,6 +5,7 @@ on:
       - feature/ankh-customer-portal
     paths:
       - tests/ankh-live-mobile-product-qa.cjs
+      - tests/ankh-live-account-mobile-qa.cjs
       - .github/workflows/audit-ankh-catalogue-mobile.yml
   workflow_dispatch:
 permissions:
@@ -30,6 +31,13 @@ jobs:
         run: |
           set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/ankh-mobile-audit/node_modules" node tests/ankh-live-mobile-product-qa.cjs
+      - name: Audit fictional mobile customer account, requests and orders
+        env:
+          ANKH_LIVE_CATALOGUE: https://order.ankhpeptides.com
+          ANKH_QA_SCREENSHOTS: ankh-mobile-qa-screenshots
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/ankh-mobile-audit/node_modules" node tests/ankh-live-account-mobile-qa.cjs
       - name: Save mobile experience screenshots
         if: always()
         uses: actions/upload-artifact@v4
