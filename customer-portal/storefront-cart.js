@@ -195,7 +195,8 @@ const openBasket=()=>{
 document.querySelectorAll('[data-open-cart]').forEach(button=>button.addEventListener('click',openBasket));
 document.querySelectorAll('[data-cart-peek-dismiss]').forEach(button=>button.addEventListener('click',closePeek));
 document.querySelectorAll('[data-cart-peek-view]').forEach(button=>button.addEventListener('click',openBasket));
-document.querySelectorAll('[data-close-cart]').forEach(button=>button.addEventListener('click',()=>dialog.close()));
+const closeButtons=dialog.querySelectorAll ? [...dialog.querySelectorAll('[data-close-cart]')] : [dialog.querySelector('[data-close-cart]')].filter(Boolean);
+closeButtons.forEach(button=>button.addEventListener('click',()=>dialog.close()));
 dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close();});
 document.getElementById('sf-cart-checkout')?.addEventListener('click',event=>{
   if(!Object.keys(cart).length)event.preventDefault();
