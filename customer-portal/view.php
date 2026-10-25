@@ -18,7 +18,7 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
 <meta name="description" content="Secure ANKH customer account and order history.">
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./style.css">
-<link rel="stylesheet" href="./account.css?v=experience-4-7">
+<link rel="stylesheet" href="./account.css?v=experience-4-8">
 <?php if (!empty($isStaffPreview)): ?><link rel="stylesheet" href="./cms-studio.css?v=studio-4"><?php endif; ?>
 <title><?= $customer ? 'My account' : 'Sign in' ?> · ANKH</title>
 </head>
