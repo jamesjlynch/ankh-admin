@@ -7,6 +7,7 @@ $admin=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCE
 $admin->exec('CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,active INTEGER); CREATE TABLE customer_catalogue_visibility(product_id INTEGER PRIMARY KEY,visible INTEGER); INSERT INTO products VALUES(101,"BPC-157 5mg",1),(73,"BPC-157 10mg",1),(125,"Glow Stack",0); INSERT INTO customer_catalogue_visibility VALUES(101,1),(73,0),(125,1);');
 $store=new PDO('sqlite::memory:',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 ankhSdsInit($store);
+ok(ankhSdsHasApprovedFileColumn($store),'Private-file SDS storage migration missing');
 $pdf="%PDF-1.4\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Count 0/Kids []>>\nendobj\ntrailer\n<</Root 1 0 R>>\n%%EOF\n";
 $id=ankhSdsSaveBytes($store,$admin,101,'ANKH-SDS-BPC-157-5mg.pdf',$pdf);
 ok($id>0,'SDS insert returned no id');
