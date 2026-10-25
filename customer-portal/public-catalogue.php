@@ -143,7 +143,7 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <a class="back" href="./public-catalogue.php">← All published research profiles</a>
 <div class="detail-head">
  <div class="detail-visual"><?php if($selected['has_photo']):?><img src="?image=<?=(int)$selected['id']?>" alt="<?=esc($selected['name'])?> – documented product photograph"><?php else:?><span class="placeholder" aria-hidden="true">☥</span><?php endif;?></div>
- <div><span class="eyebrow">Scientific reference / <?=esc(ankhPublicType($selected['name']))?></span>
+ <div><span class="eyebrow">Scientific reference / <?=esc((($selected['category']??'')?:ankhPublicType($selected['name'])))?></span>
  <h1><?=esc($selected['name'])?></h1><p><?=esc(ankhCatalogueSummary($selected['description']))?></p>
  <div class="detail-info"><span class="chip">Public technical reference</span><span class="chip">Not for medical use</span><span class="chip">No claims of clinical benefit</span></div></div>
 </div>
@@ -181,7 +181,7 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <div class="grid" id="catalogue-grid"><?php foreach($products as $p):?>
 <a class="product" data-search="<?=esc(strtolower($p['name'].' '.($p['information']['research_focus']??'')))?>" href="?product=<?=(int)$p['id']?>">
  <div class="product-photo"><?php if($p['has_photo']):?><img src="?image=<?=(int)$p['id']?>" loading="lazy" alt="" decoding="async"><?php else:?><span class="placeholder" aria-hidden="true">☥</span><?php endif;?></div>
- <div class="product-body"><small><?=esc(ankhPublicType($p['name']))?></small><h2><?=esc($p['name'])?></h2><p><?=esc(substr(ankhCatalogueSummary($p['description']),0,190))?></p><div class="product-foot">Explore technical profile →</div></div>
+ <div class="product-body"><small><?=esc((($p['category']??'')?:ankhPublicType($p['name'])))?></small><h2><?=esc($p['name'])?></h2><p><?=esc(substr(ankhCatalogueSummary($p['description']),0,190))?></p><div class="product-foot">Explore technical profile →</div></div>
 </a><?php endforeach;?></div>
 <p id="no-search" class="empty hidden">No reviewed profiles match that search.</p>
 <script>
