@@ -73,6 +73,7 @@ jobs:
           test "$(git branch --show-current)" = main
           test -z "$(git status --porcelain)"
           git merge --ff-only origin/main
+          /opt/cpanel/ea-php82/root/usr/bin/php -r 'echo "Server SQLite version: ".(new PDO("sqlite::memory:"))->query("select sqlite_version()")->fetchColumn()." / SQLite3 backup available: ".(class_exists("SQLite3")&&method_exists("SQLite3","backup")?"yes":"no").PHP_EOL;'
           if ANKH_DEPLOY_HOME=/home/devcouk /bin/bash scripts/publish-live.sh; then
             echo "Verified ANKH Admin publisher returned success."
           else
