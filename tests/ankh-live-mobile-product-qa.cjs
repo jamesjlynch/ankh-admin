@@ -99,6 +99,20 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
         await selectors.nth(1).click();
         report('gallery controls work',await selectors.nth(1).getAttribute('aria-pressed')==='true');
         await selectors.nth(0).click();
+        const sdsReference=page.locator('.sf-product-doc-sds').first();
+        await sdsReference.click();
+        const viewer=page.locator('#sf-doc-viewer');
+        report('premium document viewer opens in-page',await viewer.evaluate(el=>el.open));
+        report('unverified SDS warning preserved in viewer',
+          await page.locator('#sf-doc-viewer-warning').evaluate(el=>!el.hidden));
+        report('document viewer uses exact published safety PDF',
+          (await page.locator('#sf-doc-viewer-frame').getAttribute('src'))?.includes('product-safety-document.php?id=1'));
+        report('PDF download remains available',
+          (await page.locator('#sf-doc-viewer-download').getAttribute('href'))?.includes('product-safety-document.php?id=1'));
+        await page.screenshot({path:path.join(out,'iphone-390-document-viewer.png'),animations:'disabled'});
+        await page.locator('#sf-doc-viewer [data-doc-close]').first().click();
+        report('PDF viewer closes and frees frame',await viewer.evaluate(el=>!el.open)
+          && !(await page.locator('#sf-doc-viewer-frame').getAttribute('src')));
         const originalAction=page.locator('.sf-shop-inline [data-cart-id]');
         if(await originalAction.count()){
           await originalAction.click();
