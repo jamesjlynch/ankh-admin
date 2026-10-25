@@ -12,17 +12,18 @@ if(empty($isDemo)&&isset($admin,$portal)){
 ?>
 <section class="pc-shop-hero" aria-labelledby="pc-shop-heading">
   <div class="pc-shop-hero-copy">
-    <span class="pc-eyebrow">ANKH · YOUR PRIVATE COLLECTION</span>
+    <span class="pc-eyebrow">ANKH / PRIVATE CUSTOMER EXPERIENCE</span>
     <span class="pc-shop-greeting">Welcome back, <?=portalEscape((string)$firstName)?></span>
-    <h1 id="pc-shop-heading">Discover. Select.<br><em>Simply ANKH.</em></h1>
-    <p>Browse products and build a basket in a few taps. Your account price is shown, and our team confirms each request personally.</p>
+    <h1 id="pc-shop-heading">Welcome to your<br><em>ANKH account.</em></h1>
+    <p>Everything in one place: follow recorded orders, review requests, manage your research inventory and explore the collection.</p>
     <div class="pc-shop-hero-actions">
-      <a class="pc-primary-link" href="<?=portalEscape(pcHref('catalogue',$staff,$customerId))?>">Browse products <?=pcIcon('right')?></a>
-      <a class="pc-shop-secondary" href="<?=portalEscape(pcHref('basket',$staff,$customerId))?>"><?=pcIcon('basket')?> Your basket<?=$requestCount?' ('.$requestCount.')':''?></a>
+      <a class="pc-primary-link" href="<?=portalEscape(pcHref('requests',$staff,$customerId))?>">Track my requests <?=pcIcon('right')?></a>
+      <a class="pc-shop-secondary" href="<?=portalEscape(pcHref('orders',$staff,$customerId))?>"><?=pcIcon('orders')?> My orders</a>
     </div>
   </div>
   <div class="pc-shop-hero-art" aria-hidden="true"><span>☥</span><small>ANKH / RESEARCH COLLECTION</small></div>
 </section>
+<?php require __DIR__.'/account-activity.php'; ?>
 <section class="pc-home-operating" aria-label="Your next step">
  <div class="pc-home-operating-copy"><span class="pc-eyebrow"><?=portalEscape((string)$homeFocus['eyebrow'])?></span><h2><?=portalEscape((string)$homeFocus['title'])?></h2><p><?=portalEscape((string)$homeFocus['body'])?></p></div>
  <a href="<?=portalEscape(pcHref((string)$homeFocus['tab'],$staff,$customerId,(array)$homeFocus['params']))?>" class="pc-primary-link"><?=portalEscape((string)$homeFocus['action'])?> <?=pcIcon('right')?></a>
