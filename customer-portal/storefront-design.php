@@ -54,9 +54,14 @@ function pfOrder(array &$products,string $sort):void {
     });
 }
 function pfRelated(array $selected,array $products,int $limit=4):array {
-    $other=array_values(array_filter($products,static fn($p)=>(int)$p['id']!==(int)$selected['id']));
+    $isAccessory=pfType((string)$selected['name'])==='Research accessory';
+    $other=array_values(array_filter($products,static fn($p)=>
+        (int)$p['id']!==(int)$selected['id'] &&
+        (!$isAccessory || pfType((string)$p['name'])==='Research accessory')
+    ));
     usort($other,static fn($a,$b)=>
         (int)(pfFamily((string)$b['name'])===pfFamily((string)$selected['name']))<=>(int)(pfFamily((string)$a['name'])===pfFamily((string)$selected['name']))
+        ?: (int)(pfCategory($b)===pfCategory($selected))<=>(int)(pfCategory($a)===pfCategory($selected))
         ?: (int)(pfType((string)$b['name'])===pfType((string)$selected['name']))<=>(int)(pfType((string)$a['name'])===pfType((string)$selected['name']))
         ?: strnatcasecmp((string)$a['name'],(string)$b['name']));
     return array_slice($other,0,$limit);
