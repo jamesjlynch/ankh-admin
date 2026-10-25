@@ -29,7 +29,7 @@ checkCategories(ankhCatalogueProducts($db,1)[0]['name']==='BPC-157 5mg','Existin
 checkCategories(count(ankhCatalogueProducts($db,1))===1,'A new or hidden accessory must never publish itself');
 ankhCatalogueSetVisibility($db,101,true);
 $rows=ankhCatalogueProducts($db,1);
-checkCategories(count($rows)===2&&$rows[1]['category']==='Petri Dishes','Published accessory category not exposed correctly');
+checkCategories(count($rows)===2&&count(array_filter($rows,static fn($r)=>$r['name']==='90mm petri dishes' && $r['category']==='Petri Dishes'))===1,'Published accessory category not exposed correctly');
 ankhCatalogueSetVisibility($db,100,false);
 $rows=ankhCatalogueProducts($db,1);
 checkCategories(count($rows)===1&&$rows[0]['name']==='90mm petri dishes','Hiding a compound must remove it from customer catalogue');
