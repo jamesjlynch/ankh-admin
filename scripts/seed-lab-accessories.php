@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 /** One-off, opt-in private Krystal catalogue seeding. Never runs via HTTP. */
+set_exception_handler(static function(Throwable $e):void {
+    fwrite(STDERR,'ANKH lab accessory provisioning error ['.get_class($e).']: '.$e->getMessage()."\n");
+    exit(1);
+});
 if(PHP_SAPI!=='cli'||getenv('ANKH_SEED_ACCESSORIES')!=='1'){
     fwrite(STDERR,"Private CLI provisioning only.\n");exit(1);
 }
