@@ -16,7 +16,9 @@ ankhCatalogueInit($db);
 checkPublic(ankhPublicCatalogueProducts($db)===[],'Unpublished products must stay private');
 ankhCatalogueSaveContent($db,1,'KPV scientific compound information and research details. No advice for administration.',null,false,true,['sequence'=>'Lys-Pro-Val','research'=>'Preclinical model','coa_url'=>'https://example.com/coa']);
 ankhCatalogueSaveContent($db,2,'The scientific profile contains identity and experimental evidence, but was hidden.',null,false,false,['sequence'=>'ABC']);
-ankhCatalogueSaveContent($db,3,'This inactive accessory is marked customer visible, but inactive.',null,false,true);
+ankhCatalogueSaveContent($db,3,'This inactive accessory remains unpublished.',null,false,false);
+$blocked=false;try{ankhCatalogueSaveContent($db,3,'Inactive product cannot be published',null,false,true);}catch(InvalidArgumentException $e){$blocked=true;}
+checkPublic($blocked,'Inactive accessory must be blocked from publishing');
 ankhCatalogueSaveContent($db,4,'This visible research item has extensive scientific information.',null,false,true);
 $rows=ankhPublicCatalogueProducts($db);
 checkPublic(count($rows)===2,'Only active previously-published products should appear');
