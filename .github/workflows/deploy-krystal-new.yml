@@ -91,4 +91,11 @@ jobs:
             exit 1
           fi
           tail -n 12 /home/devcouk/ankh-admin-deploy.log
+          /opt/cpanel/ea-php82/root/usr/bin/php -r '
+            $config=require "/home/devcouk/ankh-admin-config.php";
+            $db=new PDO("sqlite:".$config["database_path"]);
+            $count=(int)$db->query("SELECT COUNT(*) FROM lab_accessory_sourcing s JOIN products p ON p.id=s.product_id JOIN customer_catalogue_visibility v ON v.product_id=p.id WHERE p.active=1 AND v.visible=1 AND s.price_status IN (\x27reference_unconfirmed\x27,\x27needs_amazon_price\x27)")->fetchColumn();
+            echo "Verified published lab supply information pages: ".$count."/12; all remain sourcing-pending.".PHP_EOL;
+            if($count!==12)exit(1);
+          '
           REMOTE
