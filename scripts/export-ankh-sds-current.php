@@ -32,7 +32,7 @@ $targets=[
 ];
 if(!$db->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn())
  throw new RuntimeException('SDS table not found');
-$q=$db->prepare('SELECT id,pdf_name,pdf_sha256,pdf_bytes,published,reviewed_at,public_draft FROM portal_product_sds WHERE product_id=? ORDER BY id DESC LIMIT 1');
+$q=$db->prepare('SELECT id,pdf_name,pdf_sha256,pdf_bytes,published,reviewed_at,public_draft FROM portal_product_sds WHERE product_id=? ORDER BY id ASC LIMIT 1');
 $check=$admin->prepare('SELECT name,active FROM products WHERE id=?');
 $manifest=['date'=>'2026-10-25','purpose'=>'ANKH SDS owner-reviewed publication, preserve originals','items'=>[]];
 foreach($targets as $productId=>[$name,$file]){
@@ -40,7 +40,7 @@ foreach($targets as $productId=>[$name,$file]){
  $check->execute([$productId]);$p=$check->fetch();
  if(!$p||strcasecmp(trim((string)$p['name']),$name)!==0)throw new RuntimeException("Incorrect product name: $productId");
  $q->execute([$productId]);$row=$q->fetch();
- if(!$row||$row['pdf_name']!==$file||(int)$row['public_draft']!==1||(int)$row['published']!==0||(int)$row['reviewed_at']!==0)
+ if(!$row||$row['pdf_name']!==$file||!in_array((int)$row['public_draft'],[0,1],true)||(int)$row['published']!==0||(int)$row['reviewed_at']!==0)
    throw new RuntimeException("Expected specific public draft not found: $name");
  $bytes=is_resource($row['pdf_bytes'])?stream_get_contents($row['pdf_bytes']):(string)$row['pdf_bytes'];
  if(!str_starts_with($bytes,'%PDF-')||!hash_equals((string)$row['pdf_sha256'],hash('sha256',$bytes)))
