@@ -67,6 +67,22 @@ function pcEvents(array $orders): array {
     usort($events,static fn(array $a,array $b):int=>(strtotime((string)$b['date'])?:0)<=>(strtotime((string)$a['date'])?:0));
     return array_slice($events,0,7);
 }
+/**
+ * The operational stage is derived solely from the order fields stored in
+ * Admin. A request review is never interpreted as packaging or delivery.
+ */
+function pcRecordedOrderStage(array $o):array {
+    $status=trim((string)($o['status']??''));
+    $current=portalStatus($o);
+    if($current==='Cancelled')return ['Cancelled','ANKH Admin has recorded this order as cancelled.'];
+    if($current==='Delivered')return ['Delivered','ANKH Admin has recorded the delivery.'];
+    if($status==='Dispatched')return ['Dispatched','Marked dispatched in ANKH Admin; the tracking reference appears below when recorded.'];
+    if(!empty($o['packaged'])||$status==='Packed')return ['Packaged','Marked packaged in ANKH Admin; delivery has not yet been recorded.'];
+    if(!empty($o['reconstituted']))return ['Reconstituted','Marked reconstituted in ANKH Admin; packaging or delivery has not yet been recorded.'];
+    if($status==='Awaiting payment')return ['Awaiting payment','Payment remains to be recorded in ANKH Admin.'];
+    if($status==='New')return ['Received','Your order has been recorded in ANKH Admin.'];
+    return [$current,$status!==''?'Latest Admin status: '.$status.'.':'No additional preparation stage has been recorded.'];
+}
 function pcOrderTimeline(array $o): array {
     $status=portalStatus($o);
     if ($status==='Cancelled') return [['title'=>'Order received','state'=>'done'],['title'=>'Order cancelled','state'=>'cancelled']];
@@ -214,6 +230,7 @@ if(isset($portal)&&empty($isDemo)){
     <?php $status=portalStatus($selected);$balance=pcBalance($selected);?>
     <article class="pc-panel pc-order-detail">
       <div class="pc-detail-heading"><div><span class="pc-eyebrow">ORDER DETAILS</span><h2><?=portalEscape(pcOrderRef($selected))?></h2><p>Placed <?=portalEscape(portalDate((string)$selected['created']))?></p></div><span class="pc-pill pc-pill-<?=pcTone($status)?>"><?=portalEscape($status)?></span></div>
+      <?php [$recordedStage,$recordedStageDescription]=pcRecordedOrderStage($selected);?><div class="pc-recorded-stage"><span class="pc-recorded-stage-icon"><?=pcIcon('check')?></span><div><span class="pc-eyebrow">LATEST RECORDED ORDER STAGE</span><strong><?=portalEscape($recordedStage)?></strong><p><?=portalEscape($recordedStageDescription)?></p><?php if(pcBalance($selected)>0 && $recordedStage!=='Cancelled'):?><small><?=portalEscape(portalMoney(pcBalance($selected)))?> recorded as outstanding · This is not a payment request</small><?php endif;?></div></div>
       <div class="pc-timeline" aria-label="Order progress"><?php foreach(pcOrderTimeline($selected) as $step):?><div class="pc-timeline-row <?=$step['state']?>"><span class="pc-timeline-marker"><?=in_array($step['state'],['done','current'],true)?pcIcon('check'):''?></span><div><strong><?=portalEscape($step['title'])?></strong><?php if($step['title']==='Order received'):?><small><?=portalEscape(portalDate((string)$selected['created']))?></small><?php elseif($step['title']==='Delivered' && $status==='Delivered' && !empty($selected['delivery_date'])):?><small><?=portalEscape(portalDate((string)$selected['delivery_date']))?></small><?php else:?><small><?=portalEscape(match($step['state']){'done'=>'Stage completed — time not recorded','current'=>'Latest recorded stage','cancelled'=>'Cancelled','upcoming'=>'Not yet recorded',default=>''})?></small><?php endif;?></div></div><?php endforeach;?></div>
       <?php if(!in_array($status,['Delivered','Cancelled'],true) && !empty($selected['scheduled_delivery_date'])):?><div class="pc-inline-note"><?=pcIcon('calendar')?><span>Planned delivery: <strong><?=portalEscape(portalDate((string)$selected['scheduled_delivery_date']))?></strong>. This is not a delivery confirmation.</span></div><?php endif;?>
       <?php if(!empty($selected['delivery_method']) || !empty($selected['tracking_reference'])):?><div class="pc-delivery-facts">
