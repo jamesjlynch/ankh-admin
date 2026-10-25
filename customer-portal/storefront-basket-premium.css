@@ -139,3 +139,12 @@
  .sf-checkout-page .sf-checkout-line input{width:74px}
  .sf-checkout-page .sf-checkout-summary{padding-bottom:24px}
 }
+
+
+/* Save the private guest tracking receipt without putting the code in a URL. */
+.sf-checkout-receipt{display:grid;gap:10px;padding:18px;margin:17px 0 23px;border:1px solid #dfc58b83;border-radius:15px;background:linear-gradient(135deg,#2b2c1f,#161e18)}
+.sf-checkout-receipt strong{display:block;font:650 clamp(13px,2.6vw,17px) ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.045em;overflow-wrap:anywhere;color:#f4d998}
+.sf-checkout-receipt p{margin:0;font-size:12px;line-height:1.7;color:#d0c9b6}
+.sf-checkout-receipt button{display:inline-flex;align-items:center;justify-content:center;width:max-content;max-width:100%;min-height:45px;padding:10px 15px;border-radius:10px;border:1px solid #e6c58c;background:#f0d599;color:#24241e;font-size:12px;font-weight:750;cursor:pointer}
+.sf-checkout-receipt button:focus-visible{outline:3px solid #fff0ce;outline-offset:3px}
+@media(max-width:600px){.sf-checkout-receipt{padding:15px 12px}.sf-checkout-receipt button{width:100%}}
