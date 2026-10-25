@@ -133,7 +133,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <p class="sf-product-warning">Technical research information only. This page does not offer medical products for sale. See the laboratory and regulatory notice below.</p>
 </div></section>
 <section class="sf-public-documents" id="sf-product-documents" aria-label="Product documentation">
- <?php if(!empty($sdsStaffPreview)):?>
+ <?php if(!empty($sdsStaffPreview) && $productSds && !(int)($productSds[0]['reviewed_at']??0)):?>
   <div class="sf-sds-staff-preview" role="note">
    <span class="sf-sds-staff-mark" aria-hidden="true">☥</span>
    <div><strong>Private SDS storefront preview</strong><p>This is the real ANKH product-page layout. The Safety Data Sheet below is an unapproved draft, visible here only to signed-in staff. Customers cannot access this document until a competent technical review is recorded in Content Studio.</p></div>
@@ -141,11 +141,11 @@ $related=$selected?pfRelated($selected,$products):[];
   </div>
  <?php endif;?>
  <div class="sf-section-title"><div><span class="sf-kicker">ANKH / DOCUMENTATION</span><h2>Product documents<span class="sf-gold">.</span></h2>
- <p>View the product specification, independently issued analytical reports and available safety information separately. Any unverified draft is clearly identified and is not an approved SDS.</p></div></div>
+ <p>View the ANKH product specification, available analytical reports and Safety Data Sheets separately. Document types and their sources are shown clearly.</p></div></div>
  <div class="sf-product-document-status" aria-label="Available product document types">
  <span><span aria-hidden="true">▧</span> Product specification</span>
  <span><span aria-hidden="true">▤</span> <?=count($productDocuments)?> analytical report<?=count($productDocuments)===1?'':'s'?></span>
- <span><span aria-hidden="true">◇</span> <?=$productSds?(int)($productSds[0]['reviewed_at']??0)>0?'Reviewed SDS':'Unverified safety draft':'No safety sheet listed'?></span>
+ <span><span aria-hidden="true">◇</span> <?=$productSds?(int)($productSds[0]['reviewed_at']??0)>0?'ANKH reviewed SDS':'Unverified safety draft':'No safety sheet listed'?></span>
  </div>
  <div class="sf-product-doc-links">
   <a class="sf-product-doc-link sf-product-doc-reference" href="./product-specification.php?product=<?=(int)$selected['id']?>" target="_blank" rel="noopener">
@@ -154,7 +154,7 @@ $related=$selected?pfRelated($selected,$products):[];
   <?php foreach($productSds as $sds):$unverifiedDraft=(int)($sds['reviewed_at']??0)===0;?>
    <?php if($unverifiedDraft):?><div class="sf-sds-public-draft-notice" role="note"><strong>Unverified draft safety information</strong><p>This is an ANKH rebranded working document, not a technically approved Safety Data Sheet. Its hazards, chemical identity and handling details have not been independently verified. Do not rely on it for safe handling; contact ANKH for current verified safety information.</p></div><?php endif;?>
    <a class="sf-product-doc-link sf-product-doc-sds" href="./product-safety-document.php?id=<?=(int)$sds['id']?><?=!empty($sdsStaffPreview)?'&amp;staff=1':''?>" target="_blank" rel="noopener noreferrer" aria-label="<?=$unverifiedDraft?'View unverified draft SDS reference PDF':'View reviewed Safety Data Sheet PDF'?>">
-    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong><?=$unverifiedDraft?'Draft SDS reference · Unverified':'Safety Data Sheet'?></strong><small><?=$unverifiedDraft?'Preliminary reference PDF · Not an approved SDS':'Technically reviewed hazard and laboratory handling information · PDF'?></small></span><span aria-hidden="true">↗</span>
+    <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong><?=$unverifiedDraft?'Draft SDS reference · Unverified':'Safety Data Sheet'?></strong><small><?=$unverifiedDraft?'Preliminary reference PDF · Not an approved SDS':'ANKH reviewed safety and laboratory handling information · PDF'?></small></span><span aria-hidden="true">↗</span>
    </a>
   <?php endforeach;?>
   <?php foreach($productDocuments as $doc):?>
