@@ -106,9 +106,9 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
         report('reviewed SDS has no unverified warning in viewer',
           await page.locator('#sf-doc-viewer-warning').evaluate(el=>el.hidden));
         report('document viewer uses exact published safety PDF',
-          (await page.locator('#sf-doc-viewer-frame').getAttribute('src'))?.includes(sheetUrl));
+          new URL((await page.locator('#sf-doc-viewer-frame').getAttribute('src'))||'',page.url()).href===new URL(sheetUrl,page.url()).href);
         report('PDF download remains available',
-          (await page.locator('#sf-doc-viewer-download').getAttribute('href'))?.includes(sheetUrl));
+          new URL((await page.locator('#sf-doc-viewer-download').getAttribute('href'))||'',page.url()).href===new URL(sheetUrl,page.url()).href);
         await page.screenshot({path:path.join(out,'iphone-390-document-viewer.png'),animations:'disabled'});
         await page.locator('#sf-doc-viewer [data-doc-close]').first().click();
         report('PDF viewer closes and frees frame',await viewer.evaluate(el=>!el.open)
