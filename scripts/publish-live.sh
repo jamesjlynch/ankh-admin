@@ -59,6 +59,9 @@ done
 "$php" -l customer-catalogue.php
 "$php" -l catalogue-categories.php
 "$php" tests/catalogue-categories.php
+"$php" -l lab-accessory-drafts.php
+"$php" -l scripts/seed-lab-accessories.php
+"$php" tests/lab-accessory-drafts.php
 "$php" -l customer-cms.php
 "$php" tests/customer-cms.php
 "$php" -l public-catalogue-core.php
@@ -83,6 +86,8 @@ for file in "${files[@]}"; do
   install -m 644 "$file" "$stage"
   mv -f "$stage" "$target/$file"
 done
+
+ANKH_SEED_ACCESSORIES=1 ANKH_DEPLOY_HOME="$home" "$php" scripts/seed-lab-accessories.php
 
 printf '%s\n' "$release" > "$marker.tmp"
 chmod 600 "$marker.tmp"
