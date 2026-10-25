@@ -153,7 +153,7 @@ $related=$selected?pfRelated($selected,$products):[];
   </a>
   <?php foreach($productSds as $sds):$unverifiedDraft=(int)($sds['reviewed_at']??0)===0;?>
    <?php if($unverifiedDraft):?><div class="sf-sds-public-draft-notice" role="note"><strong>Unverified draft safety information</strong><p>This is an ANKH rebranded working document, not a technically approved Safety Data Sheet. Its hazards, chemical identity and handling details have not been independently verified. Do not rely on it for safe handling; contact ANKH for current verified safety information.</p></div><?php endif;?>
-   <a class="sf-product-doc-link sf-product-doc-sds" href="./product-safety-document.php?id=<?=(int)$sds['id']?><?=!empty($sdsStaffPreview)?'&amp;staff=1':''?>" target="_blank" rel="noopener noreferrer" aria-label="View Safety Data Sheet PDF">
+   <a class="sf-product-doc-link sf-product-doc-sds" href="./product-safety-document.php?id=<?=(int)$sds['id']?><?=!empty($sdsStaffPreview)?'&amp;staff=1':''?>" target="_blank" rel="noopener noreferrer" aria-label="<?=$unverifiedDraft?'View unverified draft SDS reference PDF':'View reviewed Safety Data Sheet PDF'?>">
     <span class="sf-doc-symbol" aria-hidden="true">▤</span><span><strong><?=$unverifiedDraft?'Draft SDS reference · Unverified':'Safety Data Sheet'?></strong><small><?=$unverifiedDraft?'Preliminary reference PDF · Not an approved SDS':'Technically reviewed hazard and laboratory handling information · PDF'?></small></span><span aria-hidden="true">↗</span>
    </a>
   <?php endforeach;?>
@@ -270,6 +270,14 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
  <p>Pinch to zoom on supported devices, or double-tap the photograph to enlarge.</p>
 </dialog>
 <?php endif;?>
+<?php endif;?>
+<?php if($selected):?>
+<dialog id="sf-doc-viewer" class="sf-doc-viewer" aria-labelledby="sf-doc-viewer-title">
+ <div class="sf-doc-viewer-head"><div><span class="sf-kicker">ANKH / DOCUMENT CENTRE</span><h2 id="sf-doc-viewer-title">Product document</h2><p id="sf-doc-viewer-status">View the original PDF and its recorded status.</p></div><button type="button" data-doc-close aria-label="Close document viewer">×</button></div>
+ <p class="sf-doc-viewer-warning" id="sf-doc-viewer-warning" role="note" hidden>Unverified draft reference only. This PDF has not been technically approved as a Safety Data Sheet; hazards, identity and handling information have not been independently verified. Do not rely on it for safe handling.</p>
+ <div class="sf-doc-viewer-frame"><iframe id="sf-doc-viewer-frame" title="ANKH product document PDF preview" loading="lazy" referrerpolicy="no-referrer"></iframe><p>Can't see the PDF on your device? Open it in your browser using the action below.</p></div>
+ <div class="sf-doc-viewer-actions"><a id="sf-doc-viewer-open" href="./" target="_blank" rel="noopener noreferrer">Open full PDF ↗</a><button type="button" id="sf-doc-viewer-share">Share / copy link ↗</button><button type="button" data-doc-close>Close</button></div>
+</dialog>
 <?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
 <?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']])&&!isset($buyable[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=(int)($eligible['price']??($previewPrices[(int)$p['id']]??0))?>" data-approved-live="<?=$eligible?'1':'0'?>" data-approved-photo="<?=!empty($p['has_photo'])?pfEscape(ankhCmsPhotoUrl($p,'thumb')):''?>" data-approved-strength="<?=pfEscape(pfStrength($p))?>" data-approved-format="<?=pfEscape(pfVariantPresentation($p))?>"></span><?php endforeach;?>
