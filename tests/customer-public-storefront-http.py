@@ -94,6 +94,16 @@ def verify():
             assert "product-safety-document.php?id=11" in public_product, "Draft link must use exact per-product document id"
             assert get("/product-safety-document.php?id=11",raw=True)==example_pdf, "The released public reference must be the exact PDF"
             get("/product-safety-document.php?id=12",404)
+            with sqlite3.connect(portal) as db:
+                db.execute("UPDATE portal_product_sds SET published=1,public_draft=0,reviewed_at=1782400000 WHERE id=11")
+            reviewed=get("/?product=1")
+            assert 'ANKH reviewed SDS' in reviewed, "Owner-reviewed SDS must appear as reviewed"
+            assert "Draft SDS reference" not in reviewed, "Former draft label remains on reviewed SDS"
+            assert "Unverified draft safety information" not in reviewed, "Former draft warning remains"
+            assert "unverified draft" not in reviewed.lower(), "Global copy incorrectly describes reviewed sheet as unverified"
+            assert 'product-safety-document.php?id=11' in reviewed
+            assert get("/product-safety-document.php?id=11",raw=True)==example_pdf, "Reviewed PDF link broken"
+
 
             demo=get("/shop-demo.php")
             assert "Visible Study Material" in demo and "Simulate checkout" in demo
