@@ -62,6 +62,7 @@ function ankhPublicCatalogueProducts(PDO $db):array {
     $tables=array_flip($db->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN));
     foreach ($required as $table) if (!isset($tables[$table])) return [];
     $hasInfo=isset($tables['customer_catalogue_information']);
+    $hasSourcing=isset($tables['lab_accessory_sourcing']);
     $sql='SELECT p.id,p.name,c.description,c.image_mime'.
         ($hasInfo?',i.information':'').
         ' FROM products p
@@ -71,6 +72,11 @@ function ankhPublicCatalogueProducts(PDO $db):array {
         ' WHERE p.active=1
           ORDER BY p.name COLLATE NOCASE';
     $rows=$db->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    // Supplier verification never leaves Admin; only expose a safe pending flag.
+    // A laboratory draft may be published as INFORMATION without checkout rights.
+    $pendingAccessoryIds=[];
+    if($hasSourcing)foreach($db->query("SELECT product_id FROM lab_accessory_sourcing WHERE price_status IN ('reference_unconfirmed','needs_amazon_price')") as $sourceRow)
+        $pendingAccessoryIds[(int)$sourceRow['product_id']]=true;
     // Only display categories assigned in Order Admin. Legacy products retain
     // their existing research-type grouping; no new eligibility is implied.
     $categoryMap=[];
@@ -80,6 +86,7 @@ function ankhPublicCatalogueProducts(PDO $db):array {
     }
     foreach ($rows as &$row) {
         $row['category']=$categoryMap[(int)$row['id']]??'';
+        $row['sourcing_pending']=isset($pendingAccessoryIds[(int)$row['id']]);
         $row['description']=(string)($row['description']??'');
         $row['information']=$hasInfo?json_decode((string)($row['information']??''),true):[];
         if (!is_array($row['information'])) $row['information']=[];
