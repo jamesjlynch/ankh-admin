@@ -143,7 +143,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
           await page.locator('.sf-bottom-menu [data-open-cart]').click();
           report('basket drawer opens',await page.locator('#sf-cart-drawer').evaluate(el=>el.open));
           report('sticky rail hides behind basket',await bar.evaluate(el=>!el.classList.contains('is-visible')));
-          await page.locator('#sf-cart-drawer [data-close-cart]').click();
+          await page.locator('#sf-cart-drawer [data-close-cart]').first().click();
         }
       }
       await context.close();
