@@ -15,6 +15,7 @@ on:
       - 'tests/customer-guest-request-tracking.php'
       - 'tests/customer-request-order-link.php'
       - 'tests/customer-accessory-categories.php'
+      - 'customer-portal/storefront-lab-supplies.css'
       - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
       - 'tests/customer-catalogue-visibility.php'
