@@ -14,6 +14,7 @@ on:
       - 'tests/customer-product-variants.php'
       - 'tests/customer-guest-request-tracking.php'
       - 'tests/customer-request-order-link.php'
+      - 'tests/customer-accessory-categories.php'
       - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
       - 'tests/customer-catalogue-visibility.php'
@@ -100,6 +101,7 @@ jobs:
           php tests/customer-product-variants.php
           php tests/customer-guest-request-tracking.php
           php tests/customer-request-order-link.php
+          php tests/customer-accessory-categories.php
           php tests/customer-collection.php
           php tests/customer-account-features.php
           php tests/customer-statement.php
