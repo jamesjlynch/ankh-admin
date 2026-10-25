@@ -35,12 +35,12 @@ function pfFacets(array $products):array {
     return ['strength'=>$strength,'format'=>$formats];
 }
 function pfMatches(array $p,array $filter):bool {
-    if($filter['category']!=='All research' && pfType((string)$p['name'])!==$filter['category'])return false;
+    if($filter['category']!=='All research' && pfCategory($p)!==$filter['category'])return false;
     if($filter['strength']!==''&& pfStrength($p)!==$filter['strength'])return false;
     if($filter['format']!==''&& pfFormat($p)!==$filter['format'])return false;
     if($filter['search']!==''){
         $info=(array)($p['information']??[]);
-        $text=(string)$p['name'].' '.pfType((string)$p['name']).' '.(string)($info['research_focus']??'').' '.(string)($info['peptide_type']??'').' '.pfStrength($p);
+        $text=(string)$p['name'].' '.pfCategory($p).' '.pfType((string)$p['name']).' '.(string)($info['research_focus']??'').' '.(string)($info['peptide_type']??'').' '.pfStrength($p);
         if(stripos($text,$filter['search'])===false)return false;
     }
     return true;
