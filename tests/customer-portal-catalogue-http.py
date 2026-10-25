@@ -306,7 +306,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-accessory-http-') as temp:
             assert saved_db.execute('SELECT COUNT(*) FROM portal_notification_state WHERE customer_id=1').fetchone()[0]==0
         fresh=request(notices_path+'&unread=1');assert 'ANKH replied to your enquiry' in fresh and 'is-unread' in fresh
         home=request('/preview-live.php?customer_id=2&tab=home')
-        assert 'Shop the collection' in home and 'Your basket' in home
+        assert 'Shop the collection' in home and 'Your ANKH, connected' in home and 'Track my requests' in home
         assert 'pc-shop-hero' in home and 'pc-shop-featured' in home and 'class="pcd-home-banner"' not in home
         assert 'Skip to account content' in home and 'id="customer-main"' in home
         repeat_path='/preview-live.php?customer_id=2&tab=repeat-enquiry&order=10'
