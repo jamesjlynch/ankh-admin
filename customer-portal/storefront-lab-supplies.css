@@ -1,0 +1,19 @@
+/* ANKH Laboratory Supplies: published-category navigation, not marketing claims. */
+.sf-lab-department{margin:clamp(24px,5vw,64px) 0 40px;border:1px solid #b99b5e5a;border-radius:22px;background:linear-gradient(125deg,#172019,#101511 58%,#212016);padding:clamp(17px,3vw,34px);color:#ede5d1;min-width:0}
+.sf-lab-department-top{display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:18px}
+.sf-lab-department-top>div{min-width:0;max-width:660px}
+.sf-lab-department h2{font:400 clamp(24px,3.3vw,39px)/1.2 Georgia,serif;letter-spacing:-.03em;margin:8px 0 12px;color:#f8e9c7}
+.sf-lab-department p{font-size:13px;line-height:1.75;color:#bfc1b8;margin:0}
+.sf-lab-department .sf-lab-published-count{font-size:11px;border:1px solid #d1b77b55;border-radius:999px;padding:8px 12px;color:#e5ca8f;background:#cab37615;white-space:normal}
+.sf-lab-department-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px;margin:23px 0 15px}
+.sf-lab-category-card{min-width:0;text-decoration:none!important;display:flex;flex-direction:column;gap:8px;background:linear-gradient(140deg,#202920,#141b16);border:1px solid #b7a47557;border-radius:15px;padding:17px;transition:transform .15s ease,border-color .15s ease}
+.sf-lab-category-card:hover{border-color:#e5c37b;transform:translateY(-2px)}
+.sf-lab-category-card:focus-visible{outline:3px solid #e9ca89;outline-offset:3px}
+.sf-lab-category-icon{display:grid;place-items:center;width:34px;height:34px;color:#e7c581;border:1px solid #d6b97957;border-radius:10px;font-size:16px}
+.sf-lab-category-card strong{font-size:15px;font-weight:650;color:#f3e7c7;overflow-wrap:anywhere}
+.sf-lab-category-card small{font-size:11px;color:#b9beb3}
+.sf-lab-category-link{margin-top:auto;padding-top:8px;color:#edcf91;font-size:11px;font-weight:700}
+.sf-lab-department-note{font-size:11px!important;color:#aeb4ab!important}
+@media(max-width:620px){.sf-lab-department{border-radius:16px;padding:17px 13px}.sf-lab-department-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.sf-lab-category-card{padding:13px;min-height:160px}.sf-lab-category-card strong{font-size:13px}.sf-lab-category-link{font-size:10px}}
+@media(max-width:345px){.sf-lab-department-grid{grid-template-columns:1fr}.sf-lab-category-card{min-height:auto}}
+@media(prefers-reduced-motion:reduce){.sf-lab-category-card{transition:none}.sf-lab-category-card:hover{transform:none}}
