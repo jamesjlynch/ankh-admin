@@ -218,10 +218,10 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     $esc=static fn(mixed $v):string=>(string)htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
     $csrf=$esc($_SESSION['portal_csrf']??'');
     ?>
-    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css?v=studio-4"><link rel="stylesheet" href="./cms-studio.css?v=product-docs-5"></head>
+    <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Customer tools · ANKH</title><link rel="stylesheet" href="./style.css"><link rel="stylesheet" href="./account.css?v=studio-4"><link rel="stylesheet" href="./cms-studio.css?v=product-docs-5"><link rel="stylesheet" href="./document-control.css?v=1"></head>
     <body class="pc-ops-body"><a class="cms-skip" href="#cms-main-content">Skip to workspace</a><main class="pc-ops">
-    <?php $panel=(string)($_GET['panel']??'products');if(!in_array($panel,['products','certificates','commerce','requests','availability','contact'],true))$panel='products'; ?>
-    <?php $sectionTitles=['products'=>['Product CMS','Create, refine and publish your product pages.'],'certificates'=>['Certificates','Manage the documents customers can view.'],'commerce'=>['Storefront settings','Keep the details of your business up to date.'],'requests'=>['Customer requests','Review requests and delivery preferences.'],'availability'=>['Availability','Manage the availability labels on your website.'],'contact'=>['WhatsApp','Make it easy for customers to reach you.']]; ?>
+    <?php $panel=(string)($_GET['panel']??'products');if(!in_array($panel,['products','documents','certificates','commerce','requests','availability','contact'],true))$panel='products'; ?>
+    <?php $sectionTitles=['products'=>['Product CMS','Create, refine and publish your product pages.'],'certificates'=>['Certificates','Manage the documents customers can view.'],'documents'=>['Document Control','See SDS, COA and missing-document status across approved products.'],'commerce'=>['Storefront settings','Keep the details of your business up to date.'],'requests'=>['Customer requests','Review requests and delivery preferences.'],'availability'=>['Availability','Manage the availability labels on your website.'],'contact'=>['WhatsApp','Make it easy for customers to reach you.']]; ?>
     <header class="pc-ops-header"><span class="pc-eyebrow">WORKSPACE <span aria-hidden="true">/</span> <?=$esc($sectionTitles[$panel][0])?></span>
       <div class="pc-ops-heading"><div><h1><?=$esc($sectionTitles[$panel][0])?></h1><p><?=$esc($sectionTitles[$panel][1])?></p></div><a class="pc-outline-button" href="./preview-live.php?preview=customers">Customer preview →</a></div>
     </header>
@@ -229,6 +229,7 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     <?php if($flash!==''):?><p class="pc-notification-feedback" role="status"><?=$esc($flash)?></p><?php endif;?>
     <div class="pc-ops-stack" id="cms-main-content" tabindex="-1">
     <?php if($panel==='products'):ankhCmsEditor($store,$admin,(string)($_SESSION['portal_csrf']??''));endif;?>
+    <?php if($panel==='documents'):ankhDocumentControlPage($store,$admin);endif;?>
     <?php if($panel==='contact'):?><section class="pc-panel pc-ops-contact"><div class="pc-section-header"><div><span class="pc-eyebrow">CUSTOMER CONTACT</span><h2>WhatsApp Business</h2></div></div>
       <p class="pc-footnote">Enter the ANKH business WhatsApp number, with country code. Once saved, the Shop, Basket, Orders and Account screens show an instant-message link. The customer's order information is not automatically sent to WhatsApp. Leave blank to disable the button.</p>
       <form method="post" class="pc-ops-contact-form"><input type="hidden" name="csrf" value="<?=$csrf?>"><input type="hidden" name="action" value="portal_whatsapp">
@@ -249,6 +250,6 @@ function portalExtrasStaffPage(PDO $store,PDO $admin):void {
     <?php endif;?>
     <?php if($panel==='availability'):?><section class="pc-panel"><div class="pc-section-header"><div><span class="pc-eyebrow">THE COLLECTION</span><h2>Product availability labels</h2></div></div><p class="pc-footnote">Automatic labels use tracked stock without exposing quantities. A manual label never makes an unpublished product visible or overrides a zero tracked stock quantity into Available.</p>
     <div class="pc-ops-products"><?php foreach($products as $p):?><form method="post" class="pc-ops-product"><input type="hidden" name="csrf" value="<?=$csrf?>"><input type="hidden" name="action" value="portal_availability"><input type="hidden" name="product_id" value="<?=(int)$p['id']?>"><strong><?=$esc($p['name'])?></strong><select name="label" aria-label="Availability for <?=$esc($p['name'])?>"><?php foreach(['automatic'=>'Automatic','available'=>'Available','limited'=>'Limited','coming_soon'=>'Coming soon','unavailable'=>'Unavailable'] as $key=>$label):?><option value="<?=$key?>" <?=($availability[(int)$p['id']]??'automatic')===$key?'selected':''?>><?=$label?></option><?php endforeach;?></select><button type="submit">Save</button></form><?php endforeach;?></div>
-    </section><?php endif;?></div></main><script src="./cms-editor.js?v=studio-4" defer></script></body></html>
+    </section><?php endif;?></div></main><script src="./cms-editor.js?v=studio-4" defer></script><script src="./document-control.js?v=1" defer></script></body></html>
     <?php
 }
