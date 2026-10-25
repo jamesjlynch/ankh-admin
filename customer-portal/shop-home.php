@@ -23,6 +23,10 @@ if(empty($isDemo)&&isset($admin,$portal)){
   </div>
   <div class="pc-shop-hero-art" aria-hidden="true"><span>☥</span><small>ANKH / RESEARCH COLLECTION</small></div>
 </section>
+<section class="pc-home-operating" aria-label="Your next step">
+ <div class="pc-home-operating-copy"><span class="pc-eyebrow"><?=portalEscape((string)$homeFocus['eyebrow'])?></span><h2><?=portalEscape((string)$homeFocus['title'])?></h2><p><?=portalEscape((string)$homeFocus['body'])?></p></div>
+ <a href="<?=portalEscape(pcHref((string)$homeFocus['tab'],$staff,$customerId,(array)$homeFocus['params']))?>" class="pc-primary-link"><?=portalEscape((string)$homeFocus['action'])?> <?=pcIcon('right')?></a>
+</section>
 <section class="pc-account-hub" aria-label="My ANKH account at a glance">
 <div class="pc-account-hub-heading"><div><span class="pc-eyebrow">ALL YOUR ANKH DETAILS</span><h2>Your account, connected<span class="pc-dot">.</span></h2><p>Order progress, balances, saved research, messages and My Fridge in one place.</p></div><a href="<?=portalEscape(pcHref('account',$staff,$customerId))?>">Manage my details <?=pcIcon('right')?></a></div>
 <div class="pc-account-hub-grid">
