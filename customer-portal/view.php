@@ -99,6 +99,6 @@ if (!defined('ANKH_PORTAL_VIEW')) { http_response_code(404); exit; }
   <?php require __DIR__.'/customer-experience.php'; ?>
 <?php endif; ?>
 </main>
-<footer><span>☥ ANKH</span><span>PRIVATE CUSTOMER EXPERIENCE</span><a href="mailto:info@ankhpeptides.com?subject=Privacy%20enquiry">Privacy &amp; support</a></footer>
+<footer><span>☥ ANKH</span><span>PRIVATE CUSTOMER EXPERIENCE</span><a href="./about.php">About ANKH</a><a href="./our-standards.php">Our standards</a><a href="mailto:info@ankhpeptides.com?subject=Privacy%20enquiry">Privacy &amp; support</a></footer>
 </body></html>
 

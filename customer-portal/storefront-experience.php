@@ -53,8 +53,9 @@ $metaDescription=$selected
 <nav class="sf-links" aria-label="Primary navigation">
 <a href="./" <?=!$selected?'aria-current="page"':''?>>Collection</a>
 <?php if($labCategoryCounts):?><a href="./#sf-laboratory-supplies">Laboratory supplies</a><?php endif;?>
-<a href="./#sf-process">Our approach</a>
+<a href="./about.php">About ANKH</a>
 <a href="./public-catalogue.php">Research library</a>
+<a href="./our-standards.php">Our standards</a>
 <?php if(!empty($whatsappUrl)):?><a href="<?=pfEscape($whatsappUrl)?>" rel="noopener noreferrer" target="_blank">WhatsApp support ↗</a><?php else:?><a href="mailto:info@ankhpeptides.com">Contact</a><?php endif;?>
 </nav>
 <a class="sf-saved-entry" href="./?saved=1" aria-label="Open saved research shortlist">Saved <span data-saved-count>0</span></a>
@@ -288,7 +289,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <article><span class="sf-kicker">HUMAN SUPPORT</span><h3>Speak to ANKH.</h3>
 <?php if(!empty($businessFacts['support'])):?><p><?=nl2br(pfEscape($businessFacts['support']))?></p><?php else:?><p>Contact ANKH directly for support availability and existing order queries.</p><?php endif;?>
 <a href="mailto:info@ankhpeptides.com">Email ANKH support ↗</a></article>
-</div><p class="sf-trust-fineprint">Research pages do not establish medical suitability or product quality. Independent batch documentation will only be linked when available and verified.</p></section>
+</div><p class="sf-trust-fineprint">Research pages do not establish medical suitability or product quality. Independent batch documentation will only be linked when available and verified. <a href="./about.php">About ANKH ↗</a> · <a href="./our-standards.php">Our standards ↗</a></p></section>
 <section class="sf-editorial sf-editorial-v2" id="sf-process"><div><span class="sf-kicker">THE ANKH EXPERIENCE</span><h2>Every detail.<br><em>Considered.</em></h2>
 <p>Your research reference and your personal ANKH account belong in one thoughtfully designed experience.</p><a class="sf-button" href="./?tab=home">Open My Account <span aria-hidden="true">→</span></a></div><div class="sf-editorial-emblem" aria-hidden="true">☥</div></section>
 <section class="sf-process" aria-label="How ANKH works">
@@ -344,7 +345,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
  <a href="./shop-demo.php" id="sf-cart-demo-link" class="sf-cart-demo-link" hidden>Preview demo items separately ↗</a>
  <button type="button" class="sf-cart-continue" data-close-cart>Continue exploring ANKH</button></div>
 </dialog>
-<footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?saved=1">Saved research</a><a href="./?tab=basket">Customer basket</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
+<footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="./about.php">About ANKH</a><a href="./our-standards.php">Our standards</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?saved=1">Saved research</a><a href="./?tab=basket">Customer basket</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
 <dialog class="sf-quick-dialog" id="sf-quick" aria-labelledby="sf-quick-title"><div class="sf-quick-inner">
 <button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><div class="sf-quick-actions"><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><button type="button" class="sf-add-cart sf-quick-add" id="sf-quick-add" data-cart-id="0" hidden>Try in demo basket ＋</button></div><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
 </div></dialog>

@@ -50,6 +50,9 @@ jobs:
           set -euo pipefail
           php -l customer-portal/storefront-preview.php
           php -l customer-portal/storefront.php
+          php -l customer-portal/about.php
+          php -l customer-portal/our-standards.php
+          php -l customer-portal/company-profile.php
           php -l customer-portal/shop-home.php
           php -l customer-portal/account-activity.php
           php -l customer-portal/my-fridge.php
@@ -161,6 +164,16 @@ jobs:
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php "$S/scripts/check-public-catalogue.php"
           REMOTE
+
+      - name: Verify live About and Standards pages
+        run: |
+          set -euo pipefail
+          for page in about.php our-standards.php; do
+            page_html="$(curl --fail --location --retry 2 --max-time 25 --silent --show-error "https://order.ankhpeptides.com/$page")"
+            grep -q '<main id="main">' <<<"$page_html"
+            grep -q './public-catalogue.php' <<<"$page_html"
+            grep -q './our-standards.php' <<<"$page_html"
+          done
 
       - name: Prepare fourteen private SDS draft files from existing CI artifact
         if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[stage-ankh-sds]') }}

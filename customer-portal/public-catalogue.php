@@ -137,7 +137,7 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 </style>
 </head>
 <body>
-<header class="top"><div class="wrap"><a class="brand" href="./public-catalogue.php"><span class="symbol" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>SCIENTIFIC REFERENCE</small></span></a><nav aria-label="Primary"><a href="./public-catalogue.php">Research index</a><a href="https://www.gov.uk/guidance/borderline-products-how-to-tell-if-your-product-is-a-medicine" target="_blank" rel="noopener noreferrer">UK guidance ↗</a></nav></div></header>
+<header class="top"><div class="wrap"><a class="brand" href="./public-catalogue.php"><span class="symbol" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>SCIENTIFIC REFERENCE</small></span></a><nav aria-label="Primary"><a href="./public-catalogue.php">Research index</a><a href="./about.php">About ANKH</a><a href="./our-standards.php">Our standards</a><a href="https://www.gov.uk/guidance/borderline-products-how-to-tell-if-your-product-is-a-medicine" target="_blank" rel="noopener noreferrer">UK guidance ↗</a></nav></div></header>
 <main class="wrap">
 <?php if($selected):$info=$selected['information'];$focus=trim((string)($info['research_focus']??''));?>
 <a class="back" href="./public-catalogue.php">← All published research profiles</a>
@@ -190,5 +190,5 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
 <?php else:?><section class="empty"><span class="eyebrow">Regulatory review</span><h2>No published profiles available</h2><p>The public reference lists only products marked active and visible in ANKH’s existing catalogue. Products without that visibility setting remain hidden.</p></section><?php endif;?>
 <?php endif;?>
 </main>
-<footer class="foot"><div class="wrap">ANKH GLOBAL LTD · Technical scientific information only. No price, availability or clinical-use information is provided on this public page. Public display does not constitute a regulatory authorisation. <a href="https://www.gov.uk/guidance/advertise-your-medicines" rel="noopener noreferrer" target="_blank">MHRA guidance ↗</a></div></footer>
+<footer class="foot"><div class="wrap">ANKH GLOBAL LTD · Technical scientific information only. No price, availability or clinical-use information is provided on this public page. Public display does not constitute a regulatory authorisation. <a href="https://www.gov.uk/guidance/advertise-your-medicines" rel="noopener noreferrer" target="_blank">MHRA guidance ↗</a> · <a href="./about.php">About ANKH</a> · <a href="./our-standards.php">Our standards</a></div></footer>
 </body></html>
