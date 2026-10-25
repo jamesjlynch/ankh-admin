@@ -27,7 +27,17 @@ if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))
 $db=new PDO('sqlite:'.$database,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $db->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000');
 $backup=$dir.'/before-lab-accessories-'.gmdate('Ymd-His').'-'.bin2hex(random_bytes(4)).'.sqlite';
-$db->exec('VACUUM INTO '.$db->quote($backup));
+if(!class_exists('SQLite3')||!method_exists('SQLite3','backup'))
+    throw new RuntimeException('Server lacks SQLite online-backup support; refusing to write to customer data.');
+$sourceSnapshot=new SQLite3($database,SQLITE3_OPEN_READONLY);
+$backupSnapshot=new SQLite3($backup,SQLITE3_OPEN_READWRITE|SQLITE3_OPEN_CREATE);
+try{
+    if(!$sourceSnapshot->backup($backupSnapshot))
+        throw new RuntimeException('SQLite online snapshot failed.');
+}finally{
+    $backupSnapshot->close();
+    $sourceSnapshot->close();
+}
 if(!is_file($backup)||filesize($backup)<100)throw new RuntimeException('A complete backup could not be verified.');
 chmod($backup,0600);
 $result=ankhLabAccessoriesSeed($db);
