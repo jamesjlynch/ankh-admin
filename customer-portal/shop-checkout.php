@@ -55,6 +55,7 @@ try {
         ];
         $id=sfCommerceCreateRequest($portal,$inputs,$products,$token,$fingerprint);
         $_SESSION['guest_received']=$id;
+        $_SESSION['guest_received_product_ids']=array_map('intval',array_keys($inputs['items']));
         $_SESSION['guest_token']=bin2hex(random_bytes(32));
         header('Location: ./shop-checkout.php?received=1',true,303);exit;
     }
@@ -65,12 +66,12 @@ try {
 catch(Throwable $e){error_log('ANKH guest checkout: '.$e->getMessage());$error='Guest checkout is temporarily unavailable. Please contact ANKH support.';}
 ?>
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0e100d"><meta name="robots" content="noindex,nofollow">
-<title>Checkout request · ANKH</title><link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=5"><script defer src="./checkout.js?v=1"></script></head>
+<title>Checkout request · ANKH</title><link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=5"><link rel="stylesheet" href="./storefront-basket-premium.css?v=1"><script defer src="./checkout.js?v=2"></script></head>
 <body class="sf-public sf-checkout-page">
 <header class="sf-header"><div class="sf-shell sf-head-inner"><a class="sf-logo" href="./"><span class="sf-ankh">☥</span><span><strong>ANKH</strong><small>CHECKOUT REQUEST</small></span></a><a class="sf-account-entry" href="./?tab=home">My Account ↗</a></div></header>
 <main class="sf-shell sf-checkout-shell"><a class="sf-back-link" href="./#collection">← Back to collection</a>
 <?php if($received!==null):?>
-<section class="sf-checkout-success"><span class="sf-kicker">REQUEST RECEIVED</span><h1>Thank you<span class="sf-gold">.</span></h1><p>Your accessory order request has been recorded for ANKH review.</p>
+<section class="sf-checkout-success" data-successful-request-ids="<?=gcE(implode(',',array_map('intval',(array)($_SESSION['guest_received_product_ids']??[]))))?>"><span class="sf-kicker">REQUEST RECEIVED</span><h1>Thank you<span class="sf-gold">.</span></h1><p>Your accessory order request has been recorded for ANKH review.</p>
 <div class="sf-checkout-ref">Reference <strong>REQ-<?=str_pad((string)$received,5,'0',STR_PAD_LEFT)?></strong></div>
 <p>ANKH will contact you to confirm availability, delivery charges and payment arrangements. <strong>This is not a completed purchase, and no payment has been taken.</strong> Your request is not yet listed in My Orders until ANKH creates an order in Admin.</p>
 <a href="./" class="sf-button">Return to ANKH ↗</a></section>
@@ -82,11 +83,12 @@ catch(Throwable $e){error_log('ANKH guest checkout: '.$e->getMessage());$error='
 <form method="post" action="./shop-checkout.php" class="sf-checkout-layout" id="sf-checkout-form">
 <input type="hidden" name="csrf" value="<?=gcE($_SESSION['guest_csrf']??'')?>"><input type="hidden" name="request_token" value="<?=gcE($_SESSION['guest_token']??'')?>">
 <div class="sf-honey"><label>Leave this field empty <input name="website" tabindex="-1" autocomplete="off"></label></div>
-<div class="sf-checkout-main"><section class="sf-checkout-panel"><span class="sf-kicker">YOUR ITEMS</span><h2>Basket review</h2>
+<div class="sf-checkout-main"><section class="sf-checkout-panel"><span class="sf-kicker">01 / ELIGIBLE ACCESSORIES</span><h2>Review your items</h2><p class="sf-checkout-hint" id="sf-checkout-selected-count">Only eligible accessories can be requested.</p>
 <?php foreach($products as $p):?><div class="sf-checkout-line" data-item-row="<?= (int)$p['id']?>">
 <div><strong><?=gcE($p['name'])?></strong><small><?=gcMoney($p['price'])?> each</small></div>
 <label>Quantity <input type="number" name="items[<?= (int)$p['id']?>]" data-checkout-qty="<?=(int)$p['id']?>" data-unit-price="<?=$p['price']?>" min="0" max="99" step="1" value="0"></label></div><?php endforeach;?>
-<p class="sf-checkout-hint">Select the quantities you want. ANKH will validate current pricing and eligibility again when you submit.</p></section>
+<button type="button" id="sf-checkout-show-all" class="sf-checkout-show-all" hidden>Show other eligible accessories ↗</button>
+<p class="sf-checkout-hint">ANKH validates product prices and eligibility when you submit. Research demos never become orders.</p></section>
 <section class="sf-checkout-panel"><span class="sf-kicker">02 / CONTACT &amp; DELIVERY</span><h2>Your details</h2>
 <div class="sf-checkout-fields"><label>Full name <input type="text" name="name" autocomplete="name" required maxlength="120" value="<?=gcE($_POST['name']??'')?>"></label>
 <label>Email <input type="email" name="email" autocomplete="email" required maxlength="200" value="<?=gcE($_POST['email']??'')?>"></label>
