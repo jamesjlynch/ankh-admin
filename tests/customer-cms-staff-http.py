@@ -66,11 +66,16 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
         assert 'cms-studio.css' in body and 'pc-studio-nav' in body
         qa_dir=os.environ.get('ANKH_CMS_QA_DIR')
         if qa_dir:Path(qa_dir).mkdir(parents=True,exist_ok=True);(Path(qa_dir)/'products.html').write_text(body)
-        for label in ['Product CMS','Certificates','Storefront settings','Customer requests','Availability','WhatsApp','Customer preview','Sign out']:
+        for label in ['Product CMS','Document Control','Storefront settings','Customer requests','Availability','WhatsApp','Customer preview','Sign out']:
             assert label in body,label
-        for panel in ['commerce','requests','availability','contact']:
+        for panel in ['documents','commerce','requests','availability','contact']:
             panel_status,_,panel_body=call(base,'/preview-live.php?manage=portal&panel='+panel,cookie)
             assert panel_status==200 and 'aria-label="Admin sections"' in panel_body,(panel,panel_status,panel_body[:400])
+        status,_,docs_page=call(base,'/preview-live.php?manage=portal&panel=documents',cookie)
+        assert status==200 and 'Documentation overview' in docs_page and 'No SDS recorded' in docs_page
+        assert 'BPC-157 5mg' in docs_page and 'Other approved product' in docs_page
+        assert 'Hidden Item' not in docs_page and 'Inactive Item' not in docs_page
+        assert 'ankh-doc-filter' in docs_page and 'ankh-doc-copy' in docs_page
         old_status,old_headers,_=call(base,'/preview-live.php?manage=portal&panel=certificates',cookie)
         assert old_status==303 and old_headers['Location'].endswith('panel=products')
         assert 'Hidden Item' not in body and 'Inactive Item' not in body
@@ -115,6 +120,9 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as tmp:
             docs=db.execute('SELECT id,product_id,published FROM portal_product_documents ORDER BY id').fetchall()
             assert len(docs)==2 and docs[0][1:]==(1,1) and docs[1][1:]==(3,1),docs
         doc_id=docs[0][0]
+        status,_,docs_after=call(base,'/preview-live.php?manage=portal&panel=documents',cookie)
+        assert status==200 and '1 public analytical report' in docs_after
+        assert 'product-document.php?id='+str(doc_id) in docs_after
         hidden_status,hide_headers,_=call(base,page,cookie,{'csrf':csrf,'action':'ankh_document_visibility','document_id':doc_id,'product_id':'1','visibility':'hide'})
         assert hidden_status==303 and 'cms_product_id=1#ankh-certificates' in hide_headers['Location']
         with sqlite3.connect(portal) as db:assert db.execute('SELECT published FROM portal_product_documents WHERE id=?',(doc_id,)).fetchone()[0]==0
