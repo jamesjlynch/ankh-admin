@@ -86,7 +86,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" tests/customer-portal-render.php
 "$php" tests/customer-portal-catalogue.php
 "$php" tests/customer-catalogue-visibility.php
-for tab in home orders vault support account insights recurring notifications catalogue basket checkout test-orders; do "$php" tests/customer-portal-navigation.php "$tab"; done
+for tab in home orders requests vault support account insights recurring notifications catalogue basket checkout test-orders; do "$php" tests/customer-portal-navigation.php "$tab"; done
 "$php" tests/customer-portal-navigation.php orders 104
 "$php" tests/customer-portal-navigation.php vault 103
 echo "STEP 3/4: Backing up current portal code"
