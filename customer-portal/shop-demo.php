@@ -33,7 +33,8 @@ try{
         $portal=new PDO('sqlite:'.$portalPath,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
         $portal->exec('PRAGMA query_only=ON');
         $demo=sfDemoVisible($portal,$products);
-    }else{$demo=[];foreach($products as $p)$demo[(int)$p['id']]=true;}
+        $eligible=sfCommerceEligible($portal,$admin);
+    }else{$demo=[];$eligible=[];foreach($products as $p)$demo[(int)$p['id']]=true;}
 }catch(Throwable $e){error_log('ANKH demo checkout: '.$e->getMessage());http_response_code(503);exit('Test basket is temporarily unavailable.');}
 ?>
 <!doctype html><html lang="en-GB"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -41,11 +42,11 @@ try{
 <link rel="stylesheet" href="./storefront-preview.css"><link rel="stylesheet" href="./storefront.css?v=6"><link rel="stylesheet" href="./storefront-luxury.css?v=2"><script src="./shop-demo.js?v=2" defer></script></head>
 <body class="sf-public sf-checkout-page"><header class="sf-header"><div class="sf-shell sf-head-inner"><a class="sf-logo" href="./" aria-label="ANKH homepage"><span class="sf-ankh" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>SHOPPING DEMONSTRATION</small></span></a><a class="sf-account-entry" href="./">Back to products ↗</a></div></header>
 <main class="sf-shell sf-checkout-shell"><a href="./#collection" class="sf-back-link">← Continue browsing</a>
-<section class="sf-checkout-title"><span class="sf-kicker">PREVIEW · NO LOGIN REQUIRED</span><h1>Test your checkout<span class="sf-gold">.</span></h1><p>Preview the shopping journey with the products in your basket. This demo never places an order, collects a payment, submits an enquiry or reserves stock.</p></section>
+<section class="sf-checkout-title"><span class="sf-kicker">PREVIEW · NO LOGIN REQUIRED</span><h1>Test your checkout<span class="sf-gold">.</span></h1><p>Preview the shopping journey with research items in your demo basket. Approved accessories are handled separately through a staff-reviewed request. This page never places an order, takes payment or reserves stock.</p></section>
 <div class="sf-checkout-layout">
 <section class="sf-checkout-panel"><span class="sf-kicker">01 / YOUR SELECTION</span><h2>Basket summary</h2><div class="sf-demo-items" id="sf-demo-lines"><p>Loading your basket…</p></div>
 <div class="sf-demo-available" hidden>
-<?php foreach($products as $p):if(!isset($demo[(int)$p['id']]))continue;?><span data-demo-id="<?=(int)$p['id']?>" data-demo-name="<?=demoEscape($p['name'])?>" data-demo-price="<?=(int)($previewPrices[(int)$p['id']]??0)?>"></span><?php endforeach;?>
+<?php foreach($products as $p):if(!isset($demo[(int)$p['id']])||isset($eligible[(int)$p['id']]))continue;?><span data-demo-id="<?=(int)$p['id']?>" data-demo-name="<?=demoEscape($p['name'])?>" data-demo-price="<?=(int)($previewPrices[(int)$p['id']]??0)?>"></span><?php endforeach;?>
 </div>
 <p class="sf-checkout-hint">Quantities are saved only in this browser. Displayed retail values are test previews; actual order totals and delivery charges are not confirmed.</p>
 <a href="./#collection" class="sf-secondary">← Add more products</a></section>
