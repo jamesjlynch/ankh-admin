@@ -64,8 +64,6 @@ function ankhLabAccessoriesSeed(PDO $db):array {
         VALUES(?,?,?,0,5,1)');
     $desc=$db->prepare('INSERT INTO customer_catalogue_content(product_id,description,updated_at) VALUES(?,?,?)
       ON CONFLICT(product_id) DO NOTHING');
-    $vis=$db->prepare('INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(?,0?)
-      ON CONFLICT(product_id) DO NOTHING');
     // Do not use the old public catalogue's historical visible-by-default behavior.
     $vis=$db->prepare('INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(?,0,?)
       ON CONFLICT(product_id) DO NOTHING');
