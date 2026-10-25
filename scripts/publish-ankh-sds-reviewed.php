@@ -22,7 +22,7 @@ $manifest=json_decode((string)file_get_contents($originals.'/manifest.json'),tru
 if(!is_array($manifest)||($manifest['date']??'')!=='2026-10-25'||!is_array($manifest['items']??null)||count($manifest['items'])!==14)
  throw new RuntimeException('Unexpected manifest contents');
 $ids=[];$ready=[];
-$q=$store->prepare('SELECT id,pdf_name,pdf_sha256,pdf_bytes,published,public_draft,reviewed_at FROM portal_product_sds WHERE product_id=? ORDER BY id DESC LIMIT 1');
+$q=$store->prepare('SELECT id,pdf_name,pdf_sha256,pdf_bytes,source_url,published,public_draft,reviewed_at FROM portal_product_sds WHERE product_id=? ORDER BY id DESC LIMIT 1');
 $p=$admin->prepare('SELECT name,active FROM products WHERE id=?');
 foreach($manifest['items'] as $item){
  $productId=(int)($item['product_id']??0);
@@ -50,7 +50,7 @@ foreach($manifest['items'] as $item){
   throw new RuntimeException("Final PDF failed signature, size, or revision checks: $name");
  if(class_exists('finfo')&&(new finfo(FILEINFO_MIME_TYPE))->buffer($bytes)!=='application/pdf')
   throw new RuntimeException("Final PDF has invalid MIME type: $name");
- $ready[]=['product_id'=>$productId,'old_id'=>(int)$old['id'],'name'=>$name,'bytes'=>$bytes,'hash'=>hash('sha256',$bytes)];
+ $ready[]=['product_id'=>$productId,'old_id'=>(int)$old['id'],'name'=>$name,'bytes'=>$bytes,'source'=>(string)$old['source_url'],'hash'=>hash('sha256',$bytes)];
 }
 if(count($ready)!==14||count($ids)!==14)throw new RuntimeException('Not exactly 14');
 $reviewer='ANKH GLOBAL LTD — business owner confirmation';
@@ -67,7 +67,7 @@ try{
    $insert->bindValue(2,$doc['name']);
    $insert->bindValue(3,$doc['hash']);
    $insert->bindValue(4,$doc['bytes'],PDO::PARAM_LOB);
-   $insert->bindValue(5,'',PDO::PARAM_STR);
+   $insert->bindValue(5,$doc['source'],PDO::PARAM_STR);
    $insert->bindValue(6,$now,PDO::PARAM_INT);
    $insert->bindValue(7,1,PDO::PARAM_INT);
    $insert->bindValue(8,0,PDO::PARAM_INT);
