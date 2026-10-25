@@ -33,7 +33,7 @@ $by=[];foreach($rows as $r)$by[$r['id']]=$r;
 checkDoc(count($rows)===5&&!isset($by[999])&&!isset($by[998]),'Hidden/inactive product and documentation must stay out of CMS');
 checkDoc($by[101]['sds_status']==='reviewed' && $by[101]['sds_id']===15 && $by[101]['sds_private_count']===1,'Review should outrank archived SDS');
 checkDoc($by[101]['coa_count']===1&&$by[101]['coa_private_count']===1&&$by[101]['spec_count']===1,'COA, archived report and specification must remain distinct');
-checkDoc($by[73]['sds_status']==='public-draft'&&$by[73]['coa_count']===0&&$by[73]['coa_private_count']===1,'Unverified public working copy and private COA must not count as reviewed');
+checkDoc($by[73]['sds_status']==='public-draft'&&$by[73]['coa_count']===0&&$by[73]['coa_private_count']===1,'Unverified working copy and private COA: '.json_encode($by[73]));
 checkDoc($by[125]['sds_status']==='private'&&$by[125]['coa_count']===0&&$by[125]['spec_count']===1,'Private SDS and specification must not count as published approved PDF/COA');
 checkDoc($by[78]['sds_status']==='missing','No SDS recorded must not be replaced with an invented record');
 checkDoc($by[53]['sds_status']==='reviewed'&&$by[53]['coa_count']===1,'Real reviewed SDS with public COA should count properly');
