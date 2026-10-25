@@ -1,6 +1,14 @@
 <?php
 declare(strict_types=1);
 /** Shared customer catalogue metadata. No product data is rewritten. */
+/** Saved category labels from Admin, read-only for customer views. */
+function ankhCatalogueAssignedCategories(PDO $db):array{
+    $tables=array_flip($db->query("SELECT name FROM sqlite_master WHERE type='table'")->fetchAll(PDO::FETCH_COLUMN));
+    if(!isset($tables['catalogue_categories'],$tables['catalogue_product_categories']))return [];
+    $q=$db->query('SELECT m.product_id,c.name,c.kind FROM catalogue_product_categories m JOIN catalogue_categories c ON c.id=m.category_id');
+    $out=[];foreach($q as $row)$out[(int)$row['product_id']]=['name'=>(string)$row['name'],'kind'=>(string)$row['kind']];
+    return $out;
+}
 function ankhCatalogueKind(string $name): string {
     $name=strtolower(trim(preg_replace('/\s+/u',' ',$name)??''));
     // Display categories only. Visibility is always an explicit per-product choice.
@@ -128,8 +136,9 @@ function ankhCatalogueProducts(PDO $db,int $customerId): array {
     }
     $out=[];
     $content=ankhCatalogueContent($db);
+    $assignedCategories=ankhCatalogueAssignedCategories($db);
     foreach($db->query('SELECT * FROM products WHERE active=1 ORDER BY name COLLATE NOCASE') as $p){
-        $category=ankhCatalogueKind((string)$p['name']);
+        $category=(string)($assignedCategories[(int)$p['id']]['name']??ankhCatalogueKind((string)$p['name']));
         if((int)($visibility[(int)$p['id']]??0)!==1)continue;
         $price=(int)$p['price'];
         if($pricing==='family_friends' && isset($p['family_friends_price']))$price=(int)$p['family_friends_price'];
