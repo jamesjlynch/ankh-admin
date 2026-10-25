@@ -37,4 +37,14 @@ accessoryCheck(!isset($eligible[4]),'Unpublished labware incorrectly enabled for
 $admin->exec('UPDATE customer_catalogue_visibility SET visible=0 WHERE product_id=1');
 accessoryCheck(!isset(sfCommerceEligible($store,$admin)[1]),'Hiding an accessory must revoke checkout visibility immediately');
 accessoryCheck(count(ankhPublicCatalogueProducts($admin))===2,'Hidden product must disappear from public catalogue');
-echo "PASS: custom labware categories propagate safely; visibility hides products; peptide checkout stays blocked; accessory approval remains separate.\n";
+require_once dirname(__DIR__).'/customer-portal/storefront-design.php';
+if(!function_exists('pfType')){function pfType(string $name):string{return ankhPublicType($name);}}
+if(!function_exists('pfCategory')){function pfCategory(array $p):string{return trim((string)($p['category']??''))!==''?(string)$p['category']:pfType((string)$p['name']);}}
+if(!function_exists('pfEscape')){function pfEscape(mixed $v):string{return htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}}
+accessoryCheck(count(pfRelated($map[1],array_values($map)))===1,'Labware recommendations must exclude a research compound from accessory detail pages');
+accessoryCheck((int)pfRelated($map[1],array_values($map))[0]['id']===3,'Related products should stay within real published accessory catalogue');
+accessoryCheck(pfCategory($map[1])==='Petri Dishes','Source-of-truth category must be available to category browse');
+$labCategories=[];
+foreach($map as $product)if(pfType((string)$product['name'])==='Research accessory')$labCategories[pfCategory($product)]=true;
+accessoryCheck(count($labCategories)===2 && !isset($labCategories['Research compound']),'Only real labware categories may populate the department');
+echo "PASS: custom labware categories propagate safely; visibility hides products; peptide checkout stays blocked; accessory recommendations stay in approved labware.\n";
