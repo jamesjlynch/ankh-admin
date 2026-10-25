@@ -30,12 +30,27 @@ try{
     $admin->exec('PRAGMA query_only=ON');$store->exec('PRAGMA query_only=ON');
     if(!$store->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='portal_product_sds'")->fetchColumn()){http_response_code(404);exit;}
     $previewColumn=ankhSdsHasPublicDraftColumn($store)?'public_draft':'0 AS public_draft';
-    $q=$store->prepare("SELECT product_id,pdf_sha256,pdf_bytes,published,reviewed_at,$previewColumn FROM portal_product_sds WHERE id=?");
+    $fileColumn=ankhSdsHasApprovedFileColumn($store)?'approved_pdf_file':"'' AS approved_pdf_file";
+    $q=$store->prepare("SELECT product_id,pdf_sha256,pdf_bytes,published,reviewed_at,$previewColumn,$fileColumn FROM portal_product_sds WHERE id=?");
     $q->execute([$id]);$doc=$q->fetch(PDO::FETCH_ASSOC);
     $isApproved=$doc&&(int)$doc['published']===1&&(int)$doc['reviewed_at']>0;
     $isUnverifiedPublicDraft=$doc&&(int)$doc['public_draft']===1;
     if(!$doc||!ankhDocsProductAllowed($admin,(int)$doc['product_id'],true)||(!$staffAllowed&&!$isApproved&&!$isUnverifiedPublicDraft)){http_response_code(404);exit;}
-    $pdf=is_resource($doc['pdf_bytes'])?stream_get_contents($doc['pdf_bytes']):(string)$doc['pdf_bytes'];
+    if(is_string($doc['approved_pdf_file']) && $doc['approved_pdf_file']!=='') {
+        $filename=$doc['approved_pdf_file'];
+        if(!preg_match('/^ANKH-SDS-[A-Za-z0-9-]+-[a-f0-9]{12}\.pdf$/D',$filename))
+            throw new RuntimeException('Invalid approved SDS reference');
+        $root=realpath(dirname($config['portal_database_path']).'/approved-sds');
+        $file=$root?realpath($root.'/'.$filename):false;
+        if(!$root||!$file||!str_starts_with($file,$root.DIRECTORY_SEPARATOR)
+           ||!is_file($file)||filesize($file)>8*1024*1024||filesize($file)<15000)
+            throw new RuntimeException('Approved SDS file not available');
+        $pdf=file_get_contents($file);
+        if(!is_string($pdf)||!str_starts_with($pdf,'%PDF-'))
+            throw new RuntimeException('Approved SDS file corrupt');
+    } else {
+        $pdf=is_resource($doc['pdf_bytes'])?stream_get_contents($doc['pdf_bytes']):(string)$doc['pdf_bytes'];
+    }
     if(!hash_equals((string)$doc['pdf_sha256'],hash('sha256',$pdf)))throw new RuntimeException('Document integrity failure');
     header('Content-Type: application/pdf');
     header('X-ANKH-Document-Status: '.($isApproved?'reviewed-sds':'unverified-draft-not-approved-sds'));
