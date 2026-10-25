@@ -73,6 +73,12 @@ jobs:
           test "$(git branch --show-current)" = main
           test -z "$(git status --porcelain)"
           git merge --ff-only origin/main
-          ANKH_DEPLOY_HOME=/home/devcouk /bin/bash scripts/publish-live.sh
+          if ANKH_DEPLOY_HOME=/home/devcouk /bin/bash scripts/publish-live.sh; then
+            echo "Verified ANKH Admin publisher returned success."
+          else
+            echo "Publisher failed; last diagnostics follow."
+            tail -n 24 /home/devcouk/ankh-admin-deploy.log
+            exit 1
+          fi
           tail -n 12 /home/devcouk/ankh-admin-deploy.log
           REMOTE
