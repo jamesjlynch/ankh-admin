@@ -77,6 +77,7 @@ echo "STEP 2/4: Running portal checks"
 "$php" tests/customer-fridge.php
 "$php" tests/customer-shopping-ux.php
 "$php" tests/customer-product-variants.php
+"$php" tests/customer-guest-request-tracking.php
 "$php" tests/customer-collection.php
 "$php" tests/customer-account-features.php
 "$php" tests/customer-statement.php
