@@ -6,8 +6,9 @@ $summary=pfExcerpt((string)$p['description'],115);
 $kind=pfCategory($p);$strength=pfStrength($p);$format=pfFormat($p);
 $photo=!empty($p['has_photo'])?ankhCmsPhotoUrl($p,'thumb'):'';
 $url=pfUrl(['product'=>$id]);
-$hasDemo=isset($demoProducts[$id]);
-$canRequest=isset($buyable[$id]);
+$sourcingPending=!empty($p['sourcing_pending']);
+$hasDemo=!$sourcingPending&&isset($demoProducts[$id]);
+$canRequest=!$sourcingPending&&isset($buyable[$id]);
 $inBasket=$hasDemo||$canRequest;
 $previewPrice=$previewPrices[$id]??null;
 ?>
@@ -36,7 +37,7 @@ $previewPrice=$previewPrices[$id]??null;
      <span class="sf-demo-label"><?=$canRequest?'ACCESSORY REQUEST · STAFF REVIEW':'RESEARCH DEMO · NO ORDER'?></span>
      <button type="button" class="sf-add-cart" data-cart-id="<?=$id?>" aria-label="<?=pfEscape(($canRequest?'Add to accessory request: ':'Preview in demo basket: ').$name)?>"><?=$canRequest?'Add to request':'Try demo basket'?> <span aria-hidden="true">＋</span></button>
     </div>
-   <?php else:?><p class="sf-reference-state">Reference only · No basket or order request</p><?php endif;?>
+   <?php else:?><p class="sf-reference-state"><?=$sourcingPending?'Laboratory range preview · Sourcing, prices and availability being confirmed':'Reference only · No basket or order request'?></p><?php endif;?>
    <div class="sf-card-bottom" role="group" aria-label="<?=pfEscape($name)?> quick actions">
      <button type="button" class="sf-save-action sf-save-mini" data-save-id="<?=$id?>" aria-pressed="false" aria-label="Save <?=pfEscape($name)?> to research shortlist">♡ Save</button>
      <button type="button" class="sf-card-quick" data-quick-name="<?=pfEscape($name)?>" data-quick-kind="<?=pfEscape($kind)?>" data-quick-summary="<?=pfEscape($summary)?>" data-quick-href="<?=pfEscape($url)?>" data-quick-cart-id="<?=$inBasket?$id:0?>" data-quick-mode="<?=$canRequest?'request':'demo'?>" data-quick-photo="<?=pfEscape($photo)?>" aria-label="Quick view <?=pfEscape($name)?>">Quick view <span aria-hidden="true">↗</span></button>
