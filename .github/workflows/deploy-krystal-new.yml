@@ -17,6 +17,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite,mbstring
+      - name: Validate category controls before publishing
+        run: |
+          set -euo pipefail
+          php -l index.php
+          php -l catalogue-categories.php
+          php tests/catalogue-categories.php
+          php tests/customer-catalogue-visibility.php
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
