@@ -101,6 +101,19 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
         await selectors.nth(0).click();
         const originalAction=page.locator('.sf-shop-inline [data-cart-id]');
         if(await originalAction.count()){
+          await originalAction.click();
+          report('premium add-to-basket peek appears',await page.locator('#sf-cart-peek').evaluate(el=>!el.hidden&&el.classList.contains('is-visible')));
+          report('research-only preview clearly labelled', (await page.locator('#sf-peek-status').innerText()).includes('DEMO'));
+          report('adding a product does not unexpectedly open basket',await page.locator('#sf-cart-drawer').evaluate(el=>!el.open));
+          await page.locator('[data-cart-peek-view]').click();
+          report('peek opens full basket after deliberate tap',await page.locator('#sf-cart-drawer').evaluate(el=>el.open));
+          report('basket clearly separates demo from eligible requests', (await page.locator('#sf-cart-demo-count').innerText()).includes('demo'));
+          const mobileSheetFits=await page.locator('#sf-cart-drawer').evaluate(el=>{
+            const rect=el.getBoundingClientRect();
+            return rect.left>=-2&&rect.right<=innerWidth+2&&rect.bottom<=innerHeight+2&&rect.top>=-2;
+          });
+          report('iPhone basket sheet fits mobile viewport',mobileSheetFits);
+          await page.locator('#sf-cart-drawer [data-close-cart]').first().click();
           await originalAction.scrollIntoViewIfNeeded();
           await page.evaluate(()=>{
             const el=document.querySelector('.sf-shop-inline [data-cart-id]');
