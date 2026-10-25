@@ -36,6 +36,12 @@ checkCategories(count($rows)===1&&$rows[0]['name']==='90mm petri dishes','Hiding
 checkCategories(ankhPublicType('90mm petri dishes')==='Research accessory','Petri dishes should be classified as lab accessories');
 checkCategories(ankhPublicType('Retatrutide 10mg cartridge')!=='Research accessory','A peptide cartridge must not bypass accessory controls');
 checkCategories(ankhPublicType('BPC-157 5mg')!=='Research accessory','Unapproved peptides must not be classified as lab accessories');
+$db->exec('UPDATE products SET active=0 WHERE id=101');
+$denied=false;try{ankhCatalogueSetVisibility($db,101,true);}catch(InvalidArgumentException $e){$denied=true;}
+checkCategories($denied,'Inactive product must not be publishable');
+ankhCatalogueSetVisibility($db,101,false);
+$rows=ankhPublicCatalogueProducts($db);
+checkCategories(count($rows)===0,'Inactive or unpublished product must not appear in public catalogue');
 ankhCategoryAssign($db,101,0);
 checkCategories(!isset(ankhProductCategories($db)[101]),'Clearing a category must work');
 checkCategories((int)$db->query('SELECT COUNT(*) FROM products')->fetchColumn()===2,'Categories affected product or order inventory');
