@@ -127,8 +127,10 @@ function ankhCatalogueVisibility(PDO $db): array {
     return $db->query('SELECT product_id,visible FROM customer_catalogue_visibility')->fetchAll(PDO::FETCH_KEY_PAIR);
 }
 function ankhCatalogueSetVisibility(PDO $db,int $id,bool $visible): void {
-    $q=$db->prepare('SELECT id,name FROM products WHERE id=?');$q->execute([$id]);$p=$q->fetch(PDO::FETCH_ASSOC);
+    $q=$db->prepare('SELECT id,name,active FROM products WHERE id=?');$q->execute([$id]);$p=$q->fetch(PDO::FETCH_ASSOC);
     if(!$p)throw new InvalidArgumentException('Product could not be found.');
+    if($visible && (int)$p['active']!==1)
+        throw new InvalidArgumentException('Activate this product in Admin before publishing it to the customer website.');
     ankhCatalogueInit($db);
     $db->prepare('INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES (?,?,?) ON CONFLICT(product_id) DO UPDATE SET visible=excluded.visible,updated_at=excluded.updated_at')->execute([$id,$visible?1:0,gmdate('c')]);
 }
