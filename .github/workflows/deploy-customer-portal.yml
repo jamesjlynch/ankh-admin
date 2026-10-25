@@ -20,6 +20,9 @@ on:
       - 'scripts/prepare-ankh-sds.py'
       - 'scripts/import-ankh-sds.php'
       - 'scripts/release-ankh-sds-drafts.php'
+      - 'scripts/export-ankh-sds-current.php'
+      - 'scripts/finalise-ankh-sds-pdfs.py'
+      - 'scripts/publish-ankh-sds-reviewed.php'
       - '.github/workflows/deploy-customer-portal.yml'
   workflow_dispatch:
 permissions:
@@ -31,7 +34,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -68,6 +71,9 @@ jobs:
           php -l customer-portal/product-safety-document.php
           php -l scripts/import-ankh-sds.php
           php -l scripts/release-ankh-sds-drafts.php
+          php -l scripts/export-ankh-sds-current.php
+          php -l scripts/publish-ankh-sds-reviewed.php
+          python3 -m py_compile scripts/finalise-ankh-sds-pdfs.py
           php -l customer-portal/content-studio.php
           php -l customer-portal/cms-product-image.php
           node --check customer-portal/cms-editor.js
@@ -139,7 +145,7 @@ jobs:
           mkdir -p "$S"
           git -C "$R" fetch origin feature/ankh-customer-portal:refs/remotes/origin/feature/ankh-customer-portal
           git -C "$R" merge-base --is-ancestor "$release_sha" origin/feature/ankh-customer-portal
-          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php scripts/import-ankh-sds.php scripts/release-ankh-sds-drafts.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-product-variants.php tests/customer-guest-request-tracking.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php tests/customer-product-safety.php | tar -x -C "$S"
+          git -C "$R" archive "$release_sha" customer-catalogue.php customer-portal scripts/configure-customer-preview.php scripts/customer-portal-accounts.php scripts/publish-customer-portal.sh scripts/check-public-catalogue.php scripts/import-ankh-sds.php scripts/release-ankh-sds-drafts.php scripts/export-ankh-sds-current.php scripts/publish-ankh-sds-reviewed.php tests/customer-fridge.php tests/customer-shopping-ux.php tests/customer-product-variants.php tests/customer-guest-request-tracking.php tests/customer-collection.php tests/customer-account-features.php tests/customer-statement.php tests/customer-announcements.php tests/customer-portal.php tests/customer-portal-render.php tests/customer-portal-navigation.php tests/customer-portal-catalogue.php tests/customer-catalogue-visibility.php tests/customer-product-safety.php | tar -x -C "$S"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php ANKH_CUSTOMER_PORTAL_ROOT=/home/devcouk/public_html/ankh-order bash "$S/scripts/publish-customer-portal.sh"
           ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php "$S/scripts/check-public-catalogue.php"
           REMOTE
@@ -207,3 +213,63 @@ jobs:
             exit 1
           fi
           echo 'SUCCESS: 14 public unverified SDS cards visible; unmatched product remains without SDS.'
+
+      - name: Replace fourteen legacy public drafts with owner-reviewed SDS revisions
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[finalise-owner-reviewed-sds]') }}
+        env:
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
+        run: |
+          set -Eeuo pipefail
+          remote="/home/devcouk/ankh-sds-finalise-$GITHUB_SHA"
+          local_dir="$RUNNER_TEMP/ankh-sds-finalise"
+          ssh_opts=(-i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722)
+          finish() {
+            ssh "${ssh_opts[@]}" "$KRYSTAL_USER@$KRYSTAL_HOST" "rm -rf -- '$remote'" || true
+            rm -rf -- "$local_dir"
+          }
+          trap finish EXIT
+          mkdir -p "$local_dir/source" "$local_dir/final"
+          ssh "${ssh_opts[@]}" "$KRYSTAL_USER@$KRYSTAL_HOST" \
+            "install -d -m 700 '$remote' '$remote/source' '$remote/final'"
+          ssh "${ssh_opts[@]}" "$KRYSTAL_USER@$KRYSTAL_HOST" \
+            "ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php /home/devcouk/ankh-customer-portal-staging/scripts/export-ankh-sds-current.php '$remote/source'"
+          ssh "${ssh_opts[@]}" "$KRYSTAL_USER@$KRYSTAL_HOST" \
+            "tar -cf - -C '$remote/source' ." | tar -xf - -C "$local_dir/source"
+          python3 -m pip install --disable-pip-version-check 'pymupdf>=1.24,<1.28'
+          python3 scripts/finalise-ankh-sds-pdfs.py "$local_dir/source" "$local_dir/final"
+          tar -cf - -C "$local_dir/final" . | ssh "${ssh_opts[@]}" \
+            "$KRYSTAL_USER@$KRYSTAL_HOST" "tar -xf - -C '$remote/final' && chmod 600 '$remote/final'/*.pdf"
+          ssh "${ssh_opts[@]}" "$KRYSTAL_USER@$KRYSTAL_HOST" \
+            "ANKH_PORTAL_CONFIG=/home/devcouk/ankh-customer-portal-config.php php /home/devcouk/ankh-customer-portal-staging/scripts/publish-ankh-sds-reviewed.php '$remote/source' '$remote/final'"
+
+      - name: Verify all fourteen live owner-reviewed SDS document links and PDF headers
+        if: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[finalise-owner-reviewed-sds]') }}
+        run: |
+          set -Eeuo pipefail
+          for product_id in 101 97 108 110 104 75 72 78 55 94 95 53 96 60; do
+            url="https://order.ankhpeptides.com/?product=$product_id"
+            html="$(curl --fail --location --retry 2 --max-time 25 --silent --show-error -H 'Cache-Control: no-cache' "$url")"
+            grep -Fq 'Safety Data Sheet' <<<"$html" || { echo "Reviewed SDS card missing from product $product_id"; exit 1; }
+            grep -Fq 'ANKH reviewed SDS' <<<"$html" || { echo "Review status missing from product $product_id"; exit 1; }
+            if grep -Fq 'Unverified draft safety information' <<<"$html"; then
+              echo "Draft notice remained on product $product_id"
+              exit 1
+            fi
+            if [[ ! "$html" =~ product-safety-document\.php\?id=([0-9]+) ]]; then
+              echo "No document link found on product $product_id"
+              exit 1
+            fi
+            document_id="${BASH_REMATCH[1]}"
+            headers="$(mktemp)"
+            pdf="$(mktemp)"
+            curl --fail --retry 2 --max-time 30 --silent --show-error --dump-header "$headers" --output "$pdf" \
+              "https://order.ankhpeptides.com/product-safety-document.php?id=$document_id"
+            grep -iq '^x-ankh-document-status: reviewed-sds' "$headers" || { echo "Missing reviewed status on SDS $document_id"; exit 1; }
+            grep -iq '^content-type: application/pdf' "$headers" || { echo "Invalid content type on SDS $document_id"; exit 1; }
+            test "$(head -c 5 "$pdf")" = '%PDF-' || { echo "Broken SDS bytes $document_id"; exit 1; }
+            test "$(wc -c < "$pdf")" -gt 15000 || { echo "SDS too short $document_id"; exit 1; }
+            rm -f "$headers" "$pdf"
+            echo "REVIEWED-SDS-LIVE-VERIFIED product_id=$product_id document_id=$document_id"
+          done
+          echo "SUCCESS: fourteen SDSs published as ANKH-reviewed documents with functioning PDF downloads."
