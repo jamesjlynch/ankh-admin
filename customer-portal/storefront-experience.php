@@ -110,7 +110,7 @@ $metaDescription=$selected
     <div class="sf-gallery-arrows" aria-label="Gallery navigation"><button type="button" data-gallery-prev aria-label="Previous gallery view">←</button><button type="button" data-gallery-next aria-label="Next gallery view">→</button></div>
   </div>
 </div>
-<div class="sf-image-caption"><span>PRODUCT PHOTO · AUTOMATIC SPECIFICATIONS</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
+<div class="sf-image-caption"><span><?=!empty($selected['sourcing_pending'])?'SUPPLIER PHOTOGRAPHY PENDING · PRODUCT INFORMATION':'PRODUCT PHOTO · AUTOMATIC SPECIFICATIONS'?></span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
 <div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> / <?=pfType((string)$selected['name'])==='Research accessory'?'ANKH LABORATORY SUPPLIES':'ANKH RESEARCH'?></span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
 <span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
@@ -145,7 +145,7 @@ $metaDescription=$selected
 <div class="sf-shop-inline <?=$selectedCommercial?'sf-action-eligible':'sf-action-demo'?>"><span><?=$selectedCommercial?'APPROVED ACCESSORY · REQUEST SUBJECT TO REVIEW':'RESEARCH PROFILE · DEMONSTRATION ONLY'?></span>
 <button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>"><?=$selectedCommercial?'Add to request basket ＋':'Try in demo basket ＋'?></button>
 <small><?=$selectedCommercial?'No payment is taken online. ANKH will confirm availability and delivery.':'This is a shopping-interface preview. No order, enquiry or payment can be submitted.'?></small></div>
-<?php else:?><p class="sf-reference-state">Research reference only · Not available for basket or order requests</p><?php endif;?>
+<?php else:?><p class="sf-reference-state"><?=!empty($selected['sourcing_pending'])?'Laboratory supplies preview · Exact product imagery, sourcing, pricing and stock are being confirmed. Not currently available to order.':'Research reference only · Not available for basket or order requests'?></p><?php endif;?>
 <div class="sf-mobile-product-quicklinks" aria-label="Jump to product information"><a href="#sf-product-documents">Documents ↗</a><a href="#sf-product-research">Research ↗</a><a href="#sf-gallery-track" data-open-identity>Specifications ↗</a></div>
 <div class="sf-detail-actions">
 <button type="button" class="sf-product-share" data-share-product aria-label="Share this ANKH product" data-share-title="<?=pfEscape($selected['name'])?>"><span aria-hidden="true">↗</span> Share product</button>
