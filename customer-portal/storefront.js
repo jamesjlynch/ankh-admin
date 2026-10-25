@@ -67,7 +67,7 @@
           const cartId=Number(data.quickCartId||0);
           quickAdd.hidden=!Number.isInteger(cartId)||cartId<1;
           quickAdd.dataset.cartId=String(cartId);
-          quickAdd.textContent='Add to basket ＋';
+          quickAdd.textContent=data.quickMode==='request'?'Add to accessory request ＋':'Try in demo basket ＋';
           quickAdd.classList.remove('is-added');
         }
         if(data.quickPhoto){
