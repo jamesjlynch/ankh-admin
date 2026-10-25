@@ -22,8 +22,10 @@ ankhCatalogueSetVisibility($db,3,true);ankhCatalogueSetVisibility($db,5,true);
 catalogueCheck(count(ankhCatalogueProducts($db,1))===3,'Visibility is selectable regardless of product name');
 $ids=array_column(ankhCatalogueProducts($db,1),'id');
 catalogueCheck(!in_array(2,$ids,true),'Unticked Retatrutide stays hidden');
-ankhCatalogueSetVisibility($db,4,true);
-catalogueCheck(count(ankhCatalogueProducts($db,1))===3,'Inactive products remain hidden even if ticked');
+$inactiveRejected=false;
+try{ankhCatalogueSetVisibility($db,4,true);}catch(InvalidArgumentException $e){$inactiveRejected=true;}
+catalogueCheck($inactiveRejected,'Inactive products cannot be republished by accident');
+catalogueCheck(count(ankhCatalogueProducts($db,1))===3,'Inactive products stay hidden');
 catalogueCheck($before===$db->query('SELECT * FROM products')->fetchAll(),'Visibility leaves every existing product field unchanged');
 $db->exec("UPDATE products SET name='Renamed reference sample',price=2200,stock_qty=0 WHERE id=3");
 $renamed=array_values(array_filter(ankhCatalogueProducts($db,1),fn(array $p):bool=>$p['id']===3))[0];
