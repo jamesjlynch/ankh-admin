@@ -1,0 +1,1 @@
+ANKH owner-reviewed safety sheets release. PDO transaction fix verified. Publish 14 final PDFs, remove draft footers and metadata, maintain hidden original versions, preserve Admin pricing and stock.
