@@ -41,9 +41,9 @@ $related=$selected?pfRelated($selected,$products):[];
 </div></header>
 <main class="sf-shell" id="main">
 <?php if($selected):$info=$selected['information'];$identityRows=pfIdentityRows($info);$selectedPreviewPrice=$previewPrices[(int)$selected['id']]??null;$selectedCommercial=isset($buyable[(int)$selected['id']]);?>
-<nav class="sf-breadcrumb" aria-label="Breadcrumb"><a href="./">Collection</a><span aria-hidden="true">/</span><a href="<?=pfEscape(pfUrl(['category'=>pfType($selected['name'])]))?>"><?=pfEscape(pfType($selected['name']))?></a><span aria-hidden="true">/</span><span><?=pfEscape($selected['name'])?></span></nav>
+<nav class="sf-breadcrumb" aria-label="Breadcrumb"><a href="./">Collection</a><span aria-hidden="true">/</span><a href="<?=pfEscape(pfUrl(['category'=>pfCategory($selected)]))?>"><?=pfEscape(pfCategory($selected))?></a><span aria-hidden="true">/</span><span><?=pfEscape($selected['name'])?></span></nav>
 <section class="sf-mobile-hero-intro" aria-label="Product at a glance">
- <div class="sf-mobile-hero-eyebrow"><span><?=pfEscape(pfType($selected['name']))?></span><span>ANKH / <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span></div>
+ <div class="sf-mobile-hero-eyebrow"><span><?=pfEscape(pfCategory($selected))?></span><span>ANKH / <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span></div>
  <h1><?=pfEscape($selected['name'])?></h1>
  <div class="sf-mobile-hero-meta">
   <?php if(pfStrength($selected)!==''):?><span class="sf-mobile-hero-strength"><?=pfEscape(pfStrength($selected))?></span><?php endif;?>
@@ -90,8 +90,8 @@ $related=$selected?pfRelated($selected,$products):[];
 </div>
 <div class="sf-image-caption"><span>PRODUCT PHOTO · AUTOMATIC SPECIFICATIONS</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
-<div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> / ANKH RESEARCH</span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
-<span class="sf-kicker"><?=pfEscape(pfType($selected['name']))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
+<div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> / ANKH RESEARCH</span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
+<span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
 <h1><?=pfEscape($selected['name'])?></h1>
 <div class="sf-tags"><span>Laboratory reference</span><span>Technical specifications</span></div>
 <p class="sf-lead"><?=pfEscape(pfExcerpt((string)$selected['description'],340))?></p>
@@ -218,7 +218,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <section class="sf-collection" id="collection"><div class="sf-section-title"><div><span class="sf-kicker">THE COLLECTION</span><h2>Explore every detail<span class="sf-gold">.</span></h2>
 <p>Browse <?=count($products)?> published technical profiles with your existing ANKH product photography.</p></div><span class="sf-index">ANKH / 001</span></div>
 <div class="sf-category-chips" aria-label="Browse by type">
-<?php foreach($categories as $c):?><a data-category-value="<?=pfEscape($c)?>" href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfType($p['name'])===$c))?></span></a><?php endforeach;?>
+<?php foreach($categories as $c):?><a data-category-value="<?=pfEscape($c)?>" href="<?=pfEscape(pfUrl($c==='All research'?[]:['category'=>$c]))?>#collection" class="<?=$category===$c?'is-active':''?>" <?=$category===$c?'aria-current="true"':''?>><?=pfEscape($c)?><span><?=count(array_filter($products,static fn($p)=>$c==='All research'||pfCategory($p)===$c))?></span></a><?php endforeach;?>
 </div>
 <form method="get" action="./#collection" class="sf-filter sf-filter-v2" role="search" id="sf-search-form">
 <div class="sf-search-box"><label for="sf-search">Search the collection</label><input id="sf-search" name="q" type="search" role="combobox" aria-autocomplete="list" aria-expanded="false" autocomplete="off" maxlength="120" placeholder="Search products or research context…" value="<?=pfEscape($search)?>" aria-describedby="sf-search-help" aria-controls="sf-suggestions"><span class="sf-search-icon" aria-hidden="true">⌕</span>
@@ -307,7 +307,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><div class="sf-quick-actions"><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><button type="button" class="sf-add-cart sf-quick-add" id="sf-quick-add" data-cart-id="0" hidden>Try in demo basket ＋</button></div><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
 </div></dialog>
 <?php if(!$selected):?><div class="sf-search-corpus" hidden aria-hidden="true">
-<?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-photo="<?=!empty($p['has_photo'])?pfEscape(ankhCmsPhotoUrl($p,'thumb')):''?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
+<?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfCategory($p))?>" data-suggest-photo="<?=!empty($p['has_photo'])?pfEscape(ankhCmsPhotoUrl($p,'thumb')):''?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
 </div>
 <?php endif;?>
 <nav class="sf-bottom-menu" aria-label="Mobile shortcuts">
