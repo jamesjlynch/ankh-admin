@@ -71,7 +71,7 @@ function ankhLabAccessoriesSeed(PDO $db):array {
       (sku,product_id,amazon_reference_pence,reference_url,observed_date,price_status,note)
        VALUES(?,?,?,?,?,?,?)');
     $created=0;$skipped=0;$priced=0;$needs=0;
-    $db->exec('BEGIN IMMEDIATE');
+    $db->beginTransaction();
     try{
       foreach(ankhLabAccessoryDrafts() as $p){
         $existing->execute([$p['name']]);
