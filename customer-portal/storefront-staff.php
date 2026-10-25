@@ -3,7 +3,7 @@ declare(strict_types=1);
 /** Staff-only ANKH storefront controls. Called solely after staff preview authentication. */
 function sfStaffController(PDO $portal,PDO $admin):void {
     if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST'
-       ||!in_array($_POST['action']??'',['sf_facts_save','sf_eligibility_save','sf_guest_review','sf_demo_save_all'],true))return;
+       ||!in_array($_POST['action']??'',['sf_facts_save','sf_eligibility_save','sf_guest_review','sf_guest_link_order','sf_demo_save_all'],true))return;
     if(!is_string($_POST['csrf']??null)||!hash_equals((string)($_SESSION['portal_csrf']??''),$_POST['csrf'])){http_response_code(400);exit('Invalid request.');}
     try{
         switch($_POST['action']){
@@ -15,6 +15,12 @@ function sfStaffController(PDO $portal,PDO $admin):void {
                 $id=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
                 sfCommerceSaveEligibility($portal,$admin,$id,(string)($_POST['decision']??''),(string)($_POST['reviewer']??''),(string)($_POST['basis']??''));
                 $_SESSION['portal_staff_flash']='Checkout eligibility reviewed.';
+                break;
+            case 'sf_guest_link_order':
+                $requestId=filter_var($_POST['request_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
+                $orderId=filter_var($_POST['order_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
+                ankhGuestOrderLink($portal,$admin,$requestId,$orderId,(string)($_POST['reviewer']??''));
+                $_SESSION['portal_staff_flash']='Reviewed request linked to an existing Order Admin order. No stock, order or delivery details were modified.';
                 break;
             case 'sf_demo_save_all':
                 $selected=$_POST['demo_product']??[];
@@ -35,7 +41,7 @@ function sfStaffController(PDO $portal,PDO $admin):void {
         }
     }catch(InvalidArgumentException $e){$_SESSION['portal_staff_flash']=$e->getMessage();}
     catch(Throwable $e){error_log('ANKH shop staff controls: '.$e->getMessage());$_SESSION['portal_staff_flash']='Could not save storefront settings.';}
-    $section=match($_POST['action']??''){'sf_demo_save_all'=>'basket','sf_eligibility_save'=>'checkout','sf_guest_review'=>'requests',default=>'business'};
+    $section=match($_POST['action']??''){'sf_demo_save_all'=>'basket','sf_eligibility_save'=>'checkout','sf_guest_review'=>'requests','sf_guest_link_order'=>'requests',default=>'business'};
     header('Location: ./preview-live.php?manage=portal&panel=commerce&settings='.$section,true,303);exit;
 }
 function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
@@ -51,7 +57,10 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
         $demoCandidates=$admin->query('SELECT p.id,p.name FROM products p JOIN customer_catalogue_visibility v ON v.product_id=p.id AND v.visible=1 WHERE p.active=1 ORDER BY p.name COLLATE NOCASE')->fetchAll(PDO::FETCH_ASSOC);
     }catch(Throwable $e){error_log('ANKH demo list: '.$e->getMessage());}
     $demoAllowed=sfDemoVisible($portal,$demoCandidates);
-    $requests=$portal->query('SELECT id,placed_at,name,email,phone,address,note,lines_json,subtotal,status FROM storefront_guest_requests ORDER BY CASE status WHEN "Pending staff review" THEN 0 ELSE 1 END,id DESC LIMIT 40')->fetchAll(PDO::FETCH_ASSOC);
+    ankhGuestOrderLinkInit($portal);
+    $requests=$portal->query("SELECT g.id,g.placed_at,g.name,g.email,g.phone,g.address,g.note,g.lines_json,g.subtotal,g.status,l.order_id AS linked_order_id
+       FROM storefront_guest_requests g LEFT JOIN portal_guest_order_links l ON l.request_id=g.id
+       ORDER BY CASE g.status WHEN 'Pending staff review' THEN 0 ELSE 1 END,g.id DESC LIMIT 40")->fetchAll(PDO::FETCH_ASSOC);
     $settings=is_string($_GET['settings']??null)?$_GET['settings']:'business';
     if(!in_array($settings,['business','basket','checkout','requests'],true))$settings='business';
     $pending=count(array_filter($requests,static fn($r)=>$r['status']==='Pending staff review'));
@@ -107,6 +116,14 @@ function sfStaffSection(PDO $portal,PDO $admin,string $csrf):void {
           <p><strong>Product subtotal (excludes delivery):</strong> £<?=number_format((int)$r['subtotal']/100,2)?></p>
           <?php if($r['status']==='Pending staff review'):?><form method="post"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_guest_review"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>">
             <button name="decision" value="Reviewed — create in Admin manually">Mark reviewed</button><button name="decision" value="Declined">Decline</button></form><?php endif;?>
+          <?php if($r['status']!=='Pending staff review' && $r['status']!=='Declined'):?>
+            <?php if(!empty($r['linked_order_id'])):?><p class="pc-sf-linked-order"><strong>Linked to Order Admin #<?=(int)$r['linked_order_id']?></strong>. The customer sees progress after secure receipt claiming and account verification.</p>
+            <?php else:?><form method="post" class="pc-sf-link-order"><input type="hidden" name="csrf" value="<?=$esc($csrf)?>"><input type="hidden" name="action" value="sf_guest_link_order"><input type="hidden" name="request_id" value="<?=(int)$r['id']?>">
+             <p class="pc-footnote">Only link an order after it exists in Order Admin. The recorded order and request phone numbers must match. Claimed receipts also require verified customer ownership.</p>
+             <label>Existing Order Admin number<input type="number" name="order_id" min="1" step="1" required placeholder="e.g. 105"></label>
+             <label>Confirmed by<input name="reviewer" maxlength="120" required placeholder="Staff name"></label>
+             <button type="submit">Link existing Admin order</button></form><?php endif;?>
+          <?php endif;?>
         </details><?php endforeach;?></div>
       </div><?php endif;?>
     </section>
