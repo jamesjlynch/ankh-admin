@@ -31,6 +31,28 @@ jobs:
             foreach(\$pdo->query(\"SELECT id,product_id,published,public_draft,reviewed_at FROM portal_product_sds ORDER BY id\") as \$r) \
               echo \"SDS-DB id=\".\$r[0].\" product=\".\$r[1].\" published=\".\$r[2].\" draft=\".\$r[3].\" reviewed=\".(\$r[4]>0?1:0).PHP_EOL; \
           '"
+      - name: Inspect Krystal SQLite size, storage and PHP memory before safe retry
+        env:
+          KRYSTAL_HOST: ${{ secrets.KRYSTAL_HOST }}
+          KRYSTAL_USER: ${{ secrets.KRYSTAL_USER }}
+          KRYSTAL_SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh";chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$KRYSTAL_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_rsa"
+          chmod 600 "$HOME/.ssh/id_rsa"
+          ssh-keyscan -p 722 -T 7 "$KRYSTAL_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh -i "$HOME/.ssh/id_rsa" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15 -p 722 "$KRYSTAL_USER@$KRYSTAL_HOST" \
+            "df -h /home/devcouk; php -r ' \
+              \$cfg=require \"/home/devcouk/ankh-customer-portal-config.php\"; \
+              \$path=\$cfg[\"portal_database_path\"]; \
+              echo \"PORTAL-DB-BYTES=\".filesize(\$path).PHP_EOL; \
+              echo \"PORTAL-DB-WAL-BYTES=\".(is_file(\$path.\"-wal\")?filesize(\$path.\"-wal\"):0).PHP_EOL; \
+              echo \"PHP-MEMORY-LIMIT=\".ini_get(\"memory_limit\").PHP_EOL; \
+              echo \"PRIVATE-DB-FREE-BYTES=\".disk_free_space(dirname(\$path)).PHP_EOL; \
+              echo \"PRIVATE-DB-SPACE-BYTES=\".disk_total_space(dirname(\$path)).PHP_EOL; \
+            '"
       - name: Publicly verify expected reviewed SDS cards and headers
         run: |
           set -euo pipefail
