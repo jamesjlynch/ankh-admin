@@ -10,6 +10,20 @@ const storage=()=>{
 const saved=storage();
 const success=document.querySelector('[data-successful-request-ids]');
 if(success){
+  const copy=document.getElementById('sf-copy-receipt');
+  const code=document.getElementById('sf-receipt-code');
+  if(copy&&code)copy.addEventListener('click',async()=>{
+    const text=code.textContent.trim();
+    try{
+      if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);
+      else{
+        const selection=window.getSelection();const range=document.createRange();
+        range.selectNodeContents(code);selection.removeAllRanges();selection.addRange(range);
+        copy.textContent='Select and copy the highlighted code';return;
+      }
+      copy.textContent='✓ Receipt code copied';
+    }catch(_){copy.textContent='Select the code above to copy it';}
+  });
   const completed=(success.getAttribute('data-successful-request-ids')||'').split(',').filter(id=>/^[1-9][0-9]*$/.test(id));
   if(completed.length){
     const after=storage();completed.forEach(id=>delete after[id]);
