@@ -80,7 +80,7 @@ $staff=!empty($isStaffPreview);
 $customerId=(int)$customer['id'];
 $catalogueEnabled=true;
 $tab=is_string($_GET['tab']??null)?$_GET['tab']:'home';
-$allowedTabs=['home','orders','vault','support','account','recurring','notifications','repeat-enquiry','insights','request-list','watchlist','basket','order-requested','fridge'];
+$allowedTabs=['home','orders','requests','vault','support','account','recurring','notifications','repeat-enquiry','insights','request-list','watchlist','basket','order-requested','fridge'];
 if($catalogueEnabled)$allowedTabs[]='catalogue';
 if(!empty($isDemo))$allowedTabs=array_merge($allowedTabs,['basket','checkout','confirmation','test-orders']);
 if(!in_array($tab,$allowedTabs,true))$tab='home';
@@ -107,7 +107,7 @@ $paidTotal=array_sum(array_map(static fn(array $o):int=>($o['status']??'')==='Ca
 $outstanding=array_sum(array_map('pcBalance',$orders));
 $recent=$currentOrders[0]??($orders[0]??null);
 $events=pcEvents($orders);
-$menu=$catalogueEnabled?[['home','Home'],['catalogue','Shop'],['basket','Basket'],['orders','Orders'],['account','Account']]:[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Help'],['account','Account']];
+$menu=$catalogueEnabled?[['home','Home'],['catalogue','Shop'],['requests','Requests'],['orders','Orders'],['account','Account']]:[['home','Home'],['orders','Orders'],['vault','Vault'],['support','Help'],['account','Account']];
 $activeNav=$tab==='repeat-enquiry'?'orders':(in_array($tab,['recurring','notifications','insights','fridge'],true)?'account':(in_array($tab,['basket','request-list','order-requested'],true)?'basket':(in_array($tab,['checkout','confirmation','test-orders','watchlist'],true)?'catalogue':$tab)));
 if(!empty($isDemo)&&in_array($tab,['basket','checkout','confirmation','test-orders'],true))$activeNav='basket';
 $recurringOrders=[];$recurringError=false;
@@ -179,7 +179,9 @@ if(isset($portal)&&empty($isDemo)){
     </div>
   </aside>
   <?php endif;?>
-  <?php if(in_array($tab,['basket','request-list'],true) && empty($isDemo)):?>
+  <?php if($tab==='requests'):?>
+      <?php require __DIR__.'/requests-tracking-view.php'; ?>
+   <?php elseif(in_array($tab,['basket','request-list'],true) && empty($isDemo)):?>
      <?php require __DIR__.'/request-list-view.php'; ?>
    <?php elseif($tab==='order-requested' && empty($isDemo)):?>
      <?php require __DIR__.'/request-confirmation.php'; ?>
