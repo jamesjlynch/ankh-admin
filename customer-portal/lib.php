@@ -9,6 +9,7 @@ require_once __DIR__.'/public-catalogue-core.php';
 require_once __DIR__.'/storefront-commerce.php';
 require_once __DIR__.'/guest-request-tracking.php';
 require_once __DIR__.'/request-order-matching.php';
+require_once __DIR__.'/request-order-match-view.php';
 require_once __DIR__.'/storefront-staff.php';
 require_once __DIR__.'/my-fridge.php';
 
