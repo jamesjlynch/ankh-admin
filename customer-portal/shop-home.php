@@ -28,20 +28,6 @@ if(empty($isDemo)&&isset($admin,$portal)){
  <div class="pc-home-operating-copy"><span class="pc-eyebrow"><?=portalEscape((string)$homeFocus['eyebrow'])?></span><h2><?=portalEscape((string)$homeFocus['title'])?></h2><p><?=portalEscape((string)$homeFocus['body'])?></p></div>
  <a href="<?=portalEscape(pcHref((string)$homeFocus['tab'],$staff,$customerId,(array)$homeFocus['params']))?>" class="pc-primary-link"><?=portalEscape((string)$homeFocus['action'])?> <?=pcIcon('right')?></a>
 </section>
-<section class="pc-account-hub" aria-label="My ANKH account at a glance">
-<div class="pc-account-hub-heading"><div><span class="pc-eyebrow">ALL YOUR ANKH DETAILS</span><h2>Your account, connected<span class="pc-dot">.</span></h2><p>Order progress, balances, saved research, messages and My Fridge in one place.</p></div><a href="<?=portalEscape(pcHref('account',$staff,$customerId))?>">Manage my details <?=pcIcon('right')?></a></div>
-<div class="pc-account-hub-grid">
-<a href="<?=portalEscape(pcHref('requests',$staff,$customerId))?>"><span><?=pcIcon('mail')?> MY REQUESTS</span><strong>Track requests</strong><small>Guest receipts, enquiries and staff responses</small></a>
-<a href="<?=portalEscape(pcHref('orders',$staff,$customerId))?>"><span><?=pcIcon('orders')?> ORDER HISTORY</span><strong><?=count($orders)?></strong><small><?=count($currentOrders)?> active · All recorded orders</small></a>
-<a href="<?=portalEscape(pcHref('orders',$staff,$customerId,['filter'=>'active']))?>"><span><?=pcIcon('wallet')?> BALANCE</span><strong><?=portalEscape(portalMoney($outstanding))?></strong><small>Outstanding across non-cancelled orders</small></a>
-<a href="<?=portalEscape(pcHref('fridge',$staff,$customerId))?>"><span><?=pcIcon('fridge')?> MY FRIDGE</span><strong>My stock</strong><small>Track your own quantities and usage</small></a>
-<a href="<?=portalEscape(pcHref('requests',$staff,$customerId))?>"><span><?=pcIcon('chat')?> MESSAGES</span><strong>My enquiries</strong><small>See previous requests and ANKH replies</small></a>
-</div>
-<div class="pc-account-hub-actions">
-<a href="<?=portalEscape(pcHref('catalogue',$staff,$customerId,['saved'=>1]))?>"><?=pcIcon('check')?> Saved items <?=pcIcon('right')?></a>
-<a href="<?=portalEscape(pcHref('account',$staff,$customerId))?>"><?=pcIcon('account')?> Contact &amp; delivery details <?=pcIcon('right')?></a>
-<a href="<?=portalEscape(pcHref('support',$staff,$customerId))?>"><?=pcIcon('support')?> Customer support <?=pcIcon('right')?></a>
-</div></section>
 <form class="pc-shop-search" method="get" action="<?=$staff?'./preview-live.php':(!empty($isDemo)?'./preview.php':'./')?>">
   <?php if($staff):?><input type="hidden" name="customer_id" value="<?=$customerId?>"><?php elseif(!empty($isDemo)):?><input type="hidden" name="screen" value="account"><?php endif;?>
   <input type="hidden" name="tab" value="catalogue">
