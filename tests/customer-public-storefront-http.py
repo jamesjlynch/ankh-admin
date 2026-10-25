@@ -135,8 +135,8 @@ def verify():
             assert 'sf-suggest-photo' not in home or 'data-suggest-photo=' in home
             assert "data-suggest-name" in home and "sf-photo-wall" not in home or "sf-hero-photo-wall" in home
             profile=get("/?product=1")
-            assert 'storefront-product-polish.css?v=4' in profile, "Product page must load the scoped final mobile stylesheet"
-            assert 'storefront-product-interactions.js?v=1' in profile, "Mobile interaction controller missing"
+            assert 'storefront-product-polish.css?v=5' in profile, "Product page must load the scoped final mobile stylesheet"
+            assert 'storefront-product-interactions.js?v=2' in profile, "Mobile interaction controller missing"
             script=get('/storefront-product-interactions.js')
             assert 'sf-detail-interactions-ready' in script, "Required live interaction controller missing"
             assert 'scrolledPastAction' in script, "Correct visibility guard missing"
