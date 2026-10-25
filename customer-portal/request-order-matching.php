@@ -58,6 +58,7 @@ function ankhRequestMatchSource(PDO $store,PDO $admin,int $requestId):array {
 }
 function ankhRequestMatchEvidence(PDO $admin,array $request,array $order):?array {
     $orderId=(int)($order['id']??0);
+    if(($order['status']??'')==='Cancelled')return null;
     if($orderId<1||portalMobile((string)($order['phone']??''))!==($request['normalised_phone']??null))return null;
     if(isset($request['owned_order_ids'])){
         if(!isset($request['owned_order_ids'][$orderId]))return null;
@@ -108,6 +109,8 @@ function ankhRequestMatchEvidence(PDO $admin,array $request,array $order):?array
     $fingerprint=hash('sha256',json_encode([
         'request'=>$request['id'],'order'=>$orderId,'lines'=>$requested,
         'quantities'=>$seen,'phone'=>$request['normalised_phone'],
+        'order_status'=>(string)($order['status']??''),
+        'order_created'=>(string)($order['created']??''),
         'owner'=>$request['customer_id']??$request['unclaimed_customer_id']??0
     ],JSON_THROW_ON_ERROR));
     return ['order_id'=>$orderId,'status'=>(string)($order['status']??''),
