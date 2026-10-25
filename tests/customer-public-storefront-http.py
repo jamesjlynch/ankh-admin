@@ -102,6 +102,8 @@ def verify():
             assert "Unverified draft safety information" not in reviewed, "Former draft warning remains"
             assert 'product-safety-document.php?id=11' in reviewed
             assert get("/product-safety-document.php?id=11",raw=True)==example_pdf, "Reviewed PDF link broken"
+            with sqlite3.connect(portal) as db:
+                db.execute("UPDATE portal_product_sds SET published=0,public_draft=1,reviewed_at=0 WHERE id=11")
 
 
             demo=get("/shop-demo.php")
