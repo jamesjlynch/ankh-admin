@@ -31,6 +31,8 @@ jobs:
           php -l lab-accessory-drafts.php
           php -l scripts/seed-lab-accessories.php
           php tests/lab-accessory-drafts.php
+          php -l lab-accessory-pricing.php
+          php tests/lab-accessory-pricing.php
           php tests/customer-catalogue-visibility.php
           php -l customer-cms.php
           php -l product-v2.php
