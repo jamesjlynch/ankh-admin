@@ -30,6 +30,7 @@ if(!$loopback)header('Strict-Transport-Security: max-age=31536000');
 function pfEscape(mixed $text):string {return htmlspecialchars((string)$text,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 function pfUrl(array $params=[]):string{return './'.($params?'?'.http_build_query($params,'','&',PHP_QUERY_RFC3986):'');}
 function pfType(string $name):string{return ankhPublicType($name);}
+function pfCategory(array $p):string{return trim((string)($p['category']??''))!==''?(string)$p['category']:pfType((string)$p['name']);}
 function pfExcerpt(string $text,int $max=130):string {
     $text=ankhCatalogueSummary($text);
     if (strlen($text)<=$max)return $text;
@@ -118,7 +119,8 @@ $facets=pfFacets($products);
 $search=is_string($_GET['q']??null)?trim($_GET['q']):'';
 if(strlen($search)>120)$search=substr($search,0,120);
 $category=is_string($_GET['category']??null)?$_GET['category']:'All research';
-$categories=['All research','Research compound','Laboratory reagent','Research accessory','Multi-component research blend'];
+$categories=['All research'];
+foreach($products as $p){$value=pfCategory($p);if(!in_array($value,$categories,true))$categories[]=$value;}
 if(!in_array($category,$categories,true))$category='All research';
 $strength=is_string($_GET['strength']??null)?$_GET['strength']:'';
 if($strength!==''&&!array_key_exists($strength,$facets['strength']))$strength='';
