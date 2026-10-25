@@ -93,7 +93,7 @@ jobs:
           php tests/customer-portal.php
           php tests/customer-catalogue-visibility.php
           php tests/customer-portal-render.php
-          for tab in home orders vault support account insights recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
+          for tab in home orders requests vault support account insights recurring notifications catalogue basket checkout test-orders; do php tests/customer-portal-navigation.php "$tab"; done
           python3 tests/customer-portal-catalogue-http.py
           python3 tests/customer-catalogue-admin-http.py
           python3 tests/customer-storefront-preview-http.py
