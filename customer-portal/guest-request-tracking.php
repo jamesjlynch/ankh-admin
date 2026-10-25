@@ -32,6 +32,9 @@ function ankhGuestOrderLinkInit(PDO $db):void {
 }
 function ankhGuestOrderLink(PDO $store,PDO $admin,int $requestId,int $orderId,string $reviewer='ANKH staff'):void {
     if($requestId<1||$orderId<1)throw new InvalidArgumentException('Choose a valid request and recorded Order Admin order.');
+    // Always revalidate current accessory approval, identity and exact Admin
+    // product set at commit time. The suggestion shown earlier may be stale.
+    ankhRequestMatchValidate($store,$admin,$requestId,$orderId);
     ankhGuestTrackingInit($store);ankhGuestOrderLinkInit($store);
     $q=$store->prepare('SELECT g.id,g.phone,g.status,c.customer_id FROM storefront_guest_requests g
       LEFT JOIN portal_guest_request_claims c ON c.request_id=g.id WHERE g.id=?');
