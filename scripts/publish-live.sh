@@ -70,6 +70,7 @@ done
 "$php" tests/lab-accessory-editorial.php
 "$php" -l lab-accessory-publish.php
 "$php" -l scripts/publish-lab-accessory-profiles.php
+"$php" -l scripts/import-lab-accessory-images.php
 "$php" tests/lab-accessory-publish.php
 "$php" -l customer-cms.php
 "$php" tests/customer-cms.php
@@ -99,6 +100,7 @@ done
 ANKH_SEED_ACCESSORIES=1 ANKH_DEPLOY_HOME="$home" "$php" scripts/seed-lab-accessories.php
 ANKH_REFRESH_LAB_COPY=1 ANKH_DEPLOY_HOME="$home" "$php" scripts/upgrade-lab-accessory-editorial.php
 ANKH_PUBLISH_LAB_PROFILES=1 ANKH_DEPLOY_HOME="$home" "$php" scripts/publish-lab-accessory-profiles.php
+ANKH_IMPORT_LAB_IMAGES=1 ANKH_DEPLOY_HOME="$home" "$php" scripts/import-lab-accessory-images.php
 
 printf '%s\n' "$release" > "$marker.tmp"
 chmod 600 "$marker.tmp"
