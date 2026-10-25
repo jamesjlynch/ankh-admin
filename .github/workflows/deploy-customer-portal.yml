@@ -68,6 +68,8 @@ jobs:
           php -l customer-portal/storefront-design.php
           php -l customer-portal/storefront-card.php
           php -l customer-portal/storefront-commerce.php
+          php -l customer-portal/request-order-matching.php
+          php -l customer-portal/request-order-match-view.php
           php -l customer-portal/storefront-staff.php
           php -l customer-portal/product-certificates.php
           php -l customer-portal/product-safety.php
