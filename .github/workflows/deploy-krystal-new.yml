@@ -29,6 +29,13 @@ jobs:
           php -l catalogue-categories.php
           php tests/catalogue-categories.php
           php tests/customer-catalogue-visibility.php
+          php -l customer-cms.php
+          php -l product-v2.php
+          php -l public-catalogue.php
+          php tests/customer-cms.php
+          php tests/public-catalogue.php
+          php tests/delivery-queue.php
+          php tests/business-alerts.php
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.KRYSTAL_SSH_KEY }}
