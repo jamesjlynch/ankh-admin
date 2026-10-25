@@ -23,6 +23,7 @@ $db = new PDO('sqlite:'.$config['database_path'], null, null, [PDO::ATTR_ERRMODE
 $db->exec('PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000');
 require_once __DIR__.'/customer-catalogue.php';
 require_once __DIR__.'/catalogue-categories.php';
+require_once __DIR__.'/lab-accessory-pricing.php';
 require_once __DIR__.'/public-catalogue-core.php';
 require_once __DIR__.'/packing-v2-support.php';
 $db->exec('CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, failures INTEGER NOT NULL, started INTEGER NOT NULL);
@@ -3389,6 +3390,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $_SESSION['flash']='Website visibility updated for '.count($allActive).' active products. Prices and stock were not changed.';
    header('Location: ./?view='.(($_POST['return']??'')==='website_cms'?'website_cms':'products').(($_POST['return']??'')==='website_cms'?'#cms-visibility':'#ankh-visibility-controls'),true,303);exit;
   }
+  if($action==='lab_accessory_price_update'){
+   ankhLabAccessoryUpdateAmazonPrice($db,(string)($_POST['lab_sku']??''),(string)($_POST['amazon_price']??''),(string)($_POST['amazon_url']??''));
+   $_SESSION['flash']='Amazon purchase cost and retail price (cost + £3) saved. Website visibility and product activation unchanged.';
+   header('Location: ./?view=products#ankh-amazon-costs',true,303);exit;
+  }
   if($action==='catalogue_category_add'){
    $name=is_string($_POST['category_name']??null)?$_POST['category_name']:'';
    $kind=is_string($_POST['category_kind']??null)?$_POST['category_kind']:'';
@@ -5240,6 +5246,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 @media(max-width:580px){.ankh-visibility-manager{padding:15px;margin:13px 0}.ankh-visibility-grid{grid-template-columns:1fr;max-height:355px}}
 </style>
 <?php ankhCategoriesAdminUi($db); ?>
+<?php ankhLabAccessoryPricingPanel($db); ?>
 <section class="ankh-visibility-manager" id="ankh-visibility-controls" aria-label="Customer storefront product visibility">
  <div class="ankh-visibility-top"><div><span class="ankh-visibility-header">ANKH / CUSTOMER STOREFRONT</span><h2>Choose visible products</h2><small>Only active products are shown here.</small></div>
  <span class="ankh-visibility-count" id="ankh-visibility-count"><?=count(array_filter($products,static fn($row)=>(int)$row['active']===1 && (int)($customerCatalogueVisibility[(int)$row['id']]??0)===1))?> currently visible</span></div>
