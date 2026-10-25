@@ -38,7 +38,7 @@ if [[ -z "$php" || ! -x "$php" ]]; then
   echo "ANKH: Missing PHP CLI; cannot verify release." >&2
   exit 1
 fi
-files=(.htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-categories.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
+files=(.htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-categories.php lab-accessory-pricing.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg)
 
 # A successful commit is not a successful deployment; compare the actual live files.
 if [[ -f "$marker" && "$(cat "$marker")" == "$release" ]]; then
@@ -62,6 +62,8 @@ done
 "$php" -l lab-accessory-drafts.php
 "$php" -l scripts/seed-lab-accessories.php
 "$php" tests/lab-accessory-drafts.php
+"$php" -l lab-accessory-pricing.php
+"$php" tests/lab-accessory-pricing.php
 "$php" -l customer-cms.php
 "$php" tests/customer-cms.php
 "$php" -l public-catalogue-core.php
