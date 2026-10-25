@@ -3,6 +3,7 @@ declare(strict_types=1);
 /** Standalone guest checkout for individually approved non-medicinal accessories. */
 require_once __DIR__.'/public-catalogue-core.php';
 require_once __DIR__.'/storefront-commerce.php';
+require_once __DIR__.'/guest-request-tracking.php';
 $local=PHP_SAPI==='cli-server' && getenv('ANKH_TEST_ALLOW_HTTP')==='1'
     && in_array((string)($_SERVER['REMOTE_ADDR']??''),['127.0.0.1','::1'],true)
     && preg_match('/^(?:127\\.0\\.0\\.1|\\[::1\\])(?::[0-9]+)?$/D',(string)($_SERVER['HTTP_HOST']??''))===1;
@@ -55,6 +56,8 @@ try {
         ];
         $id=sfCommerceCreateRequest($portal,$inputs,$products,$token,$fingerprint);
         $_SESSION['guest_received']=$id;
+        $claim=ankhGuestTrackingIssue($portal,$id);
+        if($claim!==null){$_SESSION['guest_receipt_code']=$claim;$_SESSION['guest_receipt_id']=$id;}
         $_SESSION['guest_received_product_ids']=array_map('intval',array_keys($inputs['items']));
         $_SESSION['guest_token']=bin2hex(random_bytes(32));
         header('Location: ./shop-checkout.php?received=1',true,303);exit;
@@ -73,8 +76,9 @@ catch(Throwable $e){error_log('ANKH guest checkout: '.$e->getMessage());$error='
 <?php if($received!==null):?>
 <section class="sf-checkout-success" data-successful-request-ids="<?=gcE(implode(',',array_map('intval',(array)($_SESSION['guest_received_product_ids']??[]))))?>"><span class="sf-kicker">REQUEST RECEIVED</span><h1>Thank you<span class="sf-gold">.</span></h1><p>Your accessory order request has been recorded for ANKH review.</p>
 <div class="sf-checkout-ref">Reference <strong>REQ-<?=str_pad((string)$received,5,'0',STR_PAD_LEFT)?></strong></div>
+<?php if(!empty($_SESSION['guest_receipt_code']) && (int)($_SESSION['guest_receipt_id']??0)===$received):?><div class="sf-checkout-receipt"><span class="sf-kicker">LINK THIS REQUEST TO YOUR ACCOUNT</span><p>Your private receipt code:</p><strong><?=gcE((string)$_SESSION['guest_receipt_code'])?></strong><p>Save this code, then sign in to My Account with the same mobile number you entered on this request. Under <b>My Requests</b>, choose Link a guest receipt. ANKH will verify both your code and account phone before showing it.</p></div><?php endif;?>
 <p>ANKH will contact you to confirm availability, delivery charges and payment arrangements. <strong>This is not a completed purchase, and no payment has been taken.</strong> Your request is not yet listed in My Orders until ANKH creates an order in Admin.</p>
-<a href="./" class="sf-button">Return to ANKH ↗</a></section>
+<a href="./?tab=requests" class="sf-button">My requests &amp; tracking ↗</a><a href="./" class="sf-secondary">Continue browsing</a></section>
 <?php else:?>
 <section class="sf-checkout-title"><span class="sf-kicker">01 / REVIEW YOUR SELECTION</span><h1>Complete your request<span class="sf-gold">.</span></h1><p>For approved non-medicinal accessories only. Your basket is saved on this device; no payment is collected until ANKH confirms an order.</p></section>
 <?php if($error!==''):?><p class="sf-checkout-error" role="alert"><?=gcE($error)?></p><?php endif;?>
