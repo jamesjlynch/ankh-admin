@@ -119,9 +119,10 @@ $related=$selected?pfRelated($selected,$products):[];
 </div>
 <?php endif;?>
 <?php if(isset($demoProducts[(int)$selected['id']])):?>
-<div class="sf-shop-inline"><span><?=$selectedCommercial?'Eligible accessory order request':'Demo basket · No payment or order'?></span>
-<button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>">Add to basket ＋</button></div>
-<?php else:?><p class="sf-reference-state">Reference only · Basket disabled</p><?php endif;?>
+<div class="sf-shop-inline <?=$selectedCommercial?'sf-action-eligible':'sf-action-demo'?>"><span><?=$selectedCommercial?'APPROVED ACCESSORY · REQUEST SUBJECT TO REVIEW':'RESEARCH PROFILE · DEMONSTRATION ONLY'?></span>
+<button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>"><?=$selectedCommercial?'Add to request basket ＋':'Try in demo basket ＋'?></button>
+<small><?=$selectedCommercial?'No payment is taken online. ANKH will confirm availability and delivery.':'This is a shopping-interface preview. No order, enquiry or payment can be submitted.'?></small></div>
+<?php else:?><p class="sf-reference-state">Research reference only · Not available for basket or order requests</p><?php endif;?>
 <div class="sf-mobile-product-quicklinks" aria-label="Jump to product information"><a href="#sf-product-documents">Documents ↗</a><a href="#sf-product-research">Research ↗</a><a href="#sf-gallery-track" data-open-identity>Specifications ↗</a></div>
 <div class="sf-detail-actions">
 <button type="button" class="sf-product-share" data-share-product aria-label="Share this ANKH product" data-share-title="<?=pfEscape($selected['name'])?>"><span aria-hidden="true">↗</span> Share product</button>
@@ -258,7 +259,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <div class="sf-mobile-product-action" aria-label="Product actions" data-product-sticky-action>
  <div class="sf-mobile-product-summary"><small><?=$selectedPreviewPrice!==null?($selectedCommercial?'PRICE £':'PREVIEW £').number_format((int)$selectedPreviewPrice/100,2):'ANKH / PRODUCT PROFILE'?></small><strong><?=pfEscape($selected['name'])?></strong></div>
  <?php if(isset($demoProducts[(int)$selected['id']])):?>
- <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add">Add to basket <span aria-hidden="true">＋</span></button>
+ <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add"><?=$selectedCommercial?'Add to request':'Try demo basket'?> <span aria-hidden="true">＋</span></button>
  <?php else:?><a href="./#collection" class="sf-mobile-product-add sf-action-reference">Browse collection ↗</a><?php endif;?>
 </div>
 <?php if($selected['has_photo']):?>
@@ -270,18 +271,31 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <?php endif;?>
 <?php endif;?>
 <div id="sf-approved-items" hidden aria-hidden="true">
-<?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=(int)($previewPrices[(int)$p['id']]??0)?>" data-approved-live="<?=$eligible?'1':'0'?>"></span><?php endforeach;?>
+<?php foreach($products as $p):if(!isset($demoProducts[(int)$p['id']])&&!isset($buyable[(int)$p['id']]))continue;$eligible=$buyable[(int)$p['id']]??null;?><span data-approved-id="<?=(int)$p['id']?>" data-approved-name="<?=pfEscape($p['name'])?>" data-approved-price="<?=(int)($eligible['price']??($previewPrices[(int)$p['id']]??0))?>" data-approved-live="<?=$eligible?'1':'0'?>" data-approved-photo="<?=!empty($p['has_photo'])?pfEscape(ankhCmsPhotoUrl($p,'thumb')):''?>" data-approved-strength="<?=pfEscape(pfStrength($p))?>" data-approved-format="<?=pfEscape(pfVariantPresentation($p))?>"></span><?php endforeach;?>
 </div>
+<section class="sf-cart-peek" id="sf-cart-peek" aria-label="Basket item added" hidden>
+ <div class="sf-peek-grip" aria-hidden="true"></div>
+ <div class="sf-peek-body"><img id="sf-peek-image" alt="" width="68" height="68" hidden><div class="sf-peek-fallback" id="sf-peek-fallback" aria-hidden="true">☥</div>
+ <div class="sf-peek-copy"><span id="sf-peek-status">ADDED TO BASKET</span><strong id="sf-peek-name"></strong><small id="sf-peek-detail"></small></div>
+ <button type="button" class="sf-peek-dismiss" data-cart-peek-dismiss aria-label="Dismiss basket confirmation">×</button></div>
+ <div class="sf-peek-actions"><button type="button" data-cart-peek-dismiss class="sf-peek-continue">Continue browsing</button><button type="button" data-cart-peek-view class="sf-peek-review">View basket <span aria-hidden="true">↗</span></button></div>
+</section>
 <dialog id="sf-cart-drawer" class="sf-cart-drawer" aria-labelledby="sf-cart-heading">
-<div class="sf-cart-head"><div><span class="sf-kicker">YOUR ANKH BASKET</span><h2 id="sf-cart-heading">Your selections<span class="sf-gold">.</span></h2></div><button type="button" data-close-cart class="sf-cart-dismiss" aria-label="Close basket">×</button></div>
-<p class="sf-cart-description">Browse and test the basket without signing in. Non-approved items stay in demo mode and cannot place an order or take payment.</p>
-<div id="sf-cart-lines" class="sf-cart-lines" role="status" aria-live="polite"><p>Nothing in your basket yet.</p></div>
-<div class="sf-cart-foot"><div><span>Product subtotal</span><strong id="sf-cart-subtotal">£0.00</strong></div>
-<p>Delivery is confirmed by ANKH before an order is accepted. No payment is collected here.</p>
-<a class="sf-button sf-cart-checkout" href="./shop-demo.php" id="sf-cart-checkout">Review test basket ↗</a></div></dialog>
+ <div class="sf-cart-grip" aria-hidden="true"></div>
+ <div class="sf-cart-head"><div><span class="sf-kicker">ANKH / YOUR SELECTIONS</span><h2 id="sf-cart-heading">Your basket<span class="sf-gold">.</span></h2></div><button type="button" data-close-cart class="sf-cart-dismiss" aria-label="Close basket">×</button></div>
+ <div class="sf-cart-modes" role="status" aria-live="polite"><span id="sf-cart-live-count">0 eligible for request</span><span id="sf-cart-demo-count">0 in demo</span></div>
+ <p class="sf-cart-description">Approved accessories can be requested for staff review. Research products can only be tested in demo mode.</p>
+ <div id="sf-cart-lines" class="sf-cart-lines" aria-live="polite"><p>Your basket is empty.</p></div>
+ <div class="sf-cart-foot"><div class="sf-cart-total"><span id="sf-cart-total-label">Product subtotal</span><strong id="sf-cart-subtotal">£0.00</strong></div>
+ <div class="sf-cart-demo-total" id="sf-cart-demo-total-row" hidden><span>Separate demo preview</span><strong id="sf-cart-demo-total">£0.00</strong></div>
+ <p id="sf-cart-footnote">No payment is collected here. Eligible accessory requests are reviewed before acceptance.</p>
+ <a class="sf-button sf-cart-checkout" href="./shop-demo.php" id="sf-cart-checkout">Review test basket ↗</a>
+ <a href="./shop-demo.php" id="sf-cart-demo-link" class="sf-cart-demo-link" hidden>Preview demo items separately ↗</a>
+ <button type="button" class="sf-cart-continue" data-close-cart>Continue exploring ANKH</button></div>
+</dialog>
 <footer class="sf-footer"><div class="sf-shell sf-footer-grid"><div><div class="sf-footer-logo">☥ ANKH</div><p>ANKH GLOBAL LTD · Technical research information only. Not intended for human or veterinary consumption or administration. No medical approval is claimed.</p></div><div><strong>Discover</strong><a href="./">Collection</a><a href="./public-catalogue.php">Scientific reference</a><a href="mailto:info@ankhpeptides.com">Customer support</a></div><div><strong>Your ANKH</strong><a href="./?tab=home">My Account</a><a href="./?saved=1">Saved research</a><a href="./?tab=basket">Customer basket</a><a href="./?tab=orders">My orders</a><a href="./?tab=fridge">My Fridge</a></div></div><div class="sf-shell sf-copyright">ANKH GLOBAL LTD · PUBLIC RESEARCH REFERENCE · © <?=date('Y')?></div></footer>
 <dialog class="sf-quick-dialog" id="sf-quick" aria-labelledby="sf-quick-title"><div class="sf-quick-inner">
-<button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><div class="sf-quick-actions"><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><button type="button" class="sf-add-cart sf-quick-add" id="sf-quick-add" data-cart-id="0" hidden>Add to basket ＋</button></div><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
+<button type="button" class="sf-quick-close" data-close-quick aria-label="Close quick view">×</button><div class="sf-quick-photo"><img id="sf-quick-photo" alt="" hidden><span id="sf-quick-fallback" aria-hidden="true">☥</span></div><div class="sf-quick-text"><span class="sf-kicker" id="sf-quick-kind"></span><h2 id="sf-quick-title"></h2><p id="sf-quick-summary"></p><div class="sf-quick-actions"><a id="sf-quick-link" class="sf-button" href="./">Explore profile ↗</a><button type="button" class="sf-add-cart sf-quick-add" id="sf-quick-add" data-cart-id="0" hidden>Try in demo basket ＋</button></div><p class="sf-quick-note">Technical research reference only, not an offer to purchase medicines.</p></div>
 </div></dialog>
 <?php if(!$selected):?><div class="sf-search-corpus" hidden aria-hidden="true">
 <?php foreach(($search===''?$products:$filtered) as $p):?><span data-suggest-name="<?=pfEscape($p['name'])?>" data-suggest-kind="<?=pfEscape(pfType($p['name']))?>" data-suggest-photo="<?=!empty($p['has_photo'])?pfEscape(ankhCmsPhotoUrl($p,'thumb')):''?>" data-suggest-href="<?=pfEscape(pfUrl(['product'=>$p['id']]))?>"></span><?php endforeach;?>
