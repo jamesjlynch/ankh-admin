@@ -13,6 +13,7 @@ on:
       - 'tests/customer-shopping-ux.php'
       - 'tests/customer-product-variants.php'
       - 'tests/customer-guest-request-tracking.php'
+      - 'tests/customer-request-order-link.php'
       - 'tests/customer-collection.php'
       - 'tests/customer-account-features.php'
       - 'tests/customer-catalogue-visibility.php'
@@ -48,6 +49,7 @@ jobs:
           php -l customer-portal/storefront-preview.php
           php -l customer-portal/storefront.php
           php -l customer-portal/shop-home.php
+          php -l customer-portal/account-activity.php
           php -l customer-portal/my-fridge.php
           php -l customer-portal/fridge-view.php
           php -l customer-portal/contact-settings.php
@@ -95,6 +97,7 @@ jobs:
           php tests/customer-shopping-ux.php
           php tests/customer-product-variants.php
           php tests/customer-guest-request-tracking.php
+          php tests/customer-request-order-link.php
           php tests/customer-collection.php
           php tests/customer-account-features.php
           php tests/customer-statement.php
