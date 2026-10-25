@@ -21,6 +21,14 @@ function ankhSdsInit(PDO $db):void {
     CREATE INDEX IF NOT EXISTS idx_portal_sds_visible ON portal_product_sds(product_id,published,id);");
     if(!ankhSdsHasPublicDraftColumn($db))
         $db->exec("ALTER TABLE portal_product_sds ADD COLUMN public_draft INTEGER NOT NULL DEFAULT 0 CHECK(public_draft IN(0,1))");
+    if(!ankhSdsHasApprovedFileColumn($db))
+        $db->exec("ALTER TABLE portal_product_sds ADD COLUMN approved_pdf_file TEXT NOT NULL DEFAULT ''");
+}
+/** Approved revisions use private files; original draft BLOBs are kept as immutable history. */
+function ankhSdsHasApprovedFileColumn(PDO $db):bool {
+    foreach($db->query("PRAGMA table_info(portal_product_sds)") as $col)
+        if(($col['name']??'')==='approved_pdf_file')return true;
+    return false;
 }
 function ankhSdsHasPublicDraftColumn(PDO $db):bool {
     foreach($db->query("PRAGMA table_info(portal_product_sds)") as $col)
