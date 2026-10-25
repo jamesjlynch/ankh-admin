@@ -83,9 +83,11 @@ function ankhPublicCatalogueProducts(PDO $db):array {
 }
 function ankhPublicType(string $name): string {
     $n=strtolower($name);
-    if (preg_match('/\b(?:pen|cartridge|case|labels?|notebook|envelopes?|starter kit)\b/',$n))return 'Research accessory';
-    if (preg_match('/\b(?:water|acetic acid)\b/',$n))return 'Laboratory reagent';
-    if (preg_match('/\b(?:stack|blend)\b/',$n))return 'Multi-component research blend';
+    // A peptide isn't an accessory simply because its name includes "pen" or "cartridge".
+    if(preg_match('/\b(?:retatrutide|tirzepatide|semaglutide|bpc-?157|tb-?500|cjc-?1295|ipamorelin|melanotan|mots-?c|glp-?1|ghk-?cu|ss-?31|nad\+|epitalon|semax|selank|kisspeptin|peptide)\b/i',$n))return 'Research compound';
+    if(preg_match('/\b(?:petri\s+dish(?:es)?|pipettes?|pipette\s+tips?|beakers?|centrifuge\s+tubes?|tube\s+racks?|sample\s+containers?|microscope\s+slides?|laboratory\s+gloves?|lab\s+spatulas?|labware|pen|cartridge|case|labels?|notebook|envelopes?|starter kit)\b/i',$n))return 'Research accessory';
+    if(preg_match('/\b(?:water|acetic acid)\b/',$n))return 'Laboratory reagent';
+    if(preg_match('/\b(?:stack|blend)\b/',$n))return 'Multi-component research blend';
     return 'Research compound';
 }
 function ankhPublicNotice():string {
