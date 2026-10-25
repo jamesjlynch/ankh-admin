@@ -37,6 +37,9 @@ jobs:
           php -l lab-accessory-editorial-update.php
           php -l scripts/upgrade-lab-accessory-editorial.php
           php tests/lab-accessory-editorial.php
+          php -l lab-accessory-publish.php
+          php -l scripts/publish-lab-accessory-profiles.php
+          php tests/lab-accessory-publish.php
           php tests/customer-catalogue-visibility.php
           php -l customer-cms.php
           php -l product-v2.php
