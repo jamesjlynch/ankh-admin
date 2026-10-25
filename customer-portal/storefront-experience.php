@@ -118,7 +118,7 @@ $related=$selected?pfRelated($selected,$products):[];
  <?php if(!$selectedCommercial):?><small>For storefront testing only · Not a payment or accepted order</small><?php endif;?>
 </div>
 <?php endif;?>
-<?php if(isset($demoProducts[(int)$selected['id']])):?>
+<?php if((isset($demoProducts[(int)$selected['id']])||$selectedCommercial)):?>
 <div class="sf-shop-inline <?=$selectedCommercial?'sf-action-eligible':'sf-action-demo'?>"><span><?=$selectedCommercial?'APPROVED ACCESSORY · REQUEST SUBJECT TO REVIEW':'RESEARCH PROFILE · DEMONSTRATION ONLY'?></span>
 <button class="sf-button" type="button" data-cart-id="<?=(int)$selected['id']?>"><?=$selectedCommercial?'Add to request basket ＋':'Try in demo basket ＋'?></button>
 <small><?=$selectedCommercial?'No payment is taken online. ANKH will confirm availability and delivery.':'This is a shopping-interface preview. No order, enquiry or payment can be submitted.'?></small></div>
@@ -258,7 +258,7 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <?php if($selected):?>
 <div class="sf-mobile-product-action" aria-label="Product actions" data-product-sticky-action>
  <div class="sf-mobile-product-summary"><small><?=$selectedPreviewPrice!==null?($selectedCommercial?'PRICE £':'PREVIEW £').number_format((int)$selectedPreviewPrice/100,2):'ANKH / PRODUCT PROFILE'?></small><strong><?=pfEscape($selected['name'])?></strong></div>
- <?php if(isset($demoProducts[(int)$selected['id']])):?>
+ <?php if((isset($demoProducts[(int)$selected['id']])||$selectedCommercial)):?>
  <button type="button" data-cart-id="<?=(int)$selected['id']?>" class="sf-add-cart sf-mobile-product-add"><?=$selectedCommercial?'Add to request':'Try demo basket'?> <span aria-hidden="true">＋</span></button>
  <?php else:?><a href="./#collection" class="sf-mobile-product-add sf-action-reference">Browse collection ↗</a><?php endif;?>
 </div>
