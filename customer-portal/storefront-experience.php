@@ -5,20 +5,41 @@ $heroPhotos=array_slice(array_values(array_filter($products,static fn($p)=>!empt
 $variants=$selected?pfVariants($selected,$products):[];
 $variantSelector=$selected?pfVariantSelector($selected,$variants):['strengths'=>[],'formats'=>[]];
 $related=$selected?pfRelated($selected,$products):[];
+$labCategoryCounts=[];
+foreach($products as $labProduct){
+    if(pfType((string)$labProduct['name'])!=='Research accessory')continue;
+    $labCategory=pfCategory($labProduct);
+    if($labCategory==='Research accessory')continue;
+    $labCategoryCounts[$labCategory]=($labCategoryCounts[$labCategory]??0)+1;
+}
+ksort($labCategoryCounts,SORT_NATURAL|SORT_FLAG_CASE);
+$metaTitle=$selected
+    ? $selected['name'].' | ANKH '.(pfType((string)$selected['name'])==='Research accessory'?'Laboratory Supplies':'Research Collection')
+    : (($category!=='All research'?$category.' | ':'').'ANKH Research & Laboratory Supplies');
+$metaDescription=$selected
+    ? pfExcerpt((string)$selected['description'],158)
+    : ($category!=='All research'
+      ? 'Explore ANKH '. $category . ': compare published product profiles, pack details and verified information in our research and laboratory supplies catalogue.'
+      : 'Explore ANKH Laboratory Supplies and research reference information. Browse published products, technical details, laboratory accessories and customer account features.');
+
 ?>
 <!doctype html>
 <html lang="en-GB">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0c0d0b"><meta name="robots" content="noindex,nofollow">
-<meta name="description" content="Discover the ANKH collection, technical laboratory research profiles and private ANKH customer account.">
-<title><?=pfEscape($selected?$selected['name'].' · ANKH':'ANKH · Research Collection')?></title>
+<meta name="description" content="<?=pfEscape($metaDescription)?>">
+<meta property="og:title" content="<?=pfEscape($metaTitle)?>">
+<meta property="og:description" content="<?=pfEscape($metaDescription)?>">
+<meta property="og:type" content="<?=$selected?'product':'website'?>">
+<title><?=pfEscape($metaTitle)?></title>
 <link rel="icon" href="./icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="./storefront-preview.css">
 <link rel="stylesheet" href="./storefront.css?v=7">
 <link rel="stylesheet" href="./storefront-luxury.css?v=3">
 <link rel="stylesheet" href="./storefront-product-polish.css?v=5">
 <link rel="stylesheet" href="./storefront-basket-premium.css?v=1">
+<link rel="stylesheet" href="./storefront-lab-supplies.css?v=1">
 <script defer src="./storefront.js?v=3"></script>
 <script defer src="./storefront-cart.js?v=4"></script>
 <script defer src="./storefront-luxury.js?v=3"></script>
@@ -31,6 +52,7 @@ $related=$selected?pfRelated($selected,$products):[];
 <a class="sf-logo" href="./" aria-label="ANKH home"><span class="sf-ankh" aria-hidden="true">☥</span><span><strong>ANKH</strong><small>THE RESEARCH COLLECTION</small></span></a>
 <nav class="sf-links" aria-label="Primary navigation">
 <a href="./" <?=!$selected?'aria-current="page"':''?>>Collection</a>
+<?php if($labCategoryCounts):?><a href="./#sf-laboratory-supplies">Laboratory supplies</a><?php endif;?>
 <a href="./#sf-process">Our approach</a>
 <a href="./public-catalogue.php">Research library</a>
 <?php if(!empty($whatsappUrl)):?><a href="<?=pfEscape($whatsappUrl)?>" rel="noopener noreferrer" target="_blank">WhatsApp support ↗</a><?php else:?><a href="mailto:info@ankhpeptides.com">Contact</a><?php endif;?>
@@ -90,7 +112,7 @@ $related=$selected?pfRelated($selected,$products):[];
 </div>
 <div class="sf-image-caption"><span>PRODUCT PHOTO · AUTOMATIC SPECIFICATIONS</span><span>REF. <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div></div>
 <div class="sf-product-details">
-<div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> / ANKH RESEARCH</span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
+<div class="sf-mobile-product-heading"><span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> / <?=pfType((string)$selected['name'])==='Research accessory'?'ANKH LABORATORY SUPPLIES':'ANKH RESEARCH'?></span><h1><?=pfEscape($selected['name'])?></h1><span class="sf-mobile-product-subtitle">Technical product profile · <?=str_pad((string)$selected['id'],4,'0',STR_PAD_LEFT)?></span></div>
 <span class="sf-kicker"><?=pfEscape(pfCategory($selected))?> <span aria-hidden="true">/</span> PROFILE <?=str_pad((string)$selected['id'],3,'0',STR_PAD_LEFT)?></span>
 <h1><?=pfEscape($selected['name'])?></h1>
 <div class="sf-tags"><span>Laboratory reference</span><span>Technical specifications</span></div>
@@ -215,6 +237,26 @@ if(!$has)continue;?><details class="sf-accordion"><summary><span><b><?=str_pad((
 <span class="sf-art-label">A N K H &nbsp; / &nbsp; T H E &nbsp; C O L L E C T I O N</span>
 </div></section>
 <div class="sf-trust" aria-label="Research and account features"><span><b>01</b> Research profiles</span><span><b>02</b> Product details</span><span><b>03</b> Private account</span><span><b>04</b> Order history &amp; My Fridge</span></div>
+<?php if($labCategoryCounts):?>
+<section class="sf-lab-department" id="sf-laboratory-supplies" aria-labelledby="sf-lab-department-heading">
+ <div class="sf-lab-department-top"><div>
+  <span class="sf-kicker">ANKH / LABORATORY SUPPLIES</span>
+  <h2 id="sf-lab-department-heading">Organise the work. Explore the essentials<span class="sf-gold">.</span></h2>
+  <p>Browse our published laboratory accessories by type, from sample containers to bench organisation. Each category leads to genuine, published product details rather than invented stock or offers.</p>
+ </div><span class="sf-lab-published-count"><?=array_sum($labCategoryCounts)?> published accessor<?=array_sum($labCategoryCounts)===1?'y':'ies'?></span></div>
+ <div class="sf-lab-department-grid">
+  <?php foreach($labCategoryCounts as $labCategoryName=>$labCount):?>
+  <a class="sf-lab-category-card" href="<?=pfEscape(pfUrl(['category'=>$labCategoryName]))?>#collection">
+   <span class="sf-lab-category-icon" aria-hidden="true">✦</span>
+   <strong><?=pfEscape($labCategoryName)?></strong>
+   <small><?=$labCount?> published product<?=$labCount===1?'':'s'?></small>
+   <span class="sf-lab-category-link">Browse category <span aria-hidden="true">↗</span></span>
+  </a>
+  <?php endforeach;?>
+ </div>
+ <p class="sf-lab-department-note">Check product dimensions, materials and supplier documentation before selecting an accessory. Product details and availability are confirmed on the individual listing.</p>
+</section>
+<?php endif;?>
 <section class="sf-collection" id="collection"><div class="sf-section-title"><div><span class="sf-kicker">THE COLLECTION</span><h2>Explore every detail<span class="sf-gold">.</span></h2>
 <p>Browse <?=count($products)?> published technical profiles with your existing ANKH product photography.</p></div><span class="sf-index">ANKH / 001</span></div>
 <div class="sf-category-chips" aria-label="Browse by type">
