@@ -18,7 +18,9 @@ jobs:
           php-version: '8.2'
           extensions: pdo_sqlite,mbstring
       - name: Test authenticated back-order actions
-        run: php tests/backorder-actions.php
+        run: |
+          php tests/backorder-actions.php
+          php tests/order-save-retries.php
       - name: Prepare browser and verify CSS
         run: |
           npm ci --ignore-scripts

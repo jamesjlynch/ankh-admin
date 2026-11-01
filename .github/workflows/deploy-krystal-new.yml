@@ -48,6 +48,7 @@ jobs:
           php tests/public-catalogue.php
           php tests/delivery-queue.php
           php tests/backorder-actions.php
+          php tests/order-save-retries.php
           php tests/business-alerts.php
       - name: Configure SSH
         env:

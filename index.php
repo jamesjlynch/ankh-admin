@@ -29,6 +29,7 @@ require_once __DIR__.'/packing-v2-support.php';
 $db->exec('CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, failures INTEGER NOT NULL, started INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL CHECK(price>=0), active INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, status TEXT NOT NULL DEFAULT "New", created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS order_submission_keys (request_key TEXT PRIMARY KEY, order_id INTEGER DEFAULT NULL REFERENCES orders(id) ON DELETE SET NULL, created TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id), name TEXT NOT NULL, price INTEGER NOT NULL, quantity INTEGER NOT NULL CHECK(quantity>0));
 CREATE TABLE IF NOT EXISTS customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE, phone TEXT NOT NULL DEFAULT "", address TEXT NOT NULL DEFAULT "", created TEXT NOT NULL, UNIQUE(name,phone));
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -3671,6 +3672,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='order' || $action==='order_edit'){
    $isEdit=$action==='order_edit';$orderId=$isEdit?(int)($_POST['id']??0):0;$existingOrder=null;$existingItemCosts=[];
+   $orderRequestKey=$isEdit?'':trim((string)($_POST['order_request_key']??''));
+   if(!$isEdit&&!preg_match('/^[a-f0-9]{32}$/',$orderRequestKey))throw new Exception('Refresh the New order form before saving. This submission has not created an order.');
    if($isEdit){
     $q=$db->prepare('SELECT * FROM orders WHERE id=?');$q->execute([$orderId]);$existingOrder=$q->fetch(PDO::FETCH_ASSOC);if(!$existingOrder)throw new Exception('Order could not be found.');
     $q=$db->prepare('SELECT product_id,name,cost,presentation_cost,base_price FROM items WHERE order_id=?');$q->execute([$orderId]);
@@ -3739,12 +3742,23 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
 
    $db->beginTransaction();
+   if(!$isEdit){
+    // Claim this form submission under a write lock before inserting an order.
+    $claim=$db->prepare('INSERT INTO order_submission_keys(request_key,order_id,created) VALUES (?,NULL,?) ON CONFLICT(request_key) DO NOTHING');$claim->execute([$orderRequestKey,gmdate('c')]);
+    if($claim->rowCount()===0){
+     $q=$db->prepare('SELECT o.id,o.back_order FROM order_submission_keys k LEFT JOIN orders o ON o.id=k.order_id WHERE k.request_key=?');$q->execute([$orderRequestKey]);$previous=$q->fetch(PDO::FETCH_ASSOC);
+     if(!$previous||!$previous['id'])throw new Exception('This saved order was removed. Start a new order if another is required.');
+     $db->commit();$_SESSION['clear_order_draft']=true;$_SESSION['flash']='This order was already saved. Opened the existing order instead of creating a duplicate.';
+     header('Location: ./?view='.(isBackOrder($previous)?'orders&section=backorders':'saved&id='.(int)$previous['id']));exit;
+    }
+   }
    if($isEdit){
     $db->prepare('UPDATE orders SET customer=?,recipient_name=?,phone=?,address=?,notes=?,created=?,referrer=?,presentation=?,payment_method=?,delivery_method=?,assigned_to=?,tracking_reference=?,delivery_charge=?,postage_cost=?,payment_fee=?,scheduled_delivery_date=? WHERE id=?')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate,$orderId]);
     if($scheduledDeliveryDate!==(string)($existingOrder['scheduled_delivery_date']??''))$db->prepare("UPDATE orders SET delivery_section_override='' WHERE id=?")->execute([$orderId]);
     $db->prepare('DELETE FROM items WHERE order_id=?')->execute([$orderId]);
    }else{
     $db->prepare('INSERT INTO orders(customer,recipient_name,phone,address,notes,created,referrer,presentation,payment_method,delivery_method,assigned_to,tracking_reference,delivery_charge,postage_cost,payment_fee,scheduled_delivery_date) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,$recipientName,$phone,$address,$notes,$created,$referrer,$orderPresentation,$paymentMethod,$deliveryMethod,$assignedTo,$trackingReference,$deliveryCharge,$postageCost,$paymentFee,$scheduledDeliveryDate]);$orderId=(int)$db->lastInsertId();$savedOrderId=$orderId;
+    $db->prepare('UPDATE order_submission_keys SET order_id=? WHERE request_key=?')->execute([$orderId,$orderRequestKey]);
    }
    $saveCustomer=$db->prepare("INSERT INTO customers(name,phone,address,created,archived) VALUES (?,?,?,?,0) ON CONFLICT(name,phone) DO UPDATE SET address=CASE WHEN excluded.address<>'' THEN excluded.address ELSE customers.address END, archived=0");$saveCustomer->execute([$name,$phone,$address,$created]);
    $db->prepare('UPDATE orders SET pricing_type=? WHERE id=?')->execute([$pricingType,$orderId]);
@@ -3753,7 +3767,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$isEdit && (string)($_POST['back_order']??'')==='1')$db->prepare('UPDATE orders SET back_order=1,back_order_since=? WHERE id=?')->execute([gmdate('c'),$orderId]);
    reconcileDeliveredStock($db,$orderId,false);
    if($isEdit)syncProductCyclesFromDeliveredOrder($db,$orderId);
-   $db->commit();$syncError=syncOrderToSheet($db,$orderId);
+   $db->commit();if(!$isEdit)$_SESSION['clear_order_draft']=true;$syncError=syncOrderToSheet($db,$orderId);
   }
 
   if($action==='profit_settings'){
@@ -5169,7 +5183,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
   <small id="voice-overlay-help">Tap STOP when you’ve finished speaking</small>
  </div>
 </div>
-<form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order">
+<form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order"><input type="hidden" name="order_request_key" value="<?=e(preg_match('/^[a-f0-9]{32}$/',(string)($_POST['order_request_key']??''))?(string)$_POST['order_request_key']:bin2hex(random_bytes(16)))?>">
 
 <section class="wizard-step" data-wizard-step="1">
 <div class="wizard-step-head"><span class="wizard-kicker">STEP 1 OF 3</span><h2>Customer</h2><p class="muted">Choose the customer and delivery details.</p></div>
@@ -6601,7 +6615,8 @@ document.querySelector('#setup-passkey')?.addEventListener('click',async event=>
 });
 
 const orderDraftKey='ankh-order-draft-v2';
-if(document.querySelector('#order-saved-marker')){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
+if(document.querySelector('#order-saved-marker')||<?=json_encode(!empty($_SESSION['clear_order_draft']))?>){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
+<?php unset($_SESSION['clear_order_draft']);?>
 document.querySelectorAll('[data-copy-text]').forEach(button=>button.addEventListener('click',async()=>{const value=button.dataset.copyText||'';try{await navigator.clipboard.writeText(value);const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}catch(_){const area=document.createElement('textarea');area.value=value;document.body.append(area);area.select();document.execCommand('copy');area.remove()}}));
 document.querySelectorAll('[data-share-pdf]').forEach(button=>button.addEventListener('click',async()=>{
  const id=button.dataset.sharePdf,type=button.dataset.documentType||'receipt',url='?api=order-pdf&id='+encodeURIComponent(id)+'&type='+encodeURIComponent(type),old=button.textContent;button.disabled=true;button.textContent='Preparing…';
@@ -7026,10 +7041,12 @@ function serializeLines(){return selectedOrderCards().map(card=>lineData(card))}
 function saveDraftOrder(){
  if(!draftEnabled||!wizard)return;
  const draft={step:currentWizardStep,customer:customerSearch?.value||'',recipient_name:recipientName?.value||'',phone:customerPhone?.value||'',address:customerAddress?.value||'',referrer:document.querySelector('#customer-referrer')?.value||'',order_date:document.querySelector('#order-date')?.value||'',future_delivery:futureDeliveryToggle?.checked||false,scheduled_delivery_date:scheduledDeliveryInput?.value||'',delivery_method:deliveryMethodSelect?.value||'Local Delivery',assigned_to:assignedToSelect?.value||'',tracking_reference:trackingReferenceInput?.value||'',delivery_charge:deliveryChargeInput?.value||'',postage_cost:postageCostInput?.value||'',payment_method:paymentMethodInput?.value||'',notes:wizard.querySelector('textarea[name="notes"]')?.value||'',lines:serializeLines()};
+ draft.order_request_key=wizard.querySelector('[name="order_request_key"]')?.value||'';
  const useful=draft.customer||draft.recipient_name||draft.phone||draft.address||draft.lines.length||draft.future_delivery;try{if(useful){localStorage.setItem(orderDraftKey,JSON.stringify(draft));if(clearDraftButton)clearDraftButton.hidden=false}else{localStorage.removeItem(orderDraftKey);if(clearDraftButton)clearDraftButton.hidden=true}}catch(_){}
 }
 function restoreDraftOrder(){
  if(!draftEnabled||!wizard)return false;let draft=null;try{draft=JSON.parse(localStorage.getItem(orderDraftKey)||'null')}catch(_){}if(!draft)return false;
+ if(/^[a-f0-9]{32}$/.test(draft.order_request_key||''))wizard.querySelector('[name="order_request_key"]').value=draft.order_request_key;
  if(customerSearch)customerSearch.value=draft.customer||'';if(recipientName)recipientName.value=draft.recipient_name||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
  const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
  if(futureDeliveryToggle)futureDeliveryToggle.checked=draft.future_delivery===true;if(scheduledDeliveryInput)scheduledDeliveryInput.value=draft.scheduled_delivery_date||'';toggleFutureDelivery();
@@ -7149,9 +7166,11 @@ voiceOrderStop?.addEventListener('click',stopVoiceOrderRecording);
 voiceOrderOrb?.addEventListener('click',stopVoiceOrderRecording);
 
 orderForm?.addEventListener('submit',e=>{
+ if(orderForm.dataset.submitting==='1'){e.preventDefault();return}
  if(!customerSearch?.value.trim()){e.preventDefault();if(wizard)showWizardStep(1);customerSearch?.reportValidity();return}
  if(!deliveryMethodSelect?.value){e.preventDefault();if(wizard)showWizardStep(1);deliveryMethodSelect?.reportValidity();return}
  if(!validateLines()){e.preventDefault();if(wizard)showWizardStep(2);return}
+ saveDraftOrder();orderForm.dataset.submitting='1';orderForm.setAttribute('aria-busy','true');
  const button=orderForm.querySelector('.save-order');if(button){button.disabled=true;button.textContent=orderForm.querySelector('input[name="action"]')?.value==='order_edit'?'Saving changes…':'Saving order…'}
 });
 const editDateToggle=document.querySelector('#edit-order-date-toggle'),editOrderDate=document.querySelector('#order-date');
