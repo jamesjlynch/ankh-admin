@@ -3558,7 +3558,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $db->exec('UPDATE orders SET back_order=back_order WHERE id='.(int)$orderId);
    $q=$db->prepare('SELECT back_order,status,delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$waitingOrder=$q->fetch(PDO::FETCH_ASSOC);
    if(!$waitingOrder||!isBackOrder($waitingOrder)||in_array($waitingOrder['status'],['Delivered','Dispatched'],true)||trim((string)$waitingOrder['delivery_date'])!=='')throw new Exception('Only a waiting back order can be cancelled here. Refresh the order and try again.');
-   $db->prepare("UPDATE orders SET status='Cancelled',reconstituted=0,packaged=0 WHERE id=?")->execute([$orderId]);reconcileDeliveredStock($db,$orderId,false);$db->commit();$syncError=syncOrderToSheet($db,$orderId);
+   $db->prepare("UPDATE orders SET status='Cancelled',back_order=0,reconstituted=0,packaged=0 WHERE id=?")->execute([$orderId]);reconcileDeliveredStock($db,$orderId,false);$db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='delivery_mark'){
    assertOrderActive($db,(int)($_POST['id']??0));
@@ -4998,7 +4998,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php elseif($view==='orders'): ?>
 <?php
 $ordersSection=in_array($_GET['section']??'', ['recurring','backorders'],true)?(string)$_GET['section']:'all';
-$backOrders=array_values(array_filter($orders,fn($o)=>isBackOrder($o)));
+$backOrders=array_values(array_filter($orders,fn($o)=>isBackOrder($o)&&!in_array((string)$o['status'],['Cancelled','Delivered','Dispatched'],true)&&trim((string)($o['delivery_date']??''))===''));
 $backOrderDemand=backOrderStockPlan($db,array_column($incomingProductBreakdown,null,'product_id'));
 usort($backOrders,fn($a,$b)=>strcmp((string)$a['back_order_since'],(string)$b['back_order_since']) ?: (int)$a['id']<=>(int)$b['id']);
 $orderScopes=['today_sales'=>'Today’s sales','month_sales'=>'This month’s sales','unpaid'=>'Unpaid orders','to_deliver'=>'Orders to deliver'];
