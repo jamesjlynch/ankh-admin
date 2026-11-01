@@ -1949,7 +1949,7 @@ function backOrderAvailability(PDO $db,array $order):array{
  if(!$lines)$issues[]='No products recorded';
  return ['ready'=>!$issues,'issues'=>$issues,'location'=>$location];
 }
-function setOrderBackOrder(PDO $db,int $id,bool $waiting):void{
+function setOrderBackOrder(PDO $db,int $id,bool $waiting,?string $activationAssignee=null):void{
  // A write lock makes the availability check and reservation atomic across both operators.
  $db->beginTransaction();
  try{
@@ -1958,22 +1958,41 @@ function setOrderBackOrder(PDO $db,int $id,bool $waiting):void{
   if(!$order)throw new Exception('Order could not be found.');
   if(in_array((string)$order['status'],['Cancelled','Dispatched','Delivered'],true)||trim((string)$order['delivery_date'])!=='')throw new Exception('Only open, undelivered orders can move between active and back orders.');
   if(isBackOrder($order)===$waiting){$db->commit();return;}
-  if(!$waiting){$stock=backOrderAvailability($db,$order);if(!$stock['ready'])throw new Exception('Cannot activate yet. '.implode('; ',$stock['issues']).'. Check the assigned fridge or add stock first.');}
+  if(!$waiting){
+   if($activationAssignee!==null){if(!in_array($activationAssignee,['James','Tony',''],true))throw new Exception('Choose a valid stock location.');$order['assigned_to']=$activationAssignee;}
+   $stock=backOrderAvailability($db,$order);if(!$stock['ready'])throw new Exception('Cannot activate yet. '.implode('; ',$stock['issues']).'. Check the assigned fridge or add stock first.');
+  }
   $now=gmdate('c');
   $db->prepare("UPDATE orders SET back_order=?,back_order_since=CASE WHEN CAST(? AS INTEGER)=1 THEN ? ELSE back_order_since END,activated_at=CASE WHEN CAST(? AS INTEGER)=0 THEN ? ELSE activated_at END,reconstituted=0,packaged=0 WHERE id=?")->execute([$waiting?1:0,$waiting?1:0,$now,$waiting?1:0,$now,$id]);
+  if(!$waiting&&$activationAssignee!==null)$db->prepare('UPDATE orders SET assigned_to=? WHERE id=?')->execute([$activationAssignee,$id]);
   reconcileDeliveredStock($db,$id,false);
   $db->commit();
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
 }
 function backOrderControls(PDO $db,array $order):void{
  if(in_array((string)$order['status'],['Cancelled','Dispatched','Delivered'],true)||trim((string)$order['delivery_date'])!=='')return;
- $waiting=isBackOrder($order);$stock=$waiting?backOrderAvailability($db,$order):null;
+ $waiting=isBackOrder($order);$stock=$waiting?backOrderAvailability($db,$order):null;$locations=[];$selected=(string)($order['assigned_to']??'');$selected=$selected==='Jay'?'James':$selected;$anyReady=false;
+ if($waiting){foreach(['James'=>"Jay’s fridge",'Tony'=>"Tony’s fridge",''=>'Holding stock'] as $assignee=>$label){$check=backOrderAvailability($db,array_replace($order,['assigned_to'=>$assignee]));$locations[$assignee]=['label'=>$label]+$check;if($check['ready']){$anyReady=true;if(!$stock['ready']){$selected=$assignee;$stock=$check;}}}}
  ?><section class="back-order-controls">
  <?php if($waiting):$since=(string)($order['back_order_since']?:$order['created']);$days=(int)(new DateTimeImmutable($since))->diff(new DateTimeImmutable('now'))->format('%a');?>
  <strong>Awaiting stock · <?=$days?> day<?=$days===1?'':'s'?> waiting</strong>
  <p class="<?=$stock['ready']?'stock-ready':'muted'?>"><?=$stock['ready']?'Stock available':e(implode(' · ',$stock['issues']))?> · <?=e($stock['location']==='Unallocated'?'Holding stock':$stock['location'].'’s fridge')?></p>
  <?php else:?><strong>Waiting for stock?</strong><p class="muted">Move this order to Back orders until stock arrives. Its details and payments stay with it.</p><?php endif;?>
- <form method="post" onsubmit="return confirm('<?=$waiting?'Move this order to active and reserve stock?':'Move this order to the waiting list? Stock reservations will be released and preparation reset.'?>')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="<?=$waiting?'0':'1'?>"><input type="hidden" name="return" value="<?=$waiting?'orders':'backorders'?>"><button class="quiet" <?=$waiting&&!$stock['ready']?'disabled':''?>><?=$waiting?'Move to active orders':'Move to back orders'?></button></form></section><?php
+ <form method="post" class="backorder-activate-form" onsubmit="return confirm('<?=$waiting?'Move this order to active and reserve stock from the selected location?':'Move this order to the waiting list? Stock reservations will be released and preparation reset.'?>')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="<?=$waiting?'0':'1'?>"><input type="hidden" name="return" value="<?=$waiting?'orders':'backorders'?>">
+ <?php if($waiting):?><label>Use stock from<select name="activation_assigned_to"><?php foreach($locations as $assignee=>$choice):?><option value="<?=e($assignee)?>" <?=$selected===$assignee?'selected':''?> <?=$choice['ready']?'':'disabled'?>><?=e($choice['label'].' · '.($choice['ready']?'Stock ready':implode('; ',$choice['issues'])))?></option><?php endforeach;?></select></label><?php if(!$anyReady):?><p class="muted">Receive the incoming stock, or update its location, before moving this order to active. Payment can be recorded while it waits.</p><a class="quick-action" href="?view=stock&amp;section=incoming">Open incoming stock →</a><?php endif;?><?php endif;?>
+ <button class="<?=$waiting?'':'quiet'?>" <?=$waiting&&!$anyReady?'disabled':''?>><?=$waiting?'Move to active orders':'Move to back orders'?></button></form>
+ <?php if($waiting):backOrderPaymentAndRemoval($db,$order);endif;?></section><?php
+}
+function backOrderPaymentAndRemoval(PDO $db,array $order):void{
+ $id=(int)$order['id'];$paid=orderPaidPence($db,$id);$balance=orderBalancePence($db,$id);$today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
+ ?><div class="backorder-payment-summary"><span>Paid <strong><?=money($paid)?></strong></span><span>Balance <strong><?=money($balance)?></strong></span></div>
+ <?php if($balance>0):?><details class="backorder-payment"><summary>Record payment <span aria-hidden="true">⌄</span></summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders">
+ <label>Payment received<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment / deposit</option></select></label><label>Amount (£) — part payments only<input type="number" name="amount" min="0.01" max="<?=e(number_format($balance/100,2,'.',''))?>" step="0.01" inputmode="decimal" placeholder="Enter the deposit or part payment"><small>For Paid in full, the outstanding balance is used automatically.</small></label>
+ <div class="two"><label>Method<select name="method" required><option value="">Choose…</option><?php foreach(['Cash','Bank Transfer','Card','PayPal','Other'] as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" value="<?=$today?>" max="<?=$today?>" required></label></div><label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or bank reference"></label><button>Save payment</button><p class="muted">Recording payment keeps this order on the waiting list until you move it to active.</p></form></details>
+ <?php else:?><p class="backorder-paid-note"><?=$paid>0?'Paid in full · still waiting for stock':'No payment required · still waiting for stock'?></p><?php endif;?>
+ <details class="backorder-removal"><summary>Customer no longer wants it? <span aria-hidden="true">⌄</span></summary>
+ <form method="post" onsubmit="return confirm('Cancel this back order and remove it from the waiting list? Its order and payment history will be kept.');"><?php csrf();?><input type="hidden" name="action" value="backorder_cancel"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders"><button class="quiet danger-button">Cancel back order</button><p class="muted">Removes it from the waiting list and keeps the history. Any payment remains recorded.</p></form>
+ <?php if($paid===0):?><form method="post" onsubmit="return confirm('Permanently delete this unpaid back order and its items? This cannot be undone.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders"><button class="quiet danger-button">Delete back order</button><p class="muted">Permanently removes this unpaid order and its items.</p></form><?php else:?><p class="muted">Use Cancel for a paid back order so its payment history is retained.</p><?php endif;?></details><?php
 }
 function supplierEditRevision(array $order,array $lines):string{
  usort($lines,fn($a,$b)=>(int)$a['id']<=>(int)$b['id']);
@@ -3148,7 +3167,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
  $action=$_POST['action']??'';
  // Snapshot only operational fields; do not store customer contact details in audit records.
- $auditedActions=['packing_pick','order_backorder','order','order_edit','order_delete','status','order_dates','delivery_mark','order_schedule','order_delivery_section','order_preparation','order_reconstituted','payment_add','payment_delete'];
+ $auditedActions=['packing_pick','backorder_cancel','order_backorder','order','order_edit','order_delete','status','order_dates','delivery_mark','order_schedule','order_delivery_section','order_preparation','order_reconstituted','payment_add','payment_delete'];
  $auditTrack=in_array((string)$action,$auditedActions,true);
  $auditOrderId=$auditTrack?(int)($_POST['id']??0):0;
  $auditPaymentBefore=null;
@@ -3485,13 +3504,15 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='payment_add'){
    $orderId=(int)($_POST['id']??0);$method=trim((string)($_POST['method']??''));$note=trim((string)($_POST['note']??''));$date=orderActionDate((string)($_POST['payment_date']??''),'payment');$paymentType=(string)($_POST['payment_type']??'partial');
+   $db->beginTransaction();$db->exec('UPDATE orders SET back_order=back_order WHERE id='.(int)$orderId);
+   $q=$db->prepare('SELECT status FROM orders WHERE id=?');$q->execute([$orderId]);$payingStatus=$q->fetchColumn();if($payingStatus===false)throw new Exception('Order could not be found.');if($payingStatus==='Cancelled')throw new Exception('This order was cancelled. Refresh before recording a payment.');
    $balance=orderBalancePence($db,$orderId);if($balance<=0)throw new Exception('This order has no outstanding balance.');
    if(!in_array($paymentType,['full','partial'],true))throw new Exception('Choose paid in full or part payment.');
    $amount=$paymentType==='full'?$balance:postedMoneyPence($_POST['amount']??'','payment');
    if($amount<=0)throw new Exception('Enter a payment amount greater than zero.');if(!in_array($method,$paymentMethods,true))throw new Exception('Choose how the payment was received.');if(strlen($note)>500)throw new Exception('Payment note is too long.');if($amount>$balance)throw new Exception('Payment is more than the outstanding balance of '.money($balance).'.');
    $created=(new DateTimeImmutable($date.' 12:00:00',new DateTimeZone('Europe/London')))->setTimezone(new DateTimeZone('UTC'))->format('c');
    $savedNote=$note!==''?$note:($paymentType==='full'?'Paid in full':'Part payment');
-   $db->prepare('INSERT INTO payments(order_id,amount,method,note,created) VALUES (?,?,?,?,?)')->execute([$orderId,$amount,$method,$savedNote,$created]);refreshOrderPaymentState($db,$orderId);$syncError=syncOrderToSheet($db,$orderId);
+   $db->prepare('INSERT INTO payments(order_id,amount,method,note,created) VALUES (?,?,?,?,?)')->execute([$orderId,$amount,$method,$savedNote,$created]);refreshOrderPaymentState($db,$orderId);$db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='payment_delete'){
    $paymentId=(int)($_POST['payment_id']??0);$q=$db->prepare('SELECT order_id FROM payments WHERE id=?');$q->execute([$paymentId]);$orderId=(int)$q->fetchColumn();if($orderId<1)throw new Exception('Payment could not be found.');
@@ -3530,7 +3551,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='order_backorder'){
    $flag=(string)($_POST['back_order']??'');if(!in_array($flag,['0','1'],true))throw new Exception('Choose an order list.');
-   setOrderBackOrder($db,(int)($_POST['id']??0),$flag==='1');$syncError=syncOrderToSheet($db,(int)$_POST['id']);
+   setOrderBackOrder($db,(int)($_POST['id']??0),$flag==='1',$flag==='0'&&array_key_exists('activation_assigned_to',$_POST)?(string)$_POST['activation_assigned_to']:null);$syncError=syncOrderToSheet($db,(int)$_POST['id']);
+  }
+  if($action==='backorder_cancel'){
+   $orderId=(int)($_POST['id']??0);$db->beginTransaction();
+   $db->exec('UPDATE orders SET back_order=back_order WHERE id='.(int)$orderId);
+   $q=$db->prepare('SELECT back_order,status,delivery_date FROM orders WHERE id=?');$q->execute([$orderId]);$waitingOrder=$q->fetch(PDO::FETCH_ASSOC);
+   if(!$waitingOrder||!isBackOrder($waitingOrder)||in_array($waitingOrder['status'],['Delivered','Dispatched'],true)||trim((string)$waitingOrder['delivery_date'])!=='')throw new Exception('Only a waiting back order can be cancelled here. Refresh the order and try again.');
+   $db->prepare("UPDATE orders SET status='Cancelled',reconstituted=0,packaged=0 WHERE id=?")->execute([$orderId]);reconcileDeliveredStock($db,$orderId,false);$db->commit();$syncError=syncOrderToSheet($db,$orderId);
   }
   if($action==='delivery_mark'){
    assertOrderActive($db,(int)($_POST['id']??0));
@@ -3630,6 +3658,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if(!$q->fetchColumn())throw new Exception('Order could not be found.');
    $reference='ANK-'.str_pad((string)$orderId,4,'0',STR_PAD_LEFT);
    $db->beginTransaction();
+   $db->exec('UPDATE orders SET back_order=back_order WHERE id='.(int)$orderId);
+   $q=$db->prepare('SELECT back_order FROM orders WHERE id=?');$q->execute([$orderId]);$deletingBackOrder=(int)$q->fetchColumn()===1;
+   if($deletingBackOrder&&orderPaidPence($db,$orderId)>0)throw new Exception('This back order has recorded payments. Cancel it to remove it from the waiting list while keeping payment history.');
    $db->prepare("UPDATE orders SET status='Cancelled' WHERE id=?")->execute([$orderId]);reconcileDeliveredStock($db,$orderId,false);
    $nowCycle=gmdate('c');$db->prepare("UPDATE reta_cycles SET active=0,ended_at=?,end_reason='Source order deleted',updated=? WHERE active=1 AND last_order_id=?")->execute([$nowCycle,$nowCycle,$orderId]);
    $db->prepare('DELETE FROM payments WHERE order_id=?')->execute([$orderId]);
@@ -3753,6 +3784,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'payment_delete'=>'Payment removed.',
   'order'=>'Order saved.',
   'order_backorder'=>(($_POST['back_order']??'')==='1')?'Order moved to back orders; stock released.':'Order moved to active orders; stock reserved.',
+  'backorder_cancel'=>'Back order cancelled and removed from the waiting list. Order and payment history kept.',
   'order_edit'=>'Order updated.',
   'business_supply_save'=>'Business supply purchase saved.',
   'supply_item_save'=>'Supply saved to the shared cupboard.',
@@ -3798,7 +3830,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $previous=$auditBefore[$key]??null;$next=$auditAfter[$key]??null;
    if($previous!==$next)$changes[$key]=['from'=>$previous,'to'=>$next];
   }
-  $labels=['packing_pick'=>'Packing checklist updated','order_backorder'=>'Order waiting list changed','order'=>'Order created','order_edit'=>'Order edited','order_delete'=>'Order deleted','status'=>'Order status changed','order_dates'=>'Order dates updated','delivery_mark'=>'Delivery recorded','order_schedule'=>'Delivery arranged','order_delivery_section'=>'Delivery queue changed','order_preparation'=>'Preparation updated','order_reconstituted'=>'Preparation updated','payment_add'=>'Payment recorded','payment_delete'=>'Payment removed'];
+  $labels=['packing_pick'=>'Packing checklist updated','backorder_cancel'=>'Back order cancelled','order_backorder'=>'Order waiting list changed','order'=>'Order created','order_edit'=>'Order edited','order_delete'=>'Order deleted','status'=>'Order status changed','order_dates'=>'Order dates updated','delivery_mark'=>'Delivery recorded','order_schedule'=>'Delivery arranged','order_delivery_section'=>'Delivery queue changed','order_preparation'=>'Preparation updated','order_reconstituted'=>'Preparation updated','payment_add'=>'Payment recorded','payment_delete'=>'Payment removed'];
   if($auditOrderId>0&&($changes||in_array($action,['order','order_edit','order_delete','payment_add','payment_delete'],true))){
    $meta=['changes'=>$changes];
    if($action==='payment_delete'&&$auditPaymentBefore)$meta['removed_payment']=['amount_pence'=>(int)$auditPaymentBefore['amount'],'method'=>(string)$auditPaymentBefore['method']];
@@ -5094,12 +5126,12 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php $orderPaid=(int)($o['paid_amount']??0);$orderBalance=max(0,(int)$o['total']-$orderPaid);$pq=$db->prepare('SELECT * FROM payments WHERE order_id=? ORDER BY datetime(created) DESC,id DESC');$pq->execute([(int)$o['id']]);$orderPayments=$pq->fetchAll(PDO::FETCH_ASSOC);?>
 <section class="payment-ledger"><div class="payment-ledger-head"><div><span>Payments received</span><strong><?=money($orderPaid)?></strong></div><div><span>Balance due</span><strong class="<?=$orderBalance>0?'balance-due':''?>"><?=money($orderBalance)?></strong></div></div>
 <?php if($orderPayments):?><div class="payment-history"><?php foreach($orderPayments as $pay):?><div class="payment-history-row"><div><strong><?=money($pay['amount'])?></strong><small><?=e(date('d M Y',strtotime($pay['created'])))?> · <?=e($pay['method']?:'Not recorded')?><?php if($pay['note']):?> · <?=e($pay['note'])?><?php endif;?></small></div><form method="post" onsubmit="return confirm('Remove this payment?');"><?php csrf();?><input type="hidden" name="action" value="payment_delete"><input type="hidden" name="payment_id" value="<?=$pay['id']?>"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><button class="quiet payment-remove" aria-label="Remove payment">×</button></form></div><?php endforeach;?></div><?php endif;?>
-<?php if($orderBalance>0 && $o['status']!=='Cancelled'):?><details class="add-payment"><summary>+ Record payment</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><div class="two"><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($orderBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($orderBalance/100,2,'.',''))?>" required></label><label>Method<select name="method" required><option value="">Choose…</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>"><?=e($method)?></option><?php endforeach;?></select></label></div><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Deposit, balance, reference…"></label></div><button>Save payment</button></form></details><?php endif;?>
+<?php if($orderBalance>0 && $o['status']!=='Cancelled'&&!isBackOrder($o)):?><details class="add-payment"><summary>+ Record payment</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><div class="two"><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($orderBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($orderBalance/100,2,'.',''))?>" required></label><label>Method<select name="method" required><option value="">Choose…</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>"><?=e($method)?></option><?php endforeach;?></select></label></div><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Deposit, balance, reference…"></label></div><button>Save payment</button></form></details><?php endif;?>
 </section>
 <details class="order-disclosure order-secondary-actions" data-focus-sheet><summary>More actions <span aria-hidden="true">⌄</span></summary><div class="focus-sheet-content"><div class="order-quick-actions"><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a></div>
 <details class="order-date-editor"><summary>Edit payment / delivery dates</summary><form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button>Save dates</button></form></details>
 <form method="post" class="status-form compact-status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="status-fields"><label>Status<select name="status"><?php foreach($statuses as $statusOption):?><option <?=$statusOption===$o['status']?'selected':''?>><?=e($statusOption)?></option><?php endforeach;?></select></label><label>Payment method<select name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$o['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div><button>Save</button></form>
-<form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><button class="quiet danger-button">Delete order</button></form></div></details></div></details><?php endforeach;?></div>
+<?php if(!isBackOrder($o)):?><form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form><?php endif;?></div></details></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($listedOrders)?'hidden':''?>>No orders to show.</p>
 <?php endif;?>
 <?php elseif($view==='new'):?>
