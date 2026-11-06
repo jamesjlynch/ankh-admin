@@ -5786,3 +5786,15 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 @media(max-width:760px){.supply-list,.supply-form{grid-template-columns:minmax(0,1fr)}.supply-filters{grid-template-columns:minmax(0,1fr) auto}.supply-filters label:first-of-type{grid-column:1/-1}.supply-card-head{flex-wrap:wrap;gap:6px}.supply-card h2{font-size:20px}.supply-metrics article{padding:14px 9px}.supply-metrics span{font-size:11px}.supply-metrics small{font-size:10px}.supply-card-actions{gap:10px}.supply-form .supply-wide{grid-column:auto}}
 .supplier-order-editor{margin:0 0 16px;border:1px solid #675333;border-radius:13px;background:#201d17;scroll-margin-top:20px}.supplier-order-editor>summary{padding:13px 14px;font-size:14px;font-weight:650;color:#efd38a;min-height:48px}.supplier-order-editor>form{padding:0 14px 16px}.supplier-order-editor p{font-size:12px;line-height:1.5;color:#b9b8b1;margin:0 0 16px}.supplier-order-editor label{font-size:12px;margin-bottom:12px}.supplier-order-editor input,.supplier-order-editor select{max-width:100%;min-width:0;font-size:16px}.supplier-edit-numbers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.supplier-edit-numbers>label{min-width:0}.supplier-edit-line{padding:14px 12px;margin-bottom:12px;background:#15181c;border:1px solid #343940;border-radius:12px}.supplier-edit-received{display:block;color:#a8d2bc;font-size:11px;line-height:1.5}.supplier-edit-remove.check{margin:0;color:#e0b5a0}.supplier-edit-remove input{flex:none;width:20px;min-height:20px;margin:0}.supplier-order-editor [data-add-edit-line]{margin:0 0 16px}.supplier-order-editor .stock-primary-action{width:100%}.supplier-order-editor input[readonly]{opacity:.7}
 @media(max-width:400px){.supplier-order-editor>form{padding:0 10px 12px}.supplier-edit-line{padding:12px 10px}.supplier-edit-numbers{gap:8px}}
+
+/* A real bottom row avoids iOS fixed-position drift after scrolling or keyboard use.
+   Only the app content scrolls; login, office screens and desktop keep their layout. */
+.admin-app-shell{display:contents}
+@media screen and (max-width:760px){
+ body:has(>.admin-app-shell){height:100vh;height:100dvh;overflow:hidden}
+ .admin-app-shell{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
+ .admin-app-shell>aside{position:relative;inset:auto;flex:0 0 auto}
+ .admin-app-shell>main#ankh-main{flex:1 1 0;min-height:0;width:100%;max-width:100%;margin:0;overflow:auto;overscroll-behavior-y:contain;padding-bottom:24px;scroll-padding-block:20px}
+ .admin-app-shell>nav.mobile-nav{position:relative;inset:auto;flex:0 0 auto;width:100%;margin:0;border-radius:0;border-left:0;border-right:0;border-bottom:0;background:#15181d;transform:none;box-shadow:none;padding:8px 6px calc(24px + env(safe-area-inset-bottom,0px))!important}
+ .focus-sheet-open .admin-app-shell>main#ankh-main{overflow:hidden}
+}

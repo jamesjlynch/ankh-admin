@@ -192,7 +192,7 @@ body.ankh-premium-v2 {
   outline:2px solid var(--v2-gold-bright);
 }
 @media(min-width:761px){
-  .ankh-premium-v2>aside{
+  .ankh-premium-v2 .admin-app-shell>aside{
     background:linear-gradient(180deg,#171a18,#101312 84%);
     border-right:1px solid var(--v2-border);
     width:244px;
@@ -228,7 +228,7 @@ body.ankh-premium-v2 {
   body.ankh-premium-v2{
     background:radial-gradient(ellipse 100% 20% at 50% 0%,rgba(160,124,59,.13),transparent),var(--v2-bg);
   }
-  .ankh-premium-v2>aside{
+  .ankh-premium-v2 .admin-app-shell>aside{
     position:sticky;
     top:0;
     z-index:30;

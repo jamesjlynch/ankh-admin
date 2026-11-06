@@ -27,6 +27,8 @@ jobs:
           npm run build:css
           git diff --exit-code -- style.min.css style.core.min.css
           npm install --no-save --ignore-scripts playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
       - name: Test back-order actions on mobile and desktop
         run: node tests/backorder-actions-viewport.cjs
+      - name: Test back-order actions and bottom navigation in WebKit
+        run: ANKH_TEST_BROWSER=webkit node tests/backorder-actions-viewport.cjs

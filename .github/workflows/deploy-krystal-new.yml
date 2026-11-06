@@ -48,6 +48,8 @@ jobs:
           php tests/public-catalogue.php
           php tests/delivery-queue.php
           php tests/backorder-actions.php
+          php tests/back-orders.php
+          php tests/back-order-stock-plan.php
           php tests/order-save-retries.php
           php tests/business-alerts.php
       - name: Configure SSH
@@ -84,6 +86,12 @@ jobs:
           test "$(git branch --show-current)" = main
           test -z "$(git status --porcelain)"
           git merge --ff-only origin/main
+          /usr/local/cpanel/bin/uapi --output=json DomainInfo single_domain_data domain=admin.ankhpeptides.com | /opt/cpanel/ea-php82/root/usr/bin/php -r '
+            $result=json_decode(stream_get_contents(STDIN),true);
+            $root=(string)($result["result"]["data"]["documentroot"]??"");
+            if($root!=="/home/devcouk/public_html/ankh-admin") { fwrite(STDERR,"Admin domain does not match the expected application root.\n");exit(1); }
+            echo "Verified admin.ankhpeptides.com document root: ".$root.PHP_EOL;
+          '
           /opt/cpanel/ea-php82/root/usr/bin/php -r 'echo "Server SQLite version: ".(new PDO("sqlite::memory:"))->query("select sqlite_version()")->fetchColumn()." / SQLite3 backup available: ".(class_exists("SQLite3")&&method_exists("SQLite3","backup")?"yes":"no").PHP_EOL;'
           if ANKH_DEPLOY_HOME=/home/devcouk /bin/bash scripts/publish-live.sh; then
             echo "Verified ANKH Admin publisher returned success."
@@ -92,6 +100,10 @@ jobs:
             tail -n 24 /home/devcouk/ankh-admin-deploy.log
             exit 1
           fi
+          for file in index.php style.css style.min.css style.core.min.css premium-v2.css service-worker.js; do
+            cmp "$file" "/home/devcouk/public_html/ankh-admin/$file"
+          done
+          echo "Verified published order controls and navigation assets match the source."
           tail -n 12 /home/devcouk/ankh-admin-deploy.log
           /opt/cpanel/ea-php82/root/usr/bin/php -r '
             $config=require "/home/devcouk/ankh-admin-config.php";

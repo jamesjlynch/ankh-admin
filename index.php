@@ -1935,7 +1935,7 @@ function renderBackOrderStockPlan(array $rows,int $waitingCount,int $expectedInc
  <div class="backorder-product-footer"><span class="backorder-stock-status status-<?=e($state)?>"><?=e($status)?></span><?php if($row['incoming']>0&&$row['expected_date']):?><small>Next arrival <?=e(date('d M',strtotime($row['expected_date'])))?></small><?php endif;?></div>
  <?php if($row['active_shortage']>0):?><p class="backorder-stock-note">Incoming stock must also cover <?=$row['active_shortage']?> units short on active orders.</p><?php endif;?></article>
  <?php endforeach;?></div><?php endif;?>
- <p class="backorder-plan-note">Combined stock, after active reservations. Incoming units must be received before use; activation checks the assigned fridge.</p>
+ <p class="backorder-plan-note">Combined stock, after active reservations. Stock is for reference only; you choose when to move orders between lists.</p>
  </section><?php
 }
 function backOrderAvailability(PDO $db,array $order):array{
@@ -1951,7 +1951,7 @@ function backOrderAvailability(PDO $db,array $order):array{
  return ['ready'=>!$issues,'issues'=>$issues,'location'=>$location];
 }
 function setOrderBackOrder(PDO $db,int $id,bool $waiting,?string $activationAssignee=null):void{
- // A write lock makes the availability check and reservation atomic across both operators.
+ // Keep manual list changes and reservation accounting atomic across both operators.
  $db->beginTransaction();
  try{
   $db->exec('UPDATE orders SET back_order=back_order WHERE id='.(int)$id);
@@ -1961,7 +1961,7 @@ function setOrderBackOrder(PDO $db,int $id,bool $waiting,?string $activationAssi
   if(isBackOrder($order)===$waiting){$db->commit();return;}
   if(!$waiting){
    if($activationAssignee!==null){if(!in_array($activationAssignee,['James','Tony',''],true))throw new Exception('Choose a valid stock location.');$order['assigned_to']=$activationAssignee;}
-   $stock=backOrderAvailability($db,$order);if(!$stock['ready'])throw new Exception('Cannot activate yet. '.implode('; ',$stock['issues']).'. Check the assigned fridge or add stock first.');
+   // Stock availability is advisory. Operators choose the list even at zero/untracked stock.
   }
   $now=gmdate('c');
   $db->prepare("UPDATE orders SET back_order=?,back_order_since=CASE WHEN CAST(? AS INTEGER)=1 THEN ? ELSE back_order_since END,activated_at=CASE WHEN CAST(? AS INTEGER)=0 THEN ? ELSE activated_at END,reconstituted=0,packaged=0 WHERE id=?")->execute([$waiting?1:0,$waiting?1:0,$now,$waiting?1:0,$now,$id]);
@@ -1972,16 +1972,16 @@ function setOrderBackOrder(PDO $db,int $id,bool $waiting,?string $activationAssi
 }
 function backOrderControls(PDO $db,array $order):void{
  if(in_array((string)$order['status'],['Cancelled','Dispatched','Delivered'],true)||trim((string)$order['delivery_date'])!=='')return;
- $waiting=isBackOrder($order);$stock=$waiting?backOrderAvailability($db,$order):null;$locations=[];$selected=(string)($order['assigned_to']??'');$selected=$selected==='Jay'?'James':$selected;$anyReady=false;
- if($waiting){foreach(['James'=>"Jay’s fridge",'Tony'=>"Tony’s fridge",''=>'Holding stock'] as $assignee=>$label){$check=backOrderAvailability($db,array_replace($order,['assigned_to'=>$assignee]));$locations[$assignee]=['label'=>$label]+$check;if($check['ready']){$anyReady=true;if(!$stock['ready']){$selected=$assignee;$stock=$check;}}}}
+ $waiting=isBackOrder($order);$stock=$waiting?backOrderAvailability($db,$order):null;$locations=[];$selected=(string)($order['assigned_to']??'');$selected=$selected==='Jay'?'James':$selected;
+ if($waiting){foreach(['James'=>"Jay’s fridge",'Tony'=>"Tony’s fridge",''=>'Holding stock'] as $assignee=>$label){$locations[$assignee]=['label'=>$label]+backOrderAvailability($db,array_replace($order,['assigned_to'=>$assignee]));}}
  ?><section class="back-order-controls">
  <?php if($waiting):$since=(string)($order['back_order_since']?:$order['created']);$days=(int)(new DateTimeImmutable($since))->diff(new DateTimeImmutable('now'))->format('%a');?>
- <strong>Awaiting stock · <?=$days?> day<?=$days===1?'':'s'?> waiting</strong>
+ <strong>Back order · <?=$days?> day<?=$days===1?'':'s'?> waiting</strong>
  <p class="<?=$stock['ready']?'stock-ready':'muted'?>"><?=$stock['ready']?'Stock available':e(implode(' · ',$stock['issues']))?> · <?=e($stock['location']==='Unallocated'?'Holding stock':$stock['location'].'’s fridge')?></p>
- <?php else:?><strong>Waiting for stock?</strong><p class="muted">Move this order to Back orders until stock arrives. Its details and payments stay with it.</p><?php endif;?>
- <form method="post" class="backorder-activate-form" onsubmit="return confirm('<?=$waiting?'Move this order to active and reserve stock from the selected location?':'Move this order to the waiting list? Stock reservations will be released and preparation reset.'?>')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="<?=$waiting?'0':'1'?>"><input type="hidden" name="return" value="<?=$waiting?'orders':'backorders'?>">
- <?php if($waiting):?><label>Use stock from<select name="activation_assigned_to"><?php foreach($locations as $assignee=>$choice):?><option value="<?=e($assignee)?>" <?=$selected===$assignee?'selected':''?> <?=$choice['ready']?'':'disabled'?>><?=e($choice['label'].' · '.($choice['ready']?'Stock ready':implode('; ',$choice['issues'])))?></option><?php endforeach;?></select></label><?php if(!$anyReady):?><p class="muted">Receive the incoming stock, or update its location, before moving this order to active. Payment can be recorded while it waits.</p><a class="quick-action" href="?view=stock&amp;section=incoming">Open incoming stock →</a><?php endif;?><?php endif;?>
- <button class="<?=$waiting?'':'quiet'?>" <?=$waiting&&!$anyReady?'disabled':''?>><?=$waiting?'Move to active orders':'Move to back orders'?></button></form>
+ <?php else:?><strong>Move to back orders</strong><p class="muted">Move this order out of the active list whenever you choose. Its details and payments stay with it.</p><?php endif;?>
+ <form method="post" class="backorder-activate-form" onsubmit="return confirm('<?=$waiting?'Move this order to active orders? Stock and payment do not block this move.':'Move this order to the waiting list? Stock reservations will be released and preparation reset.'?>')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="<?=$waiting?'0':'1'?>"><input type="hidden" name="return" value="<?=$waiting?'orders':'backorders'?>">
+ <?php if($waiting):?><label>Stock location<select name="activation_assigned_to"><?php foreach($locations as $assignee=>$choice):?><option value="<?=e($assignee)?>" <?=$selected===$assignee?'selected':''?>><?=e($choice['label'])?></option><?php endforeach;?></select></label><p class="muted">You can move this order now, regardless of stock or payment. Stock figures above are for reference.</p><?php endif;?>
+ <button class="<?=$waiting?'':'quiet'?>"><?=$waiting?'Move to active orders':'Move to back orders'?></button></form>
  <?php if($waiting):backOrderPaymentAndRemoval($db,$order);endif;?></section><?php
 }
 function backOrderPaymentAndRemoval(PDO $db,array $order):void{
@@ -1990,7 +1990,7 @@ function backOrderPaymentAndRemoval(PDO $db,array $order):void{
  <?php if($balance>0):?><details class="backorder-payment"><summary>Record payment <span aria-hidden="true">⌄</span></summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders">
  <label>Payment received<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment / deposit</option></select></label><label>Amount (£) — part payments only<input type="number" name="amount" min="0.01" max="<?=e(number_format($balance/100,2,'.',''))?>" step="0.01" inputmode="decimal" placeholder="Enter the deposit or part payment"><small>For Paid in full, the outstanding balance is used automatically.</small></label>
  <div class="two"><label>Method<select name="method" required><option value="">Choose…</option><?php foreach(['Cash','Bank Transfer','Card','PayPal','Other'] as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" value="<?=$today?>" max="<?=$today?>" required></label></div><label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or bank reference"></label><button>Save payment</button><p class="muted">Recording payment keeps this order on the waiting list until you move it to active.</p></form></details>
- <?php else:?><p class="backorder-paid-note"><?=$paid>0?'Paid in full · still waiting for stock':'No payment required · still waiting for stock'?></p><?php endif;?>
+ <?php else:?><p class="backorder-paid-note"><?=$paid>0?'Paid in full · on back orders':'No payment required · on back orders'?></p><?php endif;?>
  <details class="backorder-removal"><summary>Customer no longer wants it? <span aria-hidden="true">⌄</span></summary>
  <form method="post" onsubmit="return confirm('Cancel this back order and remove it from the waiting list? Its order and payment history will be kept.');"><?php csrf();?><input type="hidden" name="action" value="backorder_cancel"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders"><button class="quiet danger-button">Cancel back order</button><p class="muted">Removes it from the waiting list and keeps the history. Any payment remains recorded.</p></form>
  <?php if($paid===0):?><form method="post" onsubmit="return confirm('Permanently delete this unpaid back order and its items? This cannot be undone.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders"><button class="quiet danger-button">Delete back order</button><p class="muted">Permanently removes this unpaid order and its items.</p></form><?php else:?><p class="muted">Use Cancel for a paid back order so its payment history is retained.</p><?php endif;?></details><?php
@@ -3974,7 +3974,7 @@ function orderFocusStatuses(array $order):void{
  $balance=max(0,(int)($order['total']??0)-(int)($order['paid_amount']??0));
  $state=orderPreparationState($order);$cancelled=($order['status']??'')==='Cancelled';
  ?><div class="focus-statuses"><span class="focus-status <?=$balance>0?'focus-unpaid':'focus-paid'?>"><?=$balance>0?e(money($balance).' '.((int)($order['paid_amount']??0)>0?'remaining':'unpaid')):((int)($order['total']??0)===0?'No payment required':'Paid')?></span>
- <?php if($cancelled):?><span class="focus-status">Cancelled</span><?php elseif(isBackOrder($order)):?><span class="focus-status">Awaiting stock</span><?php elseif($state==='closed'):?><span class="focus-status focus-paid">Delivered</span><?php else:?><span class="focus-status <?=$state==='packaged'?'focus-ready':'focus-preparing'?>"><?=$state==='packaged'?'Packaged · Ready':($state==='reconstituted'?'Reconstituted':'To prepare')?></span><span class="focus-status"><?=($order['status']??'')==='Dispatched'?'Dispatched':'To deliver'?></span><?php endif;?></div><?php
+ <?php if($cancelled):?><span class="focus-status">Cancelled</span><?php elseif(isBackOrder($order)):?><span class="focus-status">Back order</span><?php elseif($state==='closed'):?><span class="focus-status focus-paid">Delivered</span><?php else:?><span class="focus-status <?=$state==='packaged'?'focus-ready':'focus-preparing'?>"><?=$state==='packaged'?'Packaged · Ready':($state==='reconstituted'?'Reconstituted':'To prepare')?></span><span class="focus-status"><?=($order['status']??'')==='Dispatched'?'Dispatched':'To deliver'?></span><?php endif;?></div><?php
 }
 function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
  $date=trim((string)($order['scheduled_delivery_date']??''));
@@ -4830,6 +4830,7 @@ if($view==='reportsboard'){
  <?php exit;
 }
 ?>
+<div class="admin-app-shell">
 <a class="ux-skip-link" href="#ankh-main">Skip to main content</a>
 <div class="ios-status-bar" aria-hidden="true"></div>
 <aside><div class="app-brand-row"><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a><button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
@@ -4846,13 +4847,7 @@ if($view==='reportsboard'){
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
 <a class="<?=in_array($view,['enquiries','supplies','more','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
-<nav class="mobile-nav">
-<a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
-<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
-<a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
-<a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
-<a class="<?=in_array($view,['enquiries','supplies','more','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
-</nav><?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
+<?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <?php if($premiumV2Preview):?><div class="premium-v2-preview-banner"><span>Premium V2 · design preview</span><a class="premium-v2-preview-chip" href="?view=dashboard&amp;premium=0">Return to original design <span aria-hidden="true">↗</span></a></div><?php endif;?>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
@@ -5031,7 +5026,7 @@ $listedOpen=count(array_filter($listedOrders,fn($o)=>!in_array($o['status'],['Di
 $listedPaid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$listedOrders));
 $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['total']-(int)($o['paid_amount']??0)):(int)$o['total'],$listedOrders));
 ?>
-<div class="heading orders-page-heading"><div><h1><?=$ordersSection==='backorders'?'Back orders':'Orders'?></h1><p class="muted page-description"><?=$ordersSection==='backorders'?'Stock needed for your waiting orders.':'Search, update or repeat any order.'?></p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<div class="heading orders-page-heading"><div><h1><?=$ordersSection==='backorders'?'Back orders':'Orders'?></h1><p class="muted page-description"><?=$ordersSection==='backorders'?'Orders you have put on hold.':'Search, update or repeat any order.'?></p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <nav class="ux-mobile-scopes order-view-nav" aria-label="Order views">
  <?php if($premiumV2Preview):?><a class="packing-v2-orders-link" href="?view=packing">Visual packing station ↗</a><?php endif;?>
  <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
@@ -5106,7 +5101,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php else:?>
 <?php if($ordersSection==='backorders'):?>
 <?php $backOrderExpectedIncome=array_sum(array_map(fn($order)=>max(0,(int)$order['total']-(int)($order['paid_amount']??0)),$backOrders));renderBackOrderStockPlan($backOrderDemand,count($backOrders),$backOrderExpectedIncome);?>
-<div class="backorder-section-heading waiting-orders-heading"><div><h2>Waiting orders</h2><p>Waiting for stock · oldest first</p></div></div>
+<div class="backorder-section-heading waiting-orders-heading"><div><h2>Waiting orders</h2><p>Moved here manually · oldest first</p></div></div>
 <?php endif;?>
 <?php if($orderScope!==''):?><div class="order-scope-banner"><div><strong><?=e($orderScopes[$orderScope])?></strong><small><?=count($listedOrders)?> orders · <?=money($listedValue)?><?=$orderScope==='unpaid'?' outstanding':''?></small></div><a class="quick-action quiet" href="?view=orders">All orders →</a></div><?php endif;?>
 <?php if($ordersSection!=='backorders'):?><div class="stats compact-stats orders-summary-stats"><article><span>Open</span><strong><?=$listedOpen?></strong></article><article><span>Paid value</span><strong><?=money($listedPaid)?></strong></article><article><span>Total</span><strong><?=count($listedOrders)?></strong></article></div><?php endif;?>
@@ -5222,7 +5217,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="order-check-section"><span class="order-check-label">Products</span><div id="check-products"></div></div>
 <div class="line order-check-total"><strong>Total</strong><strong id="subtotal">£0.00</strong></div>
 </div>
-<details class="back-order-option"><summary>Out of stock? Add to waiting list</summary><label class="check"><input type="checkbox" name="back_order" value="1" <?=($_POST['back_order']??'')==='1'?'checked':''?>> Save as back order — awaiting stock</label><p class="muted">Optional. Normal orders stay active by default. Back orders stay off the dashboard and reserve no stock.</p></details>
+<details class="back-order-option"><summary>Save for later? Add to back orders</summary><label class="check"><input type="checkbox" name="back_order" value="1" <?=($_POST['back_order']??'')==='1'?'checked':''?>> Save as back order</label><p class="muted">Optional. Normal orders stay active by default. Back orders stay off the dashboard and reserve no stock.</p></details>
 <div class="order-subsection"><span class="order-check-label">Payment</span><label>Payment method <span class="muted">(optional until paid)</span><select id="payment-method" name="payment_method"><option value="">Not set yet</option><?php $selectedPayment=$_POST['payment_method']??$repeatPaymentMethod;foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$selectedPayment===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div>
 <label>Notes <span class="muted">(optional)</span><textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label>
 <div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="2">← Back</button><button class="save-order">Save order</button></div>
@@ -5234,7 +5229,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php else:?>
 <div class="heading"><div><h1>Edit ANK-<?=str_pad((string)$editOrder['id'],4,'0',STR_PAD_LEFT)?></h1><p class="muted page-description">Correct the customer, products, formats, prices, payment or delivery details.</p></div><a class="quick-action" href="?view=orders">Cancel</a></div>
 <?php backOrderControls($db,$editOrder);?>
-<?php if(isBackOrder($editOrder)):?><p class="note">Back order — editing keeps this order on the waiting list. Activate it from Back orders when stock arrives.</p><?php endif;?>
+<?php if(isBackOrder($editOrder)):?><p class="note">Back order — editing keeps this order on the waiting list. Move it to active orders whenever you choose.</p><?php endif;?>
 <form method="post" class="panel edit-order-form" id="edit-order-form"><?php csrf();?><input type="hidden" name="action" value="order_edit"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$editOrder['id']?>">
 <div class="edit-section"><span class="wizard-kicker">CUSTOMER & DATE</span><div class="two"><div class="customer-search-wrap"><label>Ordered by<input id="customer-search" name="customer" maxlength="160" required autocomplete="off" value="<?=e($editOrder['customer'])?>"></label><div id="customer-results" class="customer-results" role="listbox" hidden></div></div><label>Phone<input id="customer-phone" name="phone" maxlength="40" type="tel" value="<?=e($editOrder['phone'])?>"></label></div><label>Order is for <span class="muted">(optional)</span><input id="recipient-name" name="recipient_name" maxlength="160" list="recipient-customer-list" autocomplete="off" placeholder="Leave blank if it’s for the person ordering" value="<?=e($_POST['recipient_name']??($editOrder['recipient_name']??''))?>"><small class="muted">Choose an existing customer or type a name. Leave blank when it’s for the person ordering.</small></label><datalist id="recipient-customer-list"><?php foreach($customerSuggestions as $recipientCustomer):?><option value="<?=e($recipientCustomer['name'])?>"><?php endforeach;?></datalist><label>Referrer <span class="muted">(optional)</span><input id="customer-referrer" name="referrer" maxlength="160" value="<?=e($editOrder['referrer']??'')?>"></label><label>Address<textarea id="customer-address" name="address" maxlength="2000"><?=e($editOrder['address'])?></textarea></label><div class="edit-order-date-control"><label>Order date<input id="order-date" name="order_date" type="date" required max="<?=e($now->format('Y-m-d'))?>" value="<?=e(($_POST['change_order_date']??'')==='1'?($_POST['order_date']??''):(new DateTimeImmutable((string)$editOrder['created']))->setTimezone(new DateTimeZone('Europe/London'))->format('Y-m-d'))?>" <?=($_POST['change_order_date']??'')==='1'?'':'disabled'?>></label><label class="edit-order-date-toggle"><input type="checkbox" id="edit-order-date-toggle" name="change_order_date" value="1" <?=($_POST['change_order_date']??'')==='1'?'checked':''?>> Allow date change</label><small>Order date stays unchanged unless you enable this.</small></div></div>
 
@@ -6564,6 +6559,14 @@ $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedE
 <?php else:?><p class="error">That saved order could not be found.</p><a class="button" href="?view=orders">Back to orders</a><?php endif;?>
 <?php endif;?>
 </main>
+<nav class="mobile-nav">
+<a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
+<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
+<a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+</nav>
+</div>
 
 <div id="ankh-assistant-overlay" class="ankh-assistant-overlay" hidden>
  <section class="ankh-assistant-card realtime-card" role="dialog" aria-modal="true" aria-labelledby="ankh-assistant-title">

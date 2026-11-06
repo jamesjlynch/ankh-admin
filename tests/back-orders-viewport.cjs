@@ -38,7 +38,7 @@ const assert=require('node:assert/strict');
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'/tmp/ankh-backorders-redesign.png',fullPage:true});
   await page.locator('.order-list .order > summary').click();
-  const release=page.getByRole('button',{name:'Move to active orders'});assert(await release.isDisabled());
+  const release=page.getByRole('button',{name:'Move to active orders'});assert(await release.isEnabled());
   await page.screenshot({path:'/tmp/ankh-backorders-mobile.png',fullPage:true});
   sql(`$db->exec('UPDATE products SET stock_jay_qty=3,stock_qty=8 WHERE id=99001; UPDATE products SET stock_jay_qty=1,stock_qty=1 WHERE id=99002; UPDATE products SET stock_jay_qty=3,stock_qty=3 WHERE id=99003');`);
   await page.reload();await page.locator('.order-list .order > summary').click();assert(await release.isEnabled());
