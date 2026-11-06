@@ -19,7 +19,7 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
   <p class="muted">Print or save as PDF from the print view. Labels are an A4 cut-out sheet. Printing never marks orders prepared, packaged, paid or delivered.</p>
   <?php if($pcRun['state']==='open'):?><div class="pc-run-actions"><?php foreach(['completed'=>'Finish run','cancelled'=>'Cancel run'] as $state=>$label):?><form method="post" onsubmit="return confirm('Close this packing run and release its orders? Order preparation and delivery statuses will stay unchanged.');"><?php csrf();?><input type="hidden" name="action" value="packing_run_update"><input type="hidden" name="run_id" value="<?=$pcRunId?>"><input type="hidden" name="run_action" value="<?=$state?>"><button class="quiet" type="submit"><?=$label?></button></form><?php endforeach;?></div><?php else:?><p class="pc-note">This run is closed. Its orders are released for future runs. Saved runs show the current order details.</p><?php endif;?>
  </section>
- <section class="pc-panel"><h2>Combined picking list</h2><p class="muted">Quantities are ordered units, grouped by exact product and presentation. Check separate accessories against each order.</p>
+ <section class="pc-panel"><h2>Combined picking list</h2><p class="muted">Pen selections are shown as cartridges. Cartridge refills of the same strength are combined; pen devices are counted separately, once per recorded unit.</p>
   <div class="pc-table-wrap"><table><thead><tr><th>Product / strength</th><th>Presentation</th><th>Units</th><th>Orders</th></tr></thead><tbody><?php foreach($pcTotals as $total):?><tr><td><?=e($total['name'])?></td><td><?=e($total['presentation']?:'Not specified')?></td><td><strong><?=$total['quantity']?></strong></td><td><?=count($total['orders'])?></td></tr><?php endforeach;?></tbody></table></div>
  </section>
  <section class="pc-panel"><h2>Orders in this run</h2><div class="pc-order-list">
@@ -27,7 +27,8 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
   <article class="pc-order"><div class="pc-order-main"><strong><?=e(orderDisplayName($o))?></strong><span>ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?> · <?=(int)$o['back_order']===1?'Back order':'Active order'?> · <?=e($o['status'])?></span>
    <?php if($o['changed']):?><p class="pc-warning" role="status">Changed since this run was created. Review before packing; printouts use current details.</p><?php endif;?>
    <?php if(!ankhPackingCentreEligible($o)):?><p class="pc-warning">This order is now delivered or cancelled. Remove it from this run before packing.</p><?php endif;?>
-   <?php foreach($o['lines'] as $line):?><small><?=(int)$line['quantity']?> × <?=e($line['name'])?><?= $line['presentation']!==''?' · '.e($line['presentation']):''?></small><?php endforeach;?>
+   <?php foreach(ankhPackingCentreLines($o['lines']) as $line):?><small><?=(int)$line['quantity']?> × <?=e($line['name'])?><?= $line['presentation']!==''?' · '.e($line['presentation']):''?></small><?php endforeach;?>
+   <?php if($pcPenNote=ankhPackingCentrePenNote($o['lines'])):?><p class="pc-warning"><?=e($pcPenNote)?></p><?php endif;?>
    <a href="?view=edit&amp;id=<?=(int)$o['id']?>">Review order →</a></div>
    <?php if($pcRun['state']==='open'):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="packing_run_update"><input type="hidden" name="run_id" value="<?=$pcRunId?>"><input type="hidden" name="order_id" value="<?=(int)$o['id']?>"><input type="hidden" name="run_action" value="remove"><button type="submit" class="quiet">Release order</button></form><?php endif;?>
   </article>
@@ -47,7 +48,7 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
  <?php foreach($pcCandidates as $o):$oid=(int)$o['id'];$claimed=(int)($pcClaims[$oid]??0);$lines=$pcItems[$oid]??[];$search=$o['customer'].' '.($o['recipient_name']??'').' ANK-'.$oid.' ANK-'.str_pad((string)$oid,4,'0',STR_PAD_LEFT).' '.implode(' ',array_column($lines,'name'));?>
   <article class="pc-order" data-pc-order data-search="<?=e(mb_strtolower($search))?>" data-source="<?=(int)$o['back_order']===1?'back':'active'?>" data-assignee="<?=e($o['assigned_to']?:'__unassigned')?>">
    <label class="pc-choice"><input type="checkbox" name="order_ids[]" value="<?=$oid?>" <?=($claimed||!$lines)?'disabled':''?>><span class="pc-order-main"><strong><?=e(orderDisplayName($o))?></strong><span>ANK-<?=str_pad((string)$oid,4,'0',STR_PAD_LEFT)?> · <?=(int)$o['back_order']===1?'Back order':'Active order'?> · <?=e($o['assigned_to']?:'Unassigned')?></span><small>Ordered <?=e(substr($o['created'],0,10))?> · <?=e($o['status'])?><?= $o['scheduled_delivery_date']!==''?' · Delivery '.e($o['scheduled_delivery_date']):''?></small>
-    <?php foreach($lines as $line):?><small><?=(int)$line['quantity']?> × <?=e($line['name'])?><?=$line['presentation']!==''?' · '.e($line['presentation']):''?></small><?php endforeach;?>
+    <?php foreach(ankhPackingCentreLines($lines) as $line):?><small><?=(int)$line['quantity']?> × <?=e($line['name'])?><?=$line['presentation']!==''?' · '.e($line['presentation']):''?></small><?php endforeach;?>
     <?php if(!$lines):?><small>No order lines — review this order first.</small><?php endif;?>
    </span></label>
    <?php if($claimed):?><a class="pc-claim" href="?view=packing_centre&amp;run=<?=$claimed?>">In run #<?=$claimed?> →</a><?php endif;?>

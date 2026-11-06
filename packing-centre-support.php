@@ -72,9 +72,37 @@ function ankhPackingCentreRun(PDO $db,int $id):?array{
  foreach($members as $member){$o=ankhPackingCentreOrder($db,(int)$member['order_id']);if(!$o)continue;$o['changed']=!hash_equals($member['signature'],ankhPackingCentreSignature($o));$run['orders'][]=$o;}
  return $run;
 }
+/** Physical packing contents derived without rewriting saved order or price records. */
+function ankhPackingCentreLines(array $lines):array{
+ $contents=[];$penUnits=0;$selectedPens=0;
+ foreach($lines as $line){
+  if(strtolower(trim((string)$line['name']))==='pen'){
+   $penUnits+=(int)$line['quantity'];continue;
+  }
+  if(strcasecmp(trim((string)($line['presentation']??'')),'Pen')===0){
+   $line['presentation']='Cartridge';$selectedPens+=(int)$line['quantity'];
+  }
+  $contents[]=$line;
+ }
+ // Modern orders already contain separate editable Pen rows; never add those twice.
+ // Older bundled orders may have only the peptide's Pen presentation.
+ $devices=$penUnits>0?$penUnits:$selectedPens;
+ if($devices>0)$contents[]=['product_id'=>0,'name'=>'Pen devices','presentation'=>'Device','quantity'=>$devices];
+ return $contents;
+}
+function ankhPackingCentrePenNote(array $lines):string{
+ $recorded=0;$selected=0;
+ foreach($lines as $line){
+  if(strtolower(trim((string)$line['name']))==='pen')$recorded+=(int)$line['quantity'];
+  elseif(strcasecmp(trim((string)($line['presentation']??'')),'Pen')===0)$selected+=(int)$line['quantity'];
+ }
+ if($selected>0&&$recorded===0)return $selected.' pen device'.($selected===1?'':'s').' included from the pen selection; no separate pen product line is recorded.';
+ if($recorded>0&&$recorded<$selected)return 'Check pen quantity: '.$selected.' cartridge + pen units selected, but only '.$recorded.' pen device'.($recorded===1?' is':'s are').' recorded. Review the order before packing.';
+ return '';
+}
 function ankhPackingCentreTotals(array $orders):array{
  $totals=[];
- foreach($orders as $o)foreach($o['lines'] as $line){
+ foreach($orders as $o)foreach(ankhPackingCentreLines($o['lines']) as $line){
   $key=json_encode([(int)($line['product_id']??0),$line['name'],$line['presentation']],JSON_THROW_ON_ERROR);
   if(!isset($totals[$key]))$totals[$key]=['name'=>$line['name'],'presentation'=>$line['presentation'],'quantity'=>0,'orders'=>[]];
   $totals[$key]['quantity']+=(int)$line['quantity'];$totals[$key]['orders'][(int)$o['id']]=true;
