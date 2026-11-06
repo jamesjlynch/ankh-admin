@@ -26,6 +26,7 @@ require_once __DIR__.'/catalogue-categories.php';
 require_once __DIR__.'/lab-accessory-pricing.php';
 require_once __DIR__.'/public-catalogue-core.php';
 require_once __DIR__.'/packing-v2-support.php';
+require_once __DIR__.'/packing-centre-support.php';
 $db->exec('CREATE TABLE IF NOT EXISTS attempts (ip TEXT PRIMARY KEY, failures INTEGER NOT NULL, started INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, price INTEGER NOT NULL CHECK(price>=0), active INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS orders (id INTEGER PRIMARY KEY, customer TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL, notes TEXT NOT NULL, status TEXT NOT NULL DEFAULT "New", created TEXT NOT NULL);
@@ -132,6 +133,7 @@ if(!in_array('product_id',array_column($itemColumns,'name'),true))$db->exec("ALT
 ankhCategoriesInit($db);
 // Additive private checklist; no existing inventory or delivery fields are modified.
 ankhPackingEnsureSchema($db);
+ankhPackingCentreSchema($db);
 
 /*
  * Hidden live stock board.
@@ -3202,6 +3204,17 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   else{session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();}
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
+  if($action==='packing_run_create'){
+   $packingRunId=ankhPackingCentreCreate($db,is_array($_POST['order_ids']??null)?$_POST['order_ids']:[],(string)($_POST['run_name']??''),(string)($_POST['owner']??''),(string)($_POST['run_notes']??''),(string)($_POST['request_key']??''),(int)($_SESSION['admin_user_id']??0));
+   $_SESSION['flash']='Packing run saved. Order statuses and stock are unchanged.';
+   header('Location: ./?view=packing_centre&run='.$packingRunId);exit;
+  }
+  if($action==='packing_run_update'){
+   $packingRunId=(int)($_POST['run_id']??0);
+   ankhPackingCentreUpdate($db,$packingRunId,(string)($_POST['run_action']??''),(int)($_POST['order_id']??0));
+   $_SESSION['flash']='Packing run updated. Order statuses and stock are unchanged.';
+   header('Location: ./?view=packing_centre&run='.$packingRunId);exit;
+  }
   if($action==='logout'){if($hasIndividualLogins)ankhAuthClearRemember($db);$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='business_alert_save'){
     require_once __DIR__.'/business-alerts.php';
@@ -4027,7 +4040,8 @@ function futureDeliveryFields(array $order=[]):void{
 function money($n){return '£'.number_format((float)$n/100,2);}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+if($view==='packing_centre'&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
@@ -4117,7 +4131,7 @@ if($reportDownloadBuffer)ob_start();
 @media (min-width:1000px){
  #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
 }
-</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><link rel="stylesheet" href="premium-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/premium-v2.css') ?: 0))?>"><link rel="stylesheet" href="product-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/product-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-v2.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head>
+</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><link rel="stylesheet" href="premium-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/premium-v2.css') ?: 0))?>"><link rel="stylesheet" href="product-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/product-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-centre.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-centre.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head>
 <?php
 // Premium V2 remains opt-in per authenticated session until the full visual QA is complete.
 // It modifies presentation only; core order/stock logic is untouched.
@@ -4838,7 +4852,7 @@ if($view==='reportsboard'){
 </button></div>
 <nav class="desktop-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
-<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="<?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=$view==='balances'?'selected':''?>" href="?view=balances"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14v11H5z"/><path d="M8 11h8M8 15h5"/><circle cx="17" cy="15" r="1"/></svg></span><span class="nav-label">Balances</span></a>
@@ -4884,6 +4898,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <div class="heading dashboard-heading"><div><p class="focus-date"><?=e($now->format('l, j F'))?></p><h1>Today, in focus.</h1><p class="muted page-description">Your orders. Your next steps.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <nav class="ux-mobile-actions" aria-label="Quick actions">
  <?php if($premiumV2Preview):?><a href="?view=packing"><span aria-hidden="true">▣</span><strong>Packing station</strong></a><?php endif;?>
+ <a href="?view=packing_centre"><span aria-hidden="true">▣</span><strong>Packing Centre</strong></a>
  <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
  <a href="?view=orders&amp;scope=to_deliver"><span aria-hidden="true">↗</span><strong>Deliveries</strong></a>
  <a href="?view=stock"><span aria-hidden="true">▣</span><strong>Stock</strong></a>
@@ -5003,6 +5018,7 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><a class="dashboard-row dashboard-stock-link" href="?view=stock&amp;filter=low#stock-product-<?=(int)$stockProduct['id']?>"><span><?=e($stockProduct['name'])?></span><strong><?=max(0,$stockProduct['fridge_available'])?> left <i aria-hidden="true">›</i></strong></a><?php endforeach;?>
 </section></div><?php endif;?>
 <?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit excludes costs that have not been mapped yet.</p><?php endif;?>
+<?php elseif($view==='packing_centre'):require __DIR__.'/packing-centre.php';?>
 <?php elseif($view==='packing'):require __DIR__.'/packing-v2.php';?>
 <?php elseif($view==='orders'): ?>
 <?php
@@ -5028,6 +5044,7 @@ $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['t
 ?>
 <div class="heading orders-page-heading"><div><h1><?=$ordersSection==='backorders'?'Back orders':'Orders'?></h1><p class="muted page-description"><?=$ordersSection==='backorders'?'Orders you have put on hold.':'Search, update or repeat any order.'?></p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <nav class="ux-mobile-scopes order-view-nav" aria-label="Order views">
+ <a class="packing-v2-orders-link" href="?view=packing_centre">Packing Centre · runs &amp; printing ↗</a>
  <?php if($premiumV2Preview):?><a class="packing-v2-orders-link" href="?view=packing">Visual packing station ↗</a><?php endif;?>
  <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
  <a href="?view=orders&amp;section=backorders" <?=$ordersSection==='backorders'?'aria-current="page"':''?>>Back orders <b><?=count($backOrders)?></b></a>
@@ -6520,6 +6537,7 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
+<a class="more-card" href="?view=packing_centre"><span class="more-icon">▣</span><div><h2>Packing Centre</h2><p>Saved packing runs, combined picking sheets, packing slips and envelope labels.</p></div><b>›</b></a>
 <a class="more-card" href="?view=business_alerts"><span class="more-icon">✉</span><div><h2>Business Alerts</h2><p>Email reminders to Jay and Tony, daily summaries, low stock and deliveries.</p></div><b>›</b></a>
 <a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping Intelligence</h2><p>China holidays, disruption countdowns and mobile-friendly stock protection forecasts.</p></div><b>›</b></a>
 <a class="more-card" href="?view=activity"><span class="more-icon">≡</span><div><h2>Order &amp; payment activity</h2><p>Review recent changes to orders, payments, preparation and deliveries.</p></div><b>›</b></a>
@@ -6561,7 +6579,7 @@ $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedE
 </main>
 <nav class="mobile-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
-<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=in_array($view,['enquiries','supplies','more','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>

@@ -1,0 +1,83 @@
+<?php
+declare(strict_types=1);
+// Authenticated callers only. Packing runs never mutate orders, payments or stock.
+function ankhPackingCentreSchema(PDO $db):void{
+ $db->exec("CREATE TABLE IF NOT EXISTS packing_runs (
+ id INTEGER PRIMARY KEY,name TEXT NOT NULL,owner TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',
+ state TEXT NOT NULL DEFAULT 'open' CHECK(state IN ('open','completed','cancelled')),
+ request_key TEXT NOT NULL UNIQUE,created TEXT NOT NULL,updated TEXT NOT NULL,created_by INTEGER NOT NULL DEFAULT 0);
+ CREATE TABLE IF NOT EXISTS packing_run_orders (
+ run_id INTEGER NOT NULL REFERENCES packing_runs(id) ON DELETE CASCADE,
+ order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+ signature TEXT NOT NULL,PRIMARY KEY(run_id,order_id));
+ CREATE TABLE IF NOT EXISTS packing_run_claims (
+ order_id INTEGER PRIMARY KEY REFERENCES orders(id) ON DELETE CASCADE,
+ run_id INTEGER NOT NULL REFERENCES packing_runs(id) ON DELETE CASCADE);
+ CREATE INDEX IF NOT EXISTS packing_run_members ON packing_run_orders(order_id);");
+}
+function ankhPackingCentreOrder(PDO $db,int $id):?array{
+ $q=$db->prepare('SELECT o.*,COALESCE((SELECT SUM(price*quantity) FROM items WHERE order_id=o.id),0)+COALESCE(o.delivery_charge,0) total,COALESCE((SELECT SUM(amount) FROM payments WHERE order_id=o.id),0) paid_amount FROM orders o WHERE o.id=?');
+ $q->execute([$id]);$order=$q->fetch(PDO::FETCH_ASSOC);if(!$order)return null;
+ $q=$db->prepare('SELECT id,product_id,name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$order['lines']=$q->fetchAll(PDO::FETCH_ASSOC);return $order;
+}
+function ankhPackingCentreSignature(array $o):string{
+ return hash('sha256',json_encode([$o['customer'],$o['recipient_name']??'',$o['address'],$o['phone'],$o['notes'],$o['back_order'],$o['status'],$o['delivery_date'],$o['scheduled_delivery_date']??'',$o['delivery_method']??'',$o['lines']],JSON_THROW_ON_ERROR));
+}
+function ankhPackingCentreEligible(array $o):bool{
+ return !in_array((string)$o['status'],['Cancelled','Delivered'],true)&&trim((string)($o['delivery_date']??''))==='';
+}
+function ankhPackingCentreCreate(PDO $db,array $ids,string $name,string $owner,string $notes,string $key,int $actor=0):int{
+ if(!preg_match('/^[a-f0-9]{32}$/D',$key))throw new RuntimeException('Refresh this page and try again.');
+ $ids=array_values(array_unique(array_map('intval',$ids)));
+ if(!$ids||count($ids)>200||min($ids)<1)throw new RuntimeException('Choose between 1 and 200 orders.');
+ $name=trim($name);$owner=trim($owner);$notes=trim($notes);
+ if($name===''||mb_strlen($name)>100||mb_strlen($owner)>80||mb_strlen($notes)>2000)throw new RuntimeException('Use a run name up to 100 characters, owner up to 80 and notes up to 2000.');
+ $db->beginTransaction();
+ try{
+  // First write obtains SQLite's writer lock before testing claims from other admins.
+  $q=$db->prepare("INSERT INTO packing_runs(name,owner,notes,request_key,created,updated,created_by) VALUES(?,?,?,?,?,?,?) ON CONFLICT(request_key) DO NOTHING");
+  $q->execute([$name,$owner,$notes,$key,gmdate('c'),gmdate('c'),$actor]);
+  $fresh=$q->rowCount()>0;$q=$db->prepare('SELECT id FROM packing_runs WHERE request_key=?');$q->execute([$key]);$run=(int)$q->fetchColumn();
+  if(!$fresh){$db->commit();return $run;}
+  foreach($ids as $id){
+   $o=ankhPackingCentreOrder($db,$id);
+   if(!$o||!ankhPackingCentreEligible($o)||!$o['lines'])throw new RuntimeException('Order #'.$id.' is no longer available for a packing run. Refresh the list.');
+   $q=$db->prepare('SELECT run_id FROM packing_run_claims WHERE order_id=?');$q->execute([$id]);$other=$q->fetchColumn();
+   if($other!==false)throw new RuntimeException('Order #'.$id.' is already in packing run #'.$other.'. Open that run or release the order first.');
+   $db->prepare('INSERT INTO packing_run_orders(run_id,order_id,signature) VALUES(?,?,?)')->execute([$run,$id,ankhPackingCentreSignature($o)]);
+   $db->prepare('INSERT INTO packing_run_claims(order_id,run_id) VALUES(?,?)')->execute([$id,$run]);
+  }
+  $db->commit();return $run;
+ }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+}
+function ankhPackingCentreUpdate(PDO $db,int $run,string $action,int $order=0):void{
+ if(!in_array($action,['completed','cancelled','remove'],true))throw new RuntimeException('Choose a valid packing action.');
+ $db->beginTransaction();
+ try{
+  $q=$db->prepare("UPDATE packing_runs SET updated=? WHERE id=? AND state='open'");$q->execute([gmdate('c'),$run]);
+  if(!$q->rowCount())throw new RuntimeException('This run is already closed or no longer exists.');
+  if($action==='remove'){
+   $db->prepare('DELETE FROM packing_run_claims WHERE run_id=? AND order_id=?')->execute([$run,$order]);
+   $db->prepare('DELETE FROM packing_run_orders WHERE run_id=? AND order_id=?')->execute([$run,$order]);
+  }else{
+   $db->prepare('UPDATE packing_runs SET state=? WHERE id=?')->execute([$action,$run]);
+   $db->prepare('DELETE FROM packing_run_claims WHERE run_id=?')->execute([$run]);
+  }
+  $db->commit();
+ }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+}
+function ankhPackingCentreRun(PDO $db,int $id):?array{
+ $q=$db->prepare('SELECT * FROM packing_runs WHERE id=?');$q->execute([$id]);$run=$q->fetch(PDO::FETCH_ASSOC);if(!$run)return null;
+ $q=$db->prepare('SELECT order_id,signature FROM packing_run_orders WHERE run_id=? ORDER BY order_id');$q->execute([$id]);$members=$q->fetchAll(PDO::FETCH_ASSOC);$run['orders']=[];
+ foreach($members as $member){$o=ankhPackingCentreOrder($db,(int)$member['order_id']);if(!$o)continue;$o['changed']=!hash_equals($member['signature'],ankhPackingCentreSignature($o));$run['orders'][]=$o;}
+ return $run;
+}
+function ankhPackingCentreTotals(array $orders):array{
+ $totals=[];
+ foreach($orders as $o)foreach($o['lines'] as $line){
+  $key=json_encode([(int)($line['product_id']??0),$line['name'],$line['presentation']],JSON_THROW_ON_ERROR);
+  if(!isset($totals[$key]))$totals[$key]=['name'=>$line['name'],'presentation'=>$line['presentation'],'quantity'=>0,'orders'=>[]];
+  $totals[$key]['quantity']+=(int)$line['quantity'];$totals[$key]['orders'][(int)$o['id']]=true;
+ }
+ uasort($totals,static fn($a,$b)=>strnatcasecmp($a['name'].' '.$a['presentation'],$b['name'].' '.$b['presentation']));return array_values($totals);
+}

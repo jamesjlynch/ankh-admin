@@ -47,6 +47,7 @@ jobs:
           php tests/customer-cms.php
           php tests/public-catalogue.php
           php tests/delivery-queue.php
+          php tests/packing-centre.php
           php tests/backorder-actions.php
           php tests/back-orders.php
           php tests/back-order-stock-plan.php
@@ -90,6 +91,8 @@ jobs:
           test -f /home/devcouk/public_html/ankh-admin/index.php
           test -f /home/devcouk/ankh-admin-config.php
           /opt/cpanel/ea-php82/root/usr/bin/php -r 'echo "Server SQLite version: ".(new PDO("sqlite::memory:"))->query("select sqlite_version()")->fetchColumn()." / SQLite3 backup available: ".(class_exists("SQLite3")&&method_exists("SQLite3","backup")?"yes":"no").PHP_EOL;'
+          # New additive packing tables are created on the first request: snapshot first.
+          ANKH_ADMIN_CONFIG=/home/devcouk/ankh-admin-config.php /opt/cpanel/ea-php82/root/usr/bin/php scripts/backup-sqlite.php
           if ANKH_DEPLOY_HOME=/home/devcouk /bin/bash scripts/publish-live.sh; then
             echo "Verified ANKH Admin publisher returned success."
           else
@@ -97,7 +100,7 @@ jobs:
             tail -n 24 /home/devcouk/ankh-admin-deploy.log
             exit 1
           fi
-          for file in index.php style.css style.min.css style.core.min.css premium-v2.css service-worker.js; do
+          for file in index.php style.css style.min.css style.core.min.css premium-v2.css service-worker.js packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css; do
             cmp "$file" "/home/devcouk/public_html/ankh-admin/$file"
           done
           echo "Verified published order controls and navigation assets match the source."

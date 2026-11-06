@@ -10,7 +10,7 @@ cd "$temp/repo"
 git init -q
 git config user.email "tests@ankh.invalid"
 git config user.name "ANKH CI"
-for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-categories.php lab-accessory-pricing.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
+for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-categories.php lab-accessory-pricing.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
   case "$file" in
     *.php) printf '%s\n' '<?php echo "ok";' > "$file" ;;
     *) printf '%s\n' "fixture $file" > "$file" ;;
@@ -27,7 +27,7 @@ done
 for check in catalogue-categories lab-accessory-drafts lab-accessory-pricing lab-accessory-editorial lab-accessory-publish; do
   printf '%s\n' '<?php echo "catalogue test fixture";' > "tests/$check.php"
 done
-for check in delivery-queue business-alerts customer-catalogue-visibility customer-cms public-catalogue; do printf '%s\n' '<?php echo "fixture check passed";' > "tests/$check.php"; done
+for check in packing-centre delivery-queue business-alerts customer-catalogue-visibility customer-cms public-catalogue; do printf '%s\n' '<?php echo "fixture check passed";' > "tests/$check.php"; done
 git add .
 git commit -qm "baseline"
 first="$(git rev-parse HEAD)"
@@ -47,6 +47,7 @@ cmp -s product-v2.php "$temp/home/public_html/ankh-admin/product-v2.php"
 cmp -s packing-v2.php "$temp/home/public_html/ankh-admin/packing-v2.php"
 cmp -s packing-v2-support.php "$temp/home/public_html/ankh-admin/packing-v2-support.php"
 cmp -s packing-v2.css "$temp/home/public_html/ankh-admin/packing-v2.css"
+for file in packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css; do cmp -s "$file" "$temp/home/public_html/ankh-admin/$file"; done
 [[ ! -e "$temp/home/ankh-admin-backups" ]] || { echo 'Publisher unexpectedly created a database backup'; exit 1; }
 
 # Repeat the same release: no needless deployment or extra backup.
