@@ -11,8 +11,10 @@ const assert=require('node:assert/strict');
  const server=spawn('php',['-S','127.0.0.1:18767','-t',root],{env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:'ignore'});const host='http://127.0.0.1:18767';let browser;
  try{
   for(let i=0;i<50;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+  execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');$q=$db->prepare('INSERT INTO admin_users(username,password_hash,active,created_at) VALUES(?,?,1,?)');$q->execute(['fixture-admin','${hash}',time()]);`]);
   execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');$db->exec("INSERT INTO orders(id,customer,recipient_name,phone,address,notes,status,created) VALUES(99001,'March buyer','March recipient','','','','New','2025-03-10T12:00:00Z'),(99002,'Another buyer','','','','','New','2025-03-31T12:00:00Z'),(99003,'Older buyer','','','','','New','2025-02-15T12:00:00Z'); INSERT INTO items(order_id,name,price,quantity) VALUES(99001,'Fixture & Labels',1000,2),(99001,'Fixture & Labels',1000,1),(99002,'Fixture & Labels',1000,4),(99003,'Fixture & Labels',1000,5),(99001,'Fixture & Labels Extra',200,1);");`]);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(host+'/?view=dashboard');await page.locator('form input[name="username"]').fill('fixture-admin');await page.locator('form input[name="password"]').fill('fixture-only');await page.getByRole('button',{name:/Sign in/}).click();
   const params='view=reports&type=products&range=custom&from=2025-03-01&to=2025-03-31';
   for(const width of [375,390,768,1440]){
    await page.setViewportSize({width,height:844});await page.goto(host+'/?'+params);

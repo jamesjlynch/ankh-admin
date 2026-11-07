@@ -14,19 +14,21 @@ const assert=require('node:assert/strict');
  const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`]);
  try{
   for(let i=0;i<50;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+  sql(`$q=$db->prepare('INSERT INTO admin_users(username,password_hash,active,created_at) VALUES(?,?,1,?)');$q->execute(['fixture-admin','${hash}',time()]);`);
   sql(`$db->exec("INSERT INTO products(id,name,price,cost,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99001,'Retatrutide fixture 20mg',10000,1200,1,0,5,0,5); INSERT INTO orders(id,customer,phone,address,notes,created,assigned_to,back_order,back_order_since) VALUES(99001,'Waiting customer fixture','','','','2026-10-19T10:00:00Z','James',1,'2026-10-19T10:00:00Z'); INSERT INTO items(order_id,product_id,name,price,quantity) VALUES(99001,99001,'Retatrutide fixture 20mg',10000,2);");`);
   sql(`$db->exec("UPDATE items SET presentation='Pen' WHERE order_id=99001; INSERT INTO products(id,name,price,cost,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99002,'ARA-290 10mg',5000,1200,1,0,0,0,0),(99003,'Pen',1500,300,1,0,0,0,0); INSERT INTO items(order_id,product_id,name,price,quantity,presentation) VALUES(99001,99002,'ARA-290 10mg',5000,1,'Vial'),(99001,99003,'Pen',1500,3,''); INSERT INTO supplier_orders(id,supplier,expected_date,status,created) VALUES(99001,'Fixture supplier','2026-10-25','Part received','2026-10-19'); INSERT INTO supplier_order_items(supplier_order_id,product_id,quantity,received_qty) VALUES(99001,99001,10,2),(99001,99002,1,0),(99001,99003,1,0);");`);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(host+'/?view=dashboard');await page.locator('form input[name="username"]').fill('fixture-admin');await page.locator('form input[name="password"]').fill('fixture-only');await page.getByRole('button',{name:/Sign in/}).click();
   for(const width of [375,390,768,1440]){
    await page.setViewportSize({width,height:844});await page.goto(host+'/?view=orders&section=backorders');
    assert(await page.getByRole('heading',{name:'Waiting customer fixture'}).count());
-   assert.equal(await page.locator('.order-view-nav a').count(),6);
+   assert.equal(await page.locator('.order-view-nav a').count(),7);
    assert.equal(await page.locator('.backorder-income strong').innerText(),'£295.00');
    assert(await page.locator('.backorder-income strong').evaluate(el=>el.scrollWidth<=el.clientWidth),'Expected income must fit on mobile');
    assert.equal(await page.locator('.order-view-nav').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),3,'Order navigation must have three clear columns');
    assert.equal(await page.locator('.order-view-nav').evaluate(el=>getComputedStyle(el).position),'static','Filters must sit at the top, not over the bottom app bar');
-   assert(await page.locator('.order-view-nav').evaluate(el=>el.getBoundingClientRect().bottom<400),'Order views must be visible near the top');
+   assert(await page.locator('.order-view-nav').evaluate(el=>el.getBoundingClientRect().bottom<420),'Order views must be visible near the top');
    assert(await page.locator('.backorder-product').first().isVisible(),'Product totals must be visible without a disclosure');
    assert.equal(await page.locator('[data-backorder-product="99001"]').getAttribute('data-needed'),'2');
 

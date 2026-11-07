@@ -10,8 +10,10 @@ const {spawn,execFileSync}=require('node:child_process');const assert=require('n
  const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`],{encoding:'utf8'});
  try{
   for(let i=0;i<50;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+  sql(`$q=$db->prepare('INSERT INTO admin_users(username,password_hash,active,created_at) VALUES(?,?,1,?)');$q->execute(['fixture-admin','${hash}',time()]);`);
   sql(`$db->exec("INSERT INTO products(id,name,price,cost,supplier_pack_size,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99001,'Original fixture 10mg',1000,500,10,1,5,0,0,5),(99002,'Missed fixture 5mg',1000,300,5,1,0,0,0,0); INSERT INTO supplier_orders(id,supplier,expected_date,status,created) VALUES(99001,'Fixture supplier','','Part received','2026-10-20'); INSERT INTO supplier_order_items(id,supplier_order_id,product_id,packs,pack_size,quantity,unit_cost,received_qty) VALUES(99001,99001,99001,2,10,20,500,5);");`);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(host+'/?view=dashboard');await page.locator('form input[name="username"]').fill('fixture-admin');await page.locator('form input[name="password"]').fill('fixture-only');await page.getByRole('button',{name:/Sign in/}).click();
   for(const width of [375,390,768,1440]){
    await page.setViewportSize({width,height:844});await page.goto(host+'/?view=stock&section=incoming&edit_supplier=99001#supplier-edit-99001');
    assert(await page.getByRole('button',{name:'Save incoming changes'}).isVisible(),'Direct edit link must open both disclosures');

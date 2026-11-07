@@ -6,13 +6,15 @@ const {join,resolve}=require('node:path');
 const {spawn,execFileSync}=require('node:child_process');
 const assert=require('node:assert/strict');
 (async()=>{
- const root=resolve(__dirname,'..'),temp=mkdtempSync(join(tmpdir(),'ankh-cupboard-ui-')),config=join(temp,'config.php');
+ const root=resolve(__dirname,'..'),temp=mkdtempSync(join(tmpdir(),'ankh-cupboard-ui-')),db=join(temp,'fixture.sqlite'),config=join(temp,'config.php');
  const hash=execFileSync('php',['-r','echo password_hash("fixture-only",PASSWORD_DEFAULT);'],{encoding:'utf8'}).trim();
- writeFileSync(config,`<?php return ['password_hash'=>'${hash}','database_path'=>'${join(temp,'fixture.sqlite')}'];`);
+ writeFileSync(config,`<?php return ['password_hash'=>'${hash}','database_path'=>'${db}'];`);
  const server=spawn('php',['-S','127.0.0.1:18766','-t',root],{env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:'ignore'});const host='http://127.0.0.1:18766';let browser;
  try{
   for(let i=0;i<50;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+  execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');$q=$db->prepare('INSERT INTO admin_users(username,password_hash,active,created_at) VALUES(?,?,1,?)');$q->execute(['fixture-admin','${hash}',time()]);`]);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(host+'/?view=dashboard');await page.locator('form input[name="username"]').fill('fixture-admin');await page.locator('form input[name="password"]').fill('fixture-only');await page.getByRole('button',{name:/Sign in/}).click();
   const submit=async locator=>{await Promise.all([page.waitForNavigation(),locator.click()]);};
   await page.goto(host+'/?view=supplies&new_item=1');await page.getByLabel('Supply name',{exact:true}).fill('Thermal labels fixture');await page.locator('#cupboard-form select[name="stock_level"]').selectOption('Out');await page.getByLabel('Exact size / model / specification').fill('100 × 150mm waterproof');await page.getByLabel('Preferred supplier',{exact:true}).fill('Fixture label shop');await page.getByLabel('Product / reorder link',{exact:true}).fill('https://example.com/labels');await page.getByLabel('Usual quantity / packs',{exact:true}).fill('3');await page.getByLabel('Usual items total (£)').fill('12.34');await submit(page.getByRole('button',{name:'Save supply',exact:true}));
   const card=page.locator('#cupboard-1');assert(await card.isVisible());await submit(card.getByRole('button',{name:'Jay will order',exact:true}));assert(await card.getByText('Jay is handling this',{exact:true}).isVisible());
