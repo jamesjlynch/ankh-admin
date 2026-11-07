@@ -1878,6 +1878,8 @@ $savedAdminPinHash=setting($db,'admin_pin_hash','');
 $pinSetupComplete=$savedAdminPinHash!=='';
 // TEMPORARY PUBLIC TEST MODE: set false before the app is used with real data.
 $testingNoAuth=false;
+// Voice ordering is switched off for now; the API and UI code are kept intact.
+$voiceOrderingEnabled=false;
 require_once __DIR__.'/auth-users.php';
 ankhAuthSchema($db);
 $passkeyCols=array_column($db->query('PRAGMA table_info(passkeys)')->fetchAll(PDO::FETCH_ASSOC),'name');
@@ -4131,7 +4133,7 @@ if($reportDownloadBuffer)ob_start();
 @media (min-width:1000px){
  #customer-list.customer-intelligence-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}#customer-list.customer-intelligence-grid .customer-card{margin:0}
 }
-</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><link rel="stylesheet" href="premium-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/premium-v2.css') ?: 0))?>"><link rel="stylesheet" href="product-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/product-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-centre.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-centre.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head>
+</style><link rel="stylesheet" href="admin-visuals.css?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.css') ?: 0))?>"><link rel="stylesheet" href="premium-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/premium-v2.css') ?: 0))?>"><link rel="stylesheet" href="product-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/product-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-v2.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-v2.css') ?: 0))?>"><link rel="stylesheet" href="packing-centre.css?v=<?=e((string)(@filemtime(__DIR__.'/packing-centre.css') ?: 0))?>"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap"><link rel="stylesheet" href="ankh-os.css?v=<?=e((string)(@filemtime(__DIR__.'/ankh-os.css') ?: 0))?>"><script>if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));</script></head>
 <?php
 // Premium V2 remains opt-in per authenticated session until the full visual QA is complete.
 // It modifies presentation only; core order/stock logic is untouched.
@@ -4861,7 +4863,7 @@ if($view==='reportsboard'){
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
 <a class="<?=in_array($view,['enquiries','supplies','more','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
-<?php if(!$testingNoAuth):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
+<?php if(!$testingNoAuth):?><form method="post" class="sidebar-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <?php if($premiumV2Preview):?><div class="premium-v2-preview-banner"><span>Premium V2 · design preview</span><a class="premium-v2-preview-chip" href="?view=dashboard&amp;premium=0">Return to original design <span aria-hidden="true">↗</span></a></div><?php endif;?>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
@@ -5162,6 +5164,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php endif;?>
 <?php elseif($view==='new'):?>
 <div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><div class="repeat-order-note"><strong>Current repeat only</strong><span>Remove any product they no longer want or take. The previous order stays unchanged.</span></div><?php endif;?></div><div class="new-order-tools"><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<?php if($voiceOrderingEnabled):?>
 <section class="voice-order-launch">
  <div class="voice-order-launch-copy">
   <span class="voice-order-launch-kicker">AI VOICE ORDER</span>
@@ -5195,6 +5198,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
   <small id="voice-overlay-help">Tap STOP when you’ve finished speaking</small>
  </div>
 </div>
+<?php endif;?>
 <form method="post" class="panel order-wizard" id="order-wizard" data-draft-enabled="<?=(!$newOrderCustomer&&!$repeatOrderData)?'1':'0'?>"><?php csrf();?><input type="hidden" name="action" value="order"><input type="hidden" name="order_request_key" value="<?=e(preg_match('/^[a-f0-9]{32}$/',(string)($_POST['order_request_key']??''))?(string)$_POST['order_request_key']:bin2hex(random_bytes(16)))?>">
 
 <section class="wizard-step" data-wizard-step="1">
@@ -6556,6 +6560,7 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 <section class="panel device-card"><span class="more-icon">⌂</span><div><h2>Install ANKH</h2><p>Add ANKH to your iPhone Home Screen for a full-screen app experience.</p></div><button type="button" id="install-ankh-app" class="quiet">Install / instructions</button><div id="install-ankh-help" class="install-help" hidden><strong>On iPhone</strong><p>Open this page in Safari, tap Share, then choose <b>Add to Home Screen</b>.</p></div></section>
 <section class="panel device-card"><span class="more-icon">◎</span><div><h2>Face ID / Passkey</h2><p>Use your iPhone passkey instead of entering the PIN on future sign-ins. PIN stays available as a fallback.</p><small><?=$passkeyCount?> passkey<?=$passkeyCount===1?'':'s'?> registered</small></div><button type="button" id="setup-passkey" class="quiet">Set up Face ID / Passkey</button><p id="setup-passkey-status" class="muted passkey-status"></p></section>
 </div>
+<?php if(!$testingNoAuth):?><form method="post" class="more-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?>
 
 <?php else:?>
 <div id="order-saved-marker"></div>
@@ -6578,10 +6583,10 @@ $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedE
 <?php endif;?>
 </main>
 <nav class="mobile-nav">
-<a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
+<a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Today</span></a>
 <a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
-<a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
+<a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Clients</span></a>
 <a class="<?=in_array($view,['enquiries','supplies','more','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 </div>

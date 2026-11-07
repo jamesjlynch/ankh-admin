@@ -1,0 +1,797 @@
+/*
+ ANKH OS — app-wide design layer.
+ Purely presentational. Loaded last on the admin app only (index.php).
+ Selectors reuse existing class names; nothing is hidden, removed or reordered.
+*/
+:root{
+  --ankh-os-bg:#050505;
+  --ankh-os-surface:rgba(20,20,22,.72);
+  --ankh-os-border:rgba(255,215,140,.16);
+  --ankh-os-gold:#F5A623;
+  --ankh-os-gold-bright:#FFB547;
+  --ankh-os-gold-deep:#C27A12;
+  --ankh-os-text:#F4EFE6;
+  --ankh-os-muted:#8E8A82;
+  --ankh-os-radius:18px;
+  --ankh-os-shadow:0 18px 44px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.035);
+  --gold:var(--ankh-os-gold);
+  --gold2:var(--ankh-os-gold-bright);
+  --muted:var(--ankh-os-muted);
+  --border:var(--ankh-os-border);
+  --focus-text:var(--ankh-os-text);
+  --focus-panel:var(--ankh-os-surface);
+  --surface:var(--ankh-os-surface);
+}
+
+html{background:var(--ankh-os-bg);color-scheme:dark}
+
+body{
+  background:
+    radial-gradient(ellipse 100% 36% at 50% -12%,rgba(245,166,35,.18),transparent 66%),
+    radial-gradient(ellipse 70% 26% at 88% -6%,rgba(255,181,71,.10),transparent 70%),
+    var(--ankh-os-bg);
+  color:var(--ankh-os-text);
+  font-family:"Inter",ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+.admin-app-shell,
+.today-board,
+.reportboard,
+.stockboard,
+.login{color:var(--ankh-os-text)}
+
+a{color:var(--ankh-os-gold)}
+
+/* Page titles use the ANKH OS display face. */
+h1,
+.focus-app h1,
+.focus-app .dashboard-heading h1,
+.login h1,
+.reportboard-brand h1,
+.stockboard-brand h1,
+.today-board h1{
+  font-family:"Bebas Neue","Inter",ui-sans-serif,system-ui,sans-serif;
+  font-weight:400;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+}
+
+.eyebrow{
+  color:var(--ankh-os-gold);
+  letter-spacing:.16em;
+  text-transform:uppercase;
+}
+
+.muted,
+.page-description,
+.heading p{color:var(--ankh-os-muted)}
+
+.brand{
+  font-family:"Inter",ui-sans-serif,system-ui,sans-serif;
+  color:var(--ankh-os-text);
+  letter-spacing:.12em;
+}
+.brand span{color:var(--ankh-os-gold-bright)}
+
+/* Glass surfaces. */
+.admin-app-shell :is(
+  .panel,
+  .order,
+  .dashboard-panel,
+  .dashboard-stat-card,
+  .dashboard-stats article,
+  .stats article,
+  .todo-board,
+  .todo-card,
+  .more-card,
+  .customer-card,
+  .product-tile,
+  .stock-product-card,
+  .sc-panel,
+  .sc-smart-card,
+  .sc-profit-card,
+  .sc-buying-panel,
+  .supply-card,
+  .fridge-overview-card,
+  .fridge-balance-card,
+  .fridge-item-card,
+  .fridge-count-card,
+  .fridge-receive-card,
+  .fridge-action-card,
+  .realtime-card,
+  .balance-account-card,
+  .customer-cycle-card,
+  .customer-cycle-panel,
+  .cycle-calendar-card,
+  .cycle-calendar-panel,
+  .cycle-preview-card,
+  .cycle-stock-panel,
+  .supplier-order-card,
+  .future-order-card,
+  .device-card,
+  .cupboard-card,
+  .forecast-product-card,
+  .reorder-card-v2,
+  .reorder-product-card,
+  .reorder-report-panel,
+  .recurring-order-card,
+  .recurring-range-panel,
+  .ios-reorder-card,
+  .product-admin-card,
+  .product-edit-panel,
+  .edit-section,
+  .order-wizard,
+  .report-grid,
+  .report-metrics article,
+  .report-metrics .metric,
+  .reportboard-kpi,
+  .reportboard-panel,
+  .stock-action-card,
+  .stock-availability-panel,
+  .stock-overview-panel,
+  .ankh-notification-popover,
+  .focus-action-sheet,
+  .ankh-assistant-card
+){
+  background:var(--ankh-os-surface);
+  border:1px solid var(--ankh-os-border);
+  border-radius:var(--ankh-os-radius);
+  box-shadow:var(--ankh-os-shadow);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  backdrop-filter:blur(20px) saturate(160%);
+}
+
+.admin-app-shell .focus-summary .dashboard-stat-card,
+.admin-app-shell .focus-summary .dashboard-stat-card:first-child,
+.admin-app-shell .focus-summary .dashboard-stat-card:last-child{
+  background:var(--ankh-os-surface);
+  border:1px solid var(--ankh-os-border);
+  border-radius:var(--ankh-os-radius);
+  box-shadow:var(--ankh-os-shadow);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  backdrop-filter:blur(20px) saturate(160%);
+}
+
+.admin-app-shell :is(.panel,.order,.customer-card,.product-tile,.stock-product-card,.todo-card,.more-card):hover,
+.admin-app-shell .dashboard-stat-card:hover{
+  border-color:rgba(245,166,35,.4);
+}
+
+/* Standalone live boards. */
+body .today-board .metric,
+body .today-board .chart,
+body .today-board .operations article,
+body .reportboard .reportboard-kpi,
+body .reportboard .reportboard-panel,
+body .stockboard .stockboard-card{
+  background:var(--ankh-os-surface);
+  border:1px solid var(--ankh-os-border);
+  border-radius:var(--ankh-os-radius);
+  box-shadow:var(--ankh-os-shadow);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  backdrop-filter:blur(20px) saturate(160%);
+}
+
+/* Primary actions only: gold gradient. Cards, icon controls, filters and
+   links wrapping cards must keep their own surface. */
+.admin-app-shell .button:not(.quiet):not(.danger-button),
+.admin-app-shell button[type=submit]:not(.quiet):not(.danger-button),
+.admin-app-shell form button:not([type]):not(.quiet):not(.danger-button),
+.admin-app-shell :is(
+  .customer-plus,
+  .add-another-product,
+  .voice-order-launch-button,
+  #sc-quick-review,
+  #report-infographic-share,
+  #report-infographic-download
+):not(.quiet):not(.danger-button),
+.admin-app-shell .wizard-actions button:not(.quiet):not(.danger-button),
+.login button,
+.today-board button,
+.reportboard button,
+.stockboard button{
+  background:linear-gradient(135deg,#FFE3A3 0%,#E0A63A 55%,#C27A12 100%);
+  color:#17140E;
+  border:1px solid rgba(255,215,140,.45);
+  border-radius:14px;
+  min-height:44px;
+  font-weight:700;
+  text-shadow:none;
+}
+
+.admin-app-shell :is(.quick-action,.quiet),
+.admin-app-shell button.quiet,
+.admin-app-shell .button.quiet,
+.admin-app-shell .secondary,
+.pc-workspace .quick-action{
+  background:rgba(20,20,22,.6);
+  color:var(--ankh-os-gold-bright);
+  border:1px solid rgba(245,166,35,.4);
+  border-radius:14px;
+  min-height:44px;
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+
+.admin-app-shell .danger-button{
+  background:rgba(42,23,22,.7);
+  color:#e58d82;
+  border:1px solid rgba(229,141,130,.42);
+  border-radius:14px;
+  min-height:44px;
+}
+
+/* Inputs and selects. */
+.admin-app-shell input:not([type=checkbox]):not([type=radio]),
+.admin-app-shell select,
+.admin-app-shell textarea,
+.login input,
+.login select,
+.login textarea,
+.pc-workspace input,
+.pc-workspace select,
+.pc-workspace textarea{
+  background:rgba(20,20,22,.72);
+  color:var(--ankh-os-text);
+  border:1px solid rgba(255,215,140,.18);
+  border-radius:14px;
+  min-height:48px;
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.2);
+}
+
+.admin-app-shell input:not([type=checkbox]):not([type=radio]):focus,
+.admin-app-shell input:not([type=checkbox]):not([type=radio]):focus-visible,
+.admin-app-shell select:focus,
+.admin-app-shell select:focus-visible,
+.admin-app-shell textarea:focus,
+.admin-app-shell textarea:focus-visible,
+.login input:focus-visible,
+.login select:focus-visible,
+.login textarea:focus-visible{
+  border-color:var(--ankh-os-gold);
+  outline:2px solid rgba(245,166,35,.55);
+  outline-offset:1px;
+  box-shadow:0 0 0 3px rgba(245,166,35,.18);
+}
+
+/* Pills and tab rows: one scrollable row. */
+.admin-app-shell :is(
+  .report-tabs,
+  .stock-workspace-nav,
+  .sc-tabs,
+  .dashboard-queue-tabs,
+  .stock-demand-tabs,
+  .stock-demand-tabs-flexible,
+  .supply-section-tabs,
+  .recurring-range-tabs,
+  .cycle-horizon-tabs,
+  .order-view-nav,
+  .customer-intelligence-filters,
+  .pc-tabs
+){
+  display:flex;
+  flex-direction:row;
+  flex-wrap:nowrap;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  padding:4px 2px 10px;
+}
+
+/* Mobile-only scope rows keep their existing display state; only the row styling is set. */
+.admin-app-shell .ux-mobile-scopes{
+  flex-direction:row;
+  flex-wrap:nowrap;
+  align-items:center;
+  justify-content:flex-start;
+  gap:8px;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  padding:4px 2px 10px;
+}
+
+.admin-app-shell :is(
+  .report-tabs,
+  .stock-workspace-nav,
+  .sc-tabs,
+  .dashboard-queue-tabs,
+  .stock-demand-tabs,
+  .stock-demand-tabs-flexible,
+  .supply-section-tabs,
+  .recurring-range-tabs,
+  .cycle-horizon-tabs,
+  .order-view-nav,
+  .customer-intelligence-filters,
+  .pc-tabs,
+  .ux-mobile-scopes
+)::-webkit-scrollbar{display:none}
+
+.admin-app-shell :is(
+  .report-tabs,
+  .stock-workspace-nav,
+  .sc-tabs,
+  .dashboard-queue-tabs,
+  .stock-demand-tabs,
+  .stock-demand-tabs-flexible,
+  .supply-section-tabs,
+  .recurring-range-tabs,
+  .cycle-horizon-tabs,
+  .order-view-nav,
+  .customer-intelligence-filters,
+  .pc-tabs,
+  .ux-mobile-scopes
+)>a,
+.admin-app-shell :is(
+  .stock-demand-tabs,
+  .recurring-range-tabs,
+  .customer-intelligence-filters
+)>button{
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  min-height:44px;
+  padding:0 15px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:999px;
+  background:rgba(20,20,22,.6);
+  color:var(--ankh-os-muted);
+  font-size:13px;
+  font-weight:700;
+  line-height:1.2;
+  white-space:nowrap;
+  text-decoration:none;
+  scroll-snap-align:start;
+  -webkit-backdrop-filter:blur(12px) saturate(150%);
+  backdrop-filter:blur(12px) saturate(150%);
+}
+
+.admin-app-shell :is(
+  .report-tabs,
+  .stock-workspace-nav,
+  .sc-tabs,
+  .dashboard-queue-tabs,
+  .stock-demand-tabs,
+  .stock-demand-tabs-flexible,
+  .supply-section-tabs,
+  .recurring-range-tabs,
+  .cycle-horizon-tabs,
+  .order-view-nav,
+  .customer-intelligence-filters,
+  .pc-tabs,
+  .ux-mobile-scopes
+)>a:is(.selected,[aria-current="page"],[aria-current="true"]),
+.admin-app-shell :is(
+  .stock-demand-tabs,
+  .recurring-range-tabs,
+  .customer-intelligence-filters
+)>button:is(.selected,[aria-current="page"],[aria-current="true"]){
+  background:rgba(245,166,35,.16);
+  border-color:rgba(245,166,35,.55);
+  color:var(--ankh-os-gold-bright);
+  box-shadow:inset 0 0 0 1px rgba(245,166,35,.18);
+}
+
+.admin-app-shell :is(.dashboard-queue-tabs,.report-tabs,.customer-intelligence-filters) :is(b,strong){
+  color:inherit;
+}
+
+/* Mobile floating bottom navigation. */
+@media(max-width:760px){
+  .admin-app-shell > nav.mobile-nav{
+    display:grid;
+    position:fixed;
+    left:12px;
+    right:12px;
+    bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    width:auto;
+    min-height:66px;
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));
+    border:1px solid var(--ankh-os-border);
+    border-radius:22px;
+    background:rgba(12,12,14,.94)!important;
+    box-shadow:0 16px 46px rgba(0,0,0,.55);
+    -webkit-backdrop-filter:blur(20px) saturate(160%);
+    backdrop-filter:blur(20px) saturate(160%);
+    z-index:95;
+  }
+  .admin-app-shell > nav.mobile-nav > a{
+    min-width:0;
+    min-height:48px;
+    border-radius:14px;
+    color:var(--ankh-os-muted);
+    font-size:11px;
+    font-weight:650;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:nowrap;
+  }
+  .admin-app-shell > nav.mobile-nav > a .nav-label{
+    font-size:11px;
+    line-height:1.05;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:nowrap;
+  }
+  .admin-app-shell > nav.mobile-nav > a.selected,
+  .admin-app-shell > nav.mobile-nav > a[aria-current="page"]{
+    color:var(--ankh-os-gold-bright);
+    border-color:rgba(245,166,35,.5);
+    background:rgba(245,166,35,.16);
+  }
+  .admin-app-shell > nav.mobile-nav > a.nav-new{
+    position:relative;
+    width:56px;
+    height:56px;
+    min-width:56px;
+    min-height:56px;
+    justify-self:center;
+    align-self:center;
+    transform:translateY(-16px);
+    border-radius:50%;
+    background:linear-gradient(135deg,#FFE3A3,#E0A63A 55%,#C27A12)!important;
+    color:#17140E;
+    border:3px solid rgba(12,12,14,.94)!important;
+    box-shadow:0 10px 24px rgba(0,0,0,.55),0 0 0 1px rgba(245,166,35,.4);
+    padding:0;
+  }
+  .admin-app-shell > nav.mobile-nav > a.nav-new .nav-icon{
+    background:transparent!important;
+    color:#17140E;
+    width:auto;
+    height:auto;
+  }
+  .admin-app-shell > nav.mobile-nav > a.nav-new .nav-icon svg{
+    width:26px;
+    height:26px;
+    stroke:#17140E;
+  }
+  .admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{
+    position:absolute;
+    top:60px;
+    left:50%;
+    transform:translateX(-50%);
+    color:var(--ankh-os-gold-bright);
+    font-size:11px;
+  }
+  .admin-app-shell > #ankh-main,
+  .admin-app-shell > main#ankh-main{
+    padding-bottom:calc(122px + env(safe-area-inset-bottom,0px))!important;
+  }
+}
+
+/* Key numbers: gold gradient text with a solid fallback. */
+.admin-app-shell :is(
+  .dashboard-stat-card,
+  .dashboard-stats article,
+  .stats article,
+  .metric,
+  .report-metrics article,
+  .reportboard-kpi,
+  .sc-profit-metrics,
+  .sc-smart-metrics,
+  .sc-smart-stats,
+  .sc-smart-footer-stats,
+  .supply-metrics,
+  .customer-metrics,
+  .customer-account-stats,
+  .orders-summary-stats,
+  .combined-stock-stats,
+  .backorder-stock-metrics,
+  .stock-shortage-metrics,
+  .reorder-metrics,
+  .fridge-overview-card,
+  .fridge-balance-card,
+  .todo-card-head,
+  .stock-fridge-total
+)>strong,
+.admin-app-shell .dashboard-stat-card strong,
+.admin-app-shell .reportboard-kpi strong,
+.admin-app-shell .reportboard-value strong,
+.admin-app-shell .report-metrics article>strong,
+.admin-app-shell .backorder-stock-metrics dd,
+body .reportboard .reportboard-kpi strong,
+body .reportboard .reportboard-value strong,
+body .stockboard .stockboard-count strong,
+body .today-board .metric strong,
+body .today-board .operation-counts strong{
+  color:var(--ankh-os-gold);
+}
+
+@supports ((background-clip:text) or (-webkit-background-clip:text)){
+  .admin-app-shell :is(
+    .dashboard-stat-card,
+    .dashboard-stats article,
+    .stats article,
+    .metric,
+    .report-metrics article,
+    .reportboard-kpi,
+    .sc-profit-metrics,
+    .sc-smart-metrics,
+    .sc-smart-stats,
+    .sc-smart-footer-stats,
+    .supply-metrics,
+    .customer-metrics,
+    .customer-account-stats,
+    .orders-summary-stats,
+    .combined-stock-stats,
+    .backorder-stock-metrics,
+    .stock-shortage-metrics,
+    .reorder-metrics,
+    .fridge-overview-card,
+    .fridge-balance-card,
+    .todo-card-head,
+    .stock-fridge-total
+  )>strong,
+  .admin-app-shell .dashboard-stat-card strong,
+  .admin-app-shell .reportboard-kpi strong,
+  .admin-app-shell .reportboard-value strong,
+  .admin-app-shell .report-metrics article>strong,
+  .admin-app-shell .backorder-stock-metrics dd,
+  body .reportboard .reportboard-kpi strong,
+  body .reportboard .reportboard-value strong,
+  body .stockboard .stockboard-count strong,
+  body .today-board .metric strong,
+  body .today-board .operation-counts strong{
+    background:linear-gradient(135deg,#FFE3A3 0%,#FFB547 48%,#C27A12 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+}
+
+/* Minimum readable text size. */
+.admin-app-shell :is(
+  .muted,
+  .page-description,
+  .eyebrow,
+  .badge,
+  .pill,
+  .ref,
+  .nav-label,
+  .quick-action,
+  .report-tabs a,
+  .ux-mobile-scopes a,
+  .stock-workspace-nav a span,
+  .stock-workspace-nav a small,
+  .customer-intelligence-filters button,
+  .dashboard-queue-tabs a,
+  .sc-tabs a,
+  .stock-demand-tabs a,
+  .stock-demand-tabs button,
+  .supply-section-tabs a,
+  .recurring-range-tabs a,
+  .recurring-range-tabs button,
+  .cycle-horizon-tabs a,
+  .order-view-nav a,
+  .dashboard-stat-card span,
+  .dashboard-stat-card small,
+  .dashboard-stats span,
+  .dashboard-stats small,
+  .stats span,
+  .stats small,
+  .metric span,
+  .metric small,
+  .reportboard-kpi span,
+  .reportboard-kpi small,
+  .reportboard-meta span,
+  .reportboard-main small,
+  .reportboard-value small,
+  .report-metrics article>span,
+  .report-metrics article>small,
+  .sc-smart-metrics small,
+  .sc-profit-metrics small,
+  .customer-metrics span,
+  .customer-metrics small,
+  .supply-metrics span,
+  .backorder-stock-metrics dt,
+  .backorder-stock-metrics dd,
+  .stock-shortage-metrics span,
+  .more-card p,
+  .todo-card small,
+  .order-right small,
+  .stockboard-meta span,
+  .operation-counts span,
+  .delivery-summary,
+  .report-warning,
+  .report-range-note,
+  .notice,
+  .note,
+  .sc-notice,
+  .error
+){
+  font-size:13px;
+}
+
+/* Dense admin views: keep the same 13px floor for secondary copy. */
+.admin-app-shell > nav.mobile-nav > a .nav-label,
+.admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{font-size:11px}
+.admin-app-shell .focus-layout-switch a{font-size:13px}
+.admin-app-shell .cycle-preview-card :is(span,small,strong,a){font-size:13px}
+.admin-app-shell .dashboard-insight>summary span{font-size:13px}
+.admin-app-shell .ux-result-count{font-size:13px}
+.admin-app-shell .packing-v2-orders-link{font-size:13px}
+.admin-app-shell nav.order-view-nav a{font-size:13px!important}
+.admin-app-shell nav.order-view-nav a b{font-size:13px}
+.admin-app-shell .customer-page-filters label{font-size:13px}
+.admin-app-shell .ux-order-filters label{font-size:13px}
+.admin-app-shell .report-filter-bar label{font-size:13px}
+.admin-app-shell .ux-report-options>summary{font-size:13px}
+.admin-app-shell .more-grid:not(.utility-grid) .more-card h2{font-size:13px}
+.admin-app-shell .more-grid:not(.utility-grid) .more-card p{font-size:13px}
+.admin-app-shell :is(.wizard-kicker,.voice-order-launch-kicker,.voice-order-alias,.order-check-label){font-size:13px}
+.admin-app-shell .voice-order-launch-copy p{font-size:13px}
+.admin-app-shell .wizard-progress>span>span{font-size:13px}
+.admin-app-shell .voice-order-example :is(span,q,small){font-size:13px}
+.admin-app-shell .voice-order-launch-button :is(strong,span,small){font-size:13px}
+.admin-app-shell .future-delivery-toggle small{font-size:13px}
+.admin-app-shell :is(.balances-hero,.balance-filter-bar,.balance-filter-note,.balance-overdue-pill) :is(span,small,p,button){font-size:13px}
+.admin-app-shell .balance-filter-note{font-size:13px}
+.admin-app-shell .stock-workspace-nav a strong{font-size:13px}
+.admin-app-shell :is(.stock-action-card,.stock-availability-panel,.stock-overview-panel,.stock-transaction-head,.combined-stock-head,.fridge-stock-shortfall,.stock-low-summary,.stock-fridge-total,.stock-on-way-row,.stock-movement-row,.fridge-overview-card) :is(label,p,span,small,em,button,a){font-size:13px}
+.admin-app-shell :is(.product-admin-card,.sc-catalogue-group,.product-catalog-grid,.hidden-product-grid,.product-admin-grid,.product-stock-editor,.product-catalogue-section,.sc-product-list,.ankh-cat-panel,.lab-accessory-editor,.lab-accessory-drafts) :is(label,p,span,small,strong,b,em,button,a,h2,h3){font-size:13px}
+body .admin-app-shell :is(.fridge-overview-card,.stock-fridge-total,.combined-stock-head,.stock-action-card,.stock-overview-breakdown,.fridge-value-summary,.stock-products-section,.stock-transaction-head) :is(span,small,em,label,p,button,a){font-size:13px!important}
+body .admin-app-shell .stock-action-card>summary strong{font-size:13px!important}
+body .admin-app-shell :is(.ankh-visibility-manager,.ankh-visibility-panel,.ankh-visibility-list,.ankh-visibility-item,.ankh-visibility-top,.ankh-cat-panel,.product-catalog-grid,.hidden-product-grid,.product-admin-card,.sc-catalogue-group,.product-history-note,.product-search,.add-product-disclosure) :is(span,small,strong,p,b,label,button,a,h2,h3){font-size:13px!important}
+body .admin-app-shell .ankh-view-toggle .ankh-view-button{font-size:13px!important}
+body .admin-app-shell button.combined-stock-v2 .combined-stock-head>span:nth-child(2)>b,
+body .admin-app-shell button.combined-stock-v2 .combined-stock-head>span:nth-child(2)>small{font-size:13px!important}
+body .admin-app-shell .fridge-overview-card .stock-overview-breakdown small{font-size:13px!important}
+body .admin-app-shell .fridge-direct-links :is(a,strong,span){font-size:13px!important}
+body .admin-app-shell .stock-overview-links :is(strong,small,span){font-size:13px!important}
+body .admin-app-shell .stock-manage-link{min-height:44px!important}
+body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-stock-v2,.combined-stock-money) :is(small,b){font-size:13px!important}
+
+/* App-bar icon controls: 44px glass buttons, never gold blobs. */
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button,.ankh-assistant-button){
+  align-items:center;
+  justify-content:center;
+  flex:0 0 44px;
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  margin:0;
+  padding:0!important;
+  border:1px solid rgba(245,166,35,.45)!important;
+  border-radius:50%!important;
+  background:rgba(255,255,255,.06)!important;
+  color:var(--ankh-os-gold-bright)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button,.ankh-assistant-button) svg{
+  width:20px;
+  height:20px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+}
+.admin-app-shell .assistant-button-ring,
+.admin-app-shell .assistant-button-label{display:none!important}
+.admin-app-shell .assistant-button-icon{font-size:18px;line-height:1}
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button) b{
+  position:absolute;
+  right:-4px;
+  top:-4px;
+  min-width:18px;
+  height:18px;
+  padding:0 4px;
+  border:1px solid rgba(245,166,35,.55);
+  border-radius:999px;
+  background:#d94b3f!important;
+  color:#FFE3A3!important;
+  font-size:10px;
+  line-height:16px;
+  text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.45);
+}
+
+/* Sign out lives in the More view on compact screens and in the desktop sidebar. */
+.more-signout{display:none}
+@media(max-width:1023px){
+  .admin-app-shell>aside>form.sidebar-signout{display:none!important}
+  .admin-app-shell>aside:has(>form.sidebar-signout) .app-brand-row{padding-right:0!important}
+  .admin-app-shell .more-signout{display:block;margin:18px 0 0}
+  .admin-app-shell .more-signout button{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px}
+}
+@media(min-width:1024px){
+  .admin-app-shell .more-signout{display:none!important}
+}
+
+/* Tab rows keep each label at its natural width and scroll sideways. */
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock,
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes{
+  display:flex!important;
+  flex-direction:row!important;
+  flex-wrap:nowrap!important;
+  grid-template-columns:none!important;
+  grid-auto-flow:row!important;
+  align-items:stretch;
+  justify-content:flex-start!important;
+  gap:8px;
+  width:100%!important;
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  padding:4px 2px 10px!important;
+}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock::-webkit-scrollbar,
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes::-webkit-scrollbar{display:none}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a,
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes>a{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:max-content!important;
+  max-width:none!important;
+  justify-self:auto!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  scroll-snap-align:start;
+}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a :is(strong,small,span,b,i,em),
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes>a :is(strong,small,span,b,i,em){
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
+
+/* Filter pills: only the pressed/active pill is gold. */
+.admin-app-shell .customer-intelligence-filters>button:not(.selected):not([aria-current]){
+  background:rgba(20,20,22,.6)!important;
+  border:1px solid var(--ankh-os-border)!important;
+  color:var(--ankh-os-muted)!important;
+}
+.admin-app-shell .customer-intelligence-filters>button:is(.selected,[aria-current="page"],[aria-current="true"]){
+  background:rgba(245,166,35,.16)!important;
+  border-color:rgba(245,166,35,.55)!important;
+  color:var(--ankh-os-gold-bright)!important;
+}
+
+/* Press feedback and gentle transitions. */
+@media(prefers-reduced-motion:no-preference){
+  .admin-app-shell :is(button,.button,.quick-action,.report-tabs a,.ux-mobile-scopes a,.stock-workspace-nav a,.sc-tabs a,.dashboard-queue-tabs a,.stock-demand-tabs a,.stock-demand-tabs button,.supply-section-tabs a,.recurring-range-tabs a,.recurring-range-tabs button,.cycle-horizon-tabs a,.order-view-nav a,.customer-intelligence-filters button,.desktop-nav a,.mobile-nav a,.more-card,.dashboard-stat-card),
+  .login button,
+  .login input,
+  .login select,
+  .login textarea{
+    transition:transform .16s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,filter .18s ease;
+  }
+  .admin-app-shell :is(button,.button,.quick-action,.report-tabs a,.ux-mobile-scopes a,.stock-workspace-nav a,.sc-tabs a,.dashboard-queue-tabs a,.stock-demand-tabs a,.stock-demand-tabs button,.supply-section-tabs a,.recurring-range-tabs a,.recurring-range-tabs button,.cycle-horizon-tabs a,.order-view-nav a,.customer-intelligence-filters button,.mobile-nav a,.desktop-nav a):active,
+  .login button:active{
+    transform:scale(.97);
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .admin-app-shell *,
+  .admin-app-shell *::before,
+  .admin-app-shell *::after{
+    transition-duration:.01ms!important;
+    animation-duration:.01ms!important;
+    scroll-behavior:auto!important;
+  }
+}
