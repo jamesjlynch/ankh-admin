@@ -123,6 +123,232 @@
     requestAnimationFrame(tick);
   };
 
+  const todayLocal = () => {
+    const date = new Date();
+    const pad = (value) => String(value).padStart(2, '0');
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate());
+  };
+
+  const csrfToken = () => document.querySelector('input[name="csrf"]')?.value || '';
+
+  const closeAllCardActions = (except) => {
+    document.querySelectorAll('[data-order-card].is-actions-open').forEach((card) => {
+      if (card !== except) card.classList.remove('is-actions-open');
+    });
+  };
+
+  const syncCardActions = (card) => {
+    const outstanding = Number.parseInt(card.dataset.orderOutstanding || '0', 10) || 0;
+    const paidButton = card.querySelector('.ankh-order-action-paid');
+    const deliveredButton = card.querySelector('.ankh-order-action-delivered');
+    const tray = card.querySelector('.ankh-order-actions');
+    if (paidButton) paidButton.hidden = !(outstanding > 0) || card.dataset.orderCancelled === '1';
+    if (deliveredButton) {
+      deliveredButton.hidden = card.dataset.orderDelivered === '1'
+        || card.dataset.orderBackOrder === '1'
+        || card.dataset.orderCancelled === '1';
+    }
+    if (tray) tray.hidden = [...tray.querySelectorAll('button')].every((button) => button.hidden);
+  };
+
+  const updateCardInPlace = (card, data, action) => {
+    card.dataset.orderOutstanding = String(data.balance ?? 0);
+    card.dataset.orderTotal = String(data.total ?? 0);
+    card.dataset.orderPaid = Number(data.balance) <= 0 ? '1' : '0';
+    if (action === 'delivery_mark' || data.delivered) card.dataset.orderDelivered = '1';
+
+    const statuses = card.querySelector('.focus-statuses');
+    if (statuses) {
+      const chips = [...statuses.querySelectorAll('.focus-status')];
+      if (chips[0]) {
+        chips[0].textContent = data.payment_label || chips[0].textContent;
+        chips[0].className = 'focus-status ' + (data.payment_state === 'paid' ? 'focus-paid' : 'focus-unpaid');
+      }
+      if (action === 'delivery_mark') {
+        chips.slice(1).forEach((chip) => chip.remove());
+        if (!statuses.querySelector('.focus-status-delivered')) {
+          const delivered = document.createElement('span');
+          delivered.className = 'focus-status focus-paid focus-status-delivered';
+          delivered.textContent = 'Delivered';
+          statuses.append(delivered);
+        }
+      }
+    }
+
+    const summary = card.querySelector('.order-right>small');
+    if (summary && data.summary_label) summary.textContent = data.summary_label;
+    syncCardActions(card);
+  };
+
+  const submitOrderAction = async (card, action, button) => {
+    if (card.dataset.orderBusy === '1' || !button || button.hidden) return;
+    const token = csrfToken();
+    if (!token) {
+      window.ankhToast('Please refresh the page and try again.', { type: 'error' });
+      return;
+    }
+    const id = card.dataset.orderId;
+    if (!id) return;
+
+    const body = new URLSearchParams({ csrf: token, action, id });
+    if (action === 'payment_add') {
+      body.set('payment_type', 'full');
+      body.set('method', card.dataset.orderPaymentMethod || 'Cash');
+      body.set('payment_date', todayLocal());
+      body.set('return', 'orders');
+    } else {
+      body.set('delivery_date', todayLocal());
+      body.set('return', 'orders');
+    }
+
+    card.dataset.orderBusy = '1';
+    button.disabled = true;
+    button.classList.add('is-busy');
+    try {
+      const url = new URL(window.location.href);
+      url.hash = '';
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'fetch',
+          'Accept': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+        },
+        body: body.toString(),
+        credentials: 'same-origin'
+      });
+      let data = null;
+      try { data = await response.json(); } catch {}
+      if (!response.ok || !data || data.ok !== true) {
+        throw new Error(data && data.error ? data.error : 'Could not save. Please try again.');
+      }
+      updateCardInPlace(card, data, action);
+      closeAllCardActions();
+      const verb = action === 'payment_add' ? 'Marked paid' : 'Marked delivered';
+      window.ankhToast(verb + ' · ' + (data.client || card.dataset.orderClient || 'order'));
+    } catch (error) {
+      window.ankhToast(error && error.message ? error.message : 'Could not save. Please try again.', { type: 'error' });
+    } finally {
+      delete card.dataset.orderBusy;
+      button.disabled = false;
+      button.classList.remove('is-busy');
+      syncCardActions(card);
+    }
+  };
+
+  const attachCardSwipe = (card) => {
+    const summary = card.querySelector(':scope > summary') || card.querySelector('summary');
+    if (!summary || summary.dataset.orderSwipeReady === '1') return;
+    summary.dataset.orderSwipeReady = '1';
+
+    let start = null;
+    const open = () => {
+      closeAllCardActions(card);
+      card.classList.add('is-actions-open');
+    };
+    const close = () => card.classList.remove('is-actions-open');
+
+    summary.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' || !event.isPrimary) return;
+      if (event.target instanceof Element && event.target.closest('.ankh-order-actions')) return;
+      start = { x: event.clientX, y: event.clientY, decided: false, horizontal: false };
+    }, { passive: true });
+
+    summary.addEventListener('pointermove', (event) => {
+      if (!start) return;
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (!start.decided) {
+        if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
+        start.decided = true;
+        start.horizontal = Math.abs(dx) > Math.abs(dy) * 1.2 && Math.abs(dx) > 12;
+        if (start.horizontal) card._ankhSuppressClick = true;
+      }
+      if (!start.horizontal) return;
+      if (dx < -30) open();
+      else if (dx > 30) close();
+    }, { passive: true });
+
+    summary.addEventListener('pointerup', (event) => {
+      if (start && start.horizontal) {
+        card._ankhSuppressClick = true;
+        const dx = event.clientX - start.x;
+        if (dx < -30) open();
+        else if (dx > 30) close();
+        window.setTimeout(() => { card._ankhSuppressClick = false; }, 350);
+      }
+      start = null;
+    }, { passive: true });
+
+    summary.addEventListener('pointercancel', () => { start = null; }, { passive: true });
+
+    summary.addEventListener('click', (event) => {
+      if (event.target instanceof Element && event.target.closest('.ankh-order-actions')) return;
+      if (card._ankhSuppressClick) {
+        event.preventDefault();
+        event.stopPropagation();
+        card._ankhSuppressClick = false;
+      }
+    }, true);
+  };
+
+  const buildCardActions = (card) => {
+    if (card.dataset.orderActionsReady === '1') return;
+    const summary = card.querySelector(':scope > summary') || card.querySelector('summary');
+    if (!summary) return;
+    card.dataset.orderActionsReady = '1';
+
+    const tray = document.createElement('div');
+    tray.className = 'ankh-order-actions';
+    tray.setAttribute('role', 'group');
+    tray.setAttribute('aria-label', 'Quick actions for this order');
+
+    const paid = document.createElement('button');
+    paid.type = 'button';
+    paid.className = 'ankh-order-action ankh-order-action-paid';
+    paid.innerHTML = '<span aria-hidden="true">£</span><span>Paid</span>';
+    paid.title = 'Mark the outstanding balance as paid';
+
+    const delivered = document.createElement('button');
+    delivered.type = 'button';
+    delivered.className = 'ankh-order-action ankh-order-action-delivered';
+    delivered.innerHTML = '<span aria-hidden="true">✓</span><span>Delivered</span>';
+    delivered.title = 'Mark this order delivered today';
+
+    paid.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submitOrderAction(card, 'payment_add', paid);
+    });
+    delivered.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      submitOrderAction(card, 'delivery_mark', delivered);
+    });
+
+    tray.append(paid, delivered);
+    summary.append(tray);
+    syncCardActions(card);
+  };
+
+  const initOrderCards = () => {
+    document.querySelectorAll('[data-order-card]').forEach((card) => {
+      buildCardActions(card);
+      attachCardSwipe(card);
+    });
+  };
+
+  document.addEventListener('pointerdown', (event) => {
+    const openCard = document.querySelector('[data-order-card].is-actions-open');
+    if (!openCard) return;
+    if (event.target instanceof Node && openCard.contains(event.target)) return;
+    closeAllCardActions();
+  }, { passive: true });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeAllCardActions();
+  });
+
   const init = () => {
     if (reduceMotion) return;
 
@@ -252,6 +478,7 @@
 
   const start = () => {
     adoptToasts();
+    initOrderCards();
     init();
   };
 
