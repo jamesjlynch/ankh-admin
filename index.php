@@ -1437,6 +1437,30 @@ function customerPricingSelect(string $selected='standard'):void{
 function customerPricingOptions(string $selected='standard'):void{
  ?><fieldset><legend>Customer pricing</legend><?php foreach(['standard'=>'Standard','family_friends'=>'Family & Friends','free'=>'Free'] as $value=>$label):?><label class="check"><input type="radio" name="pricing_type" value="<?=e($value)?>" <?=$selected===$value?'checked':''?>><?=e($label)?></label><?php endforeach;?><p class="muted">Applies to new orders only. Family &amp; Friends uses saved product prices (retail if none is set). Free records personal stock use, including pens, with no payment required.</p></fieldset><?php
 }
+function customerInitials(string $name):string{
+ $words=array_values(array_filter(preg_split('/\s+/u',trim($name))?:[],fn($word)=>$word!==''));
+ if(!$words)return '?';
+ $take=fn(string $word,int $length)=>function_exists('mb_substr')?mb_substr($word,0,$length):substr($word,0,$length);
+ $initials=count($words)>=2?$take($words[0],1).$take($words[1],1):$take($words[0],2);
+ return function_exists('mb_strtoupper')?mb_strtoupper($initials):strtoupper($initials);
+}
+function ukMobileWhatsApp(string $phone):string{
+ $digits=preg_replace('/\D+/','',trim($phone));
+ if(str_starts_with($digits,'00'))$digits=substr($digits,2);
+ if(str_starts_with($digits,'0'))$digits='44'.substr($digits,1);
+ elseif(str_starts_with($digits,'7')&&strlen($digits)===10)$digits='44'.$digits;
+ return preg_match('/^447\d{9}$/',$digits)?$digits:'';
+}
+function customerOrderItemsSummary(array $items):string{
+ $parts=[];
+ foreach($items as $item){
+  $name=trim((string)($item['name']??''));
+  if($name==='')continue;
+  $quantity=(int)($item['quantity']??0);
+  $parts[]=($quantity>1?$quantity.' × ':'').$name;
+ }
+ return implode(', ',$parts);
+}
 function personalStockUsage(PDO $db,string $from='',string $to=''):array{
  $q=$db->prepare("SELECT o.id,o.customer,o.assigned_to,o.delivery_date,i.name,i.presentation,i.quantity,i.cost,i.presentation_cost FROM orders o JOIN items i ON i.order_id=o.id WHERE o.pricing_type='free' AND o.status<>'Cancelled' AND trim(o.delivery_date)<>'' AND (?='' OR o.delivery_date>=?) AND (?='' OR o.delivery_date<=?) ORDER BY o.delivery_date DESC,o.id DESC,i.id");
  $q->execute([$from,$from,$to,$to]);return $q->fetchAll(PDO::FETCH_ASSOC);
@@ -5899,7 +5923,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
  $searchBits=$c['name'].' '.$c['phone'].' '.$c['address'].' '.implode(' ',array_column($usualProducts,'name'));
 ?>
 <details class="order customer-card<?=$c['archived']?' archived-customer':''?>" data-customer-search="<?=e(strtolower($searchBits))?>" data-customer-archived="<?=$c['archived']?'1':'0'?>" data-customer-top="<?=$isTop?'1':'0'?>" data-customer-inactive="<?=$isInactive?'1':'0'?>" data-customer-outstanding="<?=$hasOutstanding?'1':'0'?>" data-customer-recurring="<?=$hasRecurring?'1':'0'?>">
-<summary><div><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?><?php if($c['pricing_type']==='family_friends'):?><span class="badge">Family &amp; Friends</span><?php elseif($c['pricing_type']==='free'):?><span class="badge">Free</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · <?=e(date('d M y',strtotime($lastOrder['created'])))?><?php endif;?></small></div></summary>
+<summary><div class="customer-list-identity"><span class="customer-avatar customer-list-avatar" aria-hidden="true"><?=e(customerInitials((string)$c['name']))?></span><div class="customer-list-copy"><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?><?php if($c['pricing_type']==='family_friends'):?><span class="badge">Family &amp; Friends</span><?php elseif($c['pricing_type']==='free'):?><span class="badge">Free</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · <?=e(date('d M y',strtotime($lastOrder['created'])))?><?php endif;?></small></div></summary>
 <div class="detail">
 <div class="customer-metrics"><div><span>Spent</span><strong><?=money($customerSpent)?></strong></div><div><span>Orders</span><strong><?=count($history)?></strong></div><div><span>Last order</span><strong><?=$lastOrder?e(date('d M y',strtotime($lastOrder['created']))):'—'?></strong></div><div><span>Avg. gap</span><strong><?=$avgOrderDays!==null?$avgOrderDays.'d':'—'?></strong></div></div>
 <?php if($isTop||$isInactive||$hasOutstanding||$hasRecurring):?><div class="customer-intelligence-badges"><?php if($isTop):?><span>TOP CUSTOMER</span><?php endif;?><?php if($hasRecurring):?><span class="cycle">RECURRING</span><?php endif;?><?php if($hasOutstanding):?><span class="money"><?=money((int)$customerOutstandingByKey[$customerKey])?> DUE</span><?php endif;?><?php if($isInactive):?><span>INACTIVE 60+D</span><?php endif;?></div><?php endif;?>
@@ -5993,8 +6017,61 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
  $accountLikelyDate='';$accountLikelyDetail='No repeat pattern yet';
  if($accountNextCycle){$accountLikelyDate=(string)$accountNextCycle['next_due_date'];$accountLikelyDetail='Recurring · '.(string)($accountNextCycle['product_name']?:$accountNextCycle['product_summary']);}
  elseif($accountLast&&$accountAvgDays!==null&&$accountAvgDays>0){$lastTs=strtotime((string)$accountLast['created']);if($lastTs){$likelyTs=strtotime('+'.$accountAvgDays.' days',$lastTs);$guard=0;while($likelyTs<strtotime($todayDate)&&$guard++<24)$likelyTs=strtotime('+'.$accountAvgDays.' days',$likelyTs);$accountLikelyDate=date('Y-m-d',$likelyTs);$accountLikelyDetail='Estimated from '.$accountAvgDays.'-day average'.($accountTopProduct?' · '.(string)$accountTopProduct['name']:'');}}
+ $accountNonCancelled=array_values(array_filter($accountHistory,fn($o)=>(string)$o['status']!=='Cancelled'));
+ $accountOrderCount=count($accountNonCancelled);
+ $accountTotalSpend=array_sum(array_map(fn($o)=>(int)$o['total'],$accountNonCancelled));
+ $accountLastActive=$accountNonCancelled[0]??null;
+ $accountNextDue=$accountNextCycle?(string)$accountNextCycle['next_due_date']:'';
+ $accountWhatsApp=ukMobileWhatsApp((string)$customerAccount['phone']);
+ $accountRecentOrders=array_slice($accountHistory,0,5);$accountRecentItems=[];
+ if($accountRecentOrders){
+  $accountRecentIds=array_map(fn($o)=>(int)$o['id'],$accountRecentOrders);
+  $accountRecentPlaceholders=implode(',',array_fill(0,count($accountRecentIds),'?'));
+  $accountRecentQuery=$db->prepare('SELECT order_id,name,quantity FROM items WHERE order_id IN ('.$accountRecentPlaceholders.') ORDER BY id');
+  $accountRecentQuery->execute($accountRecentIds);
+  foreach($accountRecentQuery->fetchAll(PDO::FETCH_ASSOC) as $accountRecentLine)$accountRecentItems[(int)$accountRecentLine['order_id']][]=$accountRecentLine;
+ }
 ?>
-<div class="heading customer-account-heading"><div><p class="eyebrow">CUSTOMER ACCOUNT</p><h1><?=e($customerAccount['name'])?></h1><p class="muted">Pricing: <?=e(['standard'=>'Standard','family_friends'=>'Family & Friends','free'=>'Free'][(string)$customerAccount['pricing_type']]??'Standard')?> · <?=e($customerAccount['phone']?:'No phone saved')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p></div><a class="quick-action" href="?view=customers">← Customers</a></div>
+<section class="customer-profile">
+ <div class="customer-profile-head">
+  <div class="customer-profile-identity">
+   <span class="customer-avatar" aria-hidden="true"><?=e(customerInitials((string)$customerAccount['name']))?></span>
+   <div class="customer-profile-copy">
+    <p class="eyebrow">CUSTOMER ACCOUNT</p>
+    <h1><?=e($customerAccount['name'])?></h1>
+    <p class="muted"><?=e($customerAccount['phone']?:'No phone saved')?> · Pricing: <?=e(['standard'=>'Standard','family_friends'=>'Family & Friends','free'=>'Free'][(string)$customerAccount['pricing_type']]??'Standard')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p>
+   </div>
+  </div>
+  <a class="quick-action customer-profile-back" href="?view=customers">← Customers</a>
+ </div>
+ <div class="customer-profile-tiles">
+  <article><span>Total spend</span><strong><?=money($accountTotalSpend)?></strong></article>
+  <article><span>Orders</span><strong><?=$accountOrderCount?></strong></article>
+  <article><span>Next due</span><strong><?=$accountNextDue?e(date('d M Y',strtotime($accountNextDue))):'—'?></strong></article>
+ </div>
+ <?php if(($accountLastActive&&!$customerAccount['archived'])||$accountWhatsApp):?>
+ <div class="customer-profile-actions">
+  <?php if($accountLastActive&&!$customerAccount['archived']):?><a class="button customer-repeat-button" href="?view=new&amp;repeat_order=<?=$accountLastActive['id']?>">Repeat last order</a><?php endif;?>
+  <?php if($accountWhatsApp):?><a class="button quiet customer-whatsapp-button" href="https://wa.me/<?=e($accountWhatsApp)?>" target="_blank" rel="noopener">WhatsApp</a><?php endif;?>
+ </div>
+ <?php endif;?>
+</section>
+<section class="panel customer-recent-panel">
+ <div class="dashboard-panel-head"><div><p class="eyebrow">RECENT</p><h2>Recent orders</h2></div><a href="?view=orders">All orders →</a></div>
+ <?php if($accountRecentOrders):?>
+ <div class="customer-recent-orders">
+  <?php foreach($accountRecentOrders as $recentOrder):
+   $recentBalance=max(0,(int)$recentOrder['total']-(int)($recentOrder['paid_amount']??0));$recentCancelled=(string)$recentOrder['status']==='Cancelled';$recentPaid=!$recentCancelled&&(in_array((string)$recentOrder['status'],$paidStatuses,true)||$recentBalance<=0);
+   $recentChipClass=$recentCancelled?'is-cancelled':($recentPaid?'is-paid':'is-unpaid');$recentChipLabel=$recentCancelled?'Cancelled':($recentPaid?'Paid':'Unpaid');
+  ?>
+  <a class="customer-recent-order" href="?view=edit&amp;id=<?=(int)$recentOrder['id']?>">
+   <div class="customer-recent-main"><span class="customer-recent-date"><?=e(date('d M Y',strtotime((string)$recentOrder['created'])))?></span><strong>ANK-<?=str_pad((string)$recentOrder['id'],4,'0',STR_PAD_LEFT)?></strong><small><?=e(customerOrderItemsSummary($accountRecentItems[(int)$recentOrder['id']]??[])?:'No items')?></small></div>
+   <div class="customer-recent-side"><b><?=money($recentOrder['total'])?></b><span class="customer-recent-chip <?=$recentChipClass?>"><?=$recentChipLabel?></span></div>
+  </a>
+  <?php endforeach;?>
+ </div>
+ <?php else:?><p class="muted">No orders yet.</p><?php endif;?>
+</section>
 <div class="customer-account-actions"><?php if(!$customerAccount['archived']):?><a class="button" href="?view=new&amp;customer_id=<?=$customerAccount['id']?>">+ New order</a><?php if($accountLast):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$accountLast['id']?>">Repeat last order</a><?php endif;?><?php endif;?><?php if(trim((string)$customerAccount['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$customerAccount['phone']))?>">Call</a><?php endif;?></div>
 <section class="panel"><form method="post"><?php csrf();?><input type="hidden" name="action" value="customer_pricing"><input type="hidden" name="return" value="customer"><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php customerPricingOptions((string)$customerAccount['pricing_type']);?><button>Save customer pricing</button></form><a class="quick-action" href="?view=reports&amp;type=personal">Personal stock use report</a></section>
 <div class="customer-account-stats">
