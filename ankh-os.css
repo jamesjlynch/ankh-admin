@@ -174,8 +174,20 @@ body .stockboard .stockboard-card{
   backdrop-filter:blur(20px) saturate(160%);
 }
 
-/* Primary actions: gold gradient. Secondary: glass with gold border. */
-.admin-app-shell :is(button,.button):not(.quiet):not(.danger-button),
+/* Primary actions only: gold gradient. Cards, icon controls, filters and
+   links wrapping cards must keep their own surface. */
+.admin-app-shell .button:not(.quiet):not(.danger-button),
+.admin-app-shell button[type=submit]:not(.quiet):not(.danger-button),
+.admin-app-shell form button:not([type]):not(.quiet):not(.danger-button),
+.admin-app-shell :is(
+  .customer-plus,
+  .add-another-product,
+  .voice-order-launch-button,
+  #sc-quick-review,
+  #report-infographic-share,
+  #report-infographic-download
+):not(.quiet):not(.danger-button),
+.admin-app-shell .wizard-actions button:not(.quiet):not(.danger-button),
 .login button,
 .today-board button,
 .reportboard button,
@@ -394,7 +406,7 @@ body .stockboard .stockboard-card{
     padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));
     border:1px solid var(--ankh-os-border);
     border-radius:22px;
-    background:var(--ankh-os-surface);
+    background:rgba(12,12,14,.94)!important;
     box-shadow:0 16px 46px rgba(0,0,0,.55);
     -webkit-backdrop-filter:blur(20px) saturate(160%);
     backdrop-filter:blur(20px) saturate(160%);
@@ -402,11 +414,21 @@ body .stockboard .stockboard-card{
   }
   .admin-app-shell > nav.mobile-nav > a{
     min-width:0;
-    min-height:44px;
+    min-height:48px;
     border-radius:14px;
     color:var(--ankh-os-muted);
-    font-size:13px;
+    font-size:11px;
     font-weight:650;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:nowrap;
+  }
+  .admin-app-shell > nav.mobile-nav > a .nav-label{
+    font-size:11px;
+    line-height:1.05;
+    overflow:visible;
+    text-overflow:clip;
+    white-space:nowrap;
   }
   .admin-app-shell > nav.mobile-nav > a.selected,
   .admin-app-shell > nav.mobile-nav > a[aria-current="page"]{
@@ -415,16 +437,43 @@ body .stockboard .stockboard-card{
     background:rgba(245,166,35,.16);
   }
   .admin-app-shell > nav.mobile-nav > a.nav-new{
-    background:linear-gradient(135deg,#FFE3A3,#E0A63A 55%,#C27A12);
+    position:relative;
+    width:56px;
+    height:56px;
+    min-width:56px;
+    min-height:56px;
+    justify-self:center;
+    align-self:center;
+    transform:translateY(-16px);
+    border-radius:50%;
+    background:linear-gradient(135deg,#FFE3A3,#E0A63A 55%,#C27A12)!important;
     color:#17140E;
-    border-color:rgba(255,215,140,.55);
+    border:3px solid rgba(12,12,14,.94)!important;
+    box-shadow:0 10px 24px rgba(0,0,0,.55),0 0 0 1px rgba(245,166,35,.4);
+    padding:0;
   }
   .admin-app-shell > nav.mobile-nav > a.nav-new .nav-icon{
-    background:transparent;
+    background:transparent!important;
     color:#17140E;
+    width:auto;
+    height:auto;
   }
-  .admin-app-shell #ankh-main{
-    padding-bottom:calc(122px + env(safe-area-inset-bottom,0px));
+  .admin-app-shell > nav.mobile-nav > a.nav-new .nav-icon svg{
+    width:26px;
+    height:26px;
+    stroke:#17140E;
+  }
+  .admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{
+    position:absolute;
+    top:60px;
+    left:50%;
+    transform:translateX(-50%);
+    color:var(--ankh-os-gold-bright);
+    font-size:11px;
+  }
+  .admin-app-shell > #ankh-main,
+  .admin-app-shell > main#ankh-main{
+    padding-bottom:calc(122px + env(safe-area-inset-bottom,0px))!important;
   }
 }
 
@@ -573,7 +622,7 @@ body .today-board .operation-counts strong{
 
 /* Dense admin views: keep the same 13px floor for secondary copy. */
 .admin-app-shell > nav.mobile-nav > a .nav-label,
-.admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{font-size:13px}
+.admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{font-size:11px}
 .admin-app-shell .focus-layout-switch a{font-size:13px}
 .admin-app-shell .cycle-preview-card :is(span,small,strong,a){font-size:13px}
 .admin-app-shell .dashboard-insight>summary span{font-size:13px}
@@ -609,6 +658,118 @@ body .admin-app-shell .fridge-direct-links :is(a,strong,span){font-size:13px!imp
 body .admin-app-shell .stock-overview-links :is(strong,small,span){font-size:13px!important}
 body .admin-app-shell .stock-manage-link{min-height:44px!important}
 body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-stock-v2,.combined-stock-money) :is(small,b){font-size:13px!important}
+
+/* App-bar icon controls: 44px glass buttons, never gold blobs. */
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button,.ankh-assistant-button){
+  align-items:center;
+  justify-content:center;
+  flex:0 0 44px;
+  width:44px!important;
+  min-width:44px!important;
+  height:44px!important;
+  min-height:44px!important;
+  margin:0;
+  padding:0!important;
+  border:1px solid rgba(245,166,35,.45)!important;
+  border-radius:50%!important;
+  background:rgba(255,255,255,.06)!important;
+  color:var(--ankh-os-gold-bright)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button,.ankh-assistant-button) svg{
+  width:20px;
+  height:20px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+}
+.admin-app-shell .assistant-button-ring,
+.admin-app-shell .assistant-button-label{display:none!important}
+.admin-app-shell .assistant-button-icon{font-size:18px;line-height:1}
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button) b{
+  position:absolute;
+  right:-4px;
+  top:-4px;
+  min-width:18px;
+  height:18px;
+  padding:0 4px;
+  border:1px solid rgba(245,166,35,.55);
+  border-radius:999px;
+  background:#d94b3f!important;
+  color:#FFE3A3!important;
+  font-size:10px;
+  line-height:16px;
+  text-align:center;
+  box-shadow:0 2px 6px rgba(0,0,0,.45);
+}
+
+/* Sign out lives in the More view on compact screens and in the desktop sidebar. */
+.more-signout{display:none}
+@media(max-width:1023px){
+  .admin-app-shell>aside>form.sidebar-signout{display:none!important}
+  .admin-app-shell>aside:has(>form.sidebar-signout) .app-brand-row{padding-right:0!important}
+  .admin-app-shell .more-signout{display:block;margin:18px 0 0}
+  .admin-app-shell .more-signout button{display:flex;align-items:center;justify-content:center;width:100%;min-height:48px}
+}
+@media(min-width:1024px){
+  .admin-app-shell .more-signout{display:none!important}
+}
+
+/* Tab rows keep each label at its natural width and scroll sideways. */
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock,
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes{
+  display:flex!important;
+  flex-direction:row!important;
+  flex-wrap:nowrap!important;
+  grid-template-columns:none!important;
+  grid-auto-flow:row!important;
+  align-items:stretch;
+  justify-content:flex-start!important;
+  gap:8px;
+  width:100%!important;
+  max-width:100%!important;
+  overflow-x:auto!important;
+  overflow-y:hidden!important;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x proximity;
+  padding:4px 2px 10px!important;
+}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock::-webkit-scrollbar,
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes::-webkit-scrollbar{display:none}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a,
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes>a{
+  flex:0 0 auto!important;
+  width:auto!important;
+  min-width:max-content!important;
+  max-width:none!important;
+  justify-self:auto!important;
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+  scroll-snap-align:start;
+}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a :is(strong,small,span,b,i,em),
+.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes>a :is(strong,small,span,b,i,em){
+  white-space:nowrap!important;
+  overflow:visible!important;
+  text-overflow:clip!important;
+}
+
+/* Filter pills: only the pressed/active pill is gold. */
+.admin-app-shell .customer-intelligence-filters>button:not(.selected):not([aria-current]){
+  background:rgba(20,20,22,.6)!important;
+  border:1px solid var(--ankh-os-border)!important;
+  color:var(--ankh-os-muted)!important;
+}
+.admin-app-shell .customer-intelligence-filters>button:is(.selected,[aria-current="page"],[aria-current="true"]){
+  background:rgba(245,166,35,.16)!important;
+  border-color:rgba(245,166,35,.55)!important;
+  color:var(--ankh-os-gold-bright)!important;
+}
 
 /* Press feedback and gentle transitions. */
 @media(prefers-reduced-motion:no-preference){
