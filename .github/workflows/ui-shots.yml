@@ -18,9 +18,7 @@ jobs:
           npm ci --ignore-scripts
           npm install --no-save --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps webkit
-      - run: node tests/today-shots.mjs
-      - run: node tests/neworder-shots.mjs
-      - run: node tests/upgrades-shots.mjs
+      - run: node tests/fullapp-shots.mjs
       - name: Commit results to this audit branch
         if: always()
         run: |
