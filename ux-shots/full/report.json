@@ -1,0 +1,272 @@
+{
+  "generated": "2026-11-07T22:35:23.319Z",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 2
+  },
+  "smoke": false,
+  "views": {
+    "login": {
+      "title": "Enter your PIN.",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 0,
+      "smallTextNodes": 1,
+      "consoleErrors": [],
+      "loadMs": 223,
+      "path": ""
+    },
+    "enquiries": {
+      "title": "Customer enquiries",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 991,
+      "path": "?view=enquiries"
+    },
+    "supplies": {
+      "title": "Business Supplies",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 9,
+      "consoleErrors": [],
+      "loadMs": 116,
+      "path": "?view=supplies"
+    },
+    "activity": {
+      "title": "Order & payment activity",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 116,
+      "path": "?view=activity"
+    },
+    "dashboard": {
+      "title": "Good evening, Jay",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 19,
+      "consoleErrors": [],
+      "loadMs": 191,
+      "path": "?view=dashboard"
+    },
+    "orders": {
+      "title": "Orders",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 17,
+      "smallTextNodes": 255,
+      "consoleErrors": [],
+      "loadMs": 387,
+      "path": "?view=orders"
+    },
+    "packing": {
+      "title": "Packing station",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 217,
+      "path": "?view=packing"
+    },
+    "packing_centre": {
+      "title": "Packing Centre",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 7,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 97,
+      "path": "?view=packing_centre"
+    },
+    "new": {
+      "title": "New order",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 3,
+      "smallTextNodes": 9,
+      "consoleErrors": [],
+      "loadMs": 137,
+      "path": "?view=new"
+    },
+    "edit": {
+      "title": "Edit order",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 128,
+      "path": "?view=edit"
+    },
+    "products": {
+      "title": "Products",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 220,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 360,
+      "path": "?view=products"
+    },
+    "product": {
+      "title": "Product not found",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 232,
+      "path": "?view=product"
+    },
+    "supplier": {
+      "title": "Supplier & Profit",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 9,
+      "consoleErrors": [],
+      "loadMs": 80,
+      "path": "?view=supplier"
+    },
+    "website_cms": {
+      "title": "Customer website CMS",
+      "overflowPx": 60,
+      "tapTargetsUnder44": 3,
+      "smallTextNodes": 46,
+      "consoleErrors": [],
+      "loadMs": 100,
+      "path": "?view=website_cms"
+    },
+    "stock": {
+      "title": "Stock control",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 12,
+      "smallTextNodes": 23,
+      "consoleErrors": [],
+      "loadMs": 117,
+      "path": "?view=stock"
+    },
+    "fridge_jay": {
+      "title": "Jay’s fridge",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 20,
+      "smallTextNodes": 114,
+      "consoleErrors": [],
+      "loadMs": 130,
+      "path": "?view=fridge_jay"
+    },
+    "fridge_tony": {
+      "title": "Tony’s fridge",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 20,
+      "smallTextNodes": 113,
+      "consoleErrors": [],
+      "loadMs": 200,
+      "path": "?view=fridge_tony"
+    },
+    "customers": {
+      "title": "Customers",
+      "overflowPx": 5,
+      "tapTargetsUnder44": 3,
+      "smallTextNodes": 47,
+      "consoleErrors": [],
+      "loadMs": 196,
+      "path": "?view=customers"
+    },
+    "customer": {
+      "title": "Customer account",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 121,
+      "path": "?view=customer"
+    },
+    "balances": {
+      "title": "Customer balances",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 7,
+      "smallTextNodes": 75,
+      "consoleErrors": [],
+      "loadMs": 106,
+      "path": "?view=balances"
+    },
+    "reta": {
+      "title": "Upcoming cycles",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 84,
+      "consoleErrors": [],
+      "loadMs": 199,
+      "path": "?view=reta"
+    },
+    "sheets": {
+      "title": "Google Sheets",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 274,
+      "path": "?view=sheets"
+    },
+    "reports": {
+      "title": "Reports",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 5,
+      "smallTextNodes": 22,
+      "consoleErrors": [],
+      "loadMs": 243,
+      "path": "?view=reports"
+    },
+    "reorder": {
+      "title": "Reorder planner",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 79,
+      "consoleErrors": [],
+      "loadMs": 223,
+      "path": "?view=reorder"
+    },
+    "shipping": {
+      "title": "Shipping Intelligence",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 3,
+      "smallTextNodes": 35,
+      "consoleErrors": [],
+      "loadMs": 141,
+      "path": "?view=shipping"
+    },
+    "more": {
+      "title": "More",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 115,
+      "path": "?view=more"
+    },
+    "run": {
+      "title": "Today’s delivery run",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 4,
+      "smallTextNodes": 12,
+      "consoleErrors": [],
+      "loadMs": 141,
+      "path": "?view=run"
+    },
+    "business_alerts": {
+      "title": "Business Alerts",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 8,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 243,
+      "path": "?view=business_alerts"
+    },
+    "saved": {
+      "title": "",
+      "overflowPx": 0,
+      "tapTargetsUnder44": 2,
+      "smallTextNodes": 6,
+      "consoleErrors": [],
+      "loadMs": 227,
+      "path": "?view=saved"
+    }
+  }
+}

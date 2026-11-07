@@ -1,0 +1,34 @@
+login: Enter your PIN. · overflow 0px · 0 tap<44 · 1 text<12 · 223ms
+enquiries: Customer enquiries · overflow 0px · 2 tap<44 · 6 text<12 · 991ms
+supplies: Business Supplies · overflow 0px · 2 tap<44 · 9 text<12 · 116ms
+activity: Order & payment activity · overflow 0px · 2 tap<44 · 6 text<12 · 116ms
+dashboard: Good evening, Jay · overflow 0px · 2 tap<44 · 19 text<12 · 191ms
+orders: Orders · overflow 0px · 17 tap<44 · 255 text<12 · 387ms
+packing: Packing station · overflow 0px · 2 tap<44 · 6 text<12 · 217ms
+packing_centre: Packing Centre · overflow 0px · 7 tap<44 · 6 text<12 · 97ms
+new: New order · overflow 0px · 3 tap<44 · 9 text<12 · 137ms
+edit: Edit order · overflow 0px · 2 tap<44 · 6 text<12 · 128ms
+products: Products · overflow 0px · 220 tap<44 · 6 text<12 · 360ms
+product: Product not found · overflow 0px · 2 tap<44 · 6 text<12 · 232ms
+supplier: Supplier & Profit · overflow 0px · 2 tap<44 · 9 text<12 · 80ms
+website_cms: Customer website CMS · overflow 60px · 3 tap<44 · 46 text<12 · 100ms
+stock: Stock control · overflow 0px · 12 tap<44 · 23 text<12 · 117ms
+fridge_jay: Jay’s fridge · overflow 0px · 20 tap<44 · 114 text<12 · 130ms
+fridge_tony: Tony’s fridge · overflow 0px · 20 tap<44 · 113 text<12 · 200ms
+customers: Customers · overflow 5px · 3 tap<44 · 47 text<12 · 196ms
+customer: Customer account · overflow 0px · 2 tap<44 · 6 text<12 · 121ms
+balances: Customer balances · overflow 0px · 7 tap<44 · 75 text<12 · 106ms
+reta: Upcoming cycles · overflow 0px · 2 tap<44 · 84 text<12 · 199ms
+sheets: Google Sheets · overflow 0px · 2 tap<44 · 6 text<12 · 274ms
+reports: Reports · overflow 0px · 5 tap<44 · 22 text<12 · 243ms
+reorder: Reorder planner · overflow 0px · 2 tap<44 · 79 text<12 · 223ms
+shipping: Shipping Intelligence · overflow 0px · 3 tap<44 · 35 text<12 · 141ms
+more: More · overflow 0px · 2 tap<44 · 6 text<12 · 115ms
+run: Today’s delivery run · overflow 0px · 4 tap<44 · 12 text<12 · 141ms
+business_alerts: Business Alerts · overflow 0px · 8 tap<44 · 6 text<12 · 243ms
+saved: (no h1) · overflow 0px · 2 tap<44 · 6 text<12 · 227ms
+?view=stockboard navigation: page.goto: Timeout 20000ms exceeded.
+Call log:
+  - navigating to "http://127.0.0.1:18771/index.php?view=stockboard", waiting until "domcontentloaded"
+
+run error Error: page.evaluate: TypeError: Argument 1 ('root') to Document.createTreeWalker must be an instance of Node
