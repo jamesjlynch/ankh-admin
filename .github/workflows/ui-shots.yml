@@ -7,7 +7,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,6 +20,7 @@ jobs:
           npx playwright install --with-deps webkit
       - run: node tests/today-shots.mjs
       - run: node tests/neworder-shots.mjs
+      - run: node tests/upgrades-shots.mjs
       - name: Commit results to this audit branch
         if: always()
         run: |
