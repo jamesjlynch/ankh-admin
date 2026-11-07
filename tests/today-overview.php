@@ -25,13 +25,13 @@ check($data['today_sales']===1200,'Sales use payment date and include delivery f
 check($data['today_orders']===3,'Orders exclude cancellations and use London local dates.');
 check($data['unpaid']===3350&&$data['unpaid_orders']===4,'Outstanding balances must subtract partial payments and exclude cancelled orders.');
 check($data['delivered_unpaid']===750,'Delivered unpaid must remain visible.');
-check($data['to_deliver']===3&&$data['overdue']===1,'Future planned deliveries stay open; delivered orders leave the queue.');
+check($data['to_deliver']===4&&$data['overdue']===1,'Future planned and unpaid undated deliveries stay open; delivered orders leave the queue.');
 check(count($data['days'])===7&&$data['week_sales']===2200,'Week includes seven days but excludes future dated sales.');
 check($data['days'][0]['date']==='2026-10-12'&&$data['days'][3]['sales']===0,'Week begins Monday and future days are empty.');
 $db->exec("UPDATE orders SET assigned_to='James',reconstituted=1 WHERE id=1; UPDATE orders SET assigned_to='Tony',packaged=1 WHERE id=5; UPDATE orders SET scheduled_delivery_date='2026-10-14' WHERE id=6");
 $ops=todayOverviewData($db,$now);
 check($ops['preparation']===['pending'=>2,'reconstituted'=>1,'packaged'=>1],'Preparation stages must be exclusive and exclude cancelled/delivered orders.');
-check($ops['workload']===['Jay'=>1,'Tony'=>1,'Unassigned'=>1],'Delivery workload must count pending deliveries once and map James to Jay.');
+check($ops['workload']===['Jay'=>1,'Tony'=>1,'Unassigned'=>2],'Delivery workload must count every pending delivery once, including unpaid undated orders, and map James to Jay.');
 check($ops['due_today']===1&&$ops['overdue']===1&&$ops['next_delivery']==='2026-10-30','Delivery summary must distinguish due, overdue and future.');
 $board=preparationBoardData($db,$now);
 check(array_column($board['columns']['pending'],'id')===[6,2],'Due-today preparation must precede undated orders.');
