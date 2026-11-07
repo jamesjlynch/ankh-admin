@@ -10,7 +10,7 @@ cd "$temp/repo"
 git init -q
 git config user.email "tests@ankh.invalid"
 git config user.name "ANKH CI"
-for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-categories.php lab-accessory-pricing.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
+for file in .htaccess business-alerts.php auth-users.php customer-catalogue.php catalogue-categories.php lab-accessory-pricing.php customer-cms.php customer-cms.css customer-cms.js public-catalogue-core.php public-catalogue.php catalogue-admin.js admin-visuals.js admin-visuals.css premium-v2.css product-v2.css product-v2.php packing-v2.css packing-v2.php packing-v2-support.php packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css ankh-os.css index.php supplier-centre.php shipping-intelligence.php setup.php style.css style.min.css style.core.min.css manifest.webmanifest service-worker.js offline.html icon.svg splash.svg; do
   case "$file" in
     *.php) printf '%s\n' '<?php echo "ok";' > "$file" ;;
     *) printf '%s\n' "fixture $file" > "$file" ;;
