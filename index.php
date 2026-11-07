@@ -4040,6 +4040,38 @@ function futureDeliveryFields(array $order=[]):void{
  <?php
 }
 function money($n){return '£'.number_format((float)$n/100,2);}
+function todaySparklineSvg(array $daily):string{
+ $values=array_values(array_map('floatval',$daily));
+ if(!$values)$values=[0.0];
+ $width=320.0;$height=88.0;$pad=8.0;$count=count($values);
+ $max=max(1.0,max($values));
+ $points=[];
+ foreach($values as $i=>$value){
+  $x=$count>1?$pad+($width-2*$pad)*($i/($count-1)):$width/2;
+  $y=$height-$pad-($height-2*$pad)*($value/$max);
+  $points[]=[$x,$y];
+ }
+ if($count===1)$points[]=$points[0];
+ $r=static fn(float $n):string=>rtrim(rtrim(number_format($n,2,'.',''),'0'),'.');
+ $line='M'.$r($points[0][0]).' '.$r($points[0][1]);
+ $n=count($points);
+ for($i=0;$i<$n-1;$i++){
+  $p0=$points[max(0,$i-1)];$p1=$points[$i];$p2=$points[$i+1];$p3=$points[min($n-1,$i+2)];
+  $c1x=$p1[0]+($p2[0]-$p0[0])/6;$c1y=$p1[1]+($p2[1]-$p0[1])/6;
+  $c2x=$p2[0]-($p3[0]-$p1[0])/6;$c2y=$p2[1]-($p3[1]-$p1[1])/6;
+  $line.=' C'.$r($c1x).' '.$r($c1y).' '.$r($c2x).' '.$r($c2y).' '.$r($p2[0]).' '.$r($p2[1]);
+ }
+ $base=$height-$pad;
+ $area=$line.' L'.$r($points[$n-1][0]).' '.$r($base).' L'.$r($points[0][0]).' '.$r($base).' Z';
+ return '<svg class="today-sparkline" viewBox="0 0 320 88" preserveAspectRatio="none" aria-hidden="true" focusable="false">'
+  .'<defs>'
+  .'<linearGradient id="ankh-today-spark-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFB547" stop-opacity=".34"/><stop offset="1" stop-color="#F5A623" stop-opacity="0"/></linearGradient>'
+  .'<linearGradient id="ankh-today-spark-line" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#C27A12"/><stop offset="1" stop-color="#FFD27A"/></linearGradient>'
+  .'</defs>'
+  .'<path class="today-spark-area" d="'.$area.'" fill="url(#ankh-today-spark-fill)"/>'
+  .'<path class="today-spark-line" d="'.$line.'" pathLength="1" fill="none" stroke="url(#ankh-today-spark-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>'
+  .'</svg>';
+}
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 $view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
@@ -4379,15 +4411,34 @@ usort($recurringStock30,fn($a,$b)=>(($b['shortfall']??-1)<=>($a['shortfall']??-1
 $cycleStockRows=[];foreach(($cycleForecast['stock']??[]) as $productName=>$needed){$stockProduct=$productStockMap[strtolower(trim((string)$productName))]??null;$current=$stockProduct&&(int)($stockProduct['stock_tracking']??0)===1&&$stockProduct['stock_qty']!==null?(int)$stockProduct['stock_qty']:null;$cycleStockRows[]=['name'=>$productName,'needed'=>(int)$needed,'current'=>$current,'shortfall'=>$current===null?null:max(0,(int)$needed-$current)];}
 usort($cycleStockRows,fn($a,$b)=>(($b['shortfall']??-1)<=>($a['shortfall']??-1))?:strcmp((string)$a['name'],(string)$b['name']));
 $todayStart=$now->setTime(0,0)->getTimestamp();$weekStart=$now->modify('monday this week')->setTime(0,0)->getTimestamp();$monthStart=$now->modify('first day of this month')->setTime(0,0)->getTimestamp();
-$todaySales=0;$monthSales=0;$unpaidBalance=0;
+$lastMonthStart=$now->modify('first day of last month')->setTime(0,0)->getTimestamp();
+$monthDayCount=max(1,(int)$now->format('j'));$monthDailySales=array_fill(1,$monthDayCount,0);
+$todaySales=0;$monthSales=0;$lastMonthSales=0;$unpaidBalance=0;
 foreach($orders as $dashboardOrder){
  $salesTs=strtotime((string)($dashboardOrder['payment_date']?:$dashboardOrder['created']))?:0;
  if(in_array($dashboardOrder['status'],$paidStatuses,true)){
   if($salesTs>=$todayStart)$todaySales+=(int)$dashboardOrder['total'];
-  if($salesTs>=$monthStart)$monthSales+=(int)$dashboardOrder['total'];
+  if($salesTs>=$monthStart){
+   $monthSales+=(int)$dashboardOrder['total'];
+   $salesDay=(int)(new DateTimeImmutable('@'.$salesTs))->setTimezone($tz)->format('j');
+   if(isset($monthDailySales[$salesDay]))$monthDailySales[$salesDay]+=(int)$dashboardOrder['total'];
+  }elseif($salesTs>=$lastMonthStart){
+   $lastMonthSales+=(int)$dashboardOrder['total'];
+  }
  }
  if(!isBackOrder($dashboardOrder)&&$dashboardOrder['status']!=='Cancelled')$unpaidBalance+=max(0,(int)$dashboardOrder['total']-(int)($dashboardOrder['paid_amount']??0));
 }
+$monthDeltaPercent=$lastMonthSales>0?(int)round((($monthSales-$lastMonthSales)/$lastMonthSales)*100):0;
+$adminFirstName='Jay';
+if(!empty($_SESSION['admin_user_id'])){
+ $adminNameQuery=$db->prepare('SELECT username FROM admin_users WHERE id=?');
+ $adminNameQuery->execute([(int)$_SESSION['admin_user_id']]);
+ $adminUsername=trim((string)($adminNameQuery->fetchColumn()?:''));
+ if($adminUsername!==''){$adminNameParts=preg_split('/\s+/',$adminUsername);$adminFirstName=(string)($adminNameParts[0]??$adminUsername);}
+}
+$adminFirstName=ucfirst($adminFirstName);
+$greetingHour=(int)$now->format('G');
+$greeting=$greetingHour<12?'Good morning':($greetingHour<18?'Good afternoon':'Good evening');
 $awaitingPayment=array_values(array_filter($orders,fn($o)=>!isBackOrder($o)&&$o['status']!=='Cancelled' && max(0,(int)$o['total']-(int)($o['paid_amount']??0))>0));
 $futureDeliveries=array_values(array_filter($orders,fn($o)=>deliveryBoardSection($o,$now->format('Y-m-d'))==='future'));
 usort($futureDeliveries,fn($a,$b)=>strcmp((string)$a['scheduled_delivery_date'],(string)$b['scheduled_delivery_date']) ?: (int)$a['id']<=>(int)$b['id']);
@@ -4849,9 +4900,9 @@ if($view==='reportsboard'){
 <div class="admin-app-shell">
 <a class="ux-skip-link" href="#ankh-main">Skip to main content</a>
 <div class="ios-status-bar" aria-hidden="true"></div>
-<aside><div class="app-brand-row"><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a><button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
+<aside><div class="app-brand-row"><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a><?php if($voiceOrderingEnabled):?><button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
  <span class="assistant-button-ring" aria-hidden="true"></span><span class="assistant-button-icon" aria-hidden="true">🎙</span><span class="assistant-button-label">Talk to ANKH</span>
-</button></div>
+</button><?php endif;?></div>
 <nav class="desktop-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
 <a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
@@ -4897,7 +4948,13 @@ if(!in_array($dashboardLayout,['cards','dispatch'],true))$dashboardLayout='cards
 $_SESSION['dashboard_layout']=$dashboardLayout;
 $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaitingPayment,'delivery'=>$dashboardDeliveries,'future'=>$futureDeliveries,default=>$dashboardAll},$now->format('Y-m-d'));
 ?>
-<div class="heading dashboard-heading"><div><p class="focus-date"><?=e($now->format('l, j F'))?></p><h1>Today, in focus.</h1><p class="muted page-description">Your orders. Your next steps.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<div class="heading dashboard-heading today-heading"><div><p class="focus-date today-date"><?=e($now->format('l j F'))?></p><h1 class="today-greeting"><?=e($greeting)?>, <span class="today-greeting-name"><?=e($adminFirstName)?></span></h1><p class="muted page-description">Your orders. Your next steps.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<section class="today-hero" aria-labelledby="today-hero-title">
+ <div class="today-hero-head"><p class="today-hero-label" id="today-hero-title">THIS MONTH</p><?php if($lastMonthSales>0):?><span class="today-hero-pill <?=$monthDeltaPercent<0?'is-down':'is-up'?>"><?=$monthDeltaPercent<0?'▼':'▲'?> <?=$monthDeltaPercent<0?'':'+'?><?=$monthDeltaPercent?>% vs <?=e($now->modify('first day of last month')->format('F'))?></span><?php endif;?></div>
+ <p class="today-hero-total" data-ankh-count="<?=$monthSales?>" data-ankh-format="money"><?=money($monthSales)?></p>
+ <p class="today-hero-caption">Sales so far this month</p>
+ <div class="today-hero-spark" data-ankh-sparkline><?=todaySparklineSvg($monthDailySales)?></div>
+</section>
 <nav class="ux-mobile-actions" aria-label="Quick actions">
  <?php if($premiumV2Preview):?><a href="?view=packing"><span aria-hidden="true">▣</span><strong>Packing station</strong></a><?php endif;?>
  <a href="?view=packing_centre"><span aria-hidden="true">▣</span><strong>Packing Centre</strong></a>
@@ -4908,12 +4965,12 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
  <a href="?view=reports"><span aria-hidden="true">↗</span><strong>Reports</strong></a>
 </nav>
 <div class="dashboard-stats">
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=today_sales"><span>Today's sales</span><strong><?=money($todaySales)?></strong><small>Completed sales</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
-<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>All-time gross profit</span><strong><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
-<a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=today_sales"><span>Today's sales</span><strong data-ankh-count="<?=$todaySales?>" data-ankh-format="money"><?=money($todaySales)?></strong><small>Completed sales</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong data-ankh-count="<?=$monthSales?>" data-ankh-format="money"><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
+<a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>All-time gross profit</span><strong data-ankh-count="<?=$grossProfit?>" data-ankh-format="money"><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong data-ankh-count="<?=$unpaidBalance?>" data-ankh-format="money"><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
+<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong data-ankh-count="<?=count($awaitingDelivery)+count($futureDeliveries)?>" data-ankh-format="number"><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
+<a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong data-ankh-count="<?=count($lowStock)?>" data-ankh-format="number"><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
 <section class="todo-board dashboard-action-queue" id="dashboard-actions">
 <?php $opsNeedsPrep=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)==='pending'));$opsReady=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)==='packaged'));$opsOverdue=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)!=='closed' && trim((string)($o['scheduled_delivery_date']??''))!=='' && (string)$o['scheduled_delivery_date']<$now->format('Y-m-d')));?>
@@ -7272,4 +7329,5 @@ foreach($productCatalogForJs as $photoCatalogProduct){
 ?>
 <script id="ankh-visual-product-data" type="application/json"><?=json_encode($ankhVisualProducts,JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE)?></script>
 <script src="admin-visuals.js?v=<?=e((string)(@filemtime(__DIR__.'/admin-visuals.js') ?: 0))?>" defer></script>
+<script src="ankh-os.js?v=<?=e((string)(@filemtime(__DIR__.'/ankh-os.js') ?: 0))?>" defer></script>
 </body></html>

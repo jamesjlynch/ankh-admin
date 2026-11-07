@@ -399,7 +399,7 @@ body .stockboard .stockboard-card{
     bottom:calc(10px + env(safe-area-inset-bottom,0px));
     width:auto;
     min-height:66px;
-    padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px));
+    padding:8px;
     border:1px solid var(--ankh-os-border);
     border-radius:22px;
     background:rgba(12,12,14,.94)!important;
@@ -786,5 +786,185 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
     transition-duration:.01ms!important;
     animation-duration:.01ms!important;
     scroll-behavior:auto!important;
+  }
+}
+
+/* Today screen: approved hero, KPI typography and motion hooks. */
+.admin-app-shell .today-heading .today-date{
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ankh-os-muted);
+}
+.admin-app-shell .today-heading .today-greeting{
+  margin:4px 0 0;
+  font-size:clamp(34px,5vw,52px);
+  line-height:.98;
+  letter-spacing:1px;
+  color:var(--ankh-os-text);
+}
+.admin-app-shell .today-greeting .today-greeting-name{
+  color:var(--ankh-os-gold-bright);
+}
+@supports ((background-clip:text) or (-webkit-background-clip:text)){
+  .admin-app-shell .today-greeting .today-greeting-name{
+    background:linear-gradient(135deg,#FFE3A3 0%,#FFB547 48%,#C27A12 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+}
+
+.admin-app-shell .today-hero{
+  position:relative;
+  overflow:hidden;
+  margin:0 0 18px;
+  padding:20px 20px 14px;
+  border:1px solid rgba(245,166,35,.28);
+  border-radius:22px;
+  background:
+    radial-gradient(ellipse 90% 80% at 100% 0%,rgba(245,166,35,.18),transparent 62%),
+    radial-gradient(ellipse 70% 90% at 0% 100%,rgba(255,181,71,.08),transparent 64%),
+    linear-gradient(145deg,rgba(32,28,21,.9),rgba(15,15,17,.9));
+  box-shadow:0 20px 50px rgba(0,0,0,.46),inset 0 1px 0 rgba(255,255,255,.045);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  backdrop-filter:blur(20px) saturate(160%);
+}
+.admin-app-shell .today-hero-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.admin-app-shell .today-hero-label{
+  margin:0;
+  color:var(--ankh-os-gold);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+}
+.admin-app-shell .today-hero-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:5px 10px;
+  border:1px solid rgba(245,166,35,.35);
+  border-radius:999px;
+  background:rgba(245,166,35,.13);
+  color:#FFC96B;
+  font-size:11px;
+  font-weight:750;
+  line-height:1.3;
+  white-space:nowrap;
+}
+.admin-app-shell .today-hero-pill.is-down{
+  border-color:rgba(196,104,86,.4);
+  background:rgba(196,104,86,.13);
+  color:#E0A094;
+}
+.admin-app-shell .today-hero-total{
+  margin:8px 0 0;
+  font-family:"Bebas Neue","Inter",ui-sans-serif,system-ui,sans-serif;
+  font-size:clamp(52px,12vw,86px);
+  font-weight:400;
+  line-height:.92;
+  letter-spacing:1.5px;
+  color:var(--ankh-os-gold);
+}
+@supports ((background-clip:text) or (-webkit-background-clip:text)){
+  .admin-app-shell .today-hero-total{
+    background:linear-gradient(135deg,#FFF0CB 0%,#FFD27A 26%,#FFB547 55%,#C27A12 100%);
+    -webkit-background-clip:text;
+    background-clip:text;
+    -webkit-text-fill-color:transparent;
+    text-shadow:0 10px 34px rgba(245,166,35,.16);
+  }
+}
+.admin-app-shell .today-hero-caption{
+  margin:2px 0 0;
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  line-height:1.4;
+}
+.admin-app-shell .today-hero-spark{
+  height:92px;
+  margin:10px -4px 0;
+}
+.admin-app-shell .today-sparkline{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+.admin-app-shell .today-spark-line{
+  filter:drop-shadow(0 2px 6px rgba(245,166,35,.28));
+}
+
+.admin-app-shell .dashboard-stats .dashboard-stat-card>span{
+  font-size:11px;
+  font-weight:750;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  color:var(--ankh-os-muted);
+}
+.admin-app-shell .dashboard-stats .dashboard-stat-card>strong{
+  font-family:"Bebas Neue","Inter",ui-sans-serif,system-ui,sans-serif;
+  font-size:32px;
+  font-weight:400;
+  letter-spacing:1px;
+  line-height:1;
+}
+
+/* Tidy the worklist panel so its rounded border stays clear of the content. */
+.admin-app-shell .todo-board.dashboard-action-queue{
+  padding:16px 16px 18px;
+}
+
+@media(max-width:760px){
+  .admin-app-shell .today-heading .today-greeting{font-size:36px}
+  .admin-app-shell .today-hero{padding:16px 15px 12px;border-radius:20px;margin-bottom:14px}
+  .admin-app-shell .today-hero-total{font-size:clamp(50px,15vw,70px)}
+  .admin-app-shell .today-hero-spark{height:78px}
+  .admin-app-shell .dashboard-stats .dashboard-stat-card>strong{font-size:27px}
+  .admin-app-shell .todo-board.dashboard-action-queue{padding:14px 12px 16px}
+}
+
+/* JS-driven motion, only when the visitor has not asked for reduced motion. */
+@keyframes ankh-rise{
+  from{opacity:0;transform:translateY(14px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes ankh-gold-pulse{
+  0%,100%{box-shadow:0 10px 24px rgba(0,0,0,.55),0 0 0 1px rgba(245,166,35,.4),0 0 0 0 rgba(245,166,35,0)}
+  50%{box-shadow:0 10px 24px rgba(0,0,0,.55),0 0 0 1px rgba(245,166,35,.55),0 0 0 9px rgba(245,166,35,0)}
+}
+@media(prefers-reduced-motion:no-preference){
+  html.ankh-motion .ankh-reveal.ankh-in{
+    animation:ankh-rise .5s cubic-bezier(.2,.7,.2,1) backwards;
+    animation-delay:var(--ankh-delay,0ms);
+  }
+  html.ankh-motion .today-hero-spark .today-spark-line{
+    stroke-dasharray:1;
+    stroke-dashoffset:1;
+    transition:stroke-dashoffset 1.15s ease .1s;
+  }
+  html.ankh-motion .today-hero-spark.is-drawn .today-spark-line{stroke-dashoffset:0}
+  html.ankh-motion .today-hero-spark .today-spark-area{
+    opacity:0;
+    transition:opacity .9s ease .35s;
+  }
+  html.ankh-motion .today-hero-spark.is-drawn .today-spark-area{opacity:1}
+  html.ankh-motion .admin-app-shell > nav.mobile-nav > a.nav-new{
+    animation:ankh-gold-pulse 3.6s ease-in-out 1.1s infinite;
+  }
+  .admin-app-shell .ankh-press{
+    transform:scale(.972)!important;
+    transition:transform .1s ease!important;
+  }
+  .admin-app-shell > nav.mobile-nav > a.nav-new.ankh-press{
+    transform:translateY(-16px) scale(.93)!important;
   }
 }
