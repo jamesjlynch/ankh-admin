@@ -1,0 +1,792 @@
+{
+ "generated": "2026-11-07T13:39:29.965Z",
+ "devices": {
+  "iPhone 15 Pro": [
+   {
+    "view": "dashboard",
+    "status": 200,
+    "ms": 281,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "TODAY, IN FOCUS.",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 368,
+    "smallTargets": 11,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "input \"1\"",
+     "a.cycle-preview-link \"\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 63,
+    "tinySample": [
+     "b \"1\"",
+     "b \"4\"",
+     "b \"0\"",
+     "span.focus-order-ref \"ANK-0001 · OVERDUE\"",
+     "p.operations-step-hint \"Next: reconstitute\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "orders",
+    "status": 200,
+    "ms": 271,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "ORDERS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 373,
+    "smallTargets": 11,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "button.quiet.payment-remove \"Remove payment\"",
+     "input \"1\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 84,
+    "tinySample": [
+     "b \"1\"",
+     "span.delivery-assignee.assignee-unassigned \"Unassigned\"",
+     "span.focus-status.focus-paid \"Paid\"",
+     "span.focus-status.focus-paid \"Delivered\"",
+     "span.scheduled-delivery-badge \"Planned 06 Nov\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "new",
+    "status": 200,
+    "ms": 250,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "NEW ORDER",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 88,
+    "smallTargets": 3,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "input#future-delivery \"1\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "div.wizard-actions.wizard-actions-next \"Next · Add products →\"",
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "customers",
+    "status": 200,
+    "ms": 71,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "CUSTOMERS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 183,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 31,
+    "tinySample": [
+     "b \"1\"",
+     "small \"1 order · 01 Nov 26\"",
+     "span.money \"\"",
+     "span \"\"",
+     "b \"\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "stock",
+    "status": 200,
+    "ms": 225,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "STOCK CONTROL",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 93,
+    "smallTargets": 10,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "button \"\"",
+     "a \"Open Jay’s fridge\n→\"",
+     "a \"Open Tony’s fridge\n→\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 3,
+    "tinySample": [
+     "b \"1\"",
+     "span \"Manage stock\"",
+     "i \"LIVE BALANCE\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "products",
+    "status": 200,
+    "ms": 473,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "PRODUCTS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 3069,
+    "smallTargets": 218,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "input \"35\"",
+     "input \"34\"",
+     "input \"33\"",
+     "input \"2\"",
+     "input \"1\"",
+     "input \"11\""
+    ],
+    "zoomInputs": 1,
+    "zoomSample": [
+     "select \"accessory\""
+    ],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "reorder",
+    "status": 200,
+    "ms": 121,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "REORDER PLANNER",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 63,
+    "smallTargets": 3,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "a \"Set up stock control →\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 8,
+    "tinySample": [
+     "b \"1\"",
+     "p.eyebrow \"STOCK PLANNING\"",
+     "small \"Reorder now\"",
+     "small \"Packs suggested\"",
+     "small \"Units to order\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "supplier",
+    "status": 200,
+    "ms": 66,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "SUPPLIER & PROFIT",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 56,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 4,
+    "tinySample": [
+     "b \"1\"",
+     "small \"Supplier products\"",
+     "small \"Matched to ANKH\"",
+     "small \"Awaiting matching\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "supplies",
+    "status": 200,
+    "ms": 158,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "BUSINESS SUPPLIES",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 63,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 4,
+    "tinySample": [
+     "b \"1\"",
+     "span \"0\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "packing_centre",
+    "status": 200,
+    "ms": 179,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "PACKING CENTRE",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 71,
+    "smallTargets": 6,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "input \"4\"",
+     "input \"3\"",
+     "input \"2\"",
+     "input \"1\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "packing",
+    "status": 200,
+    "ms": 141,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "PACKING STATION",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 51,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "shipping",
+    "status": 200,
+    "ms": 116,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "SHIPPING INTELLIGENCE",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 66,
+    "smallTargets": 3,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "a.ship-back.ship-head-back \"← More\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 29,
+    "tinySample": [
+     "b \"1\"",
+     "div.ship-kicker \"OPERATIONS · SHIPPING\"",
+     "small \"8\"",
+     "small \"0 order now · 0 running low · \"",
+     "span.ship-count \"8 events\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "reports",
+    "status": 200,
+    "ms": 96,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "REPORTS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 80,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 3,
+    "tinySample": [
+     "b \"1\"",
+     "small \"5 orders · View orders →\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.report-tabs \"Overview\nSales\nProfit\nSupply o\"",
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 20,
+    "loginShown": false
+   },
+   {
+    "view": "balances",
+    "status": 200,
+    "ms": 70,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "CUSTOMER BALANCES",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 67,
+    "smallTargets": 6,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "a.quick-action \"\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 53,
+    "tinySample": [
+     "b \"1\"",
+     "b \"4\"",
+     "b \"0\"",
+     "span \"1 open balance · 1 total order\"",
+     "small \"Oldest unpaid: ANK-0004 · 04 N\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "business_alerts",
+    "status": 200,
+    "ms": 174,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "BUSINESS ALERTS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 85,
+    "smallTargets": 8,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "input \"1\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "enquiries",
+    "status": 200,
+    "ms": 170,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "CUSTOMER ENQUIRIES",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 51,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "website_cms",
+    "status": 200,
+    "ms": 147,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "CUSTOMER WEBSITE CMS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 175,
+    "smallTargets": 3,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "a \"Open operational product recor\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 41,
+    "tinySample": [
+     "b \"1\"",
+     "small \"○ Hidden\"",
+     "span.cms-kicker \"PRODUCT EDITOR\"",
+     "span \"Use headings and paragraphs li\"",
+     "span \"0 / 40,000 characters\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "sheets",
+    "status": 200,
+    "ms": 71,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "GOOGLE SHEETS",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 58,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "activity",
+    "status": 200,
+    "ms": 212,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "ORDER & PAYMENT ACTIVITY",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 51,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "today",
+    "status": 200,
+    "ms": 150,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "TODAY, IN FOCUS.",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 368,
+    "smallTargets": 11,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\"",
+     "input \"1\"",
+     "a.cycle-preview-link \"\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 63,
+    "tinySample": [
+     "b \"1\"",
+     "b \"4\"",
+     "b \"0\"",
+     "span.focus-order-ref \"ANK-0001 · OVERDUE\"",
+     "p.operations-step-hint \"Next: reconstitute\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "saved",
+    "status": 200,
+    "ms": 228,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 51,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "more",
+    "status": 200,
+    "ms": 106,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "MORE",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 66,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 1,
+    "tinySample": [
+     "b \"1\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   },
+   {
+    "view": "reta",
+    "status": 200,
+    "ms": 248,
+    "errors": [],
+    "title": "ANKH • Order desk",
+    "h1": "UPCOMING CYCLES",
+    "scrollWidth": 393,
+    "width": 393,
+    "pageHeight": 659,
+    "screens": 1,
+    "interactive": 55,
+    "smallTargets": 2,
+    "smallSample": [
+     "a.ux-skip-link \"Skip to main content\"",
+     "a.brand \"☥ ANKH\""
+    ],
+    "zoomInputs": 0,
+    "zoomSample": [],
+    "tinyText": 9,
+    "tinySample": [
+     "b \"1\"",
+     "span \"ACTIVE CYCLES\"",
+     "small \"0 currently overdue\"",
+     "span \"EXPECTED REPEATS\"",
+     "small \"Next 8 weeks\""
+    ],
+    "overflow": [],
+    "fixedEls": [
+     "nav.mobile-nav \"Dashboard\nOrders\nNew\nCustomers\""
+    ],
+    "fixedOverlaps": [],
+    "fixedCoverPct": 12,
+    "loginShown": false
+   }
+  ]
+ }
+}
