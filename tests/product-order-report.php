@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 $root=dirname(__DIR__);$temp=sys_get_temp_dir().'/ankh-product-report-'.bin2hex(random_bytes(6));mkdir($temp,0700);$config=$temp.'/config.php';
-file_put_contents($config,'<?php return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["admin"]=true;$_SESSION["admin_user_id"]=1;$_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
 function productReportCheck(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function productReportRequest(array $get):string{
  global $root,$config;
@@ -10,6 +10,7 @@ function productReportRequest(array $get):string{
 }
 try{
  productReportRequest(['view'=>'reports']);$db=new PDO('sqlite:'.$temp.'/fixture.sqlite',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+ $db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('fixture',PASSWORD_DEFAULT)).',1,'.time().')');
  $today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');$name='Report Reta 10mg & A+B / %';
  $order=$db->prepare('INSERT INTO orders(id,customer,recipient_name,phone,address,notes,status,created,pricing_type,back_order) VALUES (?,?,?,?,?,?,?,?,?,?)');
  foreach([[99001,'Buyer March','Recipient March','New','2025-03-10','standard',0],[99002,'Buyer waiting','','Awaiting payment','2025-03-31','standard',1],[99003,'Buyer February','','New','2025-02-28','standard',0],[99004,'Buyer different strength','','New','2025-03-20','standard',0],[99005,'Buyer cancelled','','Cancelled','2025-03-15','standard',0],[99006,'Buyer personal','','New','2025-03-16','free',0],[99007,'Buyer this month','','New',$today,'standard',0]] as $r)$order->execute([$r[0],$r[1],$r[2],'','','',$r[3],$r[4].'T12:00:00+00:00',$r[5],$r[6]]);

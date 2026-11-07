@@ -37,7 +37,7 @@ check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-1
 check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-15','delivery_section_override'=>'future']),'2026-10-11')==='future','A manual move to Future should override the five-day rule.');
 check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-11','delivery_section_override'=>'future']),'2026-10-11')==='awaiting','A due-today order should not remain hidden in Future.');
 check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'','delivery_section_override'=>'future']),'2026-10-11')==='awaiting','A paid undated order cannot be hidden manually.');
-check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'','status'=>'New','paid_amount'=>0]),'2026-10-11')==='','An unpaid unscheduled order belongs to Awaiting payment only.');
+check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'','status'=>'New','paid_amount'=>0]),'2026-10-11')==='awaiting','An unpaid unscheduled order stays in To deliver until it is delivered.');
 check(deliveryBoardSection(array_merge($base,['scheduled_delivery_date'=>'2026-10-19','delivery_date'=>'2026-10-11']),'2026-10-11')==='','Delivered orders must not appear in either delivery section.');
 $ordersSection='all';$_GET=['scope'=>'to_deliver'];$paidStatuses=['Paid','Packed','Dispatched','Delivered'];$todayStart=$today->getTimestamp();$monthStart=$today->modify('first day of this month')->getTimestamp();
 $start=strpos($source,"$"."orderScopes=['today_sales'");$end=strpos($source,'?>',$start);

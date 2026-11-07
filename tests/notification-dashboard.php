@@ -5,7 +5,7 @@ $root=dirname(__DIR__);
 $temp=sys_get_temp_dir().'/ankh-notifications-'.bin2hex(random_bytes(6));
 mkdir($temp,0700);
 $config=$temp.'/config.php';
-file_put_contents($config,'<?php return '.var_export(['password_hash'=>password_hash('test-only',PASSWORD_DEFAULT),'database_path'=>$temp.'/test.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["admin"]=true;$_SESSION["admin_user_id"]=1;$_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('test-only',PASSWORD_DEFAULT),'database_path'=>$temp.'/test.sqlite'],true).';');
 function renderPage(string $view,array $extra=[]):string{
  global $root,$config;
  $code='putenv('.var_export('ANKH_ADMIN_CONFIG='.$config,true).'); $_GET='.var_export(['view'=>$view]+$extra,true).'; $_SERVER["REQUEST_METHOD"]="GET"; $_SERVER["REMOTE_ADDR"]="127.0.0.1"; $_SERVER["HTTP_HOST"]="localhost"; $_SERVER["SCRIPT_NAME"]="/index.php"; require '.var_export($root.'/index.php',true).';';
@@ -18,6 +18,7 @@ try{
  $html=renderPage('dashboard');
  if(!str_contains($html,'Your worklist')||substr_count($html,'class="dashboard-stat-card"')!==6)throw new RuntimeException('Original dashboard cards and worklist must survive.');
  $db=new PDO('sqlite:'.$temp.'/test.sqlite');
+ $db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('test-only',PASSWORD_DEFAULT)).',1,'.time().')');
  $db->exec("INSERT INTO customers(name,phone,address,created) VALUES('UX Test','01234','','2026-01-01')");
  $html=renderPage('customers');
  foreach(['data-customer-insight="top"','data-customer-insight="inactive"','data-customer-insight="outstanding"','data-customer-insight="recurring"','UX Test'] as $marker)if(!str_contains($html,$marker))throw new RuntimeException('Missing customer filter: '.$marker);

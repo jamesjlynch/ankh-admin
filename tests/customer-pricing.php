@@ -3,7 +3,7 @@ declare(strict_types=1);
 // Real entrypoint requests; isolated SQLite only, never production.
 $root=dirname(__DIR__);$temp=sys_get_temp_dir().'/ankh-pricing-'.bin2hex(random_bytes(6));mkdir($temp,0700);
 $config=$temp.'/config.php';
-file_put_contents($config,'<?php $_SESSION["csrf"]="pricing-fixture"; return '.var_export(['password_hash'=>password_hash('test',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["csrf"]="pricing-fixture";$_SESSION["admin"]=true;$_SESSION["admin_user_id"]=1;$_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('test',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
 function pricingCheck(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
 function pricingRequest(array $get=[],array $post=[]):string{
  global $root,$config;
@@ -13,11 +13,12 @@ function pricingRequest(array $get=[],array $post=[]):string{
 }
 try{
  pricingRequest(['view'=>'dashboard']);$db=new PDO('sqlite:'.$temp.'/fixture.sqlite',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+ $db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('test',PASSWORD_DEFAULT)).',1,'.time().')');
  $db->exec("INSERT INTO customers(id,name,phone,address,created) VALUES(99001,'Owner fixture','','','2026-01-01'),(99002,'Friend fixture','','','2026-01-01')");
  $db->exec("INSERT INTO products(id,name,price,family_friends_price,cost,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99001,'Fixture product 5mg',5000,3700,1200,1,20,20,0,40),(99002,'Fixture accessory',1000,NULL,300,0,0,0,0,NULL)");
  pricingRequest([],['action'=>'customer_pricing','customer_id'=>99001,'pricing_type'=>'free','return'=>'customer']);
  pricingRequest([],['action'=>'customer_pricing','customer_id'=>99002,'pricing_type'=>'family_friends','return'=>'customer']);
- $base=['action'=>'order','customer'=>'Owner fixture','phone'=>'','order_date'=>date('Y-m-d'),'delivery_method'=>'Postage','assigned_to'=>'James','delivery_charge'=>'5.00','postage_cost'=>'2.00','payment_method'=>'Other','lines'=>[['product_id'=>99001,'quantity'=>2,'presentation'=>'Vial','base_price'=>'50.00','price'=>'999.00','recurring'=>'1','cycle_weeks'=>4]]];
+ $base=['action'=>'order','order_request_key'=>bin2hex(random_bytes(16)),'customer'=>'Owner fixture','phone'=>'','order_date'=>date('Y-m-d'),'delivery_method'=>'Postage','assigned_to'=>'James','delivery_charge'=>'5.00','postage_cost'=>'2.00','payment_method'=>'Other','lines'=>[['product_id'=>99001,'quantity'=>2,'presentation'=>'Vial','base_price'=>'50.00','price'=>'999.00','recurring'=>'1','cycle_weeks'=>4]]];
  pricingRequest([],$base);$id=(int)$db->query('SELECT MAX(id) FROM orders')->fetchColumn();
  $order=$db->query('SELECT * FROM orders WHERE id='.$id)->fetch(PDO::FETCH_ASSOC);
  pricingCheck($order['pricing_type']==='free'&&(int)$order['delivery_charge']===0,'Free classification and postage must be zero');
@@ -36,10 +37,10 @@ try{
  pricingCheck(!str_contains($csv,'<!doctype')&&!str_contains($csv,'<html'),'CSV must not include the page header');
  pricingRequest([],['action'=>'customer_pricing','customer_id'=>99001,'pricing_type'=>'standard']);
  pricingCheck($db->query('SELECT pricing_type FROM orders WHERE id='.$id)->fetchColumn()==='free','Customer pricing change must not relabel history');
- $friend=$base;$friend['customer']='Friend fixture';$friend['delivery_method']='Collection';$friend['lines'][0]['price']='0.01';$friend['lines'][0]['recurring']='0';
+ $friend=$base;$friend['order_request_key']=bin2hex(random_bytes(16));$friend['customer']='Friend fixture';$friend['delivery_method']='Collection';$friend['lines'][0]['price']='0.01';$friend['lines'][0]['recurring']='0';
  pricingRequest([],$friend);$friendId=(int)$db->query('SELECT MAX(id) FROM orders')->fetchColumn();
  pricingCheck((int)$db->query('SELECT price FROM items WHERE order_id='.$friendId)->fetchColumn()===3700,'Saved F&F price must override stale/manual submitted price');
- $friend['lines'][0]['product_id']=99002;pricingRequest([],$friend);$fallbackId=(int)$db->query('SELECT MAX(id) FROM orders')->fetchColumn();
+ $friend['lines'][0]['product_id']=99002;$friend['order_request_key']=bin2hex(random_bytes(16));pricingRequest([],$friend);$fallbackId=(int)$db->query('SELECT MAX(id) FROM orders')->fetchColumn();
  pricingCheck((int)$db->query('SELECT price FROM items WHERE order_id='.$fallbackId)->fetchColumn()===1000,'Missing saved F&F price must use retail');
  pricingCheck(str_contains(pricingRequest(['view'=>'customer','id'=>99001]),'Save customer pricing'),'Customer pricing UI must render');
  $customersUi=pricingRequest(['view'=>'customers']);

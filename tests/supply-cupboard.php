@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 $root=dirname(__DIR__);$temp=sys_get_temp_dir().'/ankh-cupboard-test-'.bin2hex(random_bytes(6));mkdir($temp,0700);$config=$temp.'/config.php';
-file_put_contents($config,'<?php $_SESSION["csrf"]="cupboard-fixture"; return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["csrf"]="cupboard-fixture";$_SESSION["admin"]=true;$_SESSION["admin_user_id"]=1;$_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
 function cupboardCheck(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function cupboardRequest(array $get=[],array $post=[]):string{
  global $root,$config;
@@ -11,7 +11,7 @@ function cupboardRequest(array $get=[],array $post=[]):string{
 try{
  $db=new PDO('sqlite:'.$temp.'/fixture.sqlite',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$source=file_get_contents($root.'/index.php');preg_match('/CREATE TABLE IF NOT EXISTS business_supplies \(.*?\n\);/s',$source,$schema);$db->exec($schema[0]);
  $db->exec("INSERT INTO business_supplies(item,category,quantity,supplier,ordered_date,status,item_cost,shipping,request_key,created,updated) VALUES('Legacy envelopes','Envelopes & packaging',2,'Legacy shop','2025-01-01','Received',500,100,'legacy','2025-01-01','2025-01-01')");
- cupboardRequest(['view'=>'supplies']);cupboardCheck((int)$db->query('SELECT received_quantity FROM business_supplies WHERE id=1')->fetchColumn()===2,'Existing received purchases migrate safely');
+ cupboardRequest(['view'=>'supplies']);$db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('fixture',PASSWORD_DEFAULT)).',1,'.time().')');cupboardCheck((int)$db->query('SELECT received_quantity FROM business_supplies WHERE id=1')->fetchColumn()===2,'Existing received purchases migrate safely');
  $before=$db->query('SELECT * FROM products ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
  $input=['action'=>'supply_item_save','return'=>'supplies','return_section'=>'cupboard','request_key'=>str_repeat('c',32),'name'=>'Labels <fixture>','category'=>'Labels','specification'=>'100 × 150mm waterproof','supplier'=>'Preferred shop','product_url'=>'https://example.com/labels','backup_supplier'=>'Backup shop','backup_url'=>'https://example.com/backup','usual_quantity'=>3,'usual_cost'=>'12.34','stock_level'=>'Out','stock_note'=>'No rolls left','requested_by'=>'Tony','notes'=>'Buy the waterproof version'];
  cupboardRequest(['view'=>'supplies'],$input);$id=(int)$db->query('SELECT id FROM business_supply_items')->fetchColumn();$item=static function()use($db,$id):array{return $db->query('SELECT * FROM business_supply_items WHERE id='.$id)->fetch(PDO::FETCH_ASSOC);};

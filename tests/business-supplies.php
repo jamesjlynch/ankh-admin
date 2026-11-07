@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // Exercise actual routes and POSTs with a private temporary database.
 $root=dirname(__DIR__);$temp=sys_get_temp_dir().'/ankh-supplies-'.bin2hex(random_bytes(6));mkdir($temp,0700);$config=$temp.'/config.php';
-file_put_contents($config,'<?php $_SESSION["csrf"]="supplies-fixture"; return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["csrf"]="supplies-fixture";$_SESSION["admin"]=true;$_SESSION["admin_user_id"]=1;$_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
 function supplyCheck(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function supplyRequest(array $get=[],array $post=[]):string{
  global $root,$config;
@@ -12,6 +12,7 @@ function supplyRequest(array $get=[],array $post=[]):string{
 try{
  $page=supplyRequest(['view'=>'supplies','new'=>1]);supplyCheck(str_contains($page,'Save purchase')&&str_contains($page,'name="tracking_url"'),'Supplies page exposes purchase form');
  $db=new PDO('sqlite:'.$temp.'/fixture.sqlite',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+ $db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('fixture',PASSWORD_DEFAULT)).',1,'.time().')');
  $before=$db->query('SELECT * FROM products ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);$orderCount=(int)$db->query('SELECT COUNT(*) FROM orders')->fetchColumn();
  $input=['action'=>'business_supply_save','return'=>'supplies','request_key'=>str_repeat('a',32),'item'=>'Labels <sample>','category'=>'Labels','supplier'=>'=Fixture supplier','quantity'=>'3','reference'=>'INV-1','ordered_date'=>'2025-01-02','expected_date'=>'2027-01-01','status'=>'Ordered','item_cost'=>'12.34','shipping'=>'2.50','payment_status'=>'Paid','paid_date'=>'2025-02-03','refunded_date'=>'','product_url'=>'https://example.com/labels?a=1&b=2','tracking_reference'=>'Royal Mail · ABC123','tracking_url'=>'https://example.com/track','notes'=>'500 labels per pack'];
  supplyRequest(['view'=>'supplies'],$input);$row=$db->query('SELECT * FROM business_supplies')->fetch(PDO::FETCH_ASSOC);$id=(int)$row['id'];
