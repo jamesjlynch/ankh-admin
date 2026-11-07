@@ -50,10 +50,10 @@ for(const dev of ['iPhone SE','iPhone 15 Pro','iPhone 15 Pro Max']){
    const fixedArea=fixed.reduce((s,f)=>s+Math.max(0,Math.min(f.r.bottom,innerHeight)-Math.max(f.r.top,0))*Math.min(f.r.width,W),0)/(W*innerHeight);
    return {title:document.title,h1:(document.querySelector('h1')||{}).innerText||'',scrollWidth:document.documentElement.scrollWidth,width:W,pageHeight:document.documentElement.scrollHeight,screens:Math.round(document.documentElement.scrollHeight/innerHeight*10)/10,interactive:document.querySelectorAll('a,button,input,select,textarea,summary').length,smallTargets:small.length,smallSample:[...new Set(small)].slice(0,8),zoomInputs:zoomInputs.length,zoomSample:zoomInputs.slice(0,5),tinyText:tiny.length,tinySample:[...new Set(tiny)].slice(0,5),overflow:overflow.slice(0,5),fixedEls:fixed.map(f=>f.n),fixedOverlaps:ov.slice(0,5),fixedCoverPct:Math.round(fixedArea*100),loginShown:!!document.querySelector('input[name=password]')};});
   page.off('console',onC);page.off('pageerror',onE);
-  res.push({view:v,status,ms,errors:errs.slice(0,5),...m});
+  writeFileSync(join(out,'report.json'),JSON.stringify(report,null,1));res.push({view:v,status,ms,errors:errs.slice(0,5),...m});
   const slug=dev.replace(/\s+/g,'-');
-  if(dev!=='iPhone 15 Pro Max'){await page.screenshot({path:join(out,`${slug}_${v}_top.png`)});}
-  if(dev==='iPhone 15 Pro'){await page.screenshot({path:join(out,`${slug}_${v}_full.png`),fullPage:true}).catch(()=>{});}
+  if(dev!=='iPhone 15 Pro Max'){await page.screenshot({path:join(out,`${slug}_${v}_top.png`),timeout:15000}).catch(e=>console.log('shot fail',v));}
+  if(dev==='iPhone 15 Pro'){await page.screenshot({path:join(out,`${slug}_${v}_full.png`),fullPage:true,timeout:20000}).catch(e=>console.log('full shot fail',v));}
  }
  // menu open state
  try{const t=page.locator('button[aria-label*="enu" i], .menu-toggle, .hamburger, [aria-controls]').first();await page.goto(host+'/index.php?view=dashboard');if(await t.count()){await t.click();await page.waitForTimeout(400);await page.screenshot({path:join(out,`${dev.replace(/\s+/g,'-')}_menu-open.png`)});}}catch{}
