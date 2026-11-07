@@ -107,6 +107,7 @@ h1,
   .cycle-calendar-card,
   .cycle-calendar-panel,
   .cycle-preview-card,
+  .reorder-due-card,
   .cycle-stock-panel,
   .supplier-order-card,
   .future-order-card,
@@ -922,6 +923,112 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
 /* Tidy the worklist panel so its rounded border stays clear of the content. */
 .admin-app-shell .todo-board.dashboard-action-queue{
   padding:16px 16px 18px;
+}
+
+/* Due for reorder card sits directly below the worklist. */
+.admin-app-shell .reorder-due-card{
+  margin:18px 0 0;
+  padding:18px;
+}
+.admin-app-shell .reorder-due-head{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:4px;
+}
+.admin-app-shell .reorder-due-head h2{
+  margin:2px 0 0;
+  font-family:"Bebas Neue","Inter",ui-sans-serif,system-ui,sans-serif;
+  font-size:clamp(26px,4vw,34px);
+  font-weight:400;
+  letter-spacing:.6px;
+  line-height:1;
+  text-transform:uppercase;
+}
+.admin-app-shell .reorder-due-link{
+  flex:0 0 auto;
+  color:var(--ankh-os-gold-bright);
+  font-size:12px;
+  font-weight:750;
+  letter-spacing:.04em;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.admin-app-shell .reorder-due-link span{color:var(--ankh-os-gold)}
+.admin-app-shell .reorder-due-list{display:grid;gap:0}
+.admin-app-shell .reorder-due-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:center;
+  gap:14px;
+  padding:14px 0;
+  border-top:1px solid rgba(255,215,140,.12);
+  min-width:0;
+}
+.admin-app-shell .reorder-due-row:first-child{border-top:0}
+.admin-app-shell .reorder-due-main{min-width:0}
+.admin-app-shell .reorder-due-client{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.admin-app-shell .reorder-due-client h3{
+  margin:0;
+  color:var(--ankh-os-text);
+  font-size:16px;
+  font-weight:750;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+}
+.admin-app-shell .reorder-due-chip{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 8px;
+  border:1px solid rgba(229,141,130,.5);
+  border-radius:999px;
+  background:rgba(196,72,62,.16);
+  color:#F2A196;
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.12em;
+  line-height:1.25;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.admin-app-shell .reorder-due-products{
+  margin:3px 0 0;
+  color:var(--ankh-os-muted);
+  font-size:13px;
+  line-height:1.35;
+  overflow-wrap:anywhere;
+}
+.admin-app-shell .reorder-due-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:3px 12px;
+  margin-top:5px;
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  line-height:1.35;
+}
+.admin-app-shell .reorder-due-date{color:var(--ankh-os-gold-bright);font-weight:750;white-space:nowrap}
+.admin-app-shell .reorder-due-row.is-overdue .reorder-due-date{color:#F2A196}
+.admin-app-shell .reorder-due-button{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:96px;
+  min-height:44px;
+  padding:0 18px;
+  line-height:1;
+  text-decoration:none;
+  white-space:nowrap;
+}
+@media(max-width:560px){
+  .admin-app-shell .reorder-due-card{padding:15px 14px}
+  .admin-app-shell .reorder-due-row{gap:10px;padding:12px 0}
+  .admin-app-shell .reorder-due-button{min-width:82px;padding:0 12px}
+}
+@media(max-width:380px){
+  .admin-app-shell .reorder-due-row{grid-template-columns:minmax(0,1fr)}
+  .admin-app-shell .reorder-due-button{width:100%}
 }
 
 @media(max-width:760px){

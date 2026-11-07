@@ -2548,6 +2548,42 @@ function cycleOccurrences(array $cycles,DateTimeImmutable $today,int $weeks):arr
  usort($rows,fn($a,$b)=>strcmp((string)$a['occurrence_date'],(string)$b['occurrence_date'])?:strcmp((string)$a['customer_name'],(string)$b['customer_name']));
  return $rows;
 }
+function dueReorderRows(array $cycles,DateTimeImmutable $today,int $days=7):array{
+ $days=max(1,$days);$horizon=$today->modify('+'.$days.' days')->format('Y-m-d');
+ $upcoming=[];
+ foreach(cycleOccurrences($cycles,$today,(int)ceil($days/7)) as $occurrence){
+  $id=(int)($occurrence['id']??0);$date=(string)($occurrence['occurrence_date']??'');
+  if($id<1||isset($upcoming[$id])||$date===''||$date>$horizon)continue;
+  $upcoming[$id]=$occurrence;
+ }
+ $groups=[];
+ foreach($cycles as $cycle){
+  $due=DateTimeImmutable::createFromFormat('!Y-m-d',(string)($cycle['next_due_date']??''),$today->getTimezone());if(!$due)continue;
+  $overdue=$due<$today;$source=$overdue?$cycle:($upcoming[(int)($cycle['id']??0)]??null);if(!$source)continue;
+  $date=$overdue?$due->format('Y-m-d'):(string)($source['occurrence_date']??$due->format('Y-m-d'));
+  $customer=(string)($source['customer_name']??'');$phone=(string)($source['phone']??'');$client=cycleRecipientName($source);
+  $key=strtolower(trim($customer)).'|'.trim($phone).'|'.strtolower(trim($client));
+  if(!isset($groups[$key]))$groups[$key]=['client'=>$client!==''?$client:$customer,'customer'=>$customer,'phone'=>$phone,'date'=>$date,'overdue'=>false,'products'=>[],'cadences'=>[],'last_order_id'=>0];
+  $group=&$groups[$key];
+  if($date<$group['date'])$group['date']=$date;
+  $product=trim((string)($source['product_summary']??''));if($product==='')$product=trim((string)($source['product_name']??''));
+  if($product!==''){
+   $productKey=strtolower($product);if(!isset($group['products'][$productKey]))$group['products'][$productKey]=$product;
+   $weeks=(int)($source['cycle_weeks']??0);if($weeks<1)$weeks=max(1,(int)round(max(7,(int)($source['cycle_days']??28))/7));
+   $cadence='every '.$weeks.' week'.($weeks===1?'':'s');$group['cadences'][$cadence]=true;
+  }
+  $group['last_order_id']=max($group['last_order_id'],(int)($source['last_order_id']??0));
+  unset($group);
+ }
+ $rows=[];
+ foreach($groups as $group){
+  $group['overdue']=$group['date']<$today->format('Y-m-d');
+  $group['products']=array_values($group['products']);$group['cadence']=implode(' · ',array_keys($group['cadences']));unset($group['cadences']);
+  $group['due_label']=date('D j M',strtotime($group['date']));$rows[]=$group;
+ }
+ usort($rows,function($a,$b){if($a['overdue']!==$b['overdue'])return $a['overdue']?-1:1;$byDate=strcmp($a['date'],$b['date']);return $byDate!==0?$byDate:strcasecmp($a['client'],$b['client']);});
+ return $rows;
+}
 
 
 
@@ -4962,6 +4998,7 @@ $dashboardLayout=in_array($requestedLayout,['cards','dispatch'],true)?$requested
 if(!in_array($dashboardLayout,['cards','dispatch'],true))$dashboardLayout='cards';
 $_SESSION['dashboard_layout']=$dashboardLayout;
 $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaitingPayment,'delivery'=>$dashboardDeliveries,'future'=>$futureDeliveries,default=>$dashboardAll},$now->format('Y-m-d'));
+$reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 ?>
 <div class="heading dashboard-heading today-heading"><div><p class="focus-date today-date"><?=e($now->format('l j F'))?></p><h1 class="today-greeting"><?=e($greeting)?>, <span class="today-greeting-name"><?=e($adminFirstName)?></span></h1><p class="muted page-description">Your orders. Your next steps.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
 <section class="today-hero" aria-labelledby="today-hero-title">
@@ -5029,6 +5066,27 @@ $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaiting
 <?php if(!$dashboardWork):?><p class="queue-empty" role="status">No orders need action in this view.</p><?php endif;?>
 </div></section>
 <!-- dashboard-worklist-end -->
+<?php if($reorderDueRows):?>
+<section class="panel reorder-due-card" id="due-for-reorder" aria-labelledby="reorder-due-title">
+ <div class="reorder-due-head"><div><p class="eyebrow">RECURRING</p><h2 id="reorder-due-title">Due for reorder · this week</h2></div><a class="reorder-due-link" href="?view=reta">Cycle planner <span aria-hidden="true">→</span></a></div>
+ <div class="reorder-due-list">
+ <?php foreach($reorderDueRows as $dueRow):
+  $dueCustomerId=(int)($customerIdByKey[strtolower(trim((string)$dueRow['customer'])).'|'.trim((string)$dueRow['phone'])]??0);
+  $dueRepeatId=(int)$dueRow['last_order_id'];
+  $dueHref=$dueRepeatId>0?'?view=new&repeat_order='.$dueRepeatId:'?view=new'.($dueCustomerId>0?'&customer_id='.$dueCustomerId:'');
+ ?>
+ <article class="reorder-due-row<?=$dueRow['overdue']?' is-overdue':''?>">
+  <div class="reorder-due-main">
+   <div class="reorder-due-client"><h3><?=e($dueRow['client'])?></h3><?php if($dueRow['overdue']):?><span class="reorder-due-chip">overdue</span><?php endif;?></div>
+   <p class="reorder-due-products"><?=e($dueRow['products']?implode(' · ',$dueRow['products']):'Recurring order')?></p>
+   <div class="reorder-due-meta"><span><?=e($dueRow['cadence']?:'Recurring cycle')?></span><span class="reorder-due-date"><?=e($dueRow['due_label'])?></span></div>
+  </div>
+  <a class="button reorder-due-button" href="<?=e($dueHref)?>">Reorder</a>
+ </article>
+ <?php endforeach;?>
+ </div>
+</section>
+<?php endif;?>
 <?php if($stockShortages):?>
 <details class="dashboard-stock-shortage dashboard-secondary" id="dashboard-stock-shortage">
  <summary class="stock-shortage-header">
