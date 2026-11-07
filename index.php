@@ -2131,6 +2131,24 @@ function deliveryBoardSection(array $order,string $today):string{
 function isFutureDelivery(array $order,string $today):bool{
  return deliveryBoardSection($order,$today)==='future';
 }
+function deliveryRunStops(array $orders,string $today):array{
+ $stops=[];
+ foreach($orders as $order){
+  if(deliveryBoardSection($order,$today)!=='awaiting')continue;
+  $scheduled=trim((string)($order['scheduled_delivery_date']??''));
+  if($scheduled!=='' && $scheduled>$today)continue;
+  $order['run_due']=$scheduled===''?'undated':($scheduled<$today?'overdue':'today');
+  $stops[]=$order;
+ }
+ usort($stops,static function(array $a,array $b):int{
+  $priority=['overdue'=>0,'today'=>1,'undated'=>2];
+  return ($priority[$a['run_due']]??3)<=>($priority[$b['run_due']]??3)
+   ?: strcmp((string)($a['scheduled_delivery_date']??''),(string)($b['scheduled_delivery_date']??''))
+   ?: strcmp((string)($a['created']??''),(string)($b['created']??''))
+   ?: (int)($a['id']??0)<=>(int)($b['id']??0);
+ });
+ return $stops;
+}
 function deliveryCountdown(string $value,?DateTimeImmutable $today=null):string{
  $tz=new DateTimeZone('Europe/London');$today=($today??new DateTimeImmutable('today',$tz))->setTimezone($tz)->setTime(0,0);
  $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value,$tz);
@@ -4304,7 +4322,7 @@ function reportTakingsData(PDO $db,DateTimeImmutable $today,DateTimeZone $tz):ar
  unset($period);
  return $result;
 }
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 if($view==='packing_centre'&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
@@ -4513,7 +4531,7 @@ foreach($orders as $customerOrder){
  $customerKey=strtolower(trim((string)$customerOrder['customer'])).'|'.trim((string)$customerOrder['phone']);
  $customerOrderHistory[$customerKey][]=$customerOrder;
 }
-$customerIdByKey=[];foreach($storedCustomers as $storedCustomer){$customerIdByKey[strtolower(trim((string)$storedCustomer['name'])).'|'.trim((string)$storedCustomer['phone'])]=(int)$storedCustomer['id'];}
+$customerIdByKey=[];$customerAddressByKey=[];foreach($storedCustomers as $storedCustomer){$storedCustomerKey=strtolower(trim((string)$storedCustomer['name'])).'|'.trim((string)$storedCustomer['phone']);$customerIdByKey[$storedCustomerKey]=(int)$storedCustomer['id'];$customerAddressByKey[$storedCustomerKey]=trim((string)$storedCustomer['address']);}
 $paymentsByOrder=[];$allPayments=$db->query('SELECT * FROM payments ORDER BY datetime(created) DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC);
 foreach($allPayments as $ledgerPayment)$paymentsByOrder[(int)$ledgerPayment['order_id']][]=$ledgerPayment;
 $balanceAccounts=[];
@@ -4679,6 +4697,7 @@ usort($futureDeliveries,fn($a,$b)=>strcmp((string)$a['scheduled_delivery_date'],
 $awaitingDelivery=array_values(array_filter($orders,fn($o)=>deliveryBoardSection($o,$now->format('Y-m-d'))==='awaiting'));
 usort($awaitingPayment,fn($a,$b)=>strcmp((string)$a['created'],(string)$b['created']));
 usort($awaitingDelivery,fn($a,$b)=>strcmp((string)($a['scheduled_delivery_date']?:'9999-12-31'),(string)($b['scheduled_delivery_date']?:'9999-12-31')) ?: strcmp((string)$a['created'],(string)$b['created']));
+$deliveryRunStops=deliveryRunStops($orders,$now->format('Y-m-d'));
 $todoOrderIds=array_map('intval',array_merge(array_column($awaitingPayment,'id'),array_column($awaitingDelivery,'id'),array_column($futureDeliveries,'id')));
 $todoItems=[];
 if($todoOrderIds){
@@ -5154,7 +5173,7 @@ if($view==='reportsboard'){
 <a class="<?=in_array($view,['products','product'],true)?'selected':''?>" href="?view=products"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="nav-label">Products</span></a>
 <a class="<?=$view==='reports'?'selected':''?>" href="?view=reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></svg></span><span class="nav-label">Reports</span></a>
 <a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
-<a class="<?=in_array($view,['enquiries','supplies','more','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','run','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <?php if(!$testingNoAuth):?><form method="post" class="sidebar-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
 <main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
@@ -5224,7 +5243,7 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=month_sales"><span>This month's sales</span><strong data-ankh-count="<?=$monthSales?>" data-ankh-format="money"><?=money($monthSales)?></strong><small><?=e($now->format('F Y'))?></small></a>
 <a class="dashboard-stat-card" href="?view=reports&amp;type=profit&amp;range=all"><span>All-time gross profit</span><strong data-ankh-count="<?=$grossProfit?>" data-ankh-format="money"><?=money($grossProfit)?></strong><small>After product &amp; delivery costs</small></a>
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=unpaid"><span>Unpaid</span><strong data-ankh-count="<?=$unpaidBalance?>" data-ankh-format="money"><?=money($unpaidBalance)?></strong><small><?=count($awaitingPayment)?> orders</small></a>
-<a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong data-ankh-count="<?=count($awaitingDelivery)+count($futureDeliveries)?>" data-ankh-format="number"><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
+<a class="dashboard-stat-card" href="?view=run"><span>To deliver</span><strong data-ankh-count="<?=count($deliveryRunStops)?>" data-ankh-format="number"><?=count($deliveryRunStops)?></strong><small>Today’s delivery run</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong data-ankh-count="<?=count($lowStock)?>" data-ankh-format="number"><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
 <?php if($lowStock):?>
@@ -7014,9 +7033,75 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 </div>
 <?php endforeach;?>
 </section>
+<?php elseif($view==='run'):
+$runToday=$now->format('Y-m-d');$runTotal=0;$runStopsData=[];
+foreach($deliveryRunStops as $runOrder){
+ $runKey=strtolower(trim((string)$runOrder['customer'])).'|'.trim((string)$runOrder['phone']);
+ $runAddress=$customerAddressByKey[$runKey]??'';
+ if($runAddress==='')$runAddress=trim((string)($runOrder['address']??''));
+ $runItems=$todoItems[(int)$runOrder['id']]??[];$runParts=[];
+ foreach($runItems as $runItem){
+  $runName=trim((string)($runItem['name']??''));if($runName==='')continue;
+  $runQty=(int)($runItem['quantity']??0);$runLabel=($runQty>1?$runQty.' × ':'').$runName;
+  $runPresentation=trim((string)($runItem['presentation']??''));if($runPresentation!=='')$runLabel.=' · '.$runPresentation;
+  if((int)($runItem['discount']??0)>0)$runLabel.=' · F&F';
+  $runParts[]=$runLabel;
+ }
+ $runBalance=max(0,(int)$runOrder['total']-(int)($runOrder['paid_amount']??0));$runTotal+=$runBalance;
+ $runStopsData[]=['order'=>$runOrder,'address'=>$runAddress,'items'=>implode(' · ',$runParts),'balance'=>$runBalance,'due'=>(string)($runOrder['run_due']??'undated'),'whatsapp'=>ukMobileWhatsApp((string)($runOrder['phone']??''))];
+}
+$runRouteAddresses=[];foreach($runStopsData as $runStop)if($runStop['address']!=='')$runRouteAddresses[]=$runStop['address'];
+$runRoute='';$runRouteExtra=0;
+if($runRouteAddresses){
+ $runRouteDestination=(string)end($runRouteAddresses);$runRouteWaypoints=array_slice($runRouteAddresses,0,-1);
+ $runRouteExtra=max(0,count($runRouteWaypoints)-9);$runRouteWaypoints=array_slice($runRouteWaypoints,0,9);
+ $runRoute='https://www.google.com/maps/dir/?api=1';
+ if($runRouteWaypoints)$runRoute.='&waypoints='.rawurlencode(implode('|',$runRouteWaypoints));
+ $runRoute.='&destination='.rawurlencode($runRouteDestination);
+}
+?>
+<div class="heading delivery-run-heading"><div><p class="eyebrow">DELIVERY RUN</p><h1>Today’s delivery run</h1><p class="muted page-description"><?=e($now->format('l j F'))?> · <?=count($runStopsData)?> stop<?=count($runStopsData)===1?'':'s'?></p></div><a class="button page-action" href="?view=dashboard">Back to Today</a></div>
+<?php if(!$runStopsData):?>
+<section class="panel delivery-run-empty-state"><p role="status">Nothing to deliver today</p><a class="quick-action" href="?view=orders&amp;scope=to_deliver">View all deliveries →</a></section>
+<?php else:?>
+<section class="delivery-run" data-delivery-run data-run-date="<?=e($runToday)?>">
+<div class="delivery-run-top">
+<div class="delivery-run-total"><span>Stops</span><strong data-run-count><?=count($runStopsData)?></strong></div>
+<div class="delivery-run-total"><span>To collect</span><strong data-run-total-label><?=money($runTotal)?></strong></div>
+<?php if($runRoute):?><a class="delivery-run-route" href="<?=e($runRoute)?>" target="_blank" rel="noopener">Open full route <span aria-hidden="true">↗</span></a><?php endif;?>
+</div>
+<?php if($runRouteExtra>0):?><p class="delivery-run-note"><?=$runRouteExtra?> more stop<?=$runRouteExtra===1?'':'s'?> not included in the route (9 waypoint limit).</p><?php endif;?>
+<ol class="delivery-run-list">
+<?php foreach($runStopsData as $runIndex=>$runStop):$runOrder=$runStop['order'];?>
+<li class="delivery-run-stop" data-run-stop data-order-id="<?=(int)$runOrder['id']?>" data-run-balance="<?=$runStop['balance']?>">
+<div class="delivery-run-stop-main">
+<span class="delivery-run-number" data-run-number><?=$runIndex+1?></span>
+<div class="delivery-run-copy">
+<div class="delivery-run-title"><h2><?=e(orderDisplayName($runOrder))?></h2><?php if($runStop['due']==='overdue'):?><span class="delivery-run-flag is-overdue">Overdue</span><?php elseif($runStop['due']==='today'):?><span class="delivery-run-flag is-today">Due today</span><?php else:?><span class="delivery-run-flag is-undated">Date not arranged</span><?php endif;?></div>
+<?php if(orderDisplayName($runOrder)!==trim((string)$runOrder['customer'])):?><p class="delivery-run-buyer">Ordered by <?=e($runOrder['customer'])?></p><?php endif;?>
+<?php if($runStop['address']!==''):?><p class="delivery-run-address"><?=nl2br(e($runStop['address']))?></p><?php else:?><p class="delivery-run-address is-missing">No address saved</p><?php endif;?>
+<p class="delivery-run-items"><?=e($runStop['items']!==''?$runStop['items']:'No items listed')?></p>
+<div class="delivery-run-money"><?php if($runStop['balance']>0):?><strong class="is-unpaid"><?=money($runStop['balance'])?> due</strong><?php else:?><span class="delivery-run-paid">Paid</span><?php endif;?></div>
+</div>
+</div>
+<div class="delivery-run-actions">
+<div class="delivery-run-reorder"><button type="button" class="quiet" data-run-up aria-label="Move <?=e(orderDisplayName($runOrder))?> up" <?=$runIndex===0?'disabled':''?>>↑</button><button type="button" class="quiet" data-run-down aria-label="Move <?=e(orderDisplayName($runOrder))?> down" <?=$runIndex===count($runStopsData)-1?'disabled':''?>>↓</button></div>
+<div class="delivery-run-action-buttons">
+<?php if($runStop['address']!==''):?><a class="delivery-run-action" href="https://www.google.com/maps/search/?api=1&amp;query=<?=e(rawurlencode($runStop['address']))?>" target="_blank" rel="noopener">Map</a><?php endif;?>
+<?php if($runStop['whatsapp']!==''):?><a class="delivery-run-action" href="https://wa.me/<?=e($runStop['whatsapp'])?>" target="_blank" rel="noopener">WhatsApp</a><?php endif;?>
+<form method="post" class="delivery-run-deliver" data-run-deliver><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=(int)$runOrder['id']?>"><input type="hidden" name="delivery_date" value="<?=e($runToday)?>"><input type="hidden" name="return" value="run"><button type="submit">Delivered</button></form>
+</div>
+</div>
+<div class="delivery-run-done" hidden><span aria-hidden="true">✓</span> Delivered</div>
+</li>
+<?php endforeach;?>
+</ol>
+</section>
+<?php endif;?>
 <?php elseif($view==='more'):?>
 <div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
 <div class="more-grid">
+<a class="more-card" href="?view=run"><span class="more-icon">➤</span><div><h2>Delivery run</h2><p>Today’s stops, addresses, WhatsApp links and the full route.</p></div><b>›</b></a>
 <a class="more-card" href="?view=packing_centre"><span class="more-icon">▣</span><div><h2>Packing Centre</h2><p>Saved packing runs, combined picking sheets, packing slips and envelope labels.</p></div><b>›</b></a>
 <a class="more-card" href="?view=business_alerts"><span class="more-icon">✉</span><div><h2>Business Alerts</h2><p>Email reminders to Jay and Tony, daily summaries, low stock and deliveries.</p></div><b>›</b></a>
 <a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping Intelligence</h2><p>China holidays, disruption countdowns and mobile-friendly stock protection forecasts.</p></div><b>›</b></a>
@@ -7063,7 +7148,7 @@ $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedE
 <a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Clients</span></a>
-<a class="<?=in_array($view,['enquiries','supplies','more','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','run','products','product','reports','reorder','shipping','sheets','supplier','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 </div>
 

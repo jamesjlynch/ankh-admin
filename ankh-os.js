@@ -660,6 +660,135 @@
     });
   };
 
+  const initDeliveryRun = () => {
+    const run = document.querySelector('[data-delivery-run]');
+    const list = run?.querySelector('.delivery-run-list');
+    if (!run || !list) return;
+
+    const storageKey = 'ankhDeliveryRunOrder:' + (run.dataset.runDate || '');
+    const allStops = () => [...list.querySelectorAll('[data-run-stop]')];
+    const money = (pence) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format((Number(pence) || 0) / 100);
+
+    const readOrder = () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        return Array.isArray(stored) ? stored.map(String) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const saveOrder = () => {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(allStops().map((stop) => String(stop.dataset.orderId || ''))));
+      } catch {}
+    };
+
+    const renumber = () => {
+      const stops = allStops();
+      stops.forEach((stop, index) => {
+        const number = stop.querySelector('[data-run-number]');
+        if (number) number.textContent = String(index + 1);
+        const up = stop.querySelector('[data-run-up]');
+        const down = stop.querySelector('[data-run-down]');
+        if (up) up.disabled = index === 0;
+        if (down) down.disabled = index === stops.length - 1;
+      });
+    };
+
+    const applyOrder = () => {
+      const order = readOrder();
+      if (!order.length) return;
+      const byId = new Map(allStops().map((stop) => [String(stop.dataset.orderId || ''), stop]));
+      const fragment = document.createDocumentFragment();
+      order.forEach((id) => {
+        const stop = byId.get(id);
+        if (!stop) return;
+        fragment.append(stop);
+        byId.delete(id);
+      });
+      byId.forEach((stop) => fragment.append(stop));
+      list.append(fragment);
+      renumber();
+    };
+
+    const updateTotals = () => {
+      const remaining = allStops().filter((stop) => !stop.classList.contains('is-done'));
+      const total = remaining.reduce((sum, stop) => sum + (Number(stop.dataset.runBalance) || 0), 0);
+      const countLabel = run.querySelector('[data-run-count]');
+      const totalLabel = run.querySelector('[data-run-total-label]');
+      if (countLabel) countLabel.textContent = String(remaining.length);
+      if (totalLabel) totalLabel.textContent = money(total);
+    };
+
+    const markDone = (stop) => {
+      stop.classList.add('is-done');
+      const done = stop.querySelector('.delivery-run-done');
+      if (done) done.hidden = false;
+      updateTotals();
+      saveOrder();
+    };
+
+    applyOrder();
+
+    list.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      const up = target.closest('[data-run-up]');
+      const down = target.closest('[data-run-down]');
+      const button = up || down;
+      if (!button) return;
+      const stop = button.closest('[data-run-stop]');
+      if (!stop) return;
+      if (up && stop.previousElementSibling) list.insertBefore(stop, stop.previousElementSibling);
+      if (down && stop.nextElementSibling) list.insertBefore(stop.nextElementSibling, stop);
+      renumber();
+      saveOrder();
+    });
+
+    list.addEventListener('submit', async (event) => {
+      const form = event.target instanceof HTMLFormElement ? event.target.closest('[data-run-deliver]') : null;
+      if (!form) return;
+      event.preventDefault();
+      const stop = form.closest('[data-run-stop]');
+      const button = form.querySelector('button[type="submit"]');
+      if (!stop || stop.classList.contains('is-done') || stop.dataset.runBusy === '1') return;
+      const token = csrfToken();
+      if (!token) {
+        window.ankhToast?.('Please refresh the page and try again.', { type: 'error' });
+        return;
+      }
+      const body = new URLSearchParams();
+      new FormData(form).forEach((value, key) => body.append(key, String(value)));
+      stop.dataset.runBusy = '1';
+      if (button) button.disabled = true;
+      try {
+        const url = new URL(window.location.href);
+        url.hash = '';
+        const response = await fetch(url.toString(), {
+          method: 'POST',
+          headers: {
+            'X-Requested-With': 'fetch',
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'
+          },
+          body: body.toString(),
+          credentials: 'same-origin'
+        });
+        let data = null;
+        try { data = await response.json(); } catch {}
+        if (!response.ok || !data || data.ok !== true) throw new Error(data && data.error ? data.error : 'Could not save. Please try again.');
+        markDone(stop);
+        window.ankhToast?.('Marked delivered · ' + (data.client || 'order'));
+      } catch (error) {
+        window.ankhToast?.(error && error.message ? error.message : 'Could not save. Please try again.', { type: 'error' });
+      } finally {
+        delete stop.dataset.runBusy;
+        if (button) button.disabled = false;
+      }
+    });
+  };
+
   const initBalanceReminders = () => {
     const sheet = document.getElementById('balance-reminder-sheet');
     const textarea = document.getElementById('balance-reminder-text');
@@ -949,6 +1078,7 @@
   const start = () => {
     adoptToasts();
     initOrderCards();
+    initDeliveryRun();
     initSearch();
     initBalanceReminders();
     initReportTakings();
