@@ -1,0 +1,9 @@
+375 stock horizontal overflow 376>375
+430 error TimeoutError: page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "http://127.0.0.1:18767/index.php?view=orders", waiting until "load"
+
+1366 error TimeoutError: page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "http://127.0.0.1:18767/index.php", waiting until "load"
+
