@@ -1900,3 +1900,250 @@ html.ankh-search-open{overflow:hidden}
 @media(prefers-reduced-motion:reduce){
   .ankh-search-backdrop,.ankh-search-panel{animation:none}
 }
+
+/* Balances: reminder age chips and send-reminder sheet. */
+.balance-customer-side{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex:none;
+  min-width:0;
+}
+.balance-age-chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:max-content;
+  max-width:100%;
+  margin-top:6px;
+  padding:4px 9px;
+  border:1px solid #3a3d3b;
+  border-radius:999px;
+  background:#1b1d1c;
+  color:#a9aca7;
+  font-size:10px;
+  font-weight:800;
+  line-height:1.3;
+  letter-spacing:.02em;
+}
+.balance-age-chip.is-amber{
+  border-color:rgba(245,166,35,.45);
+  background:rgba(245,166,35,.12);
+  color:#ffcb6b;
+}
+.balance-age-chip.is-red{
+  border-color:rgba(255,92,92,.5);
+  background:rgba(255,72,72,.14);
+  color:#ff9d9d;
+}
+.balance-reminder-trigger{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  min-height:44px;
+  padding:0 14px;
+  border:1px solid rgba(245,166,35,.5);
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(245,166,35,.2),rgba(245,166,35,.08));
+  color:var(--ankh-os-gold-bright);
+  font:inherit;
+  font-size:12px;
+  font-weight:750;
+  line-height:1;
+  white-space:nowrap;
+  cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  transition:background .15s,border-color .15s;
+}
+.balance-reminder-trigger:hover{
+  border-color:rgba(245,166,35,.8);
+  background:linear-gradient(180deg,rgba(245,166,35,.3),rgba(245,166,35,.14));
+}
+.balance-reminder-trigger:focus-visible{
+  outline:2px solid var(--ankh-os-gold-bright);
+  outline-offset:2px;
+}
+html.balance-reminder-open{overflow:hidden}
+.balance-reminder-sheet{
+  position:fixed;
+  inset:0;
+  z-index:12100;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+}
+.balance-reminder-sheet[hidden]{display:none!important}
+.balance-reminder-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(3,3,3,.76);
+  -webkit-backdrop-filter:blur(6px);
+  backdrop-filter:blur(6px);
+  animation:ankh-reminder-fade .18s ease;
+}
+.balance-reminder-panel{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  width:min(560px,100%);
+  max-width:100%;
+  max-height:min(86vh,720px);
+  padding:20px;
+  border:1px solid rgba(245,166,35,.32);
+  border-radius:20px;
+  background:linear-gradient(180deg,rgba(23,23,24,.99),rgba(10,10,11,.99));
+  color:var(--ankh-os-text);
+  box-shadow:0 30px 90px rgba(0,0,0,.65);
+  overflow:auto;
+  animation:ankh-reminder-rise .2s cubic-bezier(.2,.8,.2,1);
+}
+.balance-reminder-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
+.balance-reminder-head .eyebrow{
+  margin:0 0 3px;
+  color:var(--ankh-os-gold);
+  font-size:10px;
+  letter-spacing:.18em;
+}
+.balance-reminder-head h2{
+  margin:0;
+  color:var(--ankh-os-text);
+  font-size:22px;
+  line-height:1.1;
+}
+.balance-reminder-head small{
+  display:block;
+  margin-top:3px;
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  overflow-wrap:anywhere;
+}
+.balance-reminder-close{
+  display:grid;
+  place-items:center;
+  flex:0 0 44px;
+  width:44px;
+  height:44px;
+  min-height:44px;
+  margin:0;
+  padding:0;
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:12px;
+  background:rgba(255,255,255,.05);
+  color:var(--ankh-os-text);
+  font-size:22px;
+  line-height:1;
+  cursor:pointer;
+}
+.balance-reminder-close:focus-visible{
+  outline:2px solid var(--ankh-os-gold-bright);
+  outline-offset:2px;
+}
+.balance-reminder-field{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin-top:4px;
+  color:var(--ankh-os-muted);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.balance-reminder-field .muted{
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:0;
+  text-transform:none;
+}
+#balance-reminder-text{
+  box-sizing:border-box;
+  width:100%;
+  min-height:150px;
+  max-height:42vh;
+  margin:0;
+  padding:12px 14px;
+  border:1px solid rgba(245,166,35,.24);
+  border-radius:14px;
+  background:rgba(0,0,0,.42);
+  color:var(--ankh-os-text);
+  font:inherit;
+  font-size:14px;
+  line-height:1.5;
+  resize:vertical;
+}
+#balance-reminder-text:focus-visible{
+  outline:2px solid var(--ankh-os-gold-bright);
+  outline-offset:1px;
+}
+.balance-reminder-actions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:8px;
+  margin-top:2px;
+}
+.balance-reminder-action{
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  padding:10px 12px;
+  border:1px solid rgba(255,255,255,.16);
+  border-radius:12px;
+  background:rgba(255,255,255,.05);
+  color:var(--ankh-os-text);
+  font:inherit;
+  font-size:12px;
+  font-weight:750;
+  text-align:center;
+  text-decoration:none;
+  cursor:pointer;
+}
+.balance-reminder-action.is-primary{
+  border-color:rgba(245,166,35,.55);
+  background:linear-gradient(180deg,rgba(245,166,35,.28),rgba(245,166,35,.12));
+  color:var(--ankh-os-gold-bright);
+}
+.balance-reminder-action[hidden]{display:none!important}
+.balance-reminder-action:focus-visible{
+  outline:2px solid var(--ankh-os-gold-bright);
+  outline-offset:2px;
+}
+.balance-reminder-note{
+  margin:2px 0 0;
+  color:var(--ankh-os-muted);
+  font-size:11px;
+  line-height:1.45;
+}
+@keyframes ankh-reminder-fade{from{opacity:0}to{opacity:1}}
+@keyframes ankh-reminder-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@media(max-width:760px){
+  .balance-account-card>summary{flex-wrap:wrap}
+  .balance-customer-side{width:100%;justify-content:space-between;gap:8px}
+  .balance-reminder-trigger{min-height:44px;padding:0 12px;font-size:11px}
+  .balance-reminder-sheet{align-items:flex-end;padding:0}
+  .balance-reminder-panel{
+    width:100%;
+    max-width:none;
+    max-height:88vh;
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+    border-bottom:0;
+    border-radius:20px 20px 0 0;
+  }
+  .balance-reminder-actions{grid-template-columns:1fr}
+  #balance-reminder-text{min-height:140px;max-height:36vh}
+}
+@media(prefers-reduced-motion:reduce){
+  .balance-reminder-backdrop,.balance-reminder-panel{animation:none}
+  .balance-reminder-trigger{transition:none}
+}

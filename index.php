@@ -4120,6 +4120,28 @@ function futureDeliveryFields(array $order=[]):void{
  <?php
 }
 function money($n){return '£'.number_format((float)$n/100,2);}
+function balanceCustomerFirstName(string $name):string{
+ $parts=preg_split('/\s+/',trim($name));
+ return (string)($parts[0]??'');
+}
+function balanceDaysOverdue(string $created,DateTimeImmutable $today,DateTimeZone $tz):int{
+ try{$createdDate=(new DateTimeImmutable($created))->setTimezone($tz);}
+ catch(Throwable $e){return 0;}
+ $days=(int)$createdDate->setTime(0,0,0)->diff($today->setTime(0,0,0))->format('%r%a');
+ return max(0,$days);
+}
+function balanceReminderMessage(string $name,int $outstanding,int $orderCount,array $dates,string $adminFirstName):string{
+ $first=balanceCustomerFirstName($name);if($first==='')$first=$name;
+ $labels=[];foreach($dates as $date){$ts=strtotime((string)$date);if($ts!==false)$labels[date('Y-m-d',$ts)]=$ts;}
+ asort($labels);
+ $labels=array_values(array_map(fn($ts)=>date('j M Y',$ts),$labels));
+ $dateText='';
+ if(count($labels)===1)$dateText=$labels[0];
+ elseif(count($labels)===2)$dateText=$labels[0].' and '.$labels[1];
+ elseif(count($labels)>2)$dateText=implode(', ',array_slice($labels,0,-1)).' and '.end($labels);
+ $orderLabel=$orderCount===1?'order':'orders';
+ return 'Hi '.$first.', just a reminder '.money($outstanding).' is outstanding for your '.$orderLabel.($dateText!==''?' from '.$dateText:'').'. Thanks, '.$adminFirstName;
+}
 function todaySparklineSvg(array $daily):string{
  $values=array_values(array_map('floatval',$daily));
  if(!$values)$values=[0.0];
@@ -4367,14 +4389,15 @@ $customerIdByKey=[];foreach($storedCustomers as $storedCustomer){$customerIdByKe
 $paymentsByOrder=[];$allPayments=$db->query('SELECT * FROM payments ORDER BY datetime(created) DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC);
 foreach($allPayments as $ledgerPayment)$paymentsByOrder[(int)$ledgerPayment['order_id']][]=$ledgerPayment;
 $balanceAccounts=[];
+$balanceTz=new DateTimeZone('Europe/London');$balanceToday=new DateTimeImmutable('today',$balanceTz);
 foreach($customerOrderHistory as $balanceKey=>$balanceHistory){
- $openBalanceOrders=[];$openPaid=0;$openOutstanding=0;$oldestUnpaid=null;$hasPartPaid=false;$hasUnpaid=false;$hasOverdue=false;
+ $openBalanceOrders=[];$openPaid=0;$openOutstanding=0;$oldestUnpaid=null;$hasPartPaid=false;$hasUnpaid=false;$hasOverdue=false;$openDates=[];
  foreach($balanceHistory as $balanceOrder){
-  if((string)$balanceOrder['status']==='Cancelled')continue;
+  if((string)$balanceOrder['status']==='Cancelled'||isBackOrder($balanceOrder))continue;
   $orderPaid=(int)($balanceOrder['paid_amount']??0);$orderTotal=(int)$balanceOrder['total'];$orderDue=max(0,$orderTotal-$orderPaid);
   if($orderDue<=0)continue;
   $orderCopy=$balanceOrder;$orderCopy['balance_due']=$orderDue;$orderCopy['payments']=$paymentsByOrder[(int)$balanceOrder['id']]??[];
-  $openBalanceOrders[]=$orderCopy;$openPaid+=$orderPaid;$openOutstanding+=$orderDue;
+  $openBalanceOrders[]=$orderCopy;$openPaid+=$orderPaid;$openOutstanding+=$orderDue;$openDates[]=(string)$balanceOrder['created'];
   if($orderPaid>0)$hasPartPaid=true;else$hasUnpaid=true;
   if(!empty($balanceOrder['delivery_date']))$hasOverdue=true;
   if($oldestUnpaid===null || strtotime((string)$balanceOrder['created'])<strtotime((string)$oldestUnpaid['created']))$oldestUnpaid=$orderCopy;
@@ -4382,8 +4405,9 @@ foreach($customerOrderHistory as $balanceKey=>$balanceHistory){
  if(!$openBalanceOrders)continue;
  $first=$openBalanceOrders[0];$balanceAccounts[]=[
   'key'=>$balanceKey,'customer'=>(string)$first['customer'],'phone'=>(string)$first['phone'],'customer_id'=>$customerIdByKey[$balanceKey]??0,
-  'total_orders'=>count(array_filter($balanceHistory,fn($o)=>(string)$o['status']!=='Cancelled')),
+  'total_orders'=>count(array_filter($balanceHistory,fn($o)=>(string)$o['status']!=='Cancelled'&&!isBackOrder($o))),
   'open_orders'=>count($openBalanceOrders),'paid'=>$openPaid,'outstanding'=>$openOutstanding,'oldest'=>$oldestUnpaid,
+  'days_overdue'=>balanceDaysOverdue((string)($oldestUnpaid['created']??''),$balanceToday,$balanceTz),'order_dates'=>$openDates,
   'part_paid'=>$hasPartPaid,'unpaid'=>$hasUnpaid,'overdue'=>$hasOverdue,'orders'=>$openBalanceOrders
  ];
 }
@@ -5905,13 +5929,16 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
  <button type="button" data-balance-filter="partial">Part-paid <b><?=count(array_filter($balanceAccounts,fn($a)=>$a['part_paid']))?></b></button>
  <button type="button" data-balance-filter="overdue">Overdue <b><?=$balancesOverdueCount?></b></button>
 </div>
-<p class="balance-filter-note">Overdue means the order has been marked delivered but still has a balance outstanding.</p>
+<p class="balance-filter-note">The Overdue filter shows delivered orders with a balance still due. The days chip shows how long each client’s oldest unpaid order has been open.</p>
 <div class="balance-account-list" id="balance-account-list">
-<?php foreach($balanceAccounts as $account):$oldest=$account['oldest'];?>
+<?php foreach($balanceAccounts as $account):$oldest=$account['oldest'];$days=(int)$account['days_overdue'];$ageClass=$days>=14?'is-red':($days>=7?'is-amber':'is-neutral');$reminderMessage=balanceReminderMessage((string)$account['customer'],(int)$account['outstanding'],(int)$account['open_orders'],$account['order_dates'],$adminFirstName);?>
 <details class="balance-account-card" data-balance-unpaid="<?=$account['unpaid']?'1':'0'?>" data-balance-partial="<?=$account['part_paid']?'1':'0'?>" data-balance-overdue="<?=$account['overdue']?'1':'0'?>">
  <summary>
-  <div class="balance-customer-main"><h2><?=e($account['customer'])?></h2><span><?=$account['open_orders']?> open balance<?=$account['open_orders']===1?'':'s'?> · <?=$account['total_orders']?> total order<?=$account['total_orders']===1?'':'s'?></span><?php if($oldest):?><small>Oldest unpaid: ANK-<?=str_pad((string)$oldest['id'],4,'0',STR_PAD_LEFT)?> · <?=e(date('d M Y',strtotime($oldest['created'])))?></small><?php endif;?></div>
-  <div class="balance-customer-money"><?php if($account['paid']>0):?><span><b><?=money($account['paid'])?></b><small>paid</small></span><?php endif;?><strong><?=money($account['outstanding'])?><small>due</small></strong><i>⌄</i></div>
+  <div class="balance-customer-main"><h2><?=e($account['customer'])?></h2><span><?=$account['open_orders']?> open balance<?=$account['open_orders']===1?'':'s'?> · <?=$account['total_orders']?> total order<?=$account['total_orders']===1?'':'s'?></span><?php if($oldest):?><small>Oldest unpaid: ANK-<?=str_pad((string)$oldest['id'],4,'0',STR_PAD_LEFT)?> · <?=e(date('d M Y',strtotime($oldest['created'])))?></small><?php endif;?><b class="balance-age-chip <?=$ageClass?>"><?=$days?> day<?=$days===1?'':'s'?> overdue</b></div>
+  <div class="balance-customer-side">
+   <div class="balance-customer-money"><?php if($account['paid']>0):?><span><b><?=money($account['paid'])?></b><small>paid</small></span><?php endif;?><strong><?=money($account['outstanding'])?><small>due</small></strong><i>⌄</i></div>
+   <button type="button" class="balance-reminder-trigger" data-balance-reminder data-reminder-customer="<?=e($account['customer'])?>" data-reminder-message="<?=e($reminderMessage)?>" data-reminder-phone="<?=e($account['phone'])?>">Send reminder</button>
+  </div>
  </summary>
  <div class="balance-account-body">
   <div class="balance-account-actions"><?php if($account['customer_id']):?><a class="quick-action" href="?view=customer&amp;id=<?=$account['customer_id']?>">Open customer</a><?php endif;?><?php if(trim($account['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',$account['phone']))?>">Call</a><?php endif;?></div>
@@ -5929,6 +5956,23 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php endforeach;?>
 </div>
 <p class="empty" id="balance-filter-empty" <?=count($balanceAccounts)?'hidden':''?>>No outstanding customer balances.</p>
+<div class="balance-reminder-sheet" id="balance-reminder-sheet" hidden>
+ <div class="balance-reminder-backdrop" data-balance-reminder-close aria-hidden="true"></div>
+ <section class="balance-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="balance-reminder-title">
+  <div class="balance-reminder-head">
+   <div><p class="eyebrow">REMINDER</p><h2 id="balance-reminder-title">Send reminder</h2><small id="balance-reminder-customer"></small></div>
+   <button type="button" class="balance-reminder-close" data-balance-reminder-close aria-label="Close reminder">×</button>
+  </div>
+  <label class="balance-reminder-field" for="balance-reminder-text">Message <span class="muted">Editable</span></label>
+  <textarea id="balance-reminder-text" rows="6" spellcheck="true"></textarea>
+  <div class="balance-reminder-actions">
+   <button type="button" class="balance-reminder-action is-primary" id="balance-reminder-copy">Copy text</button>
+   <a class="balance-reminder-action" id="balance-reminder-sms" href="#" hidden>Open Messages</a>
+   <a class="balance-reminder-action" id="balance-reminder-whatsapp" href="#" target="_blank" rel="noopener" hidden>WhatsApp</a>
+  </div>
+  <p class="balance-reminder-note">Nothing is sent automatically. Review the message before sharing.</p>
+ </section>
+</div>
 <script>
 (()=>{const buttons=[...document.querySelectorAll('[data-balance-filter]')],cards=[...document.querySelectorAll('.balance-account-card')],empty=document.getElementById('balance-filter-empty');if(!buttons.length)return;const apply=type=>{let visible=0;cards.forEach(card=>{const show=type==='all'||card.dataset['balance'+type.charAt(0).toUpperCase()+type.slice(1)]==='1';card.hidden=!show;if(show)visible++;});buttons.forEach(button=>{const on=button.dataset.balanceFilter===type;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',on?'true':'false');});if(empty){empty.hidden=visible>0;empty.textContent=visible?'':'No customers match this balance filter.';}};buttons.forEach(button=>button.addEventListener('click',()=>apply(button.dataset.balanceFilter)));})();
 </script>

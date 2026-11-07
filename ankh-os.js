@@ -660,10 +660,128 @@
     });
   };
 
+  const initBalanceReminders = () => {
+    const sheet = document.getElementById('balance-reminder-sheet');
+    const textarea = document.getElementById('balance-reminder-text');
+    const customerLabel = document.getElementById('balance-reminder-customer');
+    const copyButton = document.getElementById('balance-reminder-copy');
+    const smsLink = document.getElementById('balance-reminder-sms');
+    const whatsappLink = document.getElementById('balance-reminder-whatsapp');
+    const triggers = [...document.querySelectorAll('[data-balance-reminder]')];
+    if (!sheet || !textarea || !customerLabel || !smsLink || !whatsappLink || !triggers.length) return;
+    let lastTrigger = null;
+    let currentPhone = '';
+
+    const toWhatsAppNumber = (phone) => {
+      let digits = String(phone || '').replace(/[^\d+]/g, '');
+      if (digits.startsWith('+')) digits = digits.slice(1);
+      else if (digits.startsWith('00')) digits = digits.slice(2);
+      if (digits.startsWith('0')) digits = '44' + digits.slice(1);
+      else if (digits.length === 10 && digits.startsWith('7')) digits = '44' + digits;
+      return digits.replace(/\D/g, '');
+    };
+
+    const syncLinks = () => {
+      const message = textarea.value;
+      const phone = currentPhone.trim();
+      if (!phone) {
+        smsLink.hidden = true;
+        whatsappLink.hidden = true;
+        return;
+      }
+      const smsNumber = phone.replace(/[^\d+]/g, '');
+      smsLink.hidden = false;
+      whatsappLink.hidden = false;
+      smsLink.href = 'sms:' + smsNumber + '?body=' + encodeURIComponent(message);
+      whatsappLink.href = 'https://wa.me/' + toWhatsAppNumber(phone) + '?text=' + encodeURIComponent(message);
+    };
+
+    const focusableItems = () => [...sheet.querySelectorAll('a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hasAttribute('hidden') && element.getClientRects().length > 0);
+
+    const close = (restore = true) => {
+      if (sheet.hidden) return;
+      sheet.hidden = true;
+      document.documentElement.classList.remove('balance-reminder-open');
+      if (restore && lastTrigger && lastTrigger.isConnected) lastTrigger.focus();
+    };
+
+    const open = (trigger) => {
+      lastTrigger = trigger;
+      currentPhone = String(trigger.dataset.reminderPhone || '');
+      customerLabel.textContent = String(trigger.dataset.reminderCustomer || '');
+      textarea.value = String(trigger.dataset.reminderMessage || '');
+      sheet.hidden = false;
+      document.documentElement.classList.add('balance-reminder-open');
+      syncLinks();
+      requestAnimationFrame(() => textarea.focus());
+    };
+
+    triggers.forEach((trigger) => {
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        open(trigger);
+      });
+    });
+
+    sheet.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-balance-reminder-close]') : null;
+      if (!target) return;
+      event.preventDefault();
+      close();
+    });
+
+    textarea.addEventListener('input', syncLinks);
+
+    copyButton?.addEventListener('click', async () => {
+      const message = textarea.value;
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(message);
+        } else {
+          textarea.focus();
+          textarea.select();
+          if (!document.execCommand('copy')) throw new Error('Copy unavailable');
+        }
+        window.ankhToast?.('Copied');
+      } catch {
+        window.ankhToast?.('Could not copy. Select the text and copy it manually.', { type: 'error' });
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (sheet.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusableItems();
+      if (!items.length) {
+        event.preventDefault();
+        textarea.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !sheet.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  };
+
   const start = () => {
     adoptToasts();
     initOrderCards();
     initSearch();
+    initBalanceReminders();
     init();
   };
 
