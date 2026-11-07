@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // Real POST requests against a temporary SQLite fixture, never the live database.
 $root=dirname(__DIR__);$temp=sys_get_temp_dir().'/ankh-supplier-edit-'.bin2hex(random_bytes(6));mkdir($temp,0700);$config=$temp.'/config.php';
-file_put_contents($config,'<?php $_SESSION["csrf"]="supplier-edit-fixture"; return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
+file_put_contents($config,'<?php $_SESSION["csrf"]="supplier-edit-fixture";$_SESSION["admin"]=true;$_SESSION["admin_user_id"]=1;$_SESSION["last"]=time(); return '.var_export(['password_hash'=>password_hash('fixture',PASSWORD_DEFAULT),'database_path'=>$temp.'/fixture.sqlite'],true).';');
 function editCheck(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function editRequest(array $get=[],array $post=[]):string{
  global $root,$config;
@@ -11,6 +11,7 @@ function editRequest(array $get=[],array $post=[]):string{
 }
 try{
  editRequest(['view'=>'stock','section'=>'incoming']);$db=new PDO('sqlite:'.$temp.'/fixture.sqlite',null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+ $db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('fixture',PASSWORD_DEFAULT)).',1,'.time().')');
  $db->exec("INSERT INTO products(id,name,price,cost,supplier_pack_size,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99001,'Original fixture 10mg',1000,500,10,1,20,0,0,20),(99002,'Missed fixture 5mg',1000,300,5,1,0,0,0,0)");
  editRequest([],['action'=>'supplier_order_create','supplier'=>'Fixture supplier','product_id'=>[99001],'packs'=>[2],'unit_cost'=>['5.00'],'return'=>'stock','return_section'=>'incoming']);
  $id=(int)$db->query('SELECT MAX(id) FROM supplier_orders')->fetchColumn();$lineId=(int)$db->query('SELECT id FROM supplier_order_items WHERE supplier_order_id='.$id)->fetchColumn();
