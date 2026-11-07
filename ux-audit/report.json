@@ -1,11 +1,11 @@
 {
- "generated": "2026-11-07T13:39:29.965Z",
+ "generated": "2026-11-07T14:05:56.188Z",
  "devices": {
   "iPhone 15 Pro": [
    {
     "view": "dashboard",
     "status": 200,
-    "ms": 281,
+    "ms": 144,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "TODAY, IN FOCUS.",
@@ -42,7 +42,7 @@
    {
     "view": "orders",
     "status": 200,
-    "ms": 271,
+    "ms": 275,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "ORDERS",
@@ -79,7 +79,7 @@
    {
     "view": "new",
     "status": 200,
-    "ms": 250,
+    "ms": 82,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "NEW ORDER",
@@ -112,7 +112,7 @@
    {
     "view": "customers",
     "status": 200,
-    "ms": 71,
+    "ms": 189,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "CUSTOMERS",
@@ -147,7 +147,7 @@
    {
     "view": "stock",
     "status": 200,
-    "ms": 225,
+    "ms": 170,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "STOCK CONTROL",
@@ -183,7 +183,7 @@
    {
     "view": "products",
     "status": 200,
-    "ms": 473,
+    "ms": 352,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "PRODUCTS",
@@ -222,7 +222,7 @@
    {
     "view": "reorder",
     "status": 200,
-    "ms": 121,
+    "ms": 152,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "REORDER PLANNER",
@@ -258,7 +258,7 @@
    {
     "view": "supplier",
     "status": 200,
-    "ms": 66,
+    "ms": 55,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "SUPPLIER & PROFIT",
@@ -292,7 +292,7 @@
    {
     "view": "supplies",
     "status": 200,
-    "ms": 158,
+    "ms": 87,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "BUSINESS SUPPLIES",
@@ -324,7 +324,7 @@
    {
     "view": "packing_centre",
     "status": 200,
-    "ms": 179,
+    "ms": 139,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "PACKING CENTRE",
@@ -359,7 +359,7 @@
    {
     "view": "packing",
     "status": 200,
-    "ms": 141,
+    "ms": 152,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "PACKING STATION",
@@ -390,7 +390,7 @@
    {
     "view": "shipping",
     "status": 200,
-    "ms": 116,
+    "ms": 98,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "SHIPPING INTELLIGENCE",
@@ -426,7 +426,7 @@
    {
     "view": "reports",
     "status": 200,
-    "ms": 96,
+    "ms": 1077,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "REPORTS",
@@ -459,7 +459,7 @@
    {
     "view": "balances",
     "status": 200,
-    "ms": 70,
+    "ms": 124,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "CUSTOMER BALANCES",
@@ -495,7 +495,7 @@
    {
     "view": "business_alerts",
     "status": 200,
-    "ms": 174,
+    "ms": 268,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "BUSINESS ALERTS",
@@ -527,7 +527,7 @@
    {
     "view": "enquiries",
     "status": 200,
-    "ms": 170,
+    "ms": 139,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "CUSTOMER ENQUIRIES",
@@ -558,7 +558,7 @@
    {
     "view": "website_cms",
     "status": 200,
-    "ms": 147,
+    "ms": 181,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "CUSTOMER WEBSITE CMS",
@@ -594,7 +594,7 @@
    {
     "view": "sheets",
     "status": 200,
-    "ms": 71,
+    "ms": 341,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "GOOGLE SHEETS",
@@ -625,7 +625,7 @@
    {
     "view": "activity",
     "status": 200,
-    "ms": 212,
+    "ms": 210,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "ORDER & PAYMENT ACTIVITY",
@@ -656,7 +656,7 @@
    {
     "view": "today",
     "status": 200,
-    "ms": 150,
+    "ms": 124,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "TODAY, IN FOCUS.",
@@ -693,7 +693,7 @@
    {
     "view": "saved",
     "status": 200,
-    "ms": 228,
+    "ms": 176,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "",
@@ -724,7 +724,7 @@
    {
     "view": "more",
     "status": 200,
-    "ms": 106,
+    "ms": 102,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "MORE",
@@ -755,7 +755,7 @@
    {
     "view": "reta",
     "status": 200,
-    "ms": 248,
+    "ms": 184,
     "errors": [],
     "title": "ANKH • Order desk",
     "h1": "UPCOMING CYCLES",
