@@ -13,7 +13,20 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  php-lint:
+    uses: ./.github/workflows/php-lint.yml
+    secrets: inherit
+  browser-smoke:
+    uses: ./.github/workflows/viewport.yml
+    secrets: inherit
+  backorder-actions:
+    uses: ./.github/workflows/backorder-actions.yml
+    secrets: inherit
+  packing-centre:
+    uses: ./.github/workflows/packing-centre.yml
+    secrets: inherit
   deploy:
+    needs: [php-lint, browser-smoke, backorder-actions, packing-centre]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

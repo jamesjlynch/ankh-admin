@@ -1,7 +1,6 @@
 name: Packing Centre
 on:
-  push:
-    branches: [main]
+  workflow_call:
   pull_request:
     branches: [main]
 jobs:
