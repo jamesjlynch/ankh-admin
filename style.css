@@ -5670,7 +5670,8 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .focus-app .dashboard-heading h1{font-size:30px}
  .focus-app .dashboard-heading .page-description{font-size:13px;margin:7px 0 0}
  .focus-app .heading,.focus-app .new-order-head{margin-bottom:22px}
- .focus-app .ux-mobile-actions{display:none}
+ /* Legacy nav rules use !important; dashboard shortcuts must not form a second bottom bar. */
+ .focus-app .ux-mobile-actions{display:none!important}
  .focus-summary{grid-template-columns:repeat(3,minmax(0,1fr));padding:16px 0;gap:0;margin:0 0 24px}
  .focus-summary .dashboard-stat-card{padding:0 11px;min-height:0;border-radius:0}
  .focus-summary .dashboard-stat-card>span{font-size:11px;line-height:1.4}
