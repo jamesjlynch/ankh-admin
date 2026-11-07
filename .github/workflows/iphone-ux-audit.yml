@@ -1,0 +1,26 @@
+name: iPhone UX audit
+on:
+  push:
+    branches: ['ux-audit/**']
+permissions:
+  contents: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.2', extensions: pdo_sqlite }
+      - run: |
+          npm ci --ignore-scripts
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps webkit
+      - run: node tests/iphone-ux-audit.mjs
+      - name: Commit results to this audit branch
+        if: always()
+        run: |
+          git config user.name ux-audit-bot && git config user.email ux-audit@users.noreply.github.com
+          git add -f ux-audit && git commit -m "iPhone UX audit results [skip ci]" && git push origin HEAD:${GITHUB_REF_NAME}
