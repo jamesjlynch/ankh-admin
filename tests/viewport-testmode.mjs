@@ -34,12 +34,18 @@ async function layout(page,label){
 }
 try{
  await ready();
+ const seedAdmin='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$q=$db->prepare("INSERT INTO admin_users(username,password_hash,active,created_at) VALUES (?,?,1,?)");$q->execute(["fixture-admin",getenv("ANKH_TEST_HASH"),time()]);';
+ execFileSync('php',['-r',seedAdmin],{env:{...process.env,ANKH_TEST_DB:db,ANKH_TEST_HASH:hash},encoding:'utf8'});
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:390,height:844}});
  const page=await context.newPage();
  await page.goto(host+'/index.php?view=dashboard');
- check(await page.locator('#dashboard-actions').count()===1,'Unchanged test-mode dashboard must open directly.');
- check(await page.locator('form input[name="password"]').count()===0,'Test-mode access must not require a login.');
+ await page.locator('form input[name="username"]').fill('fixture-admin');
+ await page.locator('form input[name="password"]').fill('fixture-admin-only');
+ await page.getByRole('button',{name:/Sign in/}).click();
+ await page.goto(host+'/index.php?view=dashboard');
+ await page.locator('#dashboard-actions').waitFor({state:'visible'});
+ check(await page.locator('#dashboard-actions').count()===1,'Signed-in dashboard must open after login.');
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
  const insert='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Test Customer\',\'\',\'\',\'\',\'New\',\'2026-10-15T09:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (1,\'Test Product\',1000,1);");';
  execFileSync('php',['-r',insert],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
@@ -50,7 +56,7 @@ try{
  await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('#work-order-1').count()===1,'Fixture order missing from worklist.');
  await page.locator('#work-order-1 summary').first().click();
- check(await page.locator('#work-order-1 .operations-next-button').count()===1,'Next action missing');
+ check(await page.locator('#work-order-1').getByRole('button',{name:/Mark reconstituted/}).count()===1,'Next action missing');
  await page.locator('#work-order-1').getByRole('button',{name:/Mark reconstituted/}).click();
  await page.locator('#dashboard-actions').waitFor({state:'visible'});
  await page.locator('#work-order-1 summary').first().click();
@@ -89,7 +95,7 @@ try{
  await page.goto(host+'/index.php?view=reports&type=personal&range=all');
  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Personal-use report overflows on iPhone');
  await context.close();
- console.log('PASS: original test-mode access, real one-tap preparation/delivery, audit history and 6 iPhone/iPad/desktop widths.');
+ console.log('PASS: signed-in access, real one-tap preparation/delivery, audit history and 6 iPhone/iPad/desktop widths.');
 }finally{
  await browser?.close();
  server.kill('SIGTERM');
