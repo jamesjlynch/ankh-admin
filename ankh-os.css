@@ -2882,3 +2882,77 @@ html.balance-reminder-open{overflow:hidden}
   .delivery-run-deliver{flex:1 1 calc(50% - 4px)}
   .delivery-run-deliver button{width:100%}
 }
+
+/* Polish fixes before ship.
+   Fridge overview mini stats: keep number over label in each stacked tile so
+   Physical / Reserved / Available never run together on narrow phones. */
+body .admin-app-shell .fridge-overview-card .stock-overview-breakdown small,
+body .admin-app-shell .fridge-overview-card .combined-stock-stats small{
+  display:grid!important;
+  justify-items:center;
+  align-content:center;
+  gap:2px;
+  min-width:0;
+  font-size:9px!important;
+  line-height:1.15;
+  letter-spacing:.15px;
+  text-align:center;
+  white-space:nowrap;
+}
+body .admin-app-shell .fridge-overview-card .stock-overview-breakdown small b,
+body .admin-app-shell .fridge-overview-card .combined-stock-stats small b{
+  font-size:14px!important;
+  line-height:1;
+}
+@media(max-width:420px){
+  body .admin-app-shell .fridge-overview-card .stock-overview-breakdown small,
+  body .admin-app-shell .fridge-overview-card .combined-stock-stats small{
+    font-size:7px!important;
+    letter-spacing:0;
+  }
+}
+
+/* Screen-reader-only text: keeps the accessible summary without painting it. */
+.visually-hidden{
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  margin:-1px!important;
+  padding:0!important;
+  overflow:hidden!important;
+  clip:rect(0 0 0 0)!important;
+  clip-path:inset(50%)!important;
+  border:0!important;
+  white-space:nowrap!important;
+}
+@media(min-width:761px) and (max-width:1179px){
+  body .admin-app-shell .fridge-overview-card .combined-stock-stats>span{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-template-rows:22px auto auto!important;
+    place-items:center!important;
+    gap:2px!important;
+    min-height:64px;
+    padding:6px 3px!important;
+    text-align:center;
+  }
+  body .admin-app-shell .fridge-overview-card .combined-stock-stats .stat-icon{
+    grid-column:1!important;
+    grid-row:1!important;
+    width:22px!important;
+    height:22px!important;
+    margin:0!important;
+  }
+  body .admin-app-shell .fridge-overview-card .combined-stock-stats small{
+    grid-column:1!important;
+    grid-row:2!important;
+    align-self:auto!important;
+    font-size:8px!important;
+    letter-spacing:0;
+  }
+  body .admin-app-shell .fridge-overview-card .combined-stock-stats b{
+    grid-column:1!important;
+    grid-row:3!important;
+    align-self:auto!important;
+  }
+}
