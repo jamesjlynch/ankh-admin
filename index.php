@@ -6366,7 +6366,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
     </svg>
     <div class="takings-tooltip" role="status" aria-live="polite" hidden></div>
    </div>
-   <p class="takings-summary" id="takings-summary-<?=e($key)?>"><?=e($period['summary'])?></p>
+   <p class="takings-summary visually-hidden" id="takings-summary-<?=e($key)?>"><?=e($period['summary'])?></p>
    <div class="takings-top">
     <div class="takings-top-head"><h3>Top products</h3><span>By revenue received</span></div>
     <?php if($period['top_products']):?>
