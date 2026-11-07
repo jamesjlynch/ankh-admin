@@ -269,7 +269,6 @@ body .stockboard .stockboard-card{
   .supply-section-tabs,
   .recurring-range-tabs,
   .cycle-horizon-tabs,
-  .order-view-nav,
   .customer-intelligence-filters,
   .pc-tabs
 ){
@@ -290,7 +289,7 @@ body .stockboard .stockboard-card{
 }
 
 /* Mobile-only scope rows keep their existing display state; only the row styling is set. */
-.admin-app-shell .ux-mobile-scopes{
+.admin-app-shell .ux-mobile-scopes:not(.order-view-nav){
   flex-direction:row;
   flex-wrap:nowrap;
   align-items:center;
@@ -316,10 +315,9 @@ body .stockboard .stockboard-card{
   .supply-section-tabs,
   .recurring-range-tabs,
   .cycle-horizon-tabs,
-  .order-view-nav,
   .customer-intelligence-filters,
   .pc-tabs,
-  .ux-mobile-scopes
+  .ux-mobile-scopes:not(.order-view-nav)
 )::-webkit-scrollbar{display:none}
 
 .admin-app-shell :is(
@@ -332,10 +330,9 @@ body .stockboard .stockboard-card{
   .supply-section-tabs,
   .recurring-range-tabs,
   .cycle-horizon-tabs,
-  .order-view-nav,
   .customer-intelligence-filters,
   .pc-tabs,
-  .ux-mobile-scopes
+  .ux-mobile-scopes:not(.order-view-nav)
 )>a,
 .admin-app-shell :is(
   .stock-demand-tabs,
@@ -373,10 +370,9 @@ body .stockboard .stockboard-card{
   .supply-section-tabs,
   .recurring-range-tabs,
   .cycle-horizon-tabs,
-  .order-view-nav,
   .customer-intelligence-filters,
   .pc-tabs,
-  .ux-mobile-scopes
+  .ux-mobile-scopes:not(.order-view-nav)
 )>a:is(.selected,[aria-current="page"],[aria-current="true"]),
 .admin-app-shell :is(
   .stock-demand-tabs,
@@ -568,7 +564,7 @@ body .today-board .operation-counts strong{
   .nav-label,
   .quick-action,
   .report-tabs a,
-  .ux-mobile-scopes a,
+  .ux-mobile-scopes:not(.order-view-nav) a,
   .stock-workspace-nav a span,
   .stock-workspace-nav a small,
   .customer-intelligence-filters button,
@@ -718,8 +714,7 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
 }
 
 /* Tab rows keep each label at its natural width and scroll sideways. */
-.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock,
-.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes{
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock{
   display:flex!important;
   flex-direction:row!important;
   flex-wrap:nowrap!important;
@@ -738,10 +733,8 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
   scroll-snap-type:x proximity;
   padding:4px 2px 10px!important;
 }
-.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock::-webkit-scrollbar,
-.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes::-webkit-scrollbar{display:none}
-.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a,
-.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes>a{
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock::-webkit-scrollbar{display:none}
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a{
   flex:0 0 auto!important;
   width:auto!important;
   min-width:max-content!important;
@@ -752,8 +745,7 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
   text-overflow:clip!important;
   scroll-snap-align:start;
 }
-.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a :is(strong,small,span,b,i,em),
-.admin-app-shell .focus-app nav.order-view-nav.ux-mobile-scopes>a :is(strong,small,span,b,i,em){
+.admin-app-shell .focus-app nav.stock-workspace-nav.stock-workspace-dock>a :is(strong,small,span,b,i,em){
   white-space:nowrap!important;
   overflow:visible!important;
   text-overflow:clip!important;
@@ -773,14 +765,14 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
 
 /* Press feedback and gentle transitions. */
 @media(prefers-reduced-motion:no-preference){
-  .admin-app-shell :is(button,.button,.quick-action,.report-tabs a,.ux-mobile-scopes a,.stock-workspace-nav a,.sc-tabs a,.dashboard-queue-tabs a,.stock-demand-tabs a,.stock-demand-tabs button,.supply-section-tabs a,.recurring-range-tabs a,.recurring-range-tabs button,.cycle-horizon-tabs a,.order-view-nav a,.customer-intelligence-filters button,.desktop-nav a,.mobile-nav a,.more-card,.dashboard-stat-card),
+  .admin-app-shell :is(button,.button,.quick-action,.report-tabs a,.ux-mobile-scopes:not(.order-view-nav) a,.stock-workspace-nav a,.sc-tabs a,.dashboard-queue-tabs a,.stock-demand-tabs a,.stock-demand-tabs button,.supply-section-tabs a,.recurring-range-tabs a,.recurring-range-tabs button,.cycle-horizon-tabs a,.order-view-nav a,.customer-intelligence-filters button,.desktop-nav a,.mobile-nav a,.more-card,.dashboard-stat-card),
   .login button,
   .login input,
   .login select,
   .login textarea{
     transition:transform .16s ease,background-color .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,filter .18s ease;
   }
-  .admin-app-shell :is(button,.button,.quick-action,.report-tabs a,.ux-mobile-scopes a,.stock-workspace-nav a,.sc-tabs a,.dashboard-queue-tabs a,.stock-demand-tabs a,.stock-demand-tabs button,.supply-section-tabs a,.recurring-range-tabs a,.recurring-range-tabs button,.cycle-horizon-tabs a,.order-view-nav a,.customer-intelligence-filters button,.mobile-nav a,.desktop-nav a):active,
+  .admin-app-shell :is(button,.button,.quick-action,.report-tabs a,.ux-mobile-scopes:not(.order-view-nav) a,.stock-workspace-nav a,.sc-tabs a,.dashboard-queue-tabs a,.stock-demand-tabs a,.stock-demand-tabs button,.supply-section-tabs a,.recurring-range-tabs a,.recurring-range-tabs button,.cycle-horizon-tabs a,.order-view-nav a,.customer-intelligence-filters button,.mobile-nav a,.desktop-nav a):active,
   .login button:active{
     transform:scale(.97);
   }
