@@ -4557,7 +4557,9 @@ $productCatalogForJs=[];
 foreach($products as $catalogProduct){
  $baseName=(string)$catalogProduct['name'];$strength='';
  if(preg_match('/\s+(\d+(?:\.\d+)?\s*(?:mg|ml|iu))$/i',$baseName,$pm)){$strength=$pm[1];$baseName=trim(substr($baseName,0,-strlen($pm[0])));}
- $productCatalogForJs[]=['id'=>(int)$catalogProduct['id'],'name'=>(string)$catalogProduct['name'],'base'=>$baseName,'strength'=>$strength,'price'=>(int)$catalogProduct['price']/100,'family_price'=>$catalogProduct['family_friends_price']===null?max(0,((int)$catalogProduct['price']-500)/100):(int)$catalogProduct['family_friends_price']/100,'active'=>(int)$catalogProduct['active']===1];
+ $trackedForCatalog=(int)($catalogProduct['stock_tracking']??0)===1;
+ $availableForCatalog=$trackedForCatalog?(int)($catalogProduct['stock_jay_qty']??0)+(int)($catalogProduct['stock_tony_qty']??0):null;
+ $productCatalogForJs[]=['id'=>(int)$catalogProduct['id'],'name'=>(string)$catalogProduct['name'],'base'=>$baseName,'strength'=>$strength,'price'=>(int)$catalogProduct['price']/100,'family_price'=>$catalogProduct['family_friends_price']===null?max(0,((int)$catalogProduct['price']-500)/100):(int)$catalogProduct['family_friends_price']/100,'active'=>(int)$catalogProduct['active']===1,'available'=>$availableForCatalog];
 }
 
 foreach($productCatalogForJs as &$jsProduct){foreach($products as $p){if((int)$p['id']===$jsProduct['id']){$jsProduct['saved_family_price']=$p['family_friends_price']===null?null:(int)$p['family_friends_price']/100;break;}}}unset($jsProduct);
@@ -4756,7 +4758,14 @@ $selectedReportOrders=array_values(array_filter($reportOrderRows,fn($row)=>$row[
 $grossProfit=$reportPeriods['all']['profit'];
 $trackedStock=array_values(array_filter($products,fn($p)=>(int)$p['active']===1 && (int)($p['stock_tracking']??0)===1 && $p['stock_qty']!==null));
 // Low stock follows the Combined fridge view (Jay + Tony), not holding stock.
-$lowStock=array_values(array_filter(array_map(function($p){$p['fridge_available']=(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0);return $p;},$trackedStock),fn($p)=>$p['fridge_available']<=(int)$p['low_stock_at']));
+// Available stock is already net of reserved orders, so negative values mean the orders are short.
+$lowStock=array_values(array_filter(array_map(function($p){
+ $p['fridge_available']=(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0);
+ $p['low_threshold']=max(0,(int)($p['low_stock_at']??2));
+ $p['is_out']=$p['fridge_available']<0;
+ $p['short_by']=$p['is_out']?abs($p['fridge_available']):0;
+ return $p;
+},$trackedStock),fn($p)=>$p['fridge_available']<=$p['low_threshold']));
 usort($lowStock,fn($a,$b)=>$a['fridge_available']<=>$b['fridge_available'] ?: strcasecmp((string)$a['name'],(string)$b['name']));
 $penUnitCost=setting($db,'pen_cost_pence','');
 $referrers=$db->query("SELECT DISTINCT referrer FROM orders WHERE referrer<>'' ORDER BY referrer COLLATE NOCASE")->fetchAll(PDO::FETCH_COLUMN);
@@ -5218,6 +5227,19 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 <a class="dashboard-stat-card" href="?view=orders&amp;scope=to_deliver"><span>To deliver</span><strong data-ankh-count="<?=count($awaitingDelivery)+count($futureDeliveries)?>" data-ankh-format="number"><?=count($awaitingDelivery)+count($futureDeliveries)?></strong><small>Includes future deliveries</small></a>
 <a class="dashboard-stat-card" href="?view=stock&amp;filter=low"><span>Low stock</span><strong data-ankh-count="<?=count($lowStock)?>" data-ankh-format="number"><?=count($lowStock)?></strong><small><?=count($trackedStock)?> tracked</small></a>
 </div>
+<?php if($lowStock):?>
+<section class="today-low-stock" aria-labelledby="today-low-stock-title">
+ <div class="today-low-stock-head">
+  <span class="today-low-stock-label" id="today-low-stock-title"><i aria-hidden="true"></i>Low stock</span>
+  <a class="today-low-stock-all" href="?view=stock&amp;filter=low"><?=count($lowStock)>4?'+'.(count($lowStock)-4).' more':'View all'?> <span aria-hidden="true">→</span></a>
+ </div>
+ <div class="today-low-stock-chips">
+ <?php foreach(array_slice($lowStock,0,4) as $alertProduct):$alertQty=(int)$alertProduct['fridge_available'];?>
+  <a class="today-low-chip <?=$alertQty<0?'is-out':'is-low'?>" href="?view=stock&amp;filter=low#stock-product-<?=(int)$alertProduct['id']?>"><strong><?=e($alertProduct['name'])?></strong><span><?=$alertQty<0?'Out · short by '.abs($alertQty):$alertQty.' left'?></span></a>
+ <?php endforeach;?>
+ </div>
+</section>
+<?php endif;?>
 <section class="todo-board dashboard-action-queue" id="dashboard-actions">
 <?php $opsNeedsPrep=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)==='pending'));$opsReady=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)==='packaged'));$opsOverdue=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)!=='closed' && trim((string)($o['scheduled_delivery_date']??''))!=='' && (string)$o['scheduled_delivery_date']<$now->format('Y-m-d')));?>
 <div class="todo-board-head"><div><h2>Your worklist</h2><p class="muted focus-work-count"><?=count($dashboardWork)?> order<?=count($dashboardWork)===1?'':'s'?> · <?=$opsNeedsPrep?> to prepare · <?=$opsReady?> ready<?=$opsOverdue?' · '.$opsOverdue.' overdue':''?></p></div><?php if($stockShortages):?><a class="queue-stock-warning" href="#dashboard-stock-shortage"><?=$stockShortageUnits?> stock short ↓</a><?php endif;?></div>
@@ -5731,7 +5753,7 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 <section class="stock-transaction-centre">
  <div class="stock-transaction-head"><div><p class="eyebrow">STOCK ACTIONS</p><h2>Move stock without editing products</h2><p>Supplier packs are 10 units. Use the quick pack buttons or enter any quantity.</p></div></div>
  <div class="stock-transaction-grid">
-  <details class="stock-action-card"><summary><span class="stock-action-icon">＋</span><div><strong>Add stock</strong><small>Receive packs into holding, Jay or Tony</small></div></summary>
+  <details class="stock-action-card" id="stock-add-stock" data-stock-add-stock><summary><span class="stock-action-icon">＋</span><div><strong>Add stock</strong><small>Receive packs into holding, Jay or Tony</small></div></summary>
    <form method="post" class="stock-central-form" data-pack-form><?php csrf();?><input type="hidden" name="action" value="stock_receive"><input type="hidden" name="return" value="stock">
     <label>Product<select name="product_id" required><option value="">Choose product</option><?php foreach($stockProducts as $p):if(!(int)$p['active'])continue;?><option value="<?=$p['id']?>"><?=e($p['name'])?></option><?php endforeach;?></select></label>
     <label>Put it in<select name="location"><option value="Unallocated">Holding stock</option><option value="Jay">Jay’s fridge</option><option value="Tony">Tony’s fridge</option></select></label>
@@ -5850,8 +5872,13 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
  $jayRetail=max(0,$jayAvailable)*$retailUnit;$tonyRetail=max(0,$tonyAvailable)*$retailUnit;$combinedRetail=max(0,$combinedAvailable)*$retailUnit;
  $jayProfit=$costUnit===null?null:max(0,$jayAvailable)*($retailUnit-$costUnit);$tonyProfit=$costUnit===null?null:max(0,$tonyAvailable)*($retailUnit-$costUnit);$combinedProfit=$costUnit===null?null:max(0,$combinedAvailable)*($retailUnit-$costUnit);
 $initialStockQty=$stockInitialView==='jay'?$jayAvailable:($stockInitialView==='tony'?$tonyAvailable:$combinedAvailable);$stockCardIsLow=(int)$sp['active']===1 && $initialStockQty<=(int)$sp['low_stock_at'];
+$stockBannerThreshold=max(0,(int)($sp['low_stock_at']??2));$stockBannerLow=(int)$sp['active']===1 && $initialStockQty<=$stockBannerThreshold;$stockBannerOut=$initialStockQty<0;
 ?><article class="stock-product-card" id="stock-product-<?=(int)$sp['id']?>" data-stock-active="<?=(int)$sp['active']?>" <?=$stockLowOnly&&!$stockCardIsLow?'hidden':''?> data-jay-qty="<?=$jayAvailable?>" data-tony-qty="<?=$tonyAvailable?>" data-combined-qty="<?=$combinedAvailable?>" data-low-threshold="<?=e((int)($sp['low_stock_at']??2))?>">
 <div class="stock-product-title"><span class="product-vial-icon" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><path d="M12 4h8v4l2 2v15a3 3 0 0 1-3 3h-6a3 3 0 0 1-3-3V10l2-2V4Z" stroke="currentColor" stroke-width="1.8"/><path d="M12 14h8M13 7h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12 20h8" stroke="currentColor" stroke-width="3" opacity=".35"/></svg></span><div><h3><?=e($sp['name'])?></h3><small><?=money($retailUnit)?> each<?=$costUnit===null?' · cost not set':' · '.money($costUnit).' cost'?></small><?php $productIncoming=(int)($incomingByProduct[(int)$sp['id']]??0);if($productIncoming>0):?><em class="incoming-stock-pill">+<?=$productIncoming?> incoming</em><?php endif;?></div></div>
+<div class="stock-low-banner <?=$stockBannerOut?'is-out':'is-low'?>" data-stock-low-banner <?=$stockBannerLow?'':'hidden'?>>
+ <span class="stock-low-banner-copy" data-stock-low-label><?=$stockBannerLow?($stockBannerOut?'Out – short by '.abs($initialStockQty):'Low – '.$initialStockQty.' left after today’s orders'):''?></span>
+ <button type="button" class="stock-low-add" data-stock-add-product="<?=(int)$sp['id']?>">Add stock</button>
+</div>
 <div class="stock-fridge-totals" aria-label="Physical fridge totals">
  <div class="stock-fridge-total jay"><span>Jay’s fridge</span><strong><?=$jayPhysical?></strong><small>total units</small></div>
  <div class="stock-fridge-total tony"><span>Tony’s fridge</span><strong><?=$tonyPhysical?></strong><small>total units</small></div>
@@ -5898,6 +5925,7 @@ $initialStockQty=$stockInitialView==='jay'?$jayAvailable:($stockInitialView==='t
   if(lowSummary)lowSummary.textContent=lowCount?lowCount+' product'+(lowCount===1?'':'s')+' at or below alert level':'No products at or below alert level';
   grid.querySelectorAll('input[name="return_filter"]').forEach(input=>{input.value=lowOnly?'low':''});
   grid.querySelectorAll('input[name="return_fridge"]').forEach(input=>{input.value=view});
+  window.ankhRefreshStockLowBanners?.(view);
  }
  function keepFilters(){const url=new URL(location.href);if(lowOnly)url.searchParams.set('filter','low');else url.searchParams.delete('filter');url.searchParams.set('fridge',view);history.replaceState(null,'',url);}
  buttons.forEach(button=>button.addEventListener('click',()=>{view=button.dataset.stockView;refresh();keepFilters()}));
@@ -7325,6 +7353,8 @@ function refreshLineVisuals(card){
  card.querySelectorAll('[data-line-format]').forEach(button=>button.classList.toggle('selected',button.dataset.lineFormat===data.presentation));
  const family=card.querySelector('[data-family-line]');if(family){family.classList.toggle('selected',data.discount);family.setAttribute('aria-pressed',data.discount?'true':'false')}
  const priceOut=card.querySelector('[data-line-total]');if(priceOut)priceOut.textContent=moneyFormat(data.price*data.quantity);
+ const stockWarning=card.querySelector('[data-line-stock-warning]');
+ if(stockWarning){const product=productCatalog.find(p=>Number(p.id)===Number(data.product_id)),available=product&&product.available!==null&&product.available!==undefined?Number(product.available):null,over=available!==null&&data.quantity>available;stockWarning.hidden=!over;if(over)stockWarning.textContent='Only '+Math.max(0,available)+' available';}
 }
 function recalculateLinePrice(card){
  if(activeCustomerPricing()==='free'||(activeCustomerPricing()==='family_friends'&&!editingExistingOrder)){applyCustomerPricing();return;}
@@ -7418,6 +7448,7 @@ function addOrderLine(data={},scroll=true,insertAfterCard=null){
  if(standalonePen){const priceHelp=document.createElement('small');priceHelp.className='line-price-help';priceHelp.textContent='Edit this amount to apply a manual discount. Profit uses the final price charged.';priceLabel.append(priceHelp)}
  controls.append(qtyWrap,priceLabel);card.append(controls);
  const lineTotal=document.createElement('div');lineTotal.className='line-card-total';lineTotal.innerHTML='<span>Line total</span><strong data-line-total></strong>';card.append(lineTotal);
+ const stockWarning=document.createElement('p');stockWarning.className='line-stock-warning';stockWarning.dataset.lineStockWarning='';stockWarning.hidden=true;card.append(stockWarning);
 
  remove.addEventListener('click',()=>{if(fromRepeat&&!pairedPen&&!confirm('Remove '+product.name+' from this current repeat order? The previous order will stay unchanged.'))return;if(pairedPen){const parent=selectedOrderCards().find(other=>other.dataset.pairId===card.dataset.pairId&&other.dataset.pairedPen!=='1');if(parent){const p=parent.querySelector('[data-line-presentation]');if(p&&p.value==='Pen'){p.value='';recalculateLinePrice(parent)}}}else removePairedPenRow(card);card.remove();updateSelectedState();updateTotal();saveDraftOrder()});
  minus.addEventListener('click',()=>{qtyInput.value=String(Math.max(1,Number(qtyInput.value||1)-1));refreshLineVisuals(card);updateTotal();saveDraftOrder()});

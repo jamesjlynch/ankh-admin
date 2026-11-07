@@ -903,12 +903,56 @@
     });
   };
 
+  const stockLowText = (available) => available < 0
+    ? 'Out – short by ' + Math.abs(available)
+    : 'Low – ' + available + ' left after today’s orders';
+
+  const refreshStockLowBanners = (view) => {
+    const grid = document.querySelector('.stock-product-grid');
+    const activeView = view || grid?.dataset.fridgeView || 'combined';
+    const qtyKey = activeView === 'jay' ? 'jayQty' : (activeView === 'tony' ? 'tonyQty' : 'combinedQty');
+    document.querySelectorAll('.stock-product-card').forEach((card) => {
+      const banner = card.querySelector('[data-stock-low-banner]');
+      if (!banner) return;
+      const available = Number(card.dataset[qtyKey] || 0);
+      const threshold = Number(card.dataset.lowThreshold || 0);
+      const low = card.dataset.stockActive === '1' && available <= threshold;
+      banner.hidden = !low;
+      banner.classList.toggle('is-out', available < 0);
+      banner.classList.toggle('is-low', available >= 0);
+      const label = banner.querySelector('[data-stock-low-label]');
+      if (label) label.textContent = low ? stockLowText(available) : '';
+    });
+  };
+
+  window.ankhRefreshStockLowBanners = refreshStockLowBanners;
+
+  const initLowStock = () => {
+    refreshStockLowBanners();
+
+    document.addEventListener('click', (event) => {
+      const trigger = event.target instanceof Element ? event.target.closest('[data-stock-add-product]') : null;
+      if (!trigger) return;
+      const action = document.querySelector('[data-stock-add-stock]');
+      if (!action) return;
+      if (action.tagName === 'DETAILS') action.open = true;
+      const select = action.querySelector('select[name="product_id"]');
+      if (select instanceof HTMLSelectElement) {
+        select.value = trigger.dataset.stockAddProduct || '';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      action.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+      window.setTimeout(() => select?.focus?.({ preventScroll: true }), reduceMotion ? 0 : 320);
+    });
+  };
+
   const start = () => {
     adoptToasts();
     initOrderCards();
     initSearch();
     initBalanceReminders();
     initReportTakings();
+    initLowStock();
     init();
   };
 
