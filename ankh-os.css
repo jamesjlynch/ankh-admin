@@ -968,3 +968,221 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
     transform:translateY(-16px) scale(.93)!important;
   }
 }
+
+/* Login and PIN setup: full-height ANKH OS entry screen. */
+.login{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  width:100%;
+  max-width:400px;
+  min-height:100dvh;
+  margin:0 auto;
+  padding:clamp(28px,7vw,52px) clamp(18px,5vw,28px) clamp(24px,6vw,40px);
+  background:
+    radial-gradient(ellipse 90% 52% at 50% 4%,rgba(245,166,35,.16),transparent 68%),
+    radial-gradient(ellipse 70% 34% at 88% 32%,rgba(255,181,71,.07),transparent 72%),
+    var(--ankh-os-bg);
+}
+
+.login .mark{
+  display:grid;
+  place-items:center;
+  width:auto;
+  height:auto;
+  margin:0 auto 6px;
+  padding:0;
+  border:0;
+  background:none;
+  color:var(--ankh-os-gold);
+  font:400 clamp(64px,17vw,92px)/1 Georgia,"Times New Roman",serif;
+  text-shadow:0 10px 34px rgba(245,166,35,.32);
+}
+
+.login>.eyebrow{
+  margin:2px 0 0;
+  text-align:center;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.22em;
+}
+
+.login h1{
+  margin:8px 0 6px;
+  text-align:center;
+  font-size:clamp(30px,8vw,42px);
+  line-height:.98;
+  letter-spacing:1px;
+}
+
+.login>.muted{
+  margin:0 auto 6px;
+  max-width:320px;
+  text-align:center;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.login .error{
+  margin:14px 0 0;
+  border:1px solid rgba(229,141,130,.5);
+  border-radius:14px;
+  background:rgba(72,34,33,.72);
+  color:#ffc5bd;
+  font-size:13px;
+  line-height:1.45;
+  text-align:left;
+}
+
+.login form{
+  margin:22px 0 0;
+  padding:clamp(16px,5vw,22px);
+  border:1px solid var(--ankh-os-border);
+  border-radius:22px;
+  background:var(--ankh-os-surface);
+  box-shadow:var(--ankh-os-shadow);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  backdrop-filter:blur(20px) saturate(160%);
+}
+
+.login form label{
+  margin:0 0 14px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.04em;
+  color:var(--ankh-os-muted);
+}
+
+.login form label:last-of-type{margin-bottom:18px}
+
+.login input:not([type=checkbox]):not([type=radio]),
+.login select,
+.login textarea{
+  font-size:16px;
+  min-height:52px;
+  padding:12px 14px;
+  margin-top:8px;
+}
+
+.login .login-divider{
+  margin:16px 0 12px;
+  color:var(--ankh-os-muted);
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.18em;
+}
+.login .login-divider:before,
+.login .login-divider:after{
+  content:"";
+  height:1px;
+  flex:1;
+  background:var(--ankh-os-border);
+}
+
+.login form button,
+.login .passkey-login{
+  min-height:52px;
+  border-radius:15px;
+  font-size:15px;
+  font-weight:800;
+}
+
+.login form button{
+  letter-spacing:.02em;
+}
+
+/* Passkey is the secondary action, never a second gold primary. */
+.login .passkey-login{
+  width:100%;
+  border:1px solid rgba(245,166,35,.42);
+  background:rgba(20,20,22,.6);
+  color:var(--ankh-os-gold-bright);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.login .passkey-login:hover{border-color:rgba(245,166,35,.66)}
+.login .passkey-status{margin:9px 0 0;text-align:center;font-size:11px}
+
+/* Login choreography: mark in, glass card up, breathing gold glow. */
+@keyframes ankh-login-mark-in{
+  from{opacity:0;transform:scale(.78) translateY(-6px)}
+  to{opacity:1;transform:none}
+}
+@keyframes ankh-login-card-in{
+  from{opacity:0;transform:translateY(20px)}
+  to{opacity:1;transform:none}
+}
+@keyframes ankh-mark-breathe{
+  0%,100%{filter:brightness(1);text-shadow:0 10px 30px rgba(245,166,35,.24)}
+  50%{filter:brightness(1.08);text-shadow:0 10px 44px rgba(245,166,35,.6)}
+}
+@keyframes ankh-login-shake{
+  0%,100%{transform:translateX(0)}
+  15%{transform:translateX(-7px)}
+  30%{transform:translateX(6px)}
+  45%{transform:translateX(-4px)}
+  60%{transform:translateX(3px)}
+  75%{transform:translateX(-2px)}
+}
+
+@media(prefers-reduced-motion:no-preference){
+  html.ankh-motion .login .mark{
+    animation:ankh-login-mark-in .6s cubic-bezier(.2,.7,.2,1) both,ankh-mark-breathe 4s ease-in-out .7s infinite;
+  }
+  html.ankh-motion .login form{
+    animation:ankh-login-card-in .55s cubic-bezier(.2,.7,.2,1) .1s both;
+  }
+  html.ankh-motion .login .error ~ form{
+    animation:ankh-login-card-in .55s cubic-bezier(.2,.7,.2,1) .1s both,ankh-login-shake .5s ease .7s;
+  }
+}
+
+/* App-wide page enter and chip transitions. */
+@keyframes ankh-page-enter{
+  from{opacity:0}
+  to{opacity:1}
+}
+
+@media(prefers-reduced-motion:no-preference){
+  html.ankh-motion #ankh-main.ankh-page-enter{
+    animation:ankh-page-enter .4s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .admin-app-shell :is(
+    .report-tabs a,
+    .stock-workspace-nav a,
+    .sc-tabs a,
+    .dashboard-queue-tabs a,
+    .stock-demand-tabs a,
+    .stock-demand-tabs button,
+    .supply-section-tabs a,
+    .recurring-range-tabs a,
+    .recurring-range-tabs button,
+    .cycle-horizon-tabs a,
+    .customer-intelligence-filters button,
+    .order-view-nav a,
+    .ux-mobile-scopes:not(.order-view-nav) a,
+    .line-cycle-quick button,
+    .ankh-view-button,
+    .stock-low-filter
+  ){
+    transition:
+      background-color .26s ease,
+      border-color .26s ease,
+      color .22s ease,
+      box-shadow .26s ease,
+      transform .18s ease;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  html.ankh-motion .login *,
+  html.ankh-motion #ankh-main,
+  html.ankh-motion .ankh-reveal,
+  .login *,
+  #ankh-main{
+    animation:none!important;
+    transition:none!important;
+  }
+  #ankh-main .ankh-reveal{opacity:1!important;transform:none!important}
+}

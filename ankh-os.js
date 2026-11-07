@@ -46,16 +46,56 @@
 
     document.documentElement.classList.add('ankh-motion');
 
-    const revealTargets = document.querySelectorAll([
-      '.today-hero',
-      '.dashboard-stats .dashboard-stat-card',
-      '.focus-worklist .focus-order',
-      '.dashboard-secondary',
-      '.ux-mobile-actions a'
-    ].join(','));
+    const mainContent = document.getElementById('ankh-main');
+    if (mainContent) mainContent.classList.add('ankh-page-enter');
+
+    const revealSelector = [
+      '#ankh-main > header',
+      '#ankh-main .today-hero',
+      '#ankh-main .dashboard-stat-card',
+      '#ankh-main .focus-worklist .focus-order',
+      '#ankh-main .dashboard-secondary',
+      '#ankh-main .ux-mobile-actions a',
+      '#ankh-main .panel',
+      '#ankh-main .card',
+      '#ankh-main .dashboard-panel',
+      '#ankh-main .todo-board',
+      '#ankh-main .todo-card',
+      '#ankh-main .more-card',
+      '#ankh-main .customer-card',
+      '#ankh-main .product-tile',
+      '#ankh-main .stock-product-card',
+      '#ankh-main .fridge-overview-card',
+      '#ankh-main .balance-account-card',
+      '#ankh-main .customer-cycle-card',
+      '#ankh-main .cycle-preview-card',
+      '#ankh-main .supplier-order-card',
+      '#ankh-main .future-order-card',
+      '#ankh-main .report-metrics article',
+      '#ankh-main .reportboard-kpi',
+      '#ankh-main .stockboard-card',
+      '#ankh-main .metric',
+      '#ankh-main .order',
+      '#ankh-main .list > *',
+      '#ankh-main [class$="-list"] > *',
+      '#ankh-main .customer-intelligence-grid > *'
+    ].join(',');
+
+    const seen = new Set();
+    const revealTargets = [];
+    const addTarget = (element) => {
+      if (!element || seen.has(element)) return;
+      seen.add(element);
+      revealTargets.push(element);
+    };
+    document.querySelectorAll(revealSelector).forEach(addTarget);
+    document.querySelectorAll('#ankh-main table tbody tr').forEach((row, index) => {
+      if (index < 20) addTarget(row);
+    });
+
     revealTargets.forEach((element, index) => {
       element.classList.add('ankh-reveal');
-      element.style.setProperty('--ankh-delay', Math.min(index, 14) * 45 + 'ms');
+      element.style.setProperty('--ankh-delay', Math.min(index, 15) * 40 + 'ms');
       element.classList.add('ankh-in');
     });
 
