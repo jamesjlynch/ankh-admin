@@ -469,7 +469,8 @@ body .stockboard .stockboard-card{
   }
   .admin-app-shell > #ankh-main,
   .admin-app-shell > main#ankh-main{
-    padding-bottom:calc(122px + env(safe-area-inset-bottom,0px))!important;
+    padding-bottom:24px!important;
+    margin-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important;
   }
 }
 
