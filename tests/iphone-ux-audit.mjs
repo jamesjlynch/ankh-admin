@@ -5,12 +5,13 @@ import { tmpdir } from 'node:os';
 import { join,dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync,spawn } from 'node:child_process';
+for(const k of Object.keys(process.env))if(/proxy/i.test(k))delete process.env[k];
 const root=dirname(dirname(fileURLToPath(import.meta.url)));
 const out=join(root,'ux-audit');mkdirSync(out,{recursive:true});
 const temp=mkdtempSync(join(tmpdir(),'ankh-ux-'));
 const db=join(temp,'fixture.sqlite'),config=join(temp,'config.php');
 const sessions=join(temp,'sessions');mkdirSync(sessions,{mode:0o700});
-const hash=execFileSync('php',['-r','echo password_hash("fixture-admin-only",PASSWORD_DEFAULT);'],{encoding:'utf8'}).trim();
+const hash=execFileSync('php',['-r','echo password_hash("2468",PASSWORD_DEFAULT);'],{encoding:'utf8'}).trim();
 const lit=v=>"'"+String(v).replaceAll("\\","\\\\").replaceAll("'","\\'")+"'";
 writeFileSync(config,'<?php return ["password_hash"=>'+lit(hash)+',"database_path"=>'+lit(db)+'];');
 const port=18765,host='http://127.0.0.1:'+port;
@@ -22,17 +23,19 @@ $n=["Test Customer A","Test Customer B","Test Customer C","Test Customer D","Tes
 foreach($n as $i=>$c){$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES ('$c','07000000000','1 Test Street, Liverpool L1 1AA','Fixture order with a fairly long note to test wrapping on narrow screens','".$s[$i]."','2026-11-0".($i+1)."T09:00:00Z','2026-11-0".($i+2)."')");
 $id=$db->lastInsertId();$db->exec("INSERT INTO items(order_id,name,price,quantity) VALUES ($id,'Fixture Peptide 10mg',4500,".($i+1)."),($id,'Fixture Pen Cartridge',2500,1)");}`],{env:{...process.env,D:db}});}catch(e){console.log('seed warning',String(e).slice(0,300));}
 const base=['dashboard','orders','new','customers','stock','products','reorder','supplier','supplies','packing_centre','packing','shipping','reports','balances','business_alerts','enquiries','website_cms','sheets','activity','today','saved','more'];
-async function signIn(page){await page.goto(host+'/index.php');const u=page.locator('input[name=username]');if(await u.count()&&await u.isVisible())await u.fill('admin');await page.locator('input[name=password]').fill('fixture-admin-only');await Promise.all([page.waitForLoadState('load'),page.locator('form:has(input[name=password]) button, form:has(input[name=password]) [type=submit]').first().click()]);await page.waitForTimeout(500);if(await page.locator('input[name=password]').count())console.log('LOGIN FAILED');}
+async function signIn(page){await page.goto(host+'/index.php');const u=page.locator('input[name=username]');if(await u.count()&&await u.isVisible())await u.fill('admin');await page.locator('input[name=password]').fill('2468');await Promise.all([page.waitForLoadState('load'),page.locator('form:has(input[name=password]) button, form:has(input[name=password]) [type=submit]').first().click()]);await page.waitForTimeout(500);if(await page.locator('input[name=password]').count())console.log('LOGIN FAILED');}
 const report={generated:new Date().toISOString(),devices:{}};
 const browser=await webkit.launch();
 // discover extra views from More/dashboard links
-{const c=await browser.newContext(devices['iPhone 15 Pro']);const p=await c.newPage();await signIn(p);
+{const c=await browser.newContext({...devices['iPhone 15 Pro']});const p=await c.newPage();await signIn(p);
  for(const v of ['more','dashboard']){await p.goto(host+'/index.php?view='+v);const hrefs=await p.$$eval('a[href*="view="]',a=>a.map(x=>new URL(x.href).searchParams.get('view')));for(const h of hrefs)if(h&&!base.includes(h)&&!/^(edit|customer|product|document)$/.test(h))base.push(h);}
  await c.close();}
 for(const dev of ['iPhone SE','iPhone 15 Pro','iPhone 15 Pro Max']){
- const ctx=await browser.newContext(devices[dev]);const page=await ctx.newPage();await signIn(page);
+ const ctx=await browser.newContext({...devices[dev]});let page=await ctx.newPage();await signIn(page);
  const res=[];report.devices[dev]=res;
  for(const v of base){
+  if(page.isClosed()){page=await ctx.newPage();}
+  try{
   const errs=[];const onC=m=>{if(m.type()==='error')errs.push(m.text().slice(0,200))};const onE=e=>errs.push('pageerror: '+String(e).slice(0,200));
   page.on('console',onC);page.on('pageerror',onE);
   let status=0;const t0=Date.now();
@@ -54,7 +57,8 @@ for(const dev of ['iPhone SE','iPhone 15 Pro','iPhone 15 Pro Max']){
   writeFileSync(join(out,'report.json'),JSON.stringify(report,null,1));res.push({view:v,status,ms,errors:errs.slice(0,5),...m});
   const slug=dev.replace(/\s+/g,'-');
   if(dev!=='iPhone 15 Pro Max'){await page.screenshot({path:join(out,`${slug}_${v}_top.png`),timeout:15000}).catch(e=>console.log('shot fail',v));}
-  if(dev==='iPhone 15 Pro'){await page.screenshot({path:join(out,`${slug}_${v}_full.png`),fullPage:true,timeout:20000}).catch(e=>console.log('full shot fail',v));}
+  if(dev==='iPhone 15 Pro')try{for(const k of [1,2]){await page.evaluate(k=>scrollTo(0,innerHeight*k*0.9),k);await page.waitForTimeout(150);await page.screenshot({path:join(out,`${slug}_${v}_s${k}.png`),timeout:15000}).catch(()=>{});}await page.evaluate(()=>scrollTo(0,0));}catch(e){console.log('scroll shot fail',v)}
+ }catch(e){console.log('view crashed',dev,v,String(e).slice(0,120));res.push({view:v,crashed:String(e).slice(0,200)});try{await page.close()}catch{}}
  }
  // menu open state
  try{const t=page.locator('button[aria-label*="enu" i], .menu-toggle, .hamburger, [aria-controls]').first();await page.goto(host+'/index.php?view=dashboard');if(await t.count()){await t.click();await page.waitForTimeout(400);await page.screenshot({path:join(out,`${dev.replace(/\s+/g,'-')}_menu-open.png`)});}}catch{}
