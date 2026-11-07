@@ -9,15 +9,30 @@ const assert=require('node:assert/strict');
 (async()=>{
  const root=resolve(__dirname,'..'),temp=mkdtempSync(join(tmpdir(),'ankh-back-actions-ui-')),db=join(temp,'fixture.sqlite'),config=join(temp,'config.php');
  writeFileSync(config,`<?php $_SESSION['admin']=true;$_SESSION['last']=time();return ['password_hash'=>'fixture-only','database_path'=>'${db}'];`);
- const server=spawn('php',['-S','127.0.0.1:18768','-t',root],{env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:'ignore'});const host='http://127.0.0.1:18768';let browser;
+ const server=spawn('php',['-d','session.save_path='+temp,'-S','127.0.0.1:18768','-t',root],{env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:'ignore'});const host='http://127.0.0.1:18768';let browser;
  const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`],{encoding:'utf8'});
  try{
   for(let i=0;i<60;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
   sql(`$db->exec("INSERT INTO products(id,name,price,cost,stock_tracking,stock_tracking_since,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99001,'Workflow browser product',5000,1000,1,'',0,5,0,5);INSERT INTO orders(id,customer,phone,address,notes,status,created,assigned_to,back_order,back_order_since) VALUES(99001,'Workflow browser waiting','','','','New','2026-10-01','James',1,'2026-10-01'),(99002,'Delete browser waiting','','','','New','2026-10-02','James',1,'2026-10-02');INSERT INTO items(order_id,product_id,name,price,quantity) VALUES(99001,99001,'Workflow browser product',5000,2),(99002,99001,'Workflow browser product',5000,1);");`);
   browser=await browserType.launch({headless:true,args:browserType===chromium?['--no-sandbox']:[]});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
   const route=host+'/?view=orders&section=backorders';const card=page.locator('.order-list .order').filter({has:page.getByRole('heading',{name:'Workflow browser waiting',exact:true})});
-  for(const width of [375,390,768,1440]){
+  for(const width of [320,375,390,430,768,1440]){
    await page.setViewportSize({width,height:844});await page.goto(route);await card.locator(':scope > summary').click();assert(await card.getByRole('button',{name:'Move to active orders',exact:true}).isEnabled());assert.equal(await card.locator('select[name="activation_assigned_to"]').inputValue(),'James');assert(await card.locator('.backorder-payment>summary').isVisible());assert(await page.locator('body').evaluate(el=>el.scrollWidth<=innerWidth+2));
+  }
+  // Page tabs must fit their own grid and never inherit app-bar positioning.
+  await page.setViewportSize({width:390,height:844});
+  for(const view of ['dashboard','orders','customers','products','stock','reports','more','packing_centre','new']){
+   await page.goto(host+'/?view='+view);
+   assert(await page.locator('#ankh-main nav').evaluateAll(nodes=>nodes.every(n=>getComputedStyle(n).position!=='fixed')),'Page navigation stays in the scrolling content: '+view);
+   const navBox=await page.locator('.mobile-nav').boundingBox();
+   for(const label of await page.locator('.mobile-nav .nav-label').all()){
+    const rect=await label.boundingBox();assert(rect.x>=-1&&rect.x+rect.width<=391&&rect.y+rect.height<=navBox.y+navBox.height+1,'Bottom menu labels fit inside the bar: '+view);
+   }
+   if(view==='orders'){
+    assert(await page.locator('.order-view-nav').evaluate(nav=>[...nav.children].every(link=>{const a=link.getBoundingClientRect(),b=nav.getBoundingClientRect();return a.left>=b.left-1&&a.right<=b.right+1&&link.scrollWidth<=link.clientWidth+1;})),'Every Orders tab and Packing Centre link must fit');
+    await page.screenshot({path:'/tmp/ankh-navigation-orders-'+browserType.name()+'.png'});
+   }
+   if(view==='dashboard')assert.equal(await page.locator('.ux-mobile-actions').isVisible(),false,'No duplicate dashboard menu');
   }
   // The bottom row stays at the viewport edge while only main scrolls, including resize.
   for(const height of [844,600,844]){
