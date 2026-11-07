@@ -476,9 +476,194 @@
     window.addEventListener('blur', release);
   };
 
+  const initSearch = () => {
+    const sheet = document.getElementById('ankh-search-sheet');
+    const input = document.getElementById('ankh-search-input');
+    if (!sheet || !input) return;
+    const results = document.getElementById('ankh-search-results');
+    const status = document.getElementById('ankh-search-status');
+    const triggers = [...document.querySelectorAll('[data-ankh-search-open]')];
+    const groupLabels = { clients: 'Clients', orders: 'Orders', products: 'Products' };
+    const groupViews = { clients: 'customer', orders: 'edit', products: 'product' };
+    let lastTrigger = null;
+    let controller = null;
+    let debounceTimer = 0;
+
+    const setStatus = (message) => {
+      if (status) status.textContent = message;
+    };
+
+    const setTriggers = (open) => {
+      triggers.forEach((trigger) => trigger.setAttribute('aria-expanded', String(open)));
+    };
+
+    const renderMessage = (message) => {
+      if (!results) return;
+      results.replaceChildren();
+      const empty = document.createElement('p');
+      empty.className = 'ankh-search-empty';
+      empty.textContent = message;
+      results.append(empty);
+    };
+
+    const renderResults = (data) => {
+      if (!results) return;
+      results.replaceChildren();
+      const groups = data && data.groups && typeof data.groups === 'object' ? data.groups : {};
+      let count = 0;
+      ['clients', 'orders', 'products'].forEach((key) => {
+        const items = Array.isArray(groups[key]) ? groups[key].slice(0, 5) : [];
+        if (!items.length) return;
+        const section = document.createElement('section');
+        section.className = 'ankh-search-group';
+        const heading = document.createElement('h3');
+        heading.textContent = groupLabels[key];
+        const list = document.createElement('ul');
+        list.className = 'ankh-search-list';
+        items.forEach((item) => {
+          const id = Number(item && item.id);
+          if (!Number.isInteger(id) || id <= 0) return;
+          const entry = document.createElement('li');
+          const link = document.createElement('a');
+          link.className = 'ankh-search-result';
+          link.href = '?view=' + groupViews[key] + '&id=' + encodeURIComponent(String(id));
+          const name = document.createElement('span');
+          name.className = 'ankh-search-result-name';
+          name.textContent = String((item && item.name) || '');
+          const detail = document.createElement('small');
+          detail.className = 'ankh-search-result-detail';
+          detail.textContent = String((item && item.detail) || '');
+          link.append(name, detail);
+          link.addEventListener('click', () => closeSearch(false));
+          entry.append(link);
+          list.append(entry);
+          count += 1;
+        });
+        if (!list.children.length) return;
+        section.append(heading, list);
+        results.append(section);
+      });
+      if (!count) renderMessage('No matches for “' + input.value.trim() + '”.');
+      setStatus(count ? count + (count === 1 ? ' result' : ' results') : 'No results');
+    };
+
+    const runSearch = async (value) => {
+      if (controller) controller.abort();
+      controller = new AbortController();
+      const term = value.trim();
+      if (term.length < 2) {
+        renderMessage('Type at least 2 characters to search.');
+        setStatus('Type at least 2 characters to search.');
+        return;
+      }
+      try {
+        const response = await fetch('?api=search&q=' + encodeURIComponent(term), {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal
+        });
+        if (!response.ok) throw new Error('Search unavailable');
+        const data = await response.json();
+        if (input.value.trim() !== term) return;
+        renderResults(data);
+      } catch (error) {
+        if (error && error.name === 'AbortError') return;
+        renderMessage('Search is unavailable right now.');
+        setStatus('Search is unavailable right now.');
+      }
+    };
+
+    const closeSearch = (restore = true) => {
+      if (sheet.hidden) return;
+      sheet.hidden = true;
+      document.documentElement.classList.remove('ankh-search-open');
+      if (controller) controller.abort();
+      setTriggers(false);
+      if (restore && lastTrigger && lastTrigger.isConnected) lastTrigger.focus();
+    };
+
+    const openSearch = (trigger) => {
+      const visibleTrigger = triggers.find((button) => button.getClientRects().length > 0);
+      lastTrigger = trigger && trigger.isConnected && trigger !== document.body
+        ? trigger
+        : (visibleTrigger || document.activeElement);
+      sheet.hidden = false;
+      document.documentElement.classList.add('ankh-search-open');
+      setTriggers(true);
+      input.value = '';
+      renderMessage('Type at least 2 characters to search.');
+      setStatus('');
+      requestAnimationFrame(() => input.focus());
+    };
+
+    triggers.forEach((trigger) => {
+      trigger.addEventListener('click', (event) => {
+        event.preventDefault();
+        openSearch(trigger);
+      });
+    });
+
+    input.addEventListener('input', () => {
+      window.clearTimeout(debounceTimer);
+      const value = input.value;
+      debounceTimer = window.setTimeout(() => runSearch(value), 150);
+    });
+
+    sheet.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target.closest('[data-ankh-search-close]') : null;
+      if (!target) return;
+      event.preventDefault();
+      closeSearch();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      const commandK = event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey);
+      if (commandK) {
+        event.preventDefault();
+        if (sheet.hidden) openSearch(document.activeElement);
+        else input.focus();
+        return;
+      }
+      if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const target = event.target;
+        const typing = target instanceof Element && (target.matches('input,textarea,select,[contenteditable="true"]') || target.closest('[contenteditable="true"]'));
+        if (!typing && sheet.hidden) {
+          event.preventDefault();
+          openSearch(document.activeElement);
+        }
+        return;
+      }
+      if (sheet.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSearch();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusables = [...sheet.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter((element) => !element.hasAttribute('hidden') && element.getClientRects().length > 0);
+      if (!focusables.length) {
+        event.preventDefault();
+        input.focus();
+        return;
+      }
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !sheet.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  };
+
   const start = () => {
     adoptToasts();
     initOrderCards();
+    initSearch();
     init();
   };
 

@@ -2603,6 +2603,35 @@ if(setting($db,'cycle_planner_migration_v1')!=='done'){
 }
 
 
+if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='search'){
+ if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600)voiceJson(['ok'=>false,'error'=>'Please sign in again.'],401);
+ $searchQuery=trim((string)($_GET['q']??''));
+ $searchQuery=function_exists('mb_substr')?mb_substr($searchQuery,0,80,'UTF-8'):substr($searchQuery,0,80);
+ $searchLength=function_exists('mb_strlen')?mb_strlen($searchQuery,'UTF-8'):strlen($searchQuery);
+ $searchData=['ok'=>true,'groups'=>['clients'=>[],'orders'=>[],'products'=>[]]];
+ if($searchLength<2)voiceJson($searchData);
+ $searchLike='%'.strtr($searchQuery,['\\'=>'\\\\','%'=>'\\%','_'=>'\\_']).'%';
+ $searchClients=$db->prepare("SELECT id,name,phone FROM customers WHERE name LIKE ? ESCAPE '\\' OR phone LIKE ? ESCAPE '\\' ORDER BY name COLLATE NOCASE,id LIMIT 5");
+ $searchClients->execute([$searchLike,$searchLike]);
+ foreach($searchClients as $row)$searchData['groups']['clients'][]=['id'=>(int)$row['id'],'name'=>(string)$row['name'],'detail'=>(string)($row['phone']??'')];
+ $searchOrderId=preg_match('/^(?:ank[-\s]*|#)?0*(\d{1,9})$/i',$searchQuery,$searchMatch)?(int)$searchMatch[1]:null;
+ if($searchOrderId!==null){
+  $searchOrders=$db->prepare("SELECT id,customer,recipient_name FROM orders WHERE id=? OR customer LIKE ? ESCAPE '\\' OR recipient_name LIKE ? ESCAPE '\\' ORDER BY CASE WHEN id=? THEN 0 ELSE 1 END,created DESC,id DESC LIMIT 5");
+  $searchOrders->execute([$searchOrderId,$searchLike,$searchLike,$searchOrderId]);
+ }else{
+  $searchOrders=$db->prepare("SELECT id,customer,recipient_name FROM orders WHERE customer LIKE ? ESCAPE '\\' OR recipient_name LIKE ? ESCAPE '\\' ORDER BY created DESC,id DESC LIMIT 5");
+  $searchOrders->execute([$searchLike,$searchLike]);
+ }
+ foreach($searchOrders as $row){
+  $recipient=trim((string)($row['recipient_name']??''));
+  $searchData['groups']['orders'][]=['id'=>(int)$row['id'],'name'=>'ANK-'.str_pad((string)$row['id'],4,'0',STR_PAD_LEFT).' · '.(string)$row['customer'],'detail'=>$recipient!==''?'For '.$recipient:''];
+ }
+ $searchProducts=$db->prepare("SELECT id,name,price FROM products WHERE active=1 AND name LIKE ? ESCAPE '\\' ORDER BY name COLLATE NOCASE,id LIMIT 5");
+ $searchProducts->execute([$searchLike]);
+ foreach($searchProducts as $row)$searchData['groups']['products'][]=['id'=>(int)$row['id'],'name'=>(string)$row['name'],'detail'=>'£'.number_format(((int)$row['price'])/100,2)];
+ voiceJson($searchData);
+}
+
 if($_SERVER['REQUEST_METHOD']==='GET' && ($_GET['api']??'')==='catalogue-image'){
  if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600){http_response_code(401);exit;}
  ankhCatalogueOutputImage($db,(int)($_GET['id']??0),false);
@@ -4137,7 +4166,7 @@ $reportDownloadBuffer=in_array($view,['reports','reorder'],true)&&trim((string)(
 if($reportDownloadBuffer)ob_start();
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101112"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="ANKH"><meta name="mobile-web-app-capable" content="yes"><title>ANKH • Order desk</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="icon.svg"><link rel="apple-touch-startup-image" href="splash.svg"><link rel="stylesheet" href="<?=e($stylesheet)?>?v=<?=e($stylesheetVersion)?>"><style id="ankh-desktop-intelligence-v1">
-.ankh-notification-popover,.desktop-today-panel,.ankh-notification-button,.ankh-notification-mobile-button{display:none}
+.ankh-notification-popover,.desktop-today-panel,.ankh-notification-button,.ankh-notification-mobile-button,.ankh-search-button,.ankh-search-mobile-button{display:none}
 .ankh-header-tools{display:contents}
 .customer-intelligence-filters{display:flex;gap:7px;overflow-x:auto;overscroll-behavior-inline:contain;padding:2px 0 12px;scrollbar-width:none}
 .customer-intelligence-filters::-webkit-scrollbar{display:none}
@@ -4966,15 +4995,17 @@ if($view==='reportsboard'){
 <a class="<?=in_array($view,['enquiries','supplies','more','supplier','reorder','shipping','stock','fridge_jay','fridge_tony','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <?php if(!$testingNoAuth):?><form method="post" class="sidebar-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
+<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <?php if($premiumV2Preview):?><div class="premium-v2-preview-banner"><span>Premium V2 · design preview</span><a class="premium-v2-preview-chip" href="?view=dashboard&amp;premium=0">Return to original design <span aria-hidden="true">↗</span></a></div><?php endif;?>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
 <?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
 <button type="button" class="ankh-notification-mobile-button" id="ankh-notification-mobile-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button>
+<button type="button" class="ankh-search-mobile-button" id="ankh-search-mobile-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
 <script>(()=>{
- const buttons=[...document.querySelectorAll('[data-ankh-notification-toggle]')],p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close'),mobile=document.getElementById('ankh-notification-mobile-button'),brand=document.querySelector('.app-brand-row');
+ const buttons=[...document.querySelectorAll('[data-ankh-notification-toggle]')],p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close'),mobile=document.getElementById('ankh-notification-mobile-button'),searchMobile=document.getElementById('ankh-search-mobile-button'),brand=document.querySelector('.app-brand-row');
  if(!buttons.length||!p)return;
  if(mobile&&brand)brand.insertBefore(mobile,document.getElementById('ankh-assistant-button'));
+ if(searchMobile&&brand)brand.insertBefore(searchMobile,document.getElementById('ankh-assistant-button'));
  p.setAttribute('role','dialog');p.setAttribute('tabindex','-1');
  let trigger=null;
  const set=(open,restore=true)=>{p.hidden=!open;buttons.forEach(b=>b.setAttribute('aria-expanded',String(open)));if(open){p.scrollTop=0;c?.focus();}else if(restore&&trigger?.isConnected)trigger.focus();};
@@ -4984,6 +5015,16 @@ if($view==='reportsboard'){
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!p.hidden){e.preventDefault();set(false)}});
  document.addEventListener('focusin',e=>{if(!p.hidden&&!p.contains(e.target)&&!buttons.includes(e.target))set(false,false)});
 })();</script>
+<div class="ankh-search-sheet" id="ankh-search-sheet" hidden>
+ <div class="ankh-search-backdrop" data-ankh-search-close aria-hidden="true"></div>
+ <section class="ankh-search-panel" role="dialog" aria-modal="true" aria-labelledby="ankh-search-title">
+  <div class="ankh-search-head"><h2 class="ankh-search-title" id="ankh-search-title"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><span>Search</span></h2><button type="button" class="ankh-search-close" data-ankh-search-close aria-label="Close search">×</button></div>
+  <div class="ankh-search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg><input id="ankh-search-input" type="search" placeholder="Search orders, clients, products…" autocomplete="off" spellcheck="false" aria-label="Search orders, clients, products"></div>
+  <p class="ankh-search-status" id="ankh-search-status" role="status" aria-live="polite"></p>
+  <div class="ankh-search-results" id="ankh-search-results"></div>
+  <p class="ankh-search-hint"><kbd>/</kbd> or <kbd>Ctrl/⌘ K</kbd> to open · Esc to close</p>
+ </section>
+</div>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):$flashType=(($_SESSION['flash_type']??'')==='error')?'error':'ok';?><div class="ankh-toast-region" data-ankh-toast-region><div class="ankh-toast" data-ankh-toast data-type="<?=$flashType?>" role="status" aria-live="polite"><p class="ankh-toast-message"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><button type="button" class="ankh-toast-close" data-ankh-toast-close aria-label="Dismiss notification"><span aria-hidden="true">×</span></button></div></div><?php unset($_SESSION['flash'],$_SESSION['flash_type']);endif;?>
 <?php if($view==='dashboard'):
