@@ -113,7 +113,7 @@ jobs:
             tail -n 24 /home/devcouk/ankh-admin-deploy.log
             exit 1
           fi
-          for file in index.php style.css style.min.css style.core.min.css premium-v2.css service-worker.js packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css; do
+          for file in index.php style.css style.min.css style.core.min.css premium-v2.css service-worker.js packing-centre-support.php packing-centre.php packing-centre-print.php packing-centre.css ankh-os.css; do
             cmp "$file" "/home/devcouk/public_html/ankh-admin/$file"
           done
           echo "Verified published order controls and navigation assets match the source."
