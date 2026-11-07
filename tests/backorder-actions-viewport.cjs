@@ -40,7 +40,7 @@ const assert=require('node:assert/strict');
    for(const top of [0,900,100]){
     await page.locator('#ankh-main').evaluate((el,top)=>el.scrollTop=top,top);
     const box=await page.locator('.mobile-nav').boundingBox();const main=await page.locator('#ankh-main').boundingBox();
-    assert(Math.abs(box.y+box.height-height)<2,'Menu must stay at the bottom after scrolling/resizing');
+    const gap=height-(box.y+box.height);assert(gap>-2&&gap<12,'Menu must stay at the bottom after scrolling/resizing (floating bar sits 10px above the edge)');
     assert(main.y+main.height<=box.y+1,'Content must stop above the menu');
    }
   }
