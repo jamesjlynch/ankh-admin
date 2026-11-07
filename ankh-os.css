@@ -394,16 +394,17 @@ body .stockboard .stockboard-card{
   .admin-app-shell > nav.mobile-nav{
     display:grid;
     position:fixed;
-    left:12px;
-    right:12px;
-    bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    left:0;
+    right:0;
+    bottom:0;
     width:auto;
-    min-height:66px;
-    padding:8px;
-    border:1px solid var(--ankh-os-border);
-    border-radius:22px;
+    min-height:calc(64px + env(safe-area-inset-bottom,0px));
+    padding:4px 8px env(safe-area-inset-bottom,0px)!important;
+    border:0;
+    border-top:1px solid var(--ankh-os-border);
+    border-radius:0;
     background:rgba(12,12,14,.94)!important;
-    box-shadow:0 16px 46px rgba(0,0,0,.55);
+    box-shadow:0 -14px 34px rgba(0,0,0,.5);
     -webkit-backdrop-filter:blur(20px) saturate(160%);
     backdrop-filter:blur(20px) saturate(160%);
     z-index:95;
@@ -461,7 +462,7 @@ body .stockboard .stockboard-card{
   }
   .admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{
     position:absolute;
-    top:60px;
+    top:54px;
     left:50%;
     transform:translateX(-50%);
     color:var(--ankh-os-gold-bright);
@@ -470,7 +471,7 @@ body .stockboard .stockboard-card{
   .admin-app-shell > #ankh-main,
   .admin-app-shell > main#ankh-main{
     padding-bottom:24px!important;
-    margin-bottom:calc(88px + env(safe-area-inset-bottom,0px))!important;
+    margin-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important;
   }
 }
 
@@ -1185,4 +1186,120 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
     transition:none!important;
   }
   #ankh-main .ankh-reveal{opacity:1!important;transform:none!important}
+}
+
+/* Stock cards: the visible fridge panel spans the card, with three equal
+   availability tiles and a two-column retail/profit row underneath. */
+.admin-app-shell .stock-product-grid[data-fridge-view] .stock-product-counts{
+  grid-template-columns:minmax(0,1fr)!important;
+}
+.admin-app-shell .stock-product-grid[data-fridge-view] .stock-product-counts>div:not([hidden]){
+  width:100%!important;
+  grid-template-columns:minmax(0,1fr)!important;
+  justify-content:stretch!important;
+}
+.admin-app-shell .stock-availability-panel{
+  width:100%!important;
+  min-width:0;
+}
+.admin-app-shell .stock-availability-three{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:8px!important;
+  width:100%!important;
+}
+.admin-app-shell .stock-availability-three>span,
+.admin-app-shell .stock-availability-three>button{
+  display:grid!important;
+  place-items:center;
+  align-content:center;
+  gap:4px!important;
+  min-width:0;
+  min-height:64px;
+  padding:9px 6px!important;
+  border:1px solid #303233;
+  border-radius:10px;
+  background:#141516;
+  text-align:center;
+}
+.admin-app-shell .stock-availability-three .available{
+  border-color:#574a2d;
+  background:#1c1912;
+}
+.admin-app-shell .stock-availability-three>button.stock-reserved-trigger{
+  border-color:#66552e;
+  background:linear-gradient(145deg,#2b2518,#201d15);
+}
+.admin-app-shell .stock-availability-three small{
+  color:#9b9d9a!important;
+  font-size:9px!important;
+  line-height:1.2!important;
+  letter-spacing:.12em;
+  white-space:nowrap;
+}
+.admin-app-shell .stock-availability-three b{
+  font-family:"Bebas Neue","Inter",ui-sans-serif,system-ui,sans-serif;
+  font-size:30px!important;
+  font-weight:400!important;
+  line-height:1!important;
+  letter-spacing:.5px;
+}
+.admin-app-shell .stock-availability-three em{
+  color:#ad9a6a!important;
+  font-size:8px!important;
+  font-style:normal;
+  font-weight:700;
+  line-height:1.1;
+}
+.admin-app-shell .stock-availability-panel .stock-value-lines{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:8px!important;
+  width:100%!important;
+  margin-top:9px;
+  padding-top:0!important;
+  border-top:0;
+}
+.admin-app-shell .stock-availability-panel .stock-value-lines small{
+  display:grid!important;
+  align-content:start;
+  justify-content:start!important;
+  gap:3px!important;
+  min-width:0;
+  min-height:0;
+  padding:9px 11px!important;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:10px;
+  background:rgba(8,10,10,.18);
+  color:#f0eee8!important;
+  font-size:18px!important;
+  font-weight:700;
+  line-height:1.15!important;
+  text-align:left;
+  white-space:normal!important;
+}
+.admin-app-shell .stock-availability-panel .stock-value-lines small b{
+  width:auto!important;
+  overflow:visible!important;
+  color:#9a9c99!important;
+  font-size:9px!important;
+  font-weight:800;
+  letter-spacing:.08em;
+  line-height:1.2;
+  text-overflow:clip!important;
+  text-transform:uppercase;
+  white-space:normal!important;
+}
+@media(max-width:760px){
+  .admin-app-shell .stock-availability-three{gap:6px!important}
+  .admin-app-shell .stock-availability-three>span,
+  .admin-app-shell .stock-availability-three>button{min-height:58px;padding:8px 4px!important}
+  .admin-app-shell .stock-availability-three small{font-size:8px!important;letter-spacing:.08em}
+  .admin-app-shell .stock-availability-three b{font-size:25px!important}
+  .admin-app-shell .stock-availability-panel .stock-value-lines small{font-size:16px!important;padding:8px 9px!important}
+  .admin-app-shell .stock-availability-panel .stock-value-lines small b{font-size:8px!important}
+}
+@media(max-width:390px){
+  .admin-app-shell .stock-availability-three small{font-size:7.5px!important;letter-spacing:.04em}
+  .admin-app-shell .stock-availability-panel .stock-value-lines small{font-size:15px!important}
 }
