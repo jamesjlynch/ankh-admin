@@ -1310,3 +1310,104 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
   html{height:100vh;min-height:calc(100% + env(safe-area-inset-top,0px))}
   body:has(>.admin-app-shell){height:100%;min-height:calc(100vh + env(safe-area-inset-top,0px))}
 }
+/* New order wizard: readable strength tiles, an honest empty state and a
+   footer that sits in the scroll flow above the pinned mobile nav. */
+.admin-app-shell .add-another-product[hidden]{display:none!important}
+.admin-app-shell .add-another-product strong{color:#17140e}
+.admin-app-shell .add-another-product small{color:rgba(23,20,14,.74)}
+.admin-app-shell .add-another-product .add-another-plus{
+  color:#17140e;
+  border-color:rgba(23,20,14,.34);
+  background:rgba(23,20,14,.12);
+}
+.admin-app-shell .new-order-head{padding-bottom:24px}
+.admin-app-shell .wizard-progress>span>span{top:36px;line-height:1.2}
+.admin-app-shell .strength-picker,
+.admin-app-shell .strength-picker-head,
+.admin-app-shell .strength-picker-head>div{min-width:0}
+.admin-app-shell .strength-picker-head strong{overflow-wrap:anywhere}
+
+@media(max-width:760px){
+  .admin-app-shell .strength-options{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:9px!important;
+    width:100%;
+  }
+  .admin-app-shell .strength-option{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr);
+    justify-items:center;
+    align-content:center;
+    gap:2px!important;
+    width:100%;
+    min-width:0;
+    min-height:64px;
+    padding:8px 6px!important;
+    overflow:hidden;
+    text-align:center;
+  }
+  .admin-app-shell .strength-option .ankh-strength-thumb{
+    width:36px;
+    height:36px;
+    margin:0 0 1px;
+  }
+  .admin-app-shell .strength-option .ankh-strength-thumb+strong{margin-right:0}
+  .admin-app-shell .strength-option strong{
+    max-width:100%;
+    margin:0;
+    font-family:"Bebas Neue","Inter",ui-sans-serif,system-ui,sans-serif;
+    font-size:19px;
+    font-weight:400;
+    line-height:1;
+    letter-spacing:.5px;
+    color:var(--ankh-os-gold);
+    overflow-wrap:anywhere;
+  }
+  .admin-app-shell .strength-option>span:not(.ankh-strength-thumb){
+    max-width:100%;
+    font-size:12.5px;
+    line-height:1.15;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  .admin-app-shell .add-another-product{
+    position:static;
+    margin:12px 0 4px;
+    box-shadow:none;
+    -webkit-backdrop-filter:none;
+    backdrop-filter:none;
+  }
+
+  .admin-app-shell .wizard-actions{
+    position:sticky!important;
+    left:auto!important;
+    right:auto!important;
+    bottom:0!important;
+    z-index:20!important;
+    width:auto!important;
+    margin:18px 0 0!important;
+    padding:12px 0 10px!important;
+    background:linear-gradient(180deg,rgba(20,20,22,.94),rgba(20,20,22,.99))!important;
+    border-top:1px solid var(--ankh-os-border);
+    -webkit-backdrop-filter:blur(14px) saturate(150%);
+    backdrop-filter:blur(14px) saturate(150%);
+    box-shadow:0 -10px 22px rgba(0,0,0,.35);
+  }
+  .admin-app-shell .wizard-progress{margin-bottom:0}
+  .admin-app-shell .wizard-progress>span>span{font-size:11px;top:36px}
+  .admin-app-shell .new-order-head{padding-bottom:26px}
+}
+
+@media(max-width:760px){
+  /* Let the sticky order footer finish flush against the pinned bottom nav
+     instead of leaving the form's old fixed-dock padding behind, and keep
+     programmatic scroll-to-picker clear of that footer. */
+  .admin-app-shell .order-wizard{margin-bottom:0!important;padding-bottom:0!important}
+  body .admin-app-shell>main#ankh-main[data-view="new"]{
+    padding-bottom:0!important;
+    scroll-padding-bottom:90px;
+  }
+}
