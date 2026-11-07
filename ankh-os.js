@@ -665,35 +665,35 @@
     const textarea = document.getElementById('balance-reminder-text');
     const customerLabel = document.getElementById('balance-reminder-customer');
     const copyButton = document.getElementById('balance-reminder-copy');
-    const smsLink = document.getElementById('balance-reminder-sms');
     const whatsappLink = document.getElementById('balance-reminder-whatsapp');
+    const phoneNote = document.getElementById('balance-reminder-phone-note');
     const triggers = [...document.querySelectorAll('[data-balance-reminder]')];
-    if (!sheet || !textarea || !customerLabel || !smsLink || !whatsappLink || !triggers.length) return;
+    if (!sheet || !textarea || !customerLabel || !whatsappLink || !phoneNote || !triggers.length) return;
     let lastTrigger = null;
     let currentPhone = '';
 
     const toWhatsAppNumber = (phone) => {
-      let digits = String(phone || '').replace(/[^\d+]/g, '');
-      if (digits.startsWith('+')) digits = digits.slice(1);
-      else if (digits.startsWith('00')) digits = digits.slice(2);
-      if (digits.startsWith('0')) digits = '44' + digits.slice(1);
-      else if (digits.length === 10 && digits.startsWith('7')) digits = '44' + digits;
-      return digits.replace(/\D/g, '');
+      const digits = String(phone || '').replace(/[\s+()\[\]]/g, '');
+      if (/^07\d{9}$/.test(digits)) return '44' + digits.slice(1);
+      if (/^447\d{9}$/.test(digits)) return digits;
+      return '';
     };
 
     const syncLinks = () => {
       const message = textarea.value;
-      const phone = currentPhone.trim();
-      if (!phone) {
-        smsLink.hidden = true;
-        whatsappLink.hidden = true;
+      const number = toWhatsAppNumber(currentPhone);
+      whatsappLink.hidden = false;
+      if (!number) {
+        whatsappLink.removeAttribute('href');
+        whatsappLink.setAttribute('aria-disabled', 'true');
+        whatsappLink.classList.add('is-disabled');
+        phoneNote.hidden = false;
         return;
       }
-      const smsNumber = phone.replace(/[^\d+]/g, '');
-      smsLink.hidden = false;
-      whatsappLink.hidden = false;
-      smsLink.href = 'sms:' + smsNumber + '?body=' + encodeURIComponent(message);
-      whatsappLink.href = 'https://wa.me/' + toWhatsAppNumber(phone) + '?text=' + encodeURIComponent(message);
+      whatsappLink.href = 'https://wa.me/' + number + '?text=' + encodeURIComponent(message);
+      whatsappLink.removeAttribute('aria-disabled');
+      whatsappLink.classList.remove('is-disabled');
+      phoneNote.hidden = true;
     };
 
     const focusableItems = () => [...sheet.querySelectorAll('a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])')]
@@ -733,6 +733,10 @@
     });
 
     textarea.addEventListener('input', syncLinks);
+
+    whatsappLink.addEventListener('click', (event) => {
+      if (whatsappLink.getAttribute('aria-disabled') === 'true') event.preventDefault();
+    });
 
     copyButton?.addEventListener('click', async () => {
       const message = textarea.value;

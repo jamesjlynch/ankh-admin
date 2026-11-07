@@ -5937,7 +5937,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
   <div class="balance-customer-main"><h2><?=e($account['customer'])?></h2><span><?=$account['open_orders']?> open balance<?=$account['open_orders']===1?'':'s'?> · <?=$account['total_orders']?> total order<?=$account['total_orders']===1?'':'s'?></span><?php if($oldest):?><small>Oldest unpaid: ANK-<?=str_pad((string)$oldest['id'],4,'0',STR_PAD_LEFT)?> · <?=e(date('d M Y',strtotime($oldest['created'])))?></small><?php endif;?><b class="balance-age-chip <?=$ageClass?>"><?=$days?> day<?=$days===1?'':'s'?> overdue</b></div>
   <div class="balance-customer-side">
    <div class="balance-customer-money"><?php if($account['paid']>0):?><span><b><?=money($account['paid'])?></b><small>paid</small></span><?php endif;?><strong><?=money($account['outstanding'])?><small>due</small></strong><i>⌄</i></div>
-   <button type="button" class="balance-reminder-trigger" data-balance-reminder data-reminder-customer="<?=e($account['customer'])?>" data-reminder-message="<?=e($reminderMessage)?>" data-reminder-phone="<?=e($account['phone'])?>">Send reminder</button>
+   <button type="button" class="balance-reminder-trigger" data-balance-reminder data-reminder-customer="<?=e($account['customer'])?>" data-reminder-message="<?=e($reminderMessage)?>" data-reminder-phone="<?=e($account['phone'])?>"><svg class="balance-reminder-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20Zm4.6-5.9c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.5 6.5 0 0 1-3.2-2.8c-.2-.3 0-.5.1-.7l.4-.5c.1-.2.1-.3 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3c-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.7 2.7 4.2 3.7 2 .8 2.4.7 2.9.6.4-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2-.1-.1-.2-.2-.5-.3Z"/></svg>WhatsApp reminder</button>
   </div>
  </summary>
  <div class="balance-account-body">
@@ -5966,10 +5966,10 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
   <label class="balance-reminder-field" for="balance-reminder-text">Message <span class="muted">Editable</span></label>
   <textarea id="balance-reminder-text" rows="6" spellcheck="true"></textarea>
   <div class="balance-reminder-actions">
-   <button type="button" class="balance-reminder-action is-primary" id="balance-reminder-copy">Copy text</button>
-   <a class="balance-reminder-action" id="balance-reminder-sms" href="#" hidden>Open Messages</a>
-   <a class="balance-reminder-action" id="balance-reminder-whatsapp" href="#" target="_blank" rel="noopener" hidden>WhatsApp</a>
+   <a class="balance-reminder-action is-primary" id="balance-reminder-whatsapp" target="_blank" rel="noopener" aria-disabled="true" hidden>Send on WhatsApp</a>
+   <button type="button" class="balance-reminder-action is-secondary" id="balance-reminder-copy">Copy text</button>
   </div>
+  <p class="balance-reminder-phone-note" id="balance-reminder-phone-note" hidden>No mobile number saved</p>
   <p class="balance-reminder-note">Nothing is sent automatically. Review the message before sharing.</p>
  </section>
 </div>
