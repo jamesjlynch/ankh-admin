@@ -66,4 +66,4 @@ for(const dev of ['iPhone 15 Pro']){
 }
 writeFileSync(join(out,'report.json'),JSON.stringify(report,null,1));
 await browser.close();server.kill();
-console.log('UX audit done:',base.length,'views');
+console.log('UX audit done:',base.length,'views');process.exit(0);
