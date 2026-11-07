@@ -781,11 +781,134 @@
     });
   };
 
+  const initReportTakings = () => {
+    document.querySelectorAll('[data-takings]').forEach((root) => {
+      const tabs = [...root.querySelectorAll('[data-takings-tab]')];
+      const panels = [...root.querySelectorAll('[data-takings-panel]')];
+      if (!tabs.length || !panels.length) return;
+
+      const reveal = (panel) => {
+        const chart = panel.querySelector('.takings-chart');
+        if (!chart) return;
+        if (reduceMotion) {
+          chart.classList.add('is-revealed');
+          return;
+        }
+        if (chart.classList.contains('is-revealed')) return;
+        chart.classList.add('is-ready');
+        chart.querySelectorAll('.takings-bar').forEach((bar, index) => {
+          bar.style.transitionDelay = (index * 34) + 'ms';
+        });
+        requestAnimationFrame(() => requestAnimationFrame(() => chart.classList.add('is-revealed')));
+      };
+
+      const activate = (key) => {
+        tabs.forEach((tab) => {
+          const on = tab.dataset.takingsTab === key;
+          tab.setAttribute('aria-selected', on ? 'true' : 'false');
+          tab.tabIndex = on ? 0 : -1;
+        });
+        panels.forEach((panel) => {
+          const on = panel.dataset.takingsPanel === key;
+          panel.hidden = !on;
+          if (on) reveal(panel);
+        });
+      };
+
+      tabs.forEach((tab, index) => {
+        tab.addEventListener('click', () => activate(tab.dataset.takingsTab));
+        tab.addEventListener('keydown', (event) => {
+          let next = null;
+          if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length;
+          else if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+          else if (event.key === 'Home') next = 0;
+          else if (event.key === 'End') next = tabs.length - 1;
+          if (next === null) return;
+          event.preventDefault();
+          tabs[next].focus();
+          activate(tabs[next].dataset.takingsTab);
+        });
+      });
+
+      const initial = panels.find((panel) => !panel.hidden) || panels[0];
+      const initialChart = initial?.querySelector('.takings-chart');
+      if (initialChart) {
+        if (reduceMotion || !('IntersectionObserver' in window)) initialChart.classList.add('is-revealed');
+        else {
+          initialChart.classList.add('is-ready');
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+              if (!entry.isIntersecting) return;
+              initialChart.classList.add('is-revealed');
+              observer.disconnect();
+            });
+          }, { threshold: 0.2 });
+          observer.observe(initialChart);
+        }
+      }
+
+      panels.forEach((panel) => {
+        const chart = panel.querySelector('.takings-chart');
+        const wrap = chart?.closest('.takings-chart-wrap');
+        const tip = wrap?.querySelector('.takings-tooltip');
+        if (!chart || !wrap || !tip) return;
+        let pinned = null;
+        const show = (group) => {
+          const bar = group.querySelector('.takings-bar') || group;
+          const wrapRect = wrap.getBoundingClientRect();
+          const barRect = bar.getBoundingClientRect();
+          const left = Math.min(Math.max(barRect.left - wrapRect.left + barRect.width / 2, 42), wrapRect.width - 42);
+          tip.textContent = (group.dataset.label || '') + ' · ' + (group.dataset.value || '');
+          tip.style.left = left + 'px';
+          tip.style.top = Math.max(2, barRect.top - wrapRect.top - 34) + 'px';
+          tip.hidden = false;
+        };
+        const hide = () => {
+          if (!pinned) tip.hidden = true;
+        };
+        chart.querySelectorAll('[data-takings-bar]').forEach((group) => {
+          group.addEventListener('pointerenter', () => { if (!pinned) show(group); });
+          group.addEventListener('pointermove', () => { if (!pinned) show(group); });
+          group.addEventListener('pointerleave', hide);
+          group.addEventListener('focus', () => show(group));
+          group.addEventListener('blur', () => { if (!pinned) tip.hidden = true; });
+          group.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (pinned === group) {
+              pinned = null;
+              tip.hidden = true;
+              return;
+            }
+            pinned = group;
+            show(group);
+          });
+          group.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            if (pinned === group) {
+              pinned = null;
+              tip.hidden = true;
+              return;
+            }
+            pinned = group;
+            show(group);
+          });
+        });
+        document.addEventListener('click', () => {
+          if (!pinned) return;
+          pinned = null;
+          tip.hidden = true;
+        });
+      });
+    });
+  };
+
   const start = () => {
     adoptToasts();
     initOrderCards();
     initSearch();
     initBalanceReminders();
+    initReportTakings();
     init();
   };
 

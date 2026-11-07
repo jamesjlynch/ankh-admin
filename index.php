@@ -4200,6 +4200,110 @@ function todaySparklineSvg(array $daily):string{
 }
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
+/**
+ * Read-only takings model for the Reports hero. Payments are bucketed by the
+ * Europe/London date they were received. Profit reuses the saved item costs,
+ * presentation costs and postage snapshots from the existing profit report.
+ * Product revenue and profit are attributed to each payment in proportion to
+ * the cash received, so part payments never double-count an order across periods.
+ */
+function reportTakingsData(PDO $db,DateTimeImmutable $today,DateTimeZone $tz):array{
+ $fmt=static fn(int $pence):string=>'£'.number_format($pence/100,2);
+ $today=$today->setTime(0,0,0);
+ $weekStart=$today->modify('monday this week');
+ $monthStart=$today->modify('first day of this month');
+ $yearStart=$today->setDate((int)$today->format('Y'),1,1);
+ $periods=[
+  'week'=>['label'=>'This week','start'=>$weekStart,'end'=>$weekStart->modify('+6 days'),'bars'=>[]],
+  'month'=>['label'=>'This month','start'=>$monthStart,'end'=>$monthStart->modify('last day of this month'),'bars'=>[]],
+  'year'=>['label'=>'This year','start'=>$yearStart,'end'=>$yearStart->modify('last day of December'),'bars'=>[]],
+ ];
+ for($i=0;$i<7;$i++){
+  $day=$weekStart->modify('+'.$i.' days');
+  $periods['week']['bars'][]=['key'=>$day->format('Y-m-d'),'label'=>$day->format('D'),'full'=>$day->format('D j M'),'value'=>0];
+ }
+ $daysInMonth=(int)$monthStart->format('t');
+ for($day=1;$day<=$daysInMonth;$day+=7){
+  $last=min($daysInMonth,$day+6);
+  $from=$monthStart->setDate((int)$monthStart->format('Y'),(int)$monthStart->format('n'),$day);
+  $to=$monthStart->setDate((int)$monthStart->format('Y'),(int)$monthStart->format('n'),$last);
+  $periods['month']['bars'][]=['key'=>$from->format('Y-m-d').'|'.$to->format('Y-m-d'),'label'=>$day.'–'.$last,'full'=>$from->format('j M').'–'.$to->format('j M'),'value'=>0,'from'=>$from,'to'=>$to];
+ }
+ for($month=1;$month<=12;$month++){
+  $from=$yearStart->setDate((int)$yearStart->format('Y'),$month,1);
+  $to=$from->modify('last day of this month');
+  $periods['year']['bars'][]=['key'=>$from->format('Y-m'),'label'=>$from->format('M'),'full'=>$from->format('F Y'),'value'=>0,'from'=>$from,'to'=>$to];
+ }
+ foreach($periods as &$period){
+  $period['takings']=0;$period['profit']=0.0;$period['payments']=0;$period['cost_known']=false;$period['products']=[];
+ }
+ unset($period);
+ $orders=[];
+ foreach($db->query("SELECT id,COALESCE(delivery_charge,0) AS delivery_charge,COALESCE(postage_cost,0) AS postage_cost,status,COALESCE(pricing_type,'standard') AS pricing_type FROM orders")->fetchAll(PDO::FETCH_ASSOC) as $order){
+  $orders[(int)$order['id']]=[
+   'total'=>(int)$order['delivery_charge'],'cogs'=>0,'cost_known'=>false,'products'=>[],
+   'status'=>(string)$order['status'],'pricing_type'=>(string)$order['pricing_type'],'postage'=>(int)$order['postage_cost']
+  ];
+ }
+ foreach($db->query("SELECT order_id,name,price,cost,presentation_cost,quantity FROM items")->fetchAll(PDO::FETCH_ASSOC) as $item){
+  $orderId=(int)$item['order_id'];if(!isset($orders[$orderId]))continue;
+  $quantity=(int)$item['quantity'];$line=(int)$item['price']*$quantity;$name=trim((string)$item['name']);
+  $orders[$orderId]['total']+=$line;
+  if($item['cost']!==null){$orders[$orderId]['cogs']+=(int)$item['cost']*$quantity;$orders[$orderId]['cost_known']=true;}
+  if((int)($item['presentation_cost']??0)>0){$orders[$orderId]['cogs']+=(int)$item['presentation_cost']*$quantity;$orders[$orderId]['cost_known']=true;}
+  if($name!=='')$orders[$orderId]['products'][$name]=($orders[$orderId]['products'][$name]??0)+$line;
+ }
+ $paidByOrder=[];$paymentRows=[];
+ foreach($db->query("SELECT order_id,amount,created FROM payments ORDER BY datetime(created),id")->fetchAll(PDO::FETCH_ASSOC) as $payment){
+  $orderId=(int)$payment['order_id'];$amount=max(0,(int)$payment['amount']);
+  $paidByOrder[$orderId]=($paidByOrder[$orderId]??0)+$amount;
+  $paymentRows[]=['order_id'=>$orderId,'amount'=>$amount,'created'=>(string)$payment['created']];
+ }
+ foreach($paymentRows as $payment){
+  $amount=(int)$payment['amount'];if($amount<=0)continue;
+  try{$date=(new DateTimeImmutable($payment['created']))->setTimezone($tz)->setTime(0,0,0);}
+  catch(Throwable $error){continue;}
+  $orderId=(int)$payment['order_id'];$order=$orders[$orderId]??null;
+  $eligible=$order!==null&&$order['status']!=='Cancelled'&&$order['pricing_type']!=='free';
+  $fraction=$eligible?$amount/max(1,(int)($paidByOrder[$orderId]??$amount)):0.0;
+  $profit=$eligible?$order['total']-$order['cogs']-$order['postage']:0;
+  foreach($periods as &$period){
+   if($date<$period['start']||$date>$period['end'])continue;
+   $period['takings']+=$amount;$period['payments']++;
+   foreach($period['bars'] as &$bar){
+    $inBar=isset($bar['from'])?($date>=$bar['from']&&$date<=$bar['to']):($date->format('Y-m-d')===$bar['key']);
+    if($inBar){$bar['value']+=$amount;break;}
+   }
+   unset($bar);
+   if(!$eligible)continue;
+   $period['profit']+=$profit*$fraction;
+   if($order['cost_known'])$period['cost_known']=true;
+   foreach($order['products'] as $name=>$line)$period['products'][$name]=($period['products'][$name]??0)+$line*$fraction;
+  }
+  unset($period);
+ }
+ $result=[];
+ foreach($periods as $key=>&$period){
+  $products=[];
+  foreach($period['products'] as $name=>$revenue){
+   if($revenue<=0)continue;
+   $products[]=['name'=>(string)$name,'revenue'=>(int)round($revenue)];
+  }
+  usort($products,static fn($a,$b)=>($b['revenue']<=>$a['revenue'])?:strcasecmp($a['name'],$b['name']));
+  $period['top_products']=array_slice($products,0,3);
+  $period['profit']=$period['cost_known']?(int)round($period['profit']):null;
+  unset($period['products']);
+  $barSummary=[];
+  foreach($period['bars'] as $bar)$barSummary[]=$bar['full'].' '.$fmt((int)$bar['value']);
+  $summary=$period['label'].': '.$fmt((int)$period['takings']).' from '.$period['payments'].' payment'.($period['payments']===1?'':'s').'. '.implode('; ',$barSummary).'.';
+  if($period['profit']!==null)$summary.=' Profit '.$fmt((int)$period['profit']).'.';
+  $summary.=' Top product '.($period['top_products'][0]['name']??'none').'.';
+  $period['summary']=$summary;
+  $result[$key]=$period;
+ }
+ unset($period);
+ return $result;
+}
 $view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 if($view==='packing_centre'&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
@@ -4743,6 +4847,7 @@ elseif($reportRange==='custom'){
  if($reportFrom!==''&&$reportTo!==''&&$reportFrom>$reportTo){$swap=$reportFrom;$reportFrom=$reportTo;$reportTo=$swap;}
 }
 $reportRangeError=$reportRange==='custom'&&($reportFrom===''||$reportTo==='');
+$reportTakings=$view==='reports'?reportTakingsData($db,$reportToday,$tz):null;
 $reportSupplies=supplySpending($businessSupplies,$reportFrom,$reportTo);
 $reportFromTs=$reportFrom!==''?(new DateTimeImmutable($reportFrom.' 00:00:00',$tz))->getTimestamp():null;
 $reportToTs=$reportTo!==''?(new DateTimeImmutable($reportTo.' 23:59:59',$tz))->getTimestamp():null;
@@ -6179,6 +6284,57 @@ $reportExportUrl='?'.http_build_query($reportExportParams);
 $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['export'=>'stock-movements']));
 ?>
 <div class="heading"><div><h1><?=$view==='reorder'?'Reorder planner':'Reports'?></h1><p class="muted page-description"><?=$view==='reorder'?'Suggested purchases based on available stock, recent sales and supplier pack sizes.':'Sales, products, customers, recurring orders and confirmed stock.'?></p></div><a class="quick-action" href="?view=more">← More</a></div>
+<?php if($view==='reports'&&is_array($reportTakings)):?>
+<section class="takings-hero" id="report-takings" data-takings aria-labelledby="takings-heading">
+ <div class="takings-head">
+  <div class="takings-intro"><p class="eyebrow">TAKINGS &amp; PROFIT</p><h2 id="takings-heading">Money in</h2><p class="muted">Payments received in the period, from payment history.</p></div>
+  <div class="takings-toggle" role="tablist" aria-label="Takings period">
+   <?php foreach($reportTakings as $key=>$period):?>
+   <button type="button" role="tab" id="takings-tab-<?=e($key)?>" aria-controls="takings-panel-<?=e($key)?>" aria-selected="<?=$key==='week'?'true':'false'?>" tabindex="<?=$key==='week'?'0':'-1'?>" data-takings-tab="<?=e($key)?>"><?=e($period['label'])?></button>
+   <?php endforeach;?>
+  </div>
+ </div>
+ <div class="takings-panels">
+ <?php foreach($reportTakings as $key=>$period):$bars=$period['bars'];$maxBar=max(1,...array_column($bars,'value'));$barCount=max(1,count($bars));$slot=668/$barCount;$barWidth=min(58,max(18,$slot*.56));$topMax=$period['top_products']?max(1,max(array_column($period['top_products'],'revenue'))):1;?>
+  <div class="takings-panel" id="takings-panel-<?=e($key)?>" role="tabpanel" aria-labelledby="takings-tab-<?=e($key)?>" data-takings-panel="<?=e($key)?>" <?=$key==='week'?'':'hidden'?>>
+   <div class="takings-metrics">
+    <div class="takings-metric"><span>Takings</span><strong><?=money($period['takings'])?></strong><small><?=$period['payments']?> payment<?=$period['payments']===1?'':'s'?> received</small></div>
+    <?php if($period['profit']!==null):?>
+    <div class="takings-metric"><span>Profit</span><strong><?=money($period['profit'])?></strong><small>Takings less saved product, pen &amp; postage costs</small></div>
+    <?php else:?>
+    <div class="takings-metric is-empty"><span>Profit</span><strong>Not available</strong><small><a href="?view=reports&amp;type=profit">Set costs in Profit settings →</a></small></div>
+    <?php endif;?>
+   </div>
+   <div class="takings-chart-wrap">
+    <svg class="takings-chart" viewBox="0 0 700 250" role="group" aria-label="<?=e($period['label'])?> takings bar chart">
+     <defs><linearGradient id="takings-gold-<?=e($key)?>" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#C27A12"/><stop offset=".55" stop-color="#F5A623"/><stop offset="1" stop-color="#FFD27A"/></linearGradient></defs>
+     <line class="takings-axis" x1="16" y1="202" x2="684" y2="202"/>
+     <?php foreach($bars as $index=>$bar):$height=$bar['value']/$maxBar*180;$x=16+$index*$slot+($slot-$barWidth)/2;$y=202-$height;?>
+     <g class="takings-bar-group" tabindex="0" role="button" data-takings-bar data-label="<?=e($bar['full'])?>" data-value="<?=money($bar['value'])?>" aria-label="<?=e($bar['full'])?>: <?=money($bar['value'])?>">
+      <rect class="takings-bar-track" x="<?=number_format($x,2,'.','')?>" y="22" width="<?=number_format($barWidth,2,'.','')?>" height="180" rx="6"/>
+      <rect class="takings-bar" x="<?=number_format($x,2,'.','')?>" y="<?=number_format($y,2,'.','')?>" width="<?=number_format($barWidth,2,'.','')?>" height="<?=number_format($height,2,'.','')?>" rx="6" fill="url(#takings-gold-<?=e($key)?>)"/>
+      <text class="takings-bar-label" x="<?=number_format($x+$barWidth/2,2,'.','')?>" y="230" text-anchor="middle"><?=e($bar['label'])?></text>
+     </g>
+     <?php endforeach;?>
+    </svg>
+    <div class="takings-tooltip" role="status" aria-live="polite" hidden></div>
+   </div>
+   <p class="takings-summary" id="takings-summary-<?=e($key)?>"><?=e($period['summary'])?></p>
+   <div class="takings-top">
+    <div class="takings-top-head"><h3>Top products</h3><span>By revenue received</span></div>
+    <?php if($period['top_products']):?>
+    <ol class="takings-top-list">
+     <?php foreach($period['top_products'] as $product):?>
+     <li><span class="takings-top-name"><?=e($product['name'])?></span><span class="takings-top-track" aria-hidden="true"><i style="width:<?=number_format($product['revenue']/$topMax*100,1,'.','')?>%"></i></span><strong><?=money($product['revenue'])?></strong></li>
+     <?php endforeach;?>
+    </ol>
+    <?php else:?><p class="muted">No product revenue in this period.</p><?php endif;?>
+   </div>
+  </div>
+ <?php endforeach;?>
+ </div>
+</section>
+<?php endif;?>
 <?php if($view==='reports'):?>
 <nav class="report-tabs" aria-label="Report types">
 <?php foreach($reportTitles as $tabKey=>$tabTitle):$tabRange=$tabKey==='recurring'?($reportType==='recurring'?$reportRange:'next8w'):(str_starts_with($reportRange,'next')?'month':$reportRange);$tabParams=['view'=>'reports','type'=>$tabKey,'range'=>$tabRange];if($tabKey==='recurring'&&!in_array($tabParams['range'],['next4w','next8w','next12w','custom'],true))$tabParams['range']='next8w';if($reportFrom!=='')$tabParams['from']=$reportFrom;if($reportTo!=='')$tabParams['to']=$reportTo;?>

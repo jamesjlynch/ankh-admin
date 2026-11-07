@@ -2370,3 +2370,76 @@ html.balance-reminder-open{overflow:hidden}
   .customer-profile-tiles strong{font-size:16px}
   .customer-recent-main small{max-width:42vw}
 }
+
+/* Reports: server-rendered takings hero, gold bar chart and top products. */
+.takings-hero{
+  margin:0 0 18px;
+  padding:18px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:var(--ankh-os-radius);
+  background:
+    radial-gradient(120% 160% at 100% 0,rgba(245,166,35,.12),transparent 55%),
+    linear-gradient(155deg,rgba(28,27,23,.96),rgba(14,14,15,.98));
+  box-shadow:var(--ankh-os-shadow);
+  min-width:0;
+}
+.takings-hero *{box-sizing:border-box}
+.takings-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.takings-intro{min-width:0}
+.takings-intro .eyebrow{margin:0 0 4px;font-size:10px}
+.takings-intro h2{margin:0;font-size:clamp(24px,4vw,34px);line-height:1;color:var(--ankh-os-text)}
+.takings-intro p{margin:6px 0 0;font-size:12px}
+.takings-toggle{display:flex;gap:4px;padding:4px;border:1px solid rgba(255,215,140,.16);border-radius:999px;background:rgba(8,8,9,.6);max-width:100%;overflow-x:auto;scrollbar-width:none}
+.takings-toggle::-webkit-scrollbar{display:none}
+.takings-toggle button{flex:0 0 auto;min-height:36px;padding:0 13px;border:1px solid transparent;border-radius:999px;background:transparent;color:#c9c4b8;font-size:12px;font-weight:700;letter-spacing:.02em;cursor:pointer;white-space:nowrap}
+.takings-toggle button[aria-selected="true"]{background:linear-gradient(135deg,#f5a623,#c27a12);border-color:rgba(255,210,122,.75);color:#17130a;box-shadow:0 6px 18px rgba(245,166,35,.22)}
+.takings-toggle button:focus-visible{outline:2px solid #ffd27a;outline-offset:2px}
+.takings-panel[hidden]{display:none!important}
+.takings-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:10px;margin-bottom:12px}
+.takings-metric{min-width:0;padding:12px 14px;border:1px solid rgba(255,215,140,.14);border-radius:14px;background:rgba(20,20,22,.72)}
+.takings-metric>span{display:block;color:var(--ankh-os-muted);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase}
+.takings-metric>strong{display:block;margin:6px 0 3px;color:var(--ankh-os-gold-bright);font-size:clamp(24px,5vw,34px);line-height:1.05;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.takings-metric>small{display:block;color:#9b978d;font-size:11px;line-height:1.35}
+.takings-metric.is-empty>strong{font-size:clamp(16px,3vw,20px);color:#d9cbb0}
+.takings-metric.is-empty a{color:var(--ankh-os-gold-bright);text-decoration:underline;text-underline-offset:2px}
+.takings-chart-wrap{position:relative;min-width:0;margin:0 -2px}
+.takings-chart{display:block;width:100%;height:auto;overflow:visible}
+.takings-axis{stroke:rgba(255,215,140,.22);stroke-width:1}
+.takings-bar-track{fill:rgba(255,215,140,.055)}
+.takings-bar{transform-box:fill-box;transform-origin:bottom center}
+.takings-chart.is-ready .takings-bar{transform:scaleY(0)}
+.takings-chart.is-revealed .takings-bar{transform:scaleY(1);transition:transform .62s cubic-bezier(.2,.8,.2,1)}
+.takings-bar-group{cursor:pointer;outline:none}
+.takings-bar-group:focus .takings-bar{filter:brightness(1.18)}
+.takings-bar-group:hover .takings-bar{filter:brightness(1.1)}
+.takings-bar-label{fill:#9b978d;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.takings-tooltip{position:absolute;z-index:6;transform:translateX(-50%);max-width:calc(100% - 16px);padding:7px 10px;border:1px solid rgba(255,210,122,.55);border-radius:9px;background:#17140d;color:#ffe0a0;font-size:11px;font-weight:750;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 10px 24px rgba(0,0,0,.5);pointer-events:none}
+.takings-tooltip[hidden]{display:none!important}
+.takings-summary{margin:10px 0 14px;padding:9px 11px;border-left:2px solid rgba(245,166,35,.6);border-radius:0 8px 8px 0;background:rgba(245,166,35,.06);color:#bdb7aa;font-size:11.5px;line-height:1.5}
+.takings-top{min-width:0;padding-top:12px;border-top:1px solid rgba(255,215,140,.13)}
+.takings-top-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+.takings-top-head h3{margin:0;font-size:14px;letter-spacing:.02em;color:var(--ankh-os-text)}
+.takings-top-head span{color:var(--ankh-os-muted);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.takings-top-list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.takings-top-list li{display:grid;grid-template-columns:minmax(0,1fr) minmax(56px,150px) auto;align-items:center;gap:10px;min-width:0}
+.takings-top-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e7e1d4;font-size:12px;font-weight:650}
+.takings-top-track{display:block;height:5px;border-radius:999px;background:rgba(255,215,140,.1);overflow:hidden}
+.takings-top-track i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#c27a12,#ffd27a)}
+.takings-top-list strong{color:var(--ankh-os-gold-bright);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:560px){
+ .takings-hero{padding:14px}
+ .takings-toggle{width:100%}
+ .takings-toggle button{flex:1 1 0;padding:0 9px;font-size:11px}
+ .takings-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .takings-metric{padding:10px 11px}
+ .takings-top-list li{grid-template-columns:minmax(0,1fr) minmax(44px,86px) auto;gap:7px}
+}
+@media(max-width:375px){
+ .takings-hero{padding:12px}
+ .takings-metric>strong{font-size:22px}
+ .takings-bar-label{font-size:10px}
+}
+@media(prefers-reduced-motion:reduce){
+ .takings-chart.is-ready .takings-bar{transform:none}
+ .takings-chart.is-revealed .takings-bar{transition:none}
+}
