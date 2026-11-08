@@ -96,6 +96,7 @@ const assert=require('node:assert/strict');
    assert(await sheet.evaluate(d=>d.open),'sheet should stay open after an in-place step');
    await page.locator('#focus-sheet-close').click();
    await page.waitForFunction(()=>!document.getElementById('focus-action-sheet').open);
+   await page.waitForFunction(()=>document.getElementById('focus-sheet-body').children.length===0,null,{timeout:3000}).catch(()=>{});
    assert.equal(await page.locator('#focus-sheet-body > *').count(),0,'sheet body must be empty after closing');
    const counts=await page.evaluate(()=>[...document.querySelectorAll('.focus-worklist details.focus-order')].map(c=>c.querySelectorAll(':scope > .focus-sheet-content').length));
    assert(counts.every(n=>n===1),'every worklist card must own exactly one sheet content after an in-place step: '+JSON.stringify(counts));

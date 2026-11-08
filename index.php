@@ -8606,7 +8606,7 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
  const sheet=document.getElementById('focus-action-sheet'),body=document.getElementById('focus-sheet-body'),title=document.getElementById('focus-sheet-title');
  if(!sheet||typeof sheet.showModal!=='function')return;
  let source=null,content=null,opener=null;
- const restore=()=>{if(source){/* the in-place order refresh swaps the sheet content for a fresh copy, so return whatever is in the sheet now, never a stale reference */const live=body.querySelector(':scope > .focus-sheet-content')||content;if(live&&!source.querySelector(':scope > .focus-sheet-content'))source.append(live);source.open=false;}body.replaceChildren();const target=opener;source=null;content=null;opener=null;document.documentElement.classList.remove('focus-sheet-open');target?.focus({preventScroll:true});};
+ const restore=()=>{if(source){/* the in-place order refresh swaps the sheet content for a fresh copy, so return whatever is in the sheet now, never a stale reference */const live=(body.querySelector&&body.querySelector(':scope > .focus-sheet-content'))||content;if(live)source.append(live);source.open=false;}if(body.replaceChildren)body.replaceChildren();const target=opener;source=null;content=null;opener=null;document.documentElement.classList.remove('focus-sheet-open');target?.focus({preventScroll:true});};
  sheet.addEventListener('close',restore);
  document.getElementById('focus-sheet-close').addEventListener('click',()=>sheet.close());
  sheet.addEventListener('click',event=>{if(event.target===sheet){const rect=sheet.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)sheet.close();}});
@@ -8616,7 +8616,7 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
   const next=details.querySelector(':scope > .focus-sheet-content');if(!next)return;
   source=details;content=next;opener=details.querySelector(':scope > summary');
   title.textContent=details.classList.contains('focus-order')?details.querySelector('h3').textContent:opener.textContent.trim();
-  body.replaceChildren(content);details.open=false;sheet.showModal();document.documentElement.classList.add('focus-sheet-open');
+  if(body.replaceChildren)body.replaceChildren();body.append(content);details.open=false;sheet.showModal();document.documentElement.classList.add('focus-sheet-open');
  });};
  const bindAll=()=>document.querySelectorAll('[data-focus-sheet]').forEach(bind);
  bindAll();window.ankhInitFocusSheets=bindAll;
