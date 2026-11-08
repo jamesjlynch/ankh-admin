@@ -2089,6 +2089,15 @@ function backOrderControls(PDO $db,array $order):void{
  if(isBackOrder($order)){backOrderBanner($db,$order);backOrderPaymentAndRemoval($db,$order);return;}
  backOrderMoveForm($order,'backorders');
 }
+function orderStepIcon(string $name):string{
+ $icons=[
+  'paid'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M14.6 8.5a3.1 3.1 0 0 0-5.2 2.3c0 1.6 1.1 2.6 1.1 3.7h-1.9m0 2.1h5m-5-4.2h4.4"/></svg>',
+  'reconstituted'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 3h6M10 3v13a2 2 0 0 0 4 0V3"/><path d="M10 10h4"/></svg>',
+  'packaged'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>',
+  'delivered'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9.5Z"/><path d="m9 14.5 2 2 4-4"/></svg>',
+ ];
+ return $icons[$name]??'';
+}
 function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
  $surface=(string)($options['surface']??'orders');$now=$options['now']??new DateTimeImmutable('now',new DateTimeZone('Europe/London'));
  $paymentMethods=$options['payment_methods']??['Cash','Bank Transfer','Card','PayPal','Other'];$statuses=$options['statuses']??['New','Awaiting payment','Paid','Packed','Dispatched','Delivered','Cancelled'];
@@ -2128,27 +2137,27 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
  ?>
  <section class="od-steps" aria-label="Order quick steps">
   <?php if($stepsStatic):?>
-   <?php if($paidStepDone):?><span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Paid</span></button><?php endif;?>
-   <span class="od-step<?=$reconstitutedStepDone?' done':''?> od-step-static"><span class="od-step-mark" aria-hidden="true"><?=$reconstitutedStepDone?'✓':''?></span><span class="od-step-label">Reconstituted</span></span>
-   <span class="od-step<?=$packagedStepDone?' done':''?> od-step-static"><span class="od-step-mark" aria-hidden="true"><?=$packagedStepDone?'✓':''?></span><span class="od-step-label">Packaged</span></span>
-   <span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Delivered</span></span>
+   <?php if($paidStepDone):?><span class="od-step done od-step-static"><?=orderStepIcon('paid')?><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><?=orderStepIcon('paid')?><span class="od-step-label">Paid</span></button><?php endif;?>
+   <span class="od-step<?=$reconstitutedStepDone?' done':''?> od-step-static"><?=orderStepIcon('reconstituted')?><span class="od-step-label">Reconstituted</span></span>
+   <span class="od-step<?=$packagedStepDone?' done':''?> od-step-static"><?=orderStepIcon('packaged')?><span class="od-step-label">Packaged</span></span>
+   <span class="od-step done od-step-static"><?=orderStepIcon('delivered')?><span class="od-step-label">Delivered</span></span>
   <?php else:?>
-   <?php if($paidStepDone):?><span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Paid</span></button><?php endif;?>
+   <?php if($paidStepDone):?><span class="od-step done od-step-static"><?=orderStepIcon('paid')?><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><?=orderStepIcon('paid')?><span class="od-step-label">Paid</span></button><?php endif;?>
    <?php if($packagedStepDone):?>
-   <span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Reconstituted</span></span>
+   <span class="od-step done od-step-static"><?=orderStepIcon('reconstituted')?><span class="od-step-label">Reconstituted</span></span>
    <?php elseif($reconstitutedStepDone):?>
-   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Reconstituted</span></button></form>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><?=orderStepIcon('reconstituted')?><span class="od-step-label">Reconstituted</span></button></form>
    <?php else:?>
-   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="1"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Reconstituted</span></button></form>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="1"><?=$stepReturn?><button type="submit" class="od-step"><?=orderStepIcon('reconstituted')?><span class="od-step-label">Reconstituted</span></button></form>
    <?php endif;?>
    <?php if($packagedStepDone):?>
-   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="stage" value="packaged"><input type="hidden" name="complete" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Packaged</span></button></form>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="stage" value="packaged"><input type="hidden" name="complete" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><?=orderStepIcon('packaged')?><span class="od-step-label">Packaged</span></button></form>
    <?php elseif($packagedStepLocked):?>
-   <button type="button" class="od-step" disabled><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Packaged</span><small class="od-step-hint">Reconstitute first</small></button>
+   <button type="button" class="od-step" disabled aria-disabled="true" title="Reconstitute first"><?=orderStepIcon('packaged')?><span class="od-step-label">Packaged</span></button>
    <?php else:?>
-   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="stage" value="packaged"><input type="hidden" name="complete" value="1"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Packaged</span></button></form>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="stage" value="packaged"><input type="hidden" name="complete" value="1"><?=$stepReturn?><button type="submit" class="od-step"><?=orderStepIcon('packaged')?><span class="od-step-label">Packaged</span></button></form>
    <?php endif;?>
-   <form method="post" class="od-step-form" onsubmit="return confirm('Confirm this order was actually delivered today? Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="delivery_date" value="<?=e($today)?>"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Delivered</span></button></form>
+   <form method="post" class="od-step-form" onsubmit="return confirm('Confirm this order was actually delivered today? Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="delivery_date" value="<?=e($today)?>"><?=$stepReturn?><button type="submit" class="od-step"><?=orderStepIcon('delivered')?><span class="od-step-label">Delivered</span></button></form>
   <?php endif;?>
  </section>
  <?php

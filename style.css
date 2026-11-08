@@ -6008,17 +6008,23 @@ a.od-client{color:var(--gold,#e9c878)}
 .od-backorder-activate>summary::-webkit-details-marker{display:none}
 .od-backorder-activate-body{padding-top:10px}
 .od-secondary-button{width:100%;min-height:44px;border:1px solid var(--border,#2a2e35);border-radius:12px;background:transparent;color:var(--muted,#a6a9b1);font-size:12px;font-weight:500}
-.od-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;min-width:0}
+.od-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-inline:-10px;min-width:0}
 .od-step-form{display:flex;margin:0;min-width:0}
-.od-step{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;min-height:56px;padding:8px 6px;border:1px solid var(--border,#2a2e35);border-radius:12px;background:#191c21;color:#d5d7dc;font-size:12px;font-weight:600;line-height:1.15;text-align:center;text-decoration:none;cursor:pointer}
-.od-step-mark{display:grid;place-items:center;width:18px;height:18px;border:1.5px solid #4c525c;border-radius:50%;font-size:12px;line-height:1;color:transparent}
-.od-step-label{overflow-wrap:normal;word-break:normal;hyphens:none;font-size:clamp(11px,3.3vw,15px);letter-spacing:-.01em;white-space:nowrap}
-.od-step.done{border-color:var(--gold,#e9c878);background:var(--gold,#e9c878);color:#17140e}
-.od-step.done .od-step-mark{border-color:#17140e;background:#17140e;color:var(--gold,#e9c878)}
-.od-step-static{cursor:default}
-.od-step:disabled{cursor:not-allowed;opacity:.55}
-.od-step-hint{font-size:10px;font-weight:500;line-height:1.2;color:#c08a45}
-.od-step.done .od-step-hint{color:#5a4a1f}
+#ankh-main .od-steps .od-step{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:100%;min-width:0;min-height:68px;padding:8px 0;border:1px solid var(--border,#2a2e35);border-radius:12px;background:#11151a;background-image:none;color:var(--muted,#9b9d9f);font-size:12px;font-weight:600;line-height:1.1;letter-spacing:0;text-align:center;text-decoration:none;cursor:pointer;filter:none;box-shadow:none;appearance:none}
+#ankh-main .od-steps .od-step svg{display:block;flex:0 0 auto;width:21px;height:21px;stroke:currentColor;stroke-width:1.75;fill:none}
+.od-step-label{display:block;max-width:100%;overflow-wrap:normal;word-break:normal;hyphens:none;font-size:clamp(11.5px,3.05vw,12.5px);font-weight:600;letter-spacing:0;line-height:1.1;white-space:nowrap}
+#ankh-main .od-steps .od-step.done{border-color:var(--gold,#dfb666);background:rgba(223,182,102,.10);background-image:none;color:var(--gold,#dfb666)}
+#ankh-main .od-steps .od-step.done::after{content:'✓';position:absolute;top:5px;right:5px;display:grid;place-items:center;width:14px;height:14px;border-radius:50%;background:var(--gold,#dfb666);color:#17140e;font-size:9px;font-weight:800;line-height:1}
+#ankh-main .od-steps .od-step.od-step-static{cursor:default}
+#ankh-main .od-steps .od-step:hover,#ankh-main .od-steps .od-step:active{filter:none}
+#ankh-main .od-steps .od-step:disabled,#ankh-main .od-steps .od-step[aria-disabled="true"]{opacity:.45;cursor:not-allowed;filter:none}
+@media(prefers-reduced-motion:no-preference){
+ #ankh-main .od-steps .od-step{transition:transform .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease}
+ #ankh-main .od-steps .od-step:active{transform:scale(.97)}
+}
+@media(prefers-reduced-motion:reduce){
+ #ankh-main .od-steps .od-step,#ankh-main .od-steps .od-step:active{transition:none;transform:none}
+}
 .od-address{min-width:0}
 .od-address>summary{display:inline-flex;align-items:center;gap:7px;min-height:44px;padding:8px 12px;border:1px solid var(--border,#2a2e35);border-radius:10px;color:var(--gold,#e9c878);font-size:12px;font-weight:600;list-style:none;cursor:pointer}
 .od-address>summary::-webkit-details-marker{display:none}
@@ -6032,8 +6038,8 @@ a.od-client{color:var(--gold,#e9c878)}
 .od-address-facts dd{margin:0;font-size:13px;line-height:1.45;color:#d5d7dc;overflow-wrap:anywhere;min-width:0}
 .od-address-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:8px}
 .od-address-actions .quick-action{display:inline-flex;align-items:center;justify-content:center;min-height:44px;text-align:center;font-size:12px}
-@media(max-width:399px){
- .od-steps{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:374px){
+ .od-steps{gap:3px}
 }
 @media(max-width:360px){
  .od-header{grid-template-columns:minmax(0,1fr)}

@@ -32,6 +32,29 @@ const assert=require('node:assert/strict');
    await page.setViewportSize({width,height:844});await page.goto(host+'/?view=orders');
    await activeCard.locator(':scope > summary').click();
    assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),width+'px order detail horizontal overflow');
+   const steps=activeCard.locator('.od-steps');
+   assert.equal(await steps.count(),1,width+'px order quick steps missing');
+   assert.equal(await steps.locator('.od-step').count(),4,width+'px order quick steps need 4 tiles');
+   assert.equal(await steps.locator('svg').count(),4,width+'px order quick steps need 4 icons');
+   assert.equal(await steps.locator('.od-step-hint').count(),0,width+'px order quick steps must not show helper text');
+   assert.equal((await steps.innerText()).includes('Reconstitute first'),false,width+'px order quick steps must not show helper text');
+   const stepMetrics=await steps.evaluate(root=>[...root.querySelectorAll('.od-step')].map(tile=>{
+    const label=tile.querySelector('.od-step-label'),style=getComputedStyle(tile),labelStyle=label?getComputedStyle(label):null,box=tile.getBoundingClientRect(),labelBox=label?label.getBoundingClientRect():null;
+    return {done:tile.classList.contains('done'),backgroundImage:style.backgroundImage,borderStyle:style.borderTopStyle,width:box.width,height:box.height,top:box.top,disabled:tile.disabled,ariaDisabled:tile.getAttribute('aria-disabled'),opacity:parseFloat(style.opacity),labelOverflow:label?label.scrollWidth-label.clientWidth:0,labelFontSize:labelStyle?parseFloat(labelStyle.fontSize):0,labelLeft:labelBox?labelBox.left:0,labelRight:labelBox?labelBox.right:0,tileLeft:box.left,tileRight:box.right};
+   }));
+   for(const metric of stepMetrics){
+    assert(metric.labelOverflow<=0,width+'px order quick step label overflows its tile');
+    assert(metric.labelLeft>=metric.tileLeft-.5&&metric.labelRight<=metric.tileRight+.5,width+'px order quick step label leaves its tile');
+    assert(metric.labelFontSize>=11.5,width+'px order quick step label below 11.5px');
+    assert(metric.width>=44&&metric.height>=44,width+'px order quick step tap target below 44px');
+    assert.equal(metric.borderStyle,'solid',width+'px order quick step border missing');
+    if(!metric.done)assert.equal(metric.backgroundImage,'none',width+'px not-done quick step must not use a gradient');
+   }
+   assert(stepMetrics.every(metric=>Math.abs(metric.top-stepMetrics[0].top)<1),width+'px order quick steps must stay on one row');
+   const lockedStep=stepMetrics.find(metric=>metric.disabled);
+   assert(lockedStep,width+'px packaged quick step must stay locked before reconstituting');
+   assert.equal(lockedStep.ariaDisabled,'true',width+'px locked quick step needs aria-disabled');
+   assert(lockedStep.opacity<=.5,width+'px locked quick step must be dimmed');
    if(width===375){await activeCard.locator('.od-header').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/od-375.png'});}
   }
   await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=orders&section=backorders');
