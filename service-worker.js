@@ -1,4 +1,4 @@
-const CACHE='ankh-shell-v48-neworder-footer';
+const CACHE='ankh-shell-v49-order-steps';
 const SHELL=['./style.css','./style.min.css','./style.core.min.css','./manifest.webmanifest','./icon.svg','./splash.svg','./offline.html'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
