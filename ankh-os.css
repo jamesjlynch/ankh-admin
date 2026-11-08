@@ -1627,10 +1627,8 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
     background-image:linear-gradient(100deg,rgba(255,215,140,.04) 20%,rgba(245,166,35,.16) 42%,rgba(255,215,140,.04) 64%)!important;
     background-size:220% 100%!important;
     background-repeat:no-repeat!important;
-    color:transparent!important;
     animation:ankh-skeleton-shimmer 1.15s linear infinite;
   }
-  html.ankh-motion .ankh-skeleton *{opacity:0!important;pointer-events:none!important}
 }
 @media(prefers-reduced-motion:reduce){
   .ankh-toast,
@@ -2407,8 +2405,14 @@ html.balance-reminder-open{overflow:hidden}
 .takings-axis{stroke:rgba(255,215,140,.22);stroke-width:1}
 .takings-bar-track{fill:rgba(255,215,140,.055)}
 .takings-bar{transform-box:fill-box;transform-origin:bottom center}
-.takings-chart.is-ready .takings-bar{transform:scaleY(0)}
-.takings-chart.is-revealed .takings-bar{transform:scaleY(1);transition:transform .62s cubic-bezier(.2,.8,.2,1)}
+.takings-chart .takings-bar{transform:scaleY(1)}
+@keyframes ankh-takings-grow{
+  from{transform:scaleY(0)}
+  to{transform:scaleY(1)}
+}
+@media(prefers-reduced-motion:no-preference){
+  .takings-chart.is-revealed .takings-bar{animation:ankh-takings-grow .62s cubic-bezier(.2,.8,.2,1) both}
+}
 .takings-bar-group{cursor:pointer;outline:none}
 .takings-bar-group:focus .takings-bar{filter:brightness(1.18)}
 .takings-bar-group:hover .takings-bar{filter:brightness(1.1)}
@@ -2440,8 +2444,8 @@ html.balance-reminder-open{overflow:hidden}
  .takings-bar-label{font-size:10px}
 }
 @media(prefers-reduced-motion:reduce){
- .takings-chart.is-ready .takings-bar{transform:none}
- .takings-chart.is-revealed .takings-bar{transition:none}
+ .takings-chart .takings-bar,
+ .takings-chart.is-revealed .takings-bar{transform:none;animation:none}
 }
 
 /* Low stock alerts — amber warning, red when reserved orders exceed stock. */
@@ -2954,5 +2958,196 @@ body .admin-app-shell .fridge-overview-card .combined-stock-stats small b{
     grid-column:1!important;
     grid-row:3!important;
     align-self:auto!important;
+  }
+}
+
+/* New-order format icons: inline SVG instead of platform-dependent glyphs. */
+.line-format-icon svg{
+  display:block;
+  width:19px;
+  height:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+
+/* Reveal content is visible by default; JS only adds motion on first paint. */
+#ankh-main .ankh-reveal{opacity:1;transform:none}
+
+/* Mobile quick wins: comfortable tap targets, legible text and contained overflow. */
+@media(max-width:820px){
+  body .admin-app-shell{font-size:15px;line-height:1.45}
+
+  body .admin-app-shell a,
+  body .admin-app-shell button,
+  body .admin-app-shell summary,
+  body .admin-app-shell select,
+  body .admin-app-shell textarea,
+  body .admin-app-shell input:not([type=hidden]):not([type=checkbox]):not([type=radio]),
+  body .admin-app-shell label:has(>input[type=checkbox]),
+  body .admin-app-shell label:has(>input[type=radio]){
+    min-height:44px;
+  }
+  body .admin-app-shell button{min-width:44px}
+  body .admin-app-shell :is(input:not([type=checkbox]):not([type=radio]),select,textarea){
+    max-width:100%;
+    box-sizing:border-box;
+  }
+  body .admin-app-shell :is(
+    .ux-skip-link,
+    .brand,
+    .fridge-back-link,
+    .stock-manage-link,
+    .fridge-direct-links>a,
+    .cms-actions a,
+    .cms-side-link,
+    .stock-on-way-more,
+    .incoming-edit-link,
+    .incoming-backorder-demand,
+    .stock-subpage-heading>a
+  ){
+    display:inline-flex;
+    align-items:center;
+    min-height:44px;
+    min-width:44px;
+  }
+  body .admin-app-shell .cms-side-link{display:flex!important;width:100%}
+
+  body .admin-app-shell .fridge-quick-adjust button,
+  body .admin-app-shell .fridge-item-card.fridge-balance-card .fridge-mini-form>button,
+  body .admin-app-shell .fridge-item-card.fridge-balance-card .fridge-mini-form .stock-pack-picker button,
+  body .admin-app-shell .fridge-item-card.fridge-balance-card .fridge-mini-form input,
+  body .admin-app-shell .fridge-item-card.fridge-balance-card .fridge-mini-form select,
+  body .admin-app-shell .fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary{
+    min-height:44px!important;
+  }
+  body .admin-app-shell .fridge-quick-adjust button,
+  body .admin-app-shell .fridge-item-card.fridge-balance-card .fridge-mini-form .stock-pack-picker button,
+  body .admin-app-shell .stock-pack-picker button{
+    min-width:44px!important;
+  }
+
+  body .admin-app-shell :is(p,li,label,td,th,dt,dd,time,figcaption){
+    font-size:clamp(12px,.95em,16px)!important;
+  }
+  body .admin-app-shell small{
+    font-size:12px!important;
+    line-height:1.35;
+  }
+  body .admin-app-shell :is(
+    .today-date,.today-hero-label,.today-hero-pill,.reorder-due-chip,
+    .wizard-kicker,.wizard-progress>span>span,
+    .customer-recent-chip,.customer-recent-date,.customer-profile-tiles span,
+    .delivery-assignee,.delivery-run-total span,.delivery-run-flag,.delivery-run-paid,.delivery-run-buyer,.delivery-run-items,
+    .takings-intro .eyebrow,.takings-metric>span,.takings-metric>small,.takings-summary,.takings-bar-label,.takings-tooltip,.takings-top-head span,.takings-top-name,.takings-top-list strong,
+    .today-low-stock-label,.today-low-chip span,
+    .product-tile-strength,.product-tile-open,.product-admin-summary span,.product-stock-breakdown,.product-history-note span,
+    .ankh-visibility-item small,.cms-stats span,.cms-product small,.cms-editor-bottom,.cms-help,.cms-panel-heading p,
+    .customer-card-summary small,.customer-metrics span,.customer-intelligence-badges span,.customer-name-line .badge,
+    .fridge-overview-card span,.fridge-overview-card small,.fridge-item-quantity span,.fridge-balance-three small,.fridge-value-summary small,.fridge-value-summary small b,.fridge-stock-shortfall strong,.fridge-stock-shortfall small,.fridge-quick-adjust>span,
+    .stock-value-lines small,.stock-value-lines small b,.stock-availability-three small,.stock-availability-three em,.combined-stock-stats small,.combined-stock-money small,.stock-product-counts span,.stock-product-title small,.stock-fridge-total span,.stock-fridge-total small,.stock-movement-row small,.stock-movement-row strong,.stock-on-way-heading small,.stock-on-way-row small,.incoming-by-product-row small,.incoming-by-product-due small,.incoming-stock-pill,.stock-action-card>summary small,.stock-pack-picker>span,.stock-workspace-nav a span,.stock-workspace-nav a small,.stock-low-summary,
+    .badge,.ref,.queue-stock-warning,.balance-age-chip,.balance-customer-main>span,.balance-customer-main>small,.balance-customer-money small,.balance-order header span,.balance-order header small,
+    .recurring-summary-grid span,.recurring-summary-grid small,.recurring-order-main small,.recurring-order-status>span,.recurring-order-status>small,.recurring-created-pill,.recurring-forecast-only,
+    .report-metrics article>small,.report-metrics article>span,.report-range-note,.report-trend-row small,.report-list-row small,
+    .focus-order-ref,.focus-status,.order-buyer-caption,.delivery-plan-date
+  ){
+    font-size:12px!important;
+    line-height:1.35;
+  }
+  body .admin-app-shell .cms-help{font-size:13px!important}
+
+  @media(max-width:420px){
+    body .admin-app-shell .fridge-overview-card .stock-overview-breakdown small,
+    body .admin-app-shell .fridge-overview-card .combined-stock-stats small{
+      white-space:normal;
+      line-height:1.2;
+    }
+  }
+
+  body .admin-app-shell .ux-order-filters{
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
+  }
+  body .admin-app-shell .ux-order-filters label{min-width:0}
+  body .admin-app-shell .ux-order-filters select{
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  body .admin-app-shell .ux-order-filters input{width:100%;min-width:0}
+
+  body .admin-app-shell :is(
+    .cms-layout,.cms-main,.cms-panel,.cms-sidebar,.cms-products,.cms-product,
+    .cms-visibility-grid,.cms-fields,.cms-actions,.cms-stats,
+    .customer-page-filters,.customer-page-filters label,.customer-intelligence-grid,
+    .customer-intelligence-filters,.customer-card,.customer-card>summary,
+    .customer-list-identity,.customer-list-copy,.customer-card-summary,
+    .customer-quick-actions
+  ){
+    min-width:0;
+    max-width:100%;
+  }
+  body .admin-app-shell :is(
+    .cms-product-title,.cms-product small,.cms-panel-heading p,.cms-help,
+    .cms-visibility-item span,.customer-name-line h2,.customer-card-summary small,
+    .customer-recent-main small,.customer-heading>*,.customer-profile p
+  ){
+    overflow-wrap:anywhere;
+  }
+  body .admin-app-shell .customer-page-filters :is(input,select){
+    width:100%;
+    max-width:100%;
+    box-sizing:border-box;
+  }
+  body .admin-app-shell .cms-actions :is(a,button){
+    max-width:100%;
+    white-space:normal;
+  }
+}
+
+/* Remaining mobile meta text sits at the 12px floor without shrinking numbers. */
+@media(max-width:820px){
+  body .admin-app-shell :is(
+    .nav-label,
+    .cms-kicker,
+    .scheduled-delivery-badge,
+    .order-meta b,.order-meta em,
+    .payment-ledger-head span,.payment-history-row small,.add-payment>summary,
+    .ankh-order-actions span,
+    .fridge-person-hero>div span,.fridge-item-head h2,.fridge-item-head small,
+    .fridge-balance-three b,.fridge-quick-adjust button,
+    .fridge-item-card.fridge-balance-card>.fridge-compact-actions>summary,
+    .fridge-mini-form h3,.fridge-mini-form p,.fridge-mini-form label,
+    .fridge-mini-form input,.fridge-mini-form select,.fridge-mini-form button,
+    .stock-pack-picker.compact button,
+    .product-chips span,.product-chips b,
+    .stock-manage-link span,
+    .combined-stock-head>span:nth-child(2)>b,
+    .combined-stock-head>span:nth-child(2)>small,
+    .combined-stock-head>i,
+    .combined-stock-stats small,.combined-stock-money small,.combined-stock-money small b,
+    .stock-overview-breakdown small,
+    .fridge-overview-card .stock-overview-breakdown small,
+    .fridge-overview-card .combined-stock-stats small
+  ){
+    font-size:12px!important;
+    line-height:1.35;
+  }
+  body .admin-app-shell :is(.stock-value-lines small b,.fridge-value-summary small b){font-size:12px!important}
+  body .admin-app-shell .stock-availability-panel .stock-value-lines small b{font-size:12px!important}
+  body .admin-app-shell :is(.fridge-item-head h2,.fridge-mini-form h3){font-size:13px!important}
+  body .admin-app-shell :is(
+    .ankh-notification-button b,
+    .ankh-notification-mobile-button b,
+    .order-view-nav b,
+    .dashboard-queue-tabs a b,
+    .stock-workspace-nav a i,
+    .customer-intelligence-filters b,
+    .reorder-due-chip b
+  ){
+    font-size:12px!important;
+    line-height:1;
   }
 }

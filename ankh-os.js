@@ -960,21 +960,7 @@
       });
 
       const initial = panels.find((panel) => !panel.hidden) || panels[0];
-      const initialChart = initial?.querySelector('.takings-chart');
-      if (initialChart) {
-        if (reduceMotion || !('IntersectionObserver' in window)) initialChart.classList.add('is-revealed');
-        else {
-          initialChart.classList.add('is-ready');
-          const observer = new IntersectionObserver((entries) => {
-            entries.forEach((entry) => {
-              if (!entry.isIntersecting) return;
-              initialChart.classList.add('is-revealed');
-              observer.disconnect();
-            });
-          }, { threshold: 0.2 });
-          observer.observe(initialChart);
-        }
-      }
+      if (initial) reveal(initial);
 
       panels.forEach((panel) => {
         const chart = panel.querySelector('.takings-chart');
