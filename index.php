@@ -2118,23 +2118,55 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
    <?php if($telephone!==''):?><span class="od-contact"><a class="od-icon-button" href="tel:<?=e(preg_replace('/[^0-9+]/','',$telephone))?>" aria-label="Call <?=e(trim((string)($order['customer']??'')))?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/></svg></a><?php if($whatsApp!==''):?><a class="od-icon-button" href="https://wa.me/<?=e($whatsApp)?>" target="_blank" rel="noopener" aria-label="Message on WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.4-4.1A8 8 0 1 1 8 18.6L4 20Z"/><path d="M8.5 8.5c.2 3 2 4.8 5 5l1-1.4 1.8.8c-.3 1.6-1.4 2.3-3 2.3-3.6-.2-6.3-2.9-6.5-6.5 0-1.6.7-2.7 2.3-3l.8 1.8-1.4 1Z"/></svg></a><?php endif;?></span><?php endif;?>
   </div>
  </section>
- <?php if(($balance>0&&!$cancelled)||(!$waiting&&!$delivered&&!$cancelled)):?>
- <div class="od-primary">
-  <?php if($balance>0&&!$cancelled):?>
-  <details class="od-action od-primary-payment"><summary>Record payment</summary><div class="od-action-body">
-   <form method="post" class="od-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
-   <div class="od-form-grid"><label>Payment<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment</option></select></label><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($balance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($balance/100,2,'.',''))?>"></label></div>
-   <div class="od-form-grid"><label>Method<select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label></div>
-   <label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or reference"></label><button>Save payment</button></form>
-  </div></details>
+ <?php if(!$waiting&&!$cancelled):
+  $stepsStatic=$delivered;
+  $paidStepDone=$balance<=0;
+  $reconstitutedStepDone=(int)($order['reconstituted']??0)===1;
+  $packagedStepDone=(int)($order['packaged']??0)===1;
+  $packagedStepLocked=!$reconstitutedStepDone&&!$packagedStepDone;
+  $stepReturn='<input type="hidden" name="return" value="'.e($return).'">';if($surface==='dashboard')$stepReturn.='<input type="hidden" name="return_queue" value="'.$returnQueue.'">';
+ ?>
+ <section class="od-steps" aria-label="Order quick steps">
+  <?php if($stepsStatic):?>
+   <?php if($paidStepDone):?><span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Paid</span></button><?php endif;?>
+   <span class="od-step<?=$reconstitutedStepDone?' done':''?> od-step-static"><span class="od-step-mark" aria-hidden="true"><?=$reconstitutedStepDone?'✓':''?></span><span class="od-step-label">Reconstituted</span></span>
+   <span class="od-step<?=$packagedStepDone?' done':''?> od-step-static"><span class="od-step-mark" aria-hidden="true"><?=$packagedStepDone?'✓':''?></span><span class="od-step-label">Packaged</span></span>
+   <span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Delivered</span></span>
+  <?php else:?>
+   <?php if($paidStepDone):?><span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Paid</span></button><?php endif;?>
+   <?php if($reconstitutedStepDone):?>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Reconstituted</span></button></form>
+   <?php else:?>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="1"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Reconstituted</span></button></form>
+   <?php endif;?>
+   <?php if($packagedStepDone):?>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="stage" value="packaged"><input type="hidden" name="complete" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Packaged</span></button></form>
+   <?php elseif($packagedStepLocked):?>
+   <button type="button" class="od-step" disabled><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Packaged</span><small class="od-step-hint">Reconstitute first</small></button>
+   <?php else:?>
+   <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_preparation"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="stage" value="packaged"><input type="hidden" name="complete" value="1"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Packaged</span></button></form>
+   <?php endif;?>
+   <form method="post" class="od-step-form" onsubmit="return confirm('Confirm this order was actually delivered today? Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="delivery_date" value="<?=e($today)?>"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Delivered</span></button></form>
   <?php endif;?>
-  <?php if(!$waiting&&!$delivered&&!$cancelled):?>
-  <details class="od-action od-primary-deliver"><summary>Mark delivered</summary><div class="od-action-body">
-   <form method="post" class="od-deliver-form" onsubmit="return confirm('<?=$surface==='dashboard'?'Confirm this order was actually delivered today?':'Confirm this order was actually delivered on the selected date?'?> Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
-   <label>Delivery date<input type="date" name="delivery_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label><button>Confirm delivered</button></form>
-  </div></details>
-  <?php endif;?>
- </div>
+ </section>
+ <?php
+  $recipientName=trim((string)($order['recipient_name']??''));if($recipientName==='')$recipientName=trim((string)($order['customer']??''));
+  $postcode='';if($address!==''&&preg_match('/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i',$address,$postcodeMatch))$postcode=strtoupper(preg_replace('/\s+/',' ',trim((string)$postcodeMatch[1])));
+  $deliveryMethod=trim((string)($order['delivery_method']??''));
+ ?>
+ <details class="od-address">
+  <summary>Show address</summary>
+  <div class="od-address-body">
+   <dl class="od-address-facts">
+    <div><dt>Recipient</dt><dd><?=$recipientName!==''?e($recipientName):'Not recorded'?></dd></div>
+    <div><dt>Address</dt><dd><?=$address!==''?nl2br(e($address)):'No address saved'?></dd></div>
+    <div><dt>Postcode</dt><dd><?=$postcode!==''?e($postcode):'Not recorded'?></dd></div>
+    <div><dt>Phone</dt><dd><?php if($telephone!==''):?><a href="tel:<?=e(preg_replace('/[^0-9+]/','',$telephone))?>"><?=e($telephone)?></a><?php else:?>Not recorded<?php endif;?></dd></div>
+    <div><dt>Delivery</dt><dd><?=e($deliveryMethod!==''?$deliveryMethod:'Not set')?></dd></div>
+   </dl>
+   <?php if($address!==''):?><div class="od-address-actions"><button type="button" class="quick-action quiet" data-copy-text="<?=e($address)?>">Copy address</button><a class="quick-action" href="https://www.google.com/maps/search/?api=1&amp;query=<?=e(rawurlencode($address))?>" target="_blank" rel="noopener">Maps</a></div><?php endif;?>
+  </div>
+ </details>
  <?php endif;?>
  <section class="od-card od-items" aria-label="Order items">
   <div class="od-card-head"><h3>Items</h3><span><?=count($itemRows)?></span></div>
@@ -2163,9 +2195,27 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
  <section class="od-card od-payments" aria-label="Payments">
   <div class="od-card-head"><h3>Payments</h3><span><?=money($paid)?> received</span></div>
   <?php if($payments):?><div class="od-payment-list"><?php foreach($payments as $pay):?><div class="od-payment-row"><div><strong><?=money($pay['amount'])?></strong><small><?=e(date('d M Y',strtotime($pay['created'])))?> · <?=e($pay['method']?:'Not recorded')?><?php if($pay['note']):?> · <?=e($pay['note'])?><?php endif;?></small></div><form method="post" onsubmit="return confirm('Remove this payment?');"><?php csrf();?><input type="hidden" name="action" value="payment_delete"><input type="hidden" name="payment_id" value="<?=$pay['id']?>"><input type="hidden" name="return" value="<?=$return?>"><button class="quiet od-remove" aria-label="Remove payment">×</button></form></div><?php endforeach;?></div><?php else:?><p class="od-muted">No payments recorded.</p><?php endif;?>
-  <?php if($waiting&&$balance<=0):?><p class="od-paid-note"><?=$paid>0?'Paid in full · on back orders':'No payment required · on back orders'?></p><?php endif;?>
- </section>
- <details class="od-more">
+   <?php if($waiting&&$balance<=0):?><p class="od-paid-note"><?=$paid>0?'Paid in full · on back orders':'No payment required · on back orders'?></p><?php endif;?>
+  </section>
+  <?php if(($balance>0&&!$cancelled)||(!$waiting&&!$delivered&&!$cancelled)):?>
+  <div class="od-primary">
+   <?php if($balance>0&&!$cancelled):?>
+   <details class="od-action od-primary-payment" id="od-record-payment"><summary>Record payment</summary><div class="od-action-body">
+    <form method="post" class="od-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
+    <div class="od-form-grid"><label>Payment<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment</option></select></label><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($balance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($balance/100,2,'.',''))?>"></label></div>
+    <div class="od-form-grid"><label>Method<select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label></div>
+    <label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or reference"></label><button>Save payment</button></form>
+   </div></details>
+   <?php endif;?>
+   <?php if(!$waiting&&!$delivered&&!$cancelled):?>
+   <details class="od-action od-primary-deliver" id="od-mark-delivered"><summary>Mark delivered</summary><div class="od-action-body">
+    <form method="post" class="od-deliver-form" onsubmit="return confirm('<?=$surface==='dashboard'?'Confirm this order was actually delivered today?':'Confirm this order was actually delivered on the selected date?'?> Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
+    <label>Delivery date<input type="date" name="delivery_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label><button>Confirm delivered</button></form>
+   </div></details>
+   <?php endif;?>
+  </div>
+  <?php endif;?>
+  <details class="od-more">
   <summary>More actions</summary>
   <div class="od-more-body">
    <div class="od-more-links"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$id?>">Edit order</a><?php if($telephone!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',$telephone))?>">Call</a><?php endif;?><?php if($address!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($address)?>">Copy address</button><?php endif;?></div>
@@ -7675,6 +7725,7 @@ const orderDraftKey='ankh-order-draft-v2';
 if(document.querySelector('#order-saved-marker')||<?=json_encode(!empty($_SESSION['clear_order_draft']))?>){try{localStorage.removeItem(orderDraftKey)}catch(_){}}
 <?php unset($_SESSION['clear_order_draft']);?>
 document.querySelectorAll('[data-copy-text]').forEach(button=>button.addEventListener('click',async()=>{const value=button.dataset.copyText||'';try{await navigator.clipboard.writeText(value);const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}catch(_){const area=document.createElement('textarea');area.value=value;document.body.append(area);area.select();document.execCommand('copy');area.remove()}}));
+document.querySelectorAll('[data-open-order-form]').forEach(button=>button.addEventListener('click',()=>{const target=document.getElementById(button.dataset.openOrderForm||'');if(!target)return;if(target.tagName==='DETAILS')target.open=true;target.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>target.querySelector('select[name="method"]')?.focus({preventScroll:true}),250)}));
 document.querySelectorAll('[data-share-pdf]').forEach(button=>button.addEventListener('click',async()=>{
  const id=button.dataset.sharePdf,type=button.dataset.documentType||'receipt',url='?api=order-pdf&id='+encodeURIComponent(id)+'&type='+encodeURIComponent(type),old=button.textContent;button.disabled=true;button.textContent='Preparing…';
  try{
