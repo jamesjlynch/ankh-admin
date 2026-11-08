@@ -38,10 +38,14 @@ $reservationDetailsByProduct=[7=>[['order_id'=>45,'quantity'=>2,'customer'=>'Tes
 $incomingByProduct=[7=>4];
 $_GET['id']='7';
 ob_start();include $root.'/product-v2.php';$output=ob_get_clean();
-foreach(['Test Vial 5mg','?api=catalogue-image&amp;id=7','£30.00','£22.00','£10.00','£20.00','Test customer','Jay’s fridge','Tony’s fridge','Manual adjustment','?view=catalogue&amp;edit_product=7','4</strong><small>Outstanding supplier items','2 × £25.00'] as $expected){
+foreach(['Test Vial 5mg','?api=catalogue-image&amp;id=7','£30.00','£22.00','£10.00','£20.00','Test customer','Jay’s fridge','Tony’s fridge','Manual adjustment','value="product_prices"','name="family_friends_price"','Not stocked yet? Hide from admin','4</strong><small>Outstanding supplier items','2 × £25.00'] as $expected){
  verify(str_contains($output,$expected),'Product workspace missing output: '.$expected);
 }
+foreach(['Edit website content','Hide from customer website','Show on customer website','product_catalogue_visibility','Edit price &amp; settings'] as $removed){
+ verify(!str_contains($output,$removed),'Product workspace must not contain website-admin control: '.$removed);
+}
+verify(str_contains($output,'product-v2-price-toggle')&&str_contains($output,'data-product-v2-price-cancel'),'Product workspace needs an inline price editor.');
 $_GET['id']='999';
 ob_start();include $root.'/product-v2.php';$notFound=ob_get_clean();
 verify(str_contains($notFound,'Product not found'),'Missing product must show a safe not-found state.');
-echo "PASS: read-only product workspace shows prices, real available/reserved/incoming counts, order activity, photographs and safe editing links.\n";
+echo "PASS: admin-only product workspace shows prices, real available/reserved/incoming counts, order activity, photographs, a quick price editor and a quiet admin-hidden toggle.\n";

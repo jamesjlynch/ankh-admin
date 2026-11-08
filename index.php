@@ -3808,6 +3808,20 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($catalogueProductId===false || $catalogueProductId===null)throw new Exception('Choose a valid product.');
    ankhCatalogueSetVisibility($db,(int)$catalogueProductId,($_POST['catalogue_visible']??'')==='1');
   }
+  if($action==='product_prices'){
+   $priceProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+   if(!$priceProductId)throw new Exception('Choose a valid product.');
+   $priceRaw=trim((string)($_POST['price']??''));$ffRaw=trim((string)($_POST['family_friends_price']??''));$costRaw=trim((string)($_POST['cost']??''));
+   $price=filter_var($priceRaw,FILTER_VALIDATE_FLOAT);
+   if($price===false||$price<0||$price>100000)throw new Exception('Enter a valid retail price.');
+   $familyFriendsPrice=$ffRaw===''?null:filter_var($ffRaw,FILTER_VALIDATE_FLOAT);
+   if($ffRaw!==''&&($familyFriendsPrice===false||$familyFriendsPrice<0||$familyFriendsPrice>100000))throw new Exception('Enter a valid Family & Friends price.');
+   $cost=$costRaw===''?null:filter_var($costRaw,FILTER_VALIDATE_FLOAT);
+   if($costRaw!==''&&($cost===false||$cost<0||$cost>100000))throw new Exception('Enter a valid unit cost.');
+   $q=$db->prepare('SELECT id FROM products WHERE id=?');$q->execute([(int)$priceProductId]);if(!$q->fetchColumn())throw new Exception('Product could not be found.');
+   $db->prepare('UPDATE products SET price=?,family_friends_price=?,cost=? WHERE id=?')->execute([(int)round($price*100),$familyFriendsPrice===null?null:(int)round($familyFriendsPrice*100),$cost===null?null:(int)round($cost*100),(int)$priceProductId]);
+   header('Location: ./?view=product&id='.(int)$priceProductId,true,303);exit;
+  }
   if($action==='product_admin_hidden'){
    $adminHiddenProductId=filter_var($_POST['product_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    $adminHiddenValue=(string)($_POST['hidden']??'');

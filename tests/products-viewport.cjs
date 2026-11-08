@@ -69,14 +69,14 @@ const assert=require('node:assert/strict');
   assert.equal(shownFlag,'0','Show clears admin_hidden');
   // The product page toggle round trips without touching any other field.
   await page.goto(host+'/?view=product&id=99004');
-  await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Hide from admin (not stocked yet)'}).click()]);
+  await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Not stocked yet? Hide from admin'}).click()]);
   assert.match(page.url(),/view=product\b/,'Product toggle returns to the product page');
   assert.match(page.url(),/[?&]id=99004\b/,'Product toggle keeps the product id');
   assert(await page.getByRole('button',{name:'Show in admin'}).isVisible(),'Product page offers Show once hidden');
   const hiddenFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT admin_hidden FROM products WHERE id=99004")->fetchColumn();`],{encoding:'utf8'}).trim();
   assert.equal(hiddenFlag,'1','Product page toggle sets admin_hidden');
   await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Show in admin'}).click()]);
-  assert(await page.getByRole('button',{name:'Hide from admin (not stocked yet)'}).isVisible(),'Product page offers Hide once shown');
+  assert(await page.getByRole('button',{name:'Not stocked yet? Hide from admin'}).isVisible(),'Product page offers Hide once shown');
   const restoredFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT admin_hidden FROM products WHERE id=99004")->fetchColumn();`],{encoding:'utf8'}).trim();
   assert.equal(restoredFlag,'0','Product page toggle round trip restores admin_hidden');
   // Phone widths use two columns and never overflow.
@@ -108,12 +108,60 @@ const assert=require('node:assert/strict');
   assert.match(page.url(),/view=product\b/,'Product card opens the detail view');
   assert.match(page.url(),/[?&]id=99001\b/,'Product card passes the product id');
   assert(await page.getByRole('heading',{name:'Alpha Cream 5mg'}).first().isVisible(),'Detail view shows the selected product');
-  // The product detail edit link opens the catalogue tile.
-  const editHref=await page.locator('.product-v2-edit-link',{hasText:'Edit price & settings'}).getAttribute('href');
-  assert.match(editHref,/view=catalogue\b/,'Edit price & settings points at the catalogue view');
-  assert.match(editHref,/edit_product=99001\b/,'Edit price & settings keeps the product id');
-  await page.goto(host+'/?view=catalogue&edit_product=99001');
-  assert(await page.locator('#product-edit-99001').evaluate(node=>node.open),'Catalogue opens the requested product tile');
+  // The product page is admin-only: no website content or catalogue visibility controls.
+  await page.goto(host+'/?view=product&id=99001');
+  const productBody=await page.locator('body').innerText();
+  for(const removed of ['Edit website content','Hide from customer website','Show on customer website']){
+   assert(!productBody.includes(removed),'Product page must not contain '+removed);
+  }
+  assert.equal(await page.locator('.product-v2-edit-link').count(),0,'Product page has no website-admin edit links');
+  assert.equal(await page.locator('input[name="action"][value="product_catalogue_visibility"]').count(),0,'Product page has no catalogue visibility form');
+  const readProduct=id=>JSON.parse(execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo json_encode($db->query("SELECT price,family_friends_price,cost,admin_hidden,active FROM products WHERE id=${id}")->fetch(PDO::FETCH_ASSOC));`],{encoding:'utf8'}));
+  const readVisibility=id=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT visible FROM customer_catalogue_visibility WHERE product_id=${id}")->fetchColumn();`],{encoding:'utf8'}).trim();
+  const priceBefore=readProduct(99001),visibilityBefore=readVisibility(99001);
+  await page.locator('.product-v2-price-toggle').click();
+  let priceForm=page.locator('.product-v2-price-form');
+  assert(await priceForm.isVisible(),'Edit prices reveals the inline form');
+  await priceForm.locator('input[name="price"]').fill('55.50');
+  await priceForm.locator('input[name="family_friends_price"]').fill('44');
+  await priceForm.locator('input[name="cost"]').fill('12.25');
+  await Promise.all([page.waitForNavigation(),priceForm.getByRole('button',{name:'Save prices'}).click()]);
+  assert.match(page.url(),/view=product\b/,'Saving prices returns to the product page');
+  assert.match(page.url(),/[?&]id=99001\b/,'Saving prices keeps the product id');
+  const priceAfter=readProduct(99001);
+  assert.equal(priceAfter.price,5550,'Retail price was saved');
+  assert.equal(priceAfter.family_friends_price,4400,'Family & Friends price was saved');
+  assert.equal(priceAfter.cost,1225,'Unit cost was saved');
+  assert.equal(priceAfter.admin_hidden,priceBefore.admin_hidden,'Price save leaves admin_hidden untouched');
+  assert.equal(priceAfter.active,priceBefore.active,'Price save leaves active untouched');
+  assert.equal(readVisibility(99001),visibilityBefore,'Price save leaves website visibility untouched');
+  await page.locator('.product-v2-price-toggle').click();
+  priceForm=page.locator('.product-v2-price-form');
+  await priceForm.locator('input[name="price"]').fill('50');
+  await priceForm.locator('input[name="family_friends_price"]').fill('');
+  await priceForm.locator('input[name="cost"]').fill('10');
+  await Promise.all([page.waitForNavigation(),priceForm.getByRole('button',{name:'Save prices'}).click()]);
+  const blankFriends=readProduct(99001);
+  assert.equal(blankFriends.family_friends_price,null,'Blank Family & Friends price saves NULL');
+  assert.equal(blankFriends.price,5000,'Blank F&F save keeps the retail price');
+  assert.equal(blankFriends.cost,1000,'Blank F&F save keeps the unit cost');
+  // The price editor fits 375px and 390px phones without horizontal overflow.
+  for(const width of [375,390]){
+   await page.setViewportSize({width,height:844});
+   await page.goto(host+'/?view=product&id=99001');
+   let metrics=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
+   assert(metrics.scrollWidth<=metrics.width+2,width+'px product page horizontal overflow '+JSON.stringify(metrics));
+   await page.locator('.product-v2-price-toggle').click();
+   metrics=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
+   assert(metrics.scrollWidth<=metrics.width+2,width+'px open price editor horizontal overflow '+JSON.stringify(metrics));
+   const columns=await page.locator('.product-v2-price-form-grid').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+   assert.equal(columns,1,width+'px price inputs must stack');
+   for(const name of ['price','family_friends_price','cost']){
+    const box=await page.locator('.product-v2-price-form input[name="'+name+'"]').boundingBox();
+    assert(box&&box.x>=0&&box.x+box.width<=width+1,width+'px '+name+' input fits the viewport');
+   }
+  }
+  await page.setViewportSize({width:390,height:844});
   // The Products header add button opens the catalogue add form.
   await page.goto(host+'/?view=products');
   await Promise.all([page.waitForNavigation(),page.locator('.products-add-button').click()]);
@@ -162,6 +210,6 @@ const assert=require('node:assert/strict');
   await page.goto(host+'/?view=products');
   assert.equal(await page.locator('.products-card',{hasText:'Alpha Cream 5mg'}).count(),1,'A product cleared of accessory status returns to the Products grid');
   assert.deepEqual(errors,[]);
-  console.log('PASS: Products is a stock-ordered two/four-column grid with search and All/In/Low/Out chips, no 375-430px overflow, accessories excluded from the grid and New order picker, detail and catalogue edit links working, and all website settings kept in the catalogue view.');
+  console.log('PASS: Products is a stock-ordered two/four-column grid, the product page is admin-only with an inline price editor and quiet admin-hidden toggle, 375-430px never overflow, accessories are excluded from the grid and New order picker, and all website settings stay in the catalogue view.');
  }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1)});

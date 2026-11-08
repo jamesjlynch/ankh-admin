@@ -68,7 +68,6 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
  <nav class="product-v2-breadcrumb" aria-label="Breadcrumb"><a href="?view=products">Products</a><span aria-hidden="true">›</span><span><?=e($pvName)?></span></nav>
  <div class="product-v2-workspace-top">
   <div class="page-header-main"><h1><?=e($pvName)?></h1></div>
-  <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end"><a class="product-v2-edit-link" href="?view=settings&amp;tab=website&amp;id=<?=$pvId?>#cms-edit">Edit website content <span aria-hidden="true">↗</span></a><a class="product-v2-edit-link" href="?view=catalogue&amp;edit_product=<?=$pvId?>#product-edit-<?=$pvId?>">Edit price &amp; settings <span aria-hidden="true">↗</span></a><form method="post" style="display:flex;align-items:center"><?php csrf();?><input type="hidden" name="action" value="product_admin_hidden"><input type="hidden" name="return" value="product"><input type="hidden" name="product_id" value="<?=$pvId?>"><input type="hidden" name="hidden" value="<?=$pvAdminHidden?'0':'1'?>"><button type="submit" class="quiet" style="min-height:44px"><?=$pvAdminHidden?'Show in admin':'Hide from admin (not stocked yet)'?></button></form></div>
  </div>
  <section class="product-v2-hero" aria-label="Product overview">
   <div class="product-v2-photo" aria-label="<?=e($pvName)?> product photograph">
@@ -83,7 +82,21 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
    </div>
    <p class="product-v2-kicker"><?=e($pvStrength?:'Product')?></p>
    <h2><?=e($pvName)?></h2>
-   <p class="product-v2-price"><?=money($pvPrice)?><small> retail price</small></p>
+   <details class="product-v2-price-editor">
+    <summary class="product-v2-price-summary">
+     <span class="product-v2-price"><?=money($pvPrice)?><small> retail price</small></span>
+     <span class="product-v2-price-toggle"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 14.5V17h2.5l8.6-8.6-2.5-2.5L3 14.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m12.4 4.7 1.4-1.4a1.4 1.4 0 0 1 2 0l.9.9a1.4 1.4 0 0 1 0 2l-1.4 1.4" stroke="currentColor" stroke-width="1.6"/></svg> Edit prices</span>
+    </summary>
+    <form method="post" class="product-v2-price-form"><?php csrf();?>
+     <input type="hidden" name="action" value="product_prices"><input type="hidden" name="product_id" value="<?=$pvId?>">
+     <div class="product-v2-price-form-grid">
+      <label>Retail price (£)<input name="price" type="number" inputmode="decimal" min="0" max="100000" step=".01" required value="<?=e(number_format($pvPrice/100,2,'.',''))?>"></label>
+      <label>Family &amp; Friends price (£)<input name="family_friends_price" type="number" inputmode="decimal" min="0" max="100000" step=".01" placeholder="Blank = retail less £5" value="<?=$productV2['family_friends_price']===null?'':e(number_format($productV2['family_friends_price']/100,2,'.',''))?>"></label>
+      <label>Unit cost (£) <span class="muted">optional</span><input name="cost" type="number" inputmode="decimal" min="0" max="100000" step=".01" value="<?=$pvCost===null?'':e(number_format($pvCost/100,2,'.',''))?>"></label>
+     </div>
+     <div class="product-v2-price-form-actions"><button type="submit">Save prices</button><button type="button" class="quiet" data-product-v2-price-cancel>Cancel</button></div>
+    </form>
+   </details>
    <div class="product-v2-price-columns">
     <div><span>Family &amp; Friends</span><strong><?=money($pvFamily)?></strong></div>
     <div><span>Unit cost</span><strong><?=$pvCost===null?'Not set':money($pvCost)?></strong></div>
@@ -91,14 +104,6 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
    </div>
    <p class="product-v2-price-note">Indicative margin is retail minus recorded product cost, before delivery, fees and other expenses. Existing orders retain their saved prices.</p>
    <div class="product-v2-hero-actions">
-    <form method="post" class="ankh-v2-publish-control" style="display:flex;flex-wrap:wrap;align-items:center;gap:9px;width:100%"><?php csrf(); ?>
-     <input type="hidden" name="action" value="product_catalogue_visibility"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=$pvId?>">
-     <input type="hidden" name="catalogue_visible" value="<?=$pvWebsiteVisible?'0':'1'?>">
-     <button type="submit" class="product-v2-secondary-action" style="min-height:46px;width:auto" <?=$pvActive?'':'disabled title="Activate the product before publishing"'?>>
-       <?=$pvWebsiteVisible?'Hide from customer website':'Show on customer website'?>
-     </button>
-     <span class="muted" style="font-size:11px"><?=$pvWebsiteVisible?'Visible on the customer catalogue':'Not visible on the customer catalogue'?> · <?=e($pvCategory)?></span>
-    </form>
     <a class="product-v2-primary-action" href="?view=new">Create order <span aria-hidden="true">↗</span></a>
     <a class="product-v2-secondary-action" href="?view=stock">Open stock control <span aria-hidden="true">›</span></a>
    </div>
@@ -159,11 +164,17 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
    </div><?php endforeach;?>
   </div><?php else:?><p class="product-v2-empty">No recorded movements for this product.</p><?php endif;?>
  </section>
+ <div class="product-v2-admin-footer">
+  <form method="post"><?php csrf();?><input type="hidden" name="action" value="product_admin_hidden"><input type="hidden" name="return" value="product"><input type="hidden" name="product_id" value="<?=$pvId?>"><input type="hidden" name="hidden" value="<?=$pvAdminHidden?'0':'1'?>"><button type="submit" class="product-v2-admin-footer-link"><?=$pvAdminHidden?'Show in admin':'Not stocked yet? Hide from admin'?></button></form>
+ </div>
 </div>
 <script>
 document.querySelectorAll('[data-product-v2-photo]').forEach(img=>img.addEventListener('error',()=>{
  img.hidden=true;const fallback=img.parentElement?.querySelector('.product-v2-photo-placeholder');
  if(fallback)fallback.hidden=false;
 },{once:true}));
+document.querySelectorAll('[data-product-v2-price-cancel]').forEach(button=>button.addEventListener('click',()=>{
+ const editor=button.closest('details');if(editor)editor.open=false;
+}));
 </script>
 <?php endif;?>
