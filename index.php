@@ -5780,7 +5780,47 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php elseif($view==='products'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);
  $allCategories=ankhCategories($db);$assignedCategories=ankhProductCategories($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
-<?php pageHeader('Products',['action_href'=>'?view=stock','action_label'=>'Stock control →','action_class'=>'quick-action']);?><p class="page-inline-link"><a class="quick-action" href="?view=settings&amp;tab=website">✎ Customer website CMS</a></p>
+<?php pageHeader('Products',['action_html'=>'<a class="button page-action products-add-button" href="#products-manage" data-products-manage-open>+ Product</a>']);?>
+<style>
+.products-toolbar{position:sticky;top:0;z-index:20;display:grid;gap:10px;margin:0 0 10px;padding:10px 0 12px;background:var(--ankh-os-bg)}
+.products-search{position:relative;display:block;margin:0}
+.products-search input{width:100%;margin:0;min-height:48px;padding:12px 14px 12px 44px;font-size:16px;border-radius:14px;background:var(--ankh-os-surface);border:1px solid var(--ankh-os-border);color:var(--ankh-os-text)}
+.products-search-icon{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--ankh-os-muted);pointer-events:none}
+.products-chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.products-chips::-webkit-scrollbar{display:none}
+.products-chip{min-height:44px;padding:9px 15px;border-radius:999px;border:1px solid var(--ankh-os-border);background:transparent;color:var(--ankh-os-muted);font-size:13px;font-weight:650;white-space:nowrap}
+.products-chip.is-active{background:var(--ankh-os-gold);border-color:var(--ankh-os-gold);color:#17140e}
+.products-list{display:grid;gap:8px}
+.products-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto 12px;align-items:center;gap:12px;min-height:64px;padding:11px 14px;border:1px solid var(--ankh-os-border);border-radius:14px;background:var(--ankh-os-surface);color:var(--ankh-os-text);text-decoration:none}
+.products-row:hover,.products-row:focus-visible{border-color:var(--ankh-os-gold)}
+.products-row[hidden]{display:none}
+.products-row-info{display:grid;gap:3px;min-width:0}
+.products-row-title{display:block;font-size:15px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
+.products-row-badge{display:inline-block;margin-left:6px;padding:2px 7px;border:1px solid var(--ankh-os-border);border-radius:999px;color:var(--ankh-os-muted);font-size:12px;font-weight:600;line-height:1.4}
+.products-row-sub{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--ankh-os-muted)}
+.products-dot{width:8px;height:8px;border-radius:50%;background:var(--ankh-os-gold);box-shadow:0 0 0 3px rgba(245,166,35,.18);flex:none}
+.products-row-price{display:grid;justify-items:end;font-size:15px;font-weight:650;white-space:nowrap}
+.products-row-stock{display:grid;justify-items:end;font-size:15px;font-weight:650;white-space:nowrap}
+.products-row-price small,.products-row-stock small{font-size:12px;font-weight:500;color:var(--ankh-os-muted)}
+.products-row-chevron{font-size:18px;color:var(--ankh-os-muted);line-height:1}
+.products-no-results{margin:8px 0 0;padding:18px;border:1px dashed var(--ankh-os-border);border-radius:14px;color:var(--ankh-os-muted);font-size:13px;text-align:center}
+.products-manage{margin:18px 0 0;border:1px solid var(--ankh-os-border);border-radius:16px;background:var(--ankh-os-surface);overflow:hidden}
+.products-manage>summary{display:flex;align-items:center;justify-content:space-between;min-height:56px;padding:14px 18px;font-size:14px;font-weight:650;color:var(--ankh-os-text)}
+.products-manage>summary::after{content:'▾';font-size:14px;color:var(--ankh-os-gold);transition:transform .2s}
+.products-manage[open]>summary::after{transform:rotate(180deg)}
+.products-manage-body{padding:0 16px 18px;min-width:0}
+.products-manage-links{display:flex;flex-wrap:wrap;gap:8px;padding:12px 0 4px}
+@media(min-width:1000px){.products-list{grid-template-columns:1fr 1fr}}
+@media(max-width:430px){.products-row{grid-template-columns:minmax(0,1fr) auto auto;gap:9px}.products-row-chevron{display:none}}
+</style>
+<div class="products-toolbar">
+ <label class="products-search" for="products-search"><span class="products-search-icon" aria-hidden="true">⌕</span><input id="products-search" type="search" placeholder="Search products" autocomplete="off" aria-label="Search products by name"></label>
+ <div class="products-chips" role="group" aria-label="Filter products">
+  <button type="button" class="products-chip is-active" data-products-filter="all" aria-pressed="true">All</button>
+  <button type="button" class="products-chip" data-products-filter="low" aria-pressed="false">Low stock</button>
+  <button type="button" class="products-chip" data-products-filter="hidden" aria-pressed="false">Hidden from website</button>
+ </div>
+</div>
 <style>
 .ankh-visibility-manager{border:1px solid #d2af6a66;background:linear-gradient(140deg,#1b201b,#10140f);border-radius:17px;margin:17px 0 22px;padding:23px}
 .ankh-visibility-top{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
@@ -5802,6 +5842,10 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 .ankh-visibility-count{font-size:11px;color:#d8c39a}
 @media(max-width:580px){.ankh-visibility-manager{padding:15px;margin:13px 0}.ankh-visibility-grid{grid-template-columns:1fr;max-height:355px}}
 </style>
+<details class="products-manage" id="products-manage">
+<summary>Manage products, stock &amp; website settings</summary>
+<div class="products-manage-body">
+<div class="products-manage-links"><a class="quick-action" href="?view=stock">Stock control →</a><a class="quick-action" href="?view=settings&amp;tab=website">✎ Customer website CMS</a></div>
 <?php ankhCategoriesAdminUi($db); ?>
 <?php ankhLabAccessoryPricingPanel($db); ?>
 <section class="ankh-visibility-manager" id="ankh-visibility-controls" aria-label="Customer storefront product visibility">
@@ -5864,7 +5908,21 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php if((int)($p['stock_tracking']??0)===1):?><form method="post" onsubmit="return confirm('Remove <?=e(addslashes((string)$p['name']))?> from Stock Control? Its current fridge counts will be cleared, but its movement history will be kept.');"><?php csrf();?><input type="hidden" name="action" value="stock_untrack"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=$p['id']?>"><button type="submit" class="quiet stock-untrack-button">Remove from Stock Control</button></form><?php endif;?>
 <form method="post" onsubmit="return confirm('Permanently delete <?=e(addslashes((string)$p['name']))?>? Only use this if the product was created by mistake. Products already used on orders are protected and cannot be deleted.');"><?php csrf();?><input type="hidden" name="action" value="product_delete"><input type="hidden" name="return" value="products"><input type="hidden" name="product_id" value="<?=$p['id']?>"><button type="submit" class="quiet danger-button product-delete-button">Delete product</button></form>
 </div></details><?php endforeach;?></div></details></section>
+ </div></details>
+<div class="products-list" id="products-list">
+<?php foreach($products as $p):$pId=(int)$p['id'];$pTracked=(int)($p['stock_tracking']??0)===1;$pAvailable=(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0)+(int)($p['stock_unallocated_qty']??0);$pLow=$pTracked&&$pAvailable<=(int)($p['low_stock_at']??5);$pActive=(int)($p['active']??0)===1;$pWebsite=$pActive&&(int)($customerCatalogueVisibility[$pId]??0)===1;?>
+ <a class="products-row" href="?view=product&amp;id=<?=$pId?>" data-name="<?=e(function_exists('mb_strtolower')?mb_strtolower((string)$p['name'],'UTF-8'):strtolower((string)$p['name']))?>" data-low="<?=$pLow?'1':'0'?>" data-hidden="<?=$pWebsite?'0':'1'?>">
+  <span class="products-row-info"><span class="products-row-title"><?=e((string)$p['name'])?><?php if(!$pActive):?> <span class="products-row-badge">Inactive</span><?php endif;?></span><span class="products-row-sub"><?php if($pLow):?><span class="products-dot" aria-hidden="true"></span><span>Low stock</span><?php endif;?><span><?=$pWebsite?'On website':'Hidden from website'?></span></span></span>
+  <span class="products-row-price"><?=money((int)$p['price'])?><small>retail</small></span>
+  <span class="products-row-stock"><?php if($pTracked):?><b><?=$pAvailable?></b><small>available</small><?php else:?><b>—</b><small>not tracked</small><?php endif;?></span>
+  <span class="products-row-chevron" aria-hidden="true">›</span>
+ </a>
+<?php endforeach;?>
+</div>
+<p id="products-no-results" class="products-no-results" role="status" aria-live="polite" hidden>No products match that search or filter.</p>
 <script>(()=>{const input=document.querySelector('#product-filter');if(!input)return;const active=[...document.querySelectorAll('.product-catalog-grid .product-tile')],hidden=[...document.querySelectorAll('.hidden-product-grid .product-admin-card')],hiddenList=document.querySelector('#hidden-product-list'),empty=document.querySelector('#product-no-results');input.addEventListener('input',()=>{const query=input.value.trim().toLocaleLowerCase();let visible=0;active.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)visible++});const v2cards=[...document.querySelectorAll('.product-v2-tile')];if(v2cards.length)visible=0;v2cards.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)visible++});let hiddenVisible=0;hidden.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)hiddenVisible++});if(query&&hiddenVisible)hiddenList.open=true;empty.hidden=visible+hiddenVisible>0;});})();</script>
+<script>(()=>{const input=document.querySelector('#products-search'),list=document.querySelector('#products-list');if(!input||!list)return;const rows=[...list.querySelectorAll('.products-row')],chips=[...document.querySelectorAll('[data-products-filter]')],empty=document.querySelector('#products-no-results');let filter='all';const apply=()=>{const query=input.value.trim().toLocaleLowerCase();let shown=0;rows.forEach(row=>{const matchText=!query||(row.dataset.name||'').includes(query);const matchFilter=filter==='all'||(filter==='low'&&row.dataset.low==='1')||(filter==='hidden'&&row.dataset.hidden==='1');const show=matchText&&matchFilter;row.hidden=!show;if(show)shown++;});if(empty)empty.hidden=shown>0;};input.addEventListener('input',apply);chips.forEach(chip=>chip.addEventListener('click',()=>{filter=chip.dataset.productsFilter||'all';chips.forEach(other=>{const on=other===chip;other.classList.toggle('is-active',on);other.setAttribute('aria-pressed',on?'true':'false');});apply();}));apply();})();</script>
+<script>(()=>{const manage=document.querySelector('#products-manage');if(!manage)return;const revealAdd=()=>{const add=manage.querySelector('.add-product-disclosure');if(add)add.open=true;};document.querySelectorAll('[data-products-manage-open]').forEach(link=>link.addEventListener('click',event=>{event.preventDefault();manage.open=true;revealAdd();manage.scrollIntoView({block:'start'});const name=manage.querySelector('.add-product-form input[name="name"]');if(name)setTimeout(()=>name.focus({preventScroll:true}),0);}));if(location.hash==='#products-manage'){manage.open=true;revealAdd();}})();</script>
 <script>
 document.querySelectorAll('[data-product-v2-photo]').forEach(img=>img.addEventListener('error',()=>{img.hidden=true;const fallback=img.parentElement?.querySelector('.product-v2-tile-placeholder');if(fallback)fallback.hidden=false},{once:true}));
 </script>

@@ -119,7 +119,7 @@ check(str_contains($source,'Open Holding stock to assign them'),'The All tab hol
 check(str_contains($source,'Counted holding qty'),'Holding cards must offer a count correction field.');
 check(str_contains($source,'from_location" value="Unallocated"'),'Holding move forms must transfer from Unallocated.');
 $sw=file_get_contents(dirname(__DIR__).'/service-worker.js');
-check(str_contains($sw,"ankh-shell-v34-settings"),'The service worker cache must be bumped for the Settings release.');
+check(str_contains($sw,"ankh-shell-v35-products"),'The service worker cache must be bumped for the Products release.');
 $css=file_get_contents(dirname(__DIR__).'/style.css');
 check(str_contains($css,'.holding-item-card')&&str_contains($css,'.fridge-person-holding'),'Holding tab styles must exist.');
 check(str_contains($css,'.stock-who-switch{grid-template-columns:repeat(4'),'The stock switch must lay out four options.');
