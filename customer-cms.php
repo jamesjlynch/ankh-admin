@@ -21,7 +21,7 @@ $cmsCount=count(array_filter($cmsActive,fn($p)=>(int)($cmsVisibility[(int)$p['id
  <h2>Website manager</h2><a href="#cms-edit" class="cms-side-link">✎ Product content</a><a href="#cms-visibility" class="cms-side-link">◉ Website visibility</a><a href="#cms-guide" class="cms-side-link">ⓘ Connected data</a>
  <label class="cms-search-label" for="cms-search">Find a product</label><input type="search" id="cms-search" placeholder="Search products…" autocomplete="off">
  <div class="cms-products" id="cms-products"><?php foreach($cmsProducts as $p):$id=(int)$p['id'];$on=(int)($cmsVisibility[$id]??0)===1;?>
- <a data-cms-search="<?=e(strtolower((string)$p['name']))?>" class="cms-product <?=$id===$cmsSelected?'selected':''?>" href="?view=website_cms&amp;id=<?=$id?>#cms-edit">
+ <a data-cms-search="<?=e(strtolower((string)$p['name']))?>" class="cms-product <?=$id===$cmsSelected?'selected':''?>" href="?view=settings&amp;tab=website&amp;id=<?=$id?>#cms-edit">
  <?php if((int)($cmsContent[$id]['image_bytes']??0)>0):?><img class="cms-product-thumb" src="?api=catalogue-image&amp;id=<?=$id?>" loading="lazy" alt=""><?php else:?><span class="cms-product-placeholder" aria-hidden="true">☥</span><?php endif;?>
  <span class="cms-product-title"><?=e($p['name'])?></span><small><?=$on?'● Visible':'○ Hidden'?></small></a>
  <?php endforeach;?></div>
@@ -32,7 +32,7 @@ $cmsCount=count(array_filter($cmsActive,fn($p)=>(int)($cmsVisibility[(int)$p['id
  <div class="cms-panel-heading"><div><span class="cms-kicker">PRODUCT EDITOR</span><h2><?=e($cmsProduct['name'])?></h2><p>Only website text, research details and imagery can be changed here.</p></div><span class="cms-status"><?=(int)($cmsVisibility[$cmsSelected]??0)===1?'Visible':'Hidden'?></span></div>
  <div class="cms-readonly"><span>Product price <strong>Managed by Order Admin</strong></span><span>Stock and reservations <strong>Managed by Order Admin</strong></span></div>
  <form method="post" enctype="multipart/form-data" class="cms-form">
- <?php csrf();?><input type="hidden" name="action" value="product_catalogue_content"><input type="hidden" name="product_id" value="<?=$cmsSelected?>"><input type="hidden" name="return" value="website_cms"><input type="hidden" name="catalogue_visible" value="<?=(int)($cmsVisibility[$cmsSelected]??0)===1?'1':'0'?>">
+ <?php csrf();?><input type="hidden" name="action" value="product_catalogue_content"><input type="hidden" name="product_id" value="<?=$cmsSelected?>"><input type="hidden" name="return" value="settings"><input type="hidden" name="catalogue_visible" value="<?=(int)($cmsVisibility[$cmsSelected]??0)===1?'1':'0'?>">
  <label for="cms-description">Product description</label><p class="cms-help">Use short paragraphs, headings and factual product information. Existing text is preserved when you open the editor.</p>
  <div class="catalogue-document-editor cms-document-editor">
  <div class="cms-editor-toolbar" role="toolbar" aria-label="Description formatting">
@@ -54,7 +54,7 @@ $cmsCount=count(array_filter($cmsActive,fn($p)=>(int)($cmsVisibility[(int)$p['id
 </section>
 <?php endif;?>
 <section class="cms-panel" id="cms-visibility"><div class="cms-panel-heading"><div><span class="cms-kicker">PUBLISHING</span><h2>Website visibility</h2><p>Tick products that should be shown. This never changes their prices, stock or historical orders.</p></div></div>
-<form method="post"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_visibility_bulk"><input type="hidden" name="return" value="website_cms"><input type="hidden" name="visibility_confirmation" value="yes"><div class="cms-visibility-grid">
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="product_catalogue_visibility_bulk"><input type="hidden" name="return" value="settings"><input type="hidden" name="visibility_confirmation" value="yes"><div class="cms-visibility-grid">
 <?php foreach($cmsActive as $p):$id=(int)$p['id'];?><label class="cms-visibility-item"><input type="checkbox" name="catalogue_ids[]" value="<?=$id?>" <?=(int)($cmsVisibility[$id]??0)===1?'checked':''?>><span><?=e($p['name'])?></span></label><?php endforeach;?></div>
 <div class="cms-actions"><button type="submit">Save visibility settings</button><button type="button" class="cms-secondary" id="cms-all">Select all</button><button type="button" class="cms-secondary" id="cms-none">Clear all</button></div>
 </form></section>

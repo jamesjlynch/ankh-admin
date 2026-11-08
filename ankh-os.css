@@ -531,6 +531,73 @@ body .stockboard .stockboard-card{
   .packing-switch a{font-size:12px;padding:0 8px}
 }
 
+/* Settings screen: Sheets · Website · Alerts */
+.settings-screen{width:100%;max-width:560px;margin:0 0 18px}
+.settings-heading{margin-bottom:10px}
+.settings-switch{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:5px;
+  width:100%;
+  max-width:100%;
+  padding:5px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:999px;
+  background:rgba(20,20,22,.72);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.settings-switch a{
+  flex:1 1 0;
+  min-width:0;
+  min-height:44px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 12px;
+  border:1px solid transparent;
+  border-radius:999px;
+  color:var(--ankh-os-muted);
+  font-size:13px;
+  font-weight:700;
+  line-height:1.2;
+  text-align:center;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.settings-switch a:is(.selected,[aria-current="page"],[aria-current="true"]){
+  background:var(--ankh-os-gold);
+  border-color:var(--ankh-os-gold);
+  color:#17140e;
+}
+@media(max-width:430px){
+  .settings-switch a{font-size:12px;padding:0 8px}
+}
+
+/* Notifications screen: active alerts + activity + email history in one list. */
+.notification-screen{width:100%;max-width:760px;margin:0 0 18px}
+.notification-heading{margin-bottom:10px}
+.notification-panel{padding:16px}
+.notification-note{margin:0 0 12px;font-size:12px;line-height:1.5}
+.notification-off-note{margin:0 0 14px;padding:12px;border-radius:9px;background:rgba(178,124,36,.12);font-size:12px;line-height:1.5}
+.notification-list{display:grid;gap:10px}
+.notification-list .activity-row{padding:14px 4px;gap:10px;flex-wrap:wrap;align-items:flex-start}
+.notification-list .activity-row>div{min-width:0;flex:1 1 220px}
+.notification-list .activity-row strong{font-size:14px;line-height:1.35;overflow-wrap:anywhere}
+.notification-list .activity-row small{font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+.notification-list .activity-row a{font-size:12px;min-height:44px;display:inline-flex;align-items:center}
+.notification-list .ankh-notification-item{margin-top:0;padding:15px}
+.notification-screen .ankh-notification-actions button{min-height:44px;padding:8px 12px;font-size:12px}
+.notification-list .notification-mail form{flex:0 0 auto}
+.notification-list .notification-mail form button{min-height:44px;font-size:12px}
+@media(max-width:430px){
+  .notification-panel{padding:12px}
+  .notification-list .activity-row{padding:12px 2px}
+}
+
+/* Bell is now a link to the Notifications screen. */
+.admin-app-shell :is(.ankh-notification-button,.ankh-notification-mobile-button){text-decoration:none}
+
 /* Mobile floating bottom navigation. */
 @media(max-width:760px){
   .admin-app-shell > nav.mobile-nav{

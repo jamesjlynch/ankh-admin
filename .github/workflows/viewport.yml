@@ -26,6 +26,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Test real browser layouts and actions against isolated SQLite data
         run: node tests/viewport-testmode.mjs
+      - name: Test merged Settings and Notifications screens
+        run: node tests/settings-viewport.cjs
       - name: Test back-order mobile workflow against isolated SQLite data
         run: node tests/back-orders-viewport.cjs
       - name: Test incoming supplier order editing

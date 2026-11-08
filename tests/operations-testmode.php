@@ -10,7 +10,7 @@ foreach([
  'dashboardNextActionLabel','dashboardOneTapActions','operations-next-form',
  'Confirm this order was actually delivered today?', 
  'data-customer-insight="recurring"','id="ankh-notifications"',
- 'if($auditTrack)', "if(\$view==='activity')",
+ 'if($auditTrack)', "if(\$view==='notifications')",
 ] as $key)checkOperations(str_contains($source,$key),'Required operations feature missing: '.$key);
 checkOperations(str_contains($source,'$testingNoAuth=false;'),'Public test mode must stay disabled now individual sign-in is required.');
 checkOperations(!str_contains($source,'operator_accounts') && !str_contains($source,'operators_setup'),'Account enrolment must not be included in the test-mode release.');

@@ -22,7 +22,7 @@ foreach(['Product description','name="catalogue_description"','data-catalogue-do
 cmsVerify(!str_contains($html,'name="price"')&&!str_contains($html,'name="stock_qty"'),'CMS must not expose operational price or stock inputs.');
 $index=file_get_contents(dirname(__DIR__).'/index.php');
 $publisher=file_get_contents(dirname(__DIR__).'/scripts/publish-live.sh');
-cmsVerify(str_contains($index,"elseif(\$view==='website_cms')"),'CMS must load only inside authenticated admin view.');
+cmsVerify(str_contains($index,"settingsTab==='website'"),'CMS must load only inside authenticated admin settings view.');
 foreach(['customer-cms.php','customer-cms.css','customer-cms.js'] as $asset)cmsVerify(str_contains($publisher,$asset),'Publisher missing '.$asset);
 ankhCatalogueSetVisibility($db,1,false);
 cmsVerify((int)(ankhCatalogueVisibility($db)[1]??1)===0,'Visibility hide did not persist.');

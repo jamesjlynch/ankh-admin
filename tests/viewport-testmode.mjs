@@ -67,7 +67,7 @@ try{
  await page.locator('#work-order-1').getByRole('button',{name:/Mark delivered today/}).click();
  await page.locator('#dashboard-actions').waitFor({state:'visible'});
  check(confirmed,'Manual delivery must require explicit confirmation.');
- await page.goto(host+'/index.php?view=activity');
+ await page.goto(host+'/index.php?view=notifications');
  const activity=await page.locator('.activity-list').innerText();
  check(activity.includes('Preparation updated'),'Preparation audit history was not recorded.');
  check(activity.includes('Delivery recorded'),'Manual delivery was not recorded in audit history.');

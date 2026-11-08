@@ -32,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as folder:
         server=subprocess.Popen(['php','-S','127.0.0.1:'+str(port),'-t',str(root),str(router)],env=env,stdout=log,stderr=log)
         def get(opener,path):
             return opener.open(host+path,timeout=25).read().decode()
-        def post(opener,data,path='/index.php?view=website_cms'):
+        def post(opener,data,path='/index.php?view=settings&tab=website'):
             req=urllib.request.Request(host+path,urllib.parse.urlencode(data).encode(),method='POST')
             return opener.open(req,timeout=25).read().decode()
         try:
@@ -42,14 +42,14 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as folder:
                 except OSError:time.sleep(.05)
             else:raise AssertionError('PHP fixture server did not start')
             opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
-            login_page=get(opener,'/index.php?view=website_cms')
+            login_page=get(opener,'/index.php?view=settings&tab=website')
             token=re.search(r'name="csrf" value="([a-f0-9]+)"',login_page)
             assert token,'Missing login CSRF token'
-            post(opener,{'csrf':token.group(1),'action':'login','password':password,'return':'website_cms'})
+            post(opener,{'csrf':token.group(1),'action':'login','password':password,'return':'settings','settings_tab':'website'})
             with sqlite3.connect(db) as conn:
                 conn.execute("INSERT INTO products(name,price,cost,active) VALUES ('CMS demo vial 5mg',4250,1700,1)")
                 product_id=conn.execute('SELECT id FROM products WHERE name=?',('CMS demo vial 5mg',)).fetchone()[0]
-            page=get(opener,f'/index.php?view=website_cms&id={product_id}')
+            page=get(opener,f'/index.php?view=settings&tab=website&id={product_id}')
             assert 'Customer website CMS' in page and 'CMS demo vial 5mg' in page,page[:1200]
             assert 'Save website content' in page and 'Website visibility' in page
             assert '<html' in page.lower() and '</html>' in page.lower()
@@ -58,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-cms-http-') as folder:
             csrf=re.search(r'name="csrf" value="([a-f0-9]+)"',page)
             assert csrf
             saved=post(opener,{'csrf':csrf.group(1),'action':'product_catalogue_content','product_id':str(product_id),
-               'return':'website_cms','catalogue_visible':'1','catalogue_description':'CMS description from browser fixture.',
+               'return':'settings','settings_tab':'website','catalogue_visible':'1','catalogue_description':'CMS description from browser fixture.',
                'catalogue_information[strength]':'5mg validated laboratory sample'})
             assert 'Customer website CMS' in saved
             assert 'CMS description from browser fixture.' in saved

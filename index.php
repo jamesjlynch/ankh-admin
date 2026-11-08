@@ -3332,13 +3332,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $prefs=[];foreach(['daily','new_order','stock','payment','delivery','recurring'] as $key)$prefs[$key]=isset($_POST['alert_'.$key]);
     // All notifications use the fixed shared business inbox.
     saveSetting($db,'business_alert_prefs',json_encode($prefs,JSON_THROW_ON_ERROR));
-    header('Location: ./?view=business_alerts&saved=1');exit;
+    header('Location: ./?view=settings&tab=alerts&saved=1');exit;
    }
    if($action==='business_alert_test'){
     require_once __DIR__.'/business-alerts.php';
     $result=ankhAlertDispatch($db,true);
     if(!empty($result['errors']))throw new Exception('Email failed: '.implode('; ',$result['errors']));
-    header('Location: ./?view=business_alerts&sent=1');exit;
+    header('Location: ./?view=settings&tab=alerts&sent=1');exit;
    }
    if($action==='business_alert_retry_order'){
     require_once __DIR__.'/business-alerts.php';
@@ -3347,7 +3347,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $retryResult=ankhSendNewOrderNotice($db,(int)$retryId,true);
     if($retryResult!=='accepted')throw new Exception('Google SMTP did not accept the email.');
     $_SESSION['flash']='Google accepted the ANK-'.str_pad((string)$retryId,4,'0',STR_PAD_LEFT).' order notification for info@ankhpeptides.com.';
-    header('Location: ./?view=business_alerts');exit;
+    header('Location: ./?view=notifications');exit;
    }
    if($action==='business_alert_preview_order'){
     require_once __DIR__.'/business-alerts.php';
@@ -3355,7 +3355,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     if($lastOrderId<1)throw new Exception('No existing order is available for an email preview.');
     [$previewSubject,$previewText,$previewHtml]=ankhNewOrderBody($db,$lastOrderId);
     ankhSmtpSend('info@ankhpeptides.com','PREVIEW — '.$previewSubject,$previewText,$previewHtml);
-    header('Location: ./?view=business_alerts&order_preview_sent=1');exit;
+    header('Location: ./?view=settings&tab=alerts&order_preview_sent=1');exit;
    }
    if($action==='business_supply_save')saveBusinessSupply($db,$_POST);
   if($action==='supply_item_save')saveSupplyItemWithSource($db,$_POST);
@@ -3370,7 +3370,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    else{$days=in_array($days,[1,3,7],true)?$days:1;$savedState[$notificationId]=['until'=>time()+($days*86400),'updated'=>time()];}
    if(count($savedState)>120){uasort($savedState,fn($a,$b)=>(int)($b['updated']??0)<=>(int)($a['updated']??0));$savedState=array_slice($savedState,0,120,true);}
    saveSetting($db,'notification_state',json_encode($savedState,JSON_UNESCAPED_SLASHES));
-   $return=in_array((string)($_POST['return']??'dashboard'),['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','more','saved'],true)?(string)$_POST['return']:'dashboard';
+   $return=in_array((string)($_POST['return']??'dashboard'),['dashboard','orders','new','edit','products','supplier','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','settings','notifications','reports','reorder','more','saved'],true)?(string)$_POST['return']:'dashboard';
    $suffix=$return==='customer'&&isset($_POST['customer_id'])?'&id='.(int)$_POST['customer_id']:'';
    header('Location: ./?view='.rawurlencode($return).$suffix);exit;
   }
@@ -3532,7 +3532,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $db->commit();
    }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
    $_SESSION['flash']='Website visibility updated for '.count($allActive).' active products. Prices and stock were not changed.';
-   header('Location: ./?view='.(($_POST['return']??'')==='website_cms'?'website_cms':'products').(($_POST['return']??'')==='website_cms'?'#cms-visibility':'#ankh-visibility-controls'),true,303);exit;
+   $catalogueReturn=(string)($_POST['return']??'');
+   header('Location: ./?view='.(in_array($catalogueReturn,['website_cms','settings'],true)?'settings&tab=website':'products').(in_array($catalogueReturn,['website_cms','settings'],true)?'#cms-visibility':'#ankh-visibility-controls'),true,303);exit;
   }
   if($action==='lab_accessory_price_update'){
    ankhLabAccessoryUpdateAmazonPrice($db,(string)($_POST['lab_sku']??''),(string)($_POST['amazon_price']??''),(string)($_POST['amazon_url']??''));
@@ -3908,7 +3909,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    $ids=$db->query('SELECT id FROM orders ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);$ok=0;$failed=0;
    foreach($ids as $id){$sync=syncOrderToSheet($db,(int)$id);if($sync===null||$sync==='')$ok++;else$failed++;}
    $_SESSION['flash']=$failed?"{$ok} orders synced; {$failed} could not be synced. Check the connection details below.":"{$ok} orders synced to Google Sheets.";
-   header('Location: ./?view=sheets');exit;
+   header('Location: ./?view=settings&tab=sheets');exit;
   }
  }
  $flash=match($action){
@@ -3978,10 +3979,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   try{
    require_once __DIR__.'/business-alerts.php';
    $emailStatus=ankhSendNewOrderNotice($db,(int)$savedOrderId);
-   if($emailStatus==='disabled')$_SESSION['flash'].=' New-order email is switched off in More → Business Alerts.';
+   if($emailStatus==='disabled')$_SESSION['flash'].=' New-order email is switched off in Settings → Alerts.';
   }catch(Throwable $mailError){
    error_log('ANKH order notification failed #'.(int)$savedOrderId.': '.$mailError->getMessage());
-   $_SESSION['flash'].=' The order was saved, but the email notification failed. Open More → Business Alerts for its send status and a safe retry.';
+   $_SESSION['flash'].=' The order was saved, but the email notification failed. Open Settings → Alerts for its send status and a safe retry.';
   }
  }
  try{if(!empty($_SESSION['admin']))ankhCatalogueLinkIdentities($db);}catch(Throwable $linkError){error_log('ANKH identity link update: '.$linkError->getMessage());}
@@ -4011,7 +4012,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $returnFridge=in_array($_POST['return_fridge']??'combined',['combined','jay','tony'],true)?(string)($_POST['return_fridge']??'combined'):'combined';
   header('Location: ./?view=stock'.$returnFilter.'&fridge='.urlencode($returnFridge).'#stock-product-'.(int)($_POST['product_id']??0));exit;
  }
- if($action==='product_catalogue_content' && $returnView==='website_cms')header('Location: ./?view=website_cms&id='.(int)($_POST['product_id']??0).'#cms-edit');
+ if($action==='product_catalogue_content' && in_array($returnView,['website_cms','settings'],true))header('Location: ./?view=settings&tab=website&id='.(int)($_POST['product_id']??0).'#cms-edit');
+ else if($returnView==='settings')header('Location: ./?view=settings&tab='.rawurlencode(in_array($_POST['settings_tab']??'',['sheets','website','alerts'],true)?(string)$_POST['settings_tab']:'sheets'));
  else if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
  else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['all','payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).'#dashboard-actions');
  else if($returnView==='packing' && (int)($_POST['id']??0)>0)header('Location: ./?view=packing&id='.(int)$_POST['id'].'#packing-lines');
@@ -4341,11 +4343,34 @@ function reportTakingsData(PDO $db,DateTimeImmutable $today,DateTimeZone $tz):ar
  unset($period);
  return $result;
 }
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','plan','buying','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','alerts','notifications','settings','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','plan','buying','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 // Legacy fridge screens now live inside the merged Stock screen.
 if($view==='fridge_jay'||$view==='fridge_tony'){header('Location: ./?view=stock&who='.($view==='fridge_jay'?'jay':'tony'),true,302);exit;}
 // The hidden live board alias keeps working for old bookmarks.
 if($view==='stockboard'){header('Location: ./?view=stock',true,302);exit;}
+// One Settings screen now owns Sheets, Website and Alerts.
+$settingsLegacyTabs=['sheets'=>'sheets','website_cms'=>'website','business_alerts'=>'alerts'];
+if(isset($settingsLegacyTabs[$view])){
+ $legacySettingsTab=$settingsLegacyTabs[$view];
+ if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
+  $legacySettingsQuery=$_GET;$legacySettingsQuery['view']='settings';$legacySettingsQuery['tab']=$legacySettingsTab;
+  header('Location: ./?'.http_build_query($legacySettingsQuery),true,302);exit;
+ }
+ // A POST has already run its action; render the matching Settings tab without losing it.
+ $view='settings';$_GET['view']='settings';$_GET['tab']=$legacySettingsTab;
+}
+$isSettings=$view==='settings';
+$settingsTab='';
+if($isSettings)$settingsTab=in_array((string)($_GET['tab']??''),['sheets','website','alerts'],true)?(string)$_GET['tab']:'sheets';
+// One Notifications screen now owns Activity and the legacy alert bookmarks.
+if($view==='activity'||$view==='alerts'){
+ if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
+  $legacyNotificationsQuery=$_GET;$legacyNotificationsQuery['view']='notifications';unset($legacyNotificationsQuery['tab']);
+  header('Location: ./?'.http_build_query($legacyNotificationsQuery),true,302);exit;
+ }
+ $view='notifications';$_GET['view']='notifications';
+}
+$isNotifications=$view==='notifications';
 // One Packing screen now owns the packing centre and pick desk.
 if($view==='packing_centre'){
  if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
@@ -5259,29 +5284,18 @@ if($view==='reportsboard'){
 <a class="<?=$view==='balances'?'selected':''?>" href="?view=balances"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14v11H5z"/><path d="M8 11h8M8 15h5"/><circle cx="17" cy="15" r="1"/></svg></span><span class="nav-label">Balances</span></a>
 <a class="<?=in_array($view,['products','product'],true)?'selected':''?>" href="?view=products"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4h12v16H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span class="nav-label">Products</span></a>
 <a class="<?=$view==='reports'?'selected':''?>" href="?view=reports"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></svg></span><span class="nav-label">Reports</span></a>
-<a class="<?=$view==='sheets'?'selected':''?>" href="?view=sheets"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Sheets</span></a>
-<a class="<?=in_array($view,['enquiries','supplies','more','run','supplier','reorder','shipping','stock','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['sheets','settings'],true)?'selected':''?>" href="?view=settings"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5z"/><path d="M5 9h14M10 9v11M15 9v11M5 14h14"/></svg></span><span class="nav-label">Settings</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','run','supplier','reorder','shipping','stock','reta','sheets','settings','notifications'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <?php if(!$testingNoAuth):?><form method="post" class="sidebar-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($isPlan?'plan':($isBuying?'buying':$view))?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
+<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($isPlan?'plan':($isBuying?'buying':$view))?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><a class="ankh-notification-button" id="ankh-notification-button" href="?view=notifications" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></a></div></header>
 <?php if($premiumV2Preview):?><div class="premium-v2-preview-banner"><span>Premium V2 · design preview</span><a class="premium-v2-preview-chip" href="?view=dashboard&amp;premium=0">Return to original design <span aria-hidden="true">↗</span></a></div><?php endif;?>
-<section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
-<?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
-<button type="button" class="ankh-notification-mobile-button" id="ankh-notification-mobile-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button>
+<a class="ankh-notification-mobile-button" id="ankh-notification-mobile-button" href="?view=notifications" aria-label="Notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></a>
 <button type="button" class="ankh-search-mobile-button" id="ankh-search-mobile-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button>
 <script>(()=>{
- const buttons=[...document.querySelectorAll('[data-ankh-notification-toggle]')],p=document.getElementById('ankh-notifications'),c=document.getElementById('ankh-notification-close'),mobile=document.getElementById('ankh-notification-mobile-button'),searchMobile=document.getElementById('ankh-search-mobile-button'),brand=document.querySelector('.app-brand-row');
- if(!buttons.length||!p)return;
+ const mobile=document.getElementById('ankh-notification-mobile-button'),searchMobile=document.getElementById('ankh-search-mobile-button'),brand=document.querySelector('.app-brand-row');
  if(mobile&&brand)brand.insertBefore(mobile,document.getElementById('ankh-assistant-button'));
  if(searchMobile&&brand)brand.insertBefore(searchMobile,document.getElementById('ankh-assistant-button'));
- p.setAttribute('role','dialog');p.setAttribute('tabindex','-1');
- let trigger=null;
- const set=(open,restore=true)=>{p.hidden=!open;buttons.forEach(b=>b.setAttribute('aria-expanded',String(open)));if(open){p.scrollTop=0;c?.focus();}else if(restore&&trigger?.isConnected)trigger.focus();};
- buttons.forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();trigger=b;set(p.hidden)}));
- c?.addEventListener('click',()=>set(false));
- document.addEventListener('click',e=>{if(!p.hidden&&!p.contains(e.target)&&!e.target.closest('[data-ankh-notification-toggle]'))set(false,false)});
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!p.hidden){e.preventDefault();set(false)}});
- document.addEventListener('focusin',e=>{if(!p.hidden&&!p.contains(e.target)&&!buttons.includes(e.target))set(false,false)});
 })();</script>
 <div class="ankh-search-sheet" id="ankh-search-sheet" hidden>
  <div class="ankh-search-backdrop" data-ankh-search-close aria-hidden="true"></div>
@@ -5316,6 +5330,14 @@ if($view==='reportsboard'){
 <?php pageHeader('Packing',['class'=>'packing-heading','back_href'=>'?view=more','back_label'=>'More']);?>
 <nav class="packing-switch" aria-label="Packing sections">
 <?php foreach(['runs'=>'Packing runs','pick'=>'Pick &amp; prepare'] as $packingKey=>$packingLabel):?><a href="?view=packing&amp;tab=<?=e($packingKey)?>" class="<?=$packingTab===$packingKey?'selected':''?>" <?=$packingTab===$packingKey?'aria-current="page"':''?>><?=$packingLabel?></a><?php endforeach;?>
+</nav>
+</div>
+<?php endif;?>
+<?php if($isSettings):?>
+<div class="settings-screen">
+<?php pageHeader('Settings',['class'=>'settings-heading','back_href'=>'?view=more','back_label'=>'More']);?>
+<nav class="settings-switch" aria-label="Settings sections">
+<?php foreach(['sheets'=>'Sheets','website'=>'Website','alerts'=>'Alerts'] as $settingsKey=>$settingsLabel):?><a href="?view=settings&amp;tab=<?=e($settingsKey)?>" class="<?=$settingsTab===$settingsKey?'selected':''?>" <?=$settingsTab===$settingsKey?'aria-current="page"':''?>><?=e($settingsLabel)?></a><?php endforeach;?>
 </nav>
 </div>
 <?php endif;?>
@@ -5745,7 +5767,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 
 <?php elseif($view==='enquiries'):ankhCustomerInbox($db);?>
 <?php elseif($view==='product'):require __DIR__.'/product-v2.php';?>
-<?php elseif($view==='website_cms'):
+<?php elseif($view==='settings'&&$settingsTab==='website'):
  try {
   if(!is_file(__DIR__.'/customer-cms.php'))throw new RuntimeException('Customer CMS module missing from server release.');
   require __DIR__.'/customer-cms.php';
@@ -5758,7 +5780,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php elseif($view==='products'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);
  $allCategories=ankhCategories($db);$assignedCategories=ankhProductCategories($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
-<?php pageHeader('Products',['action_href'=>'?view=stock','action_label'=>'Stock control →','action_class'=>'quick-action']);?><p class="page-inline-link"><a class="quick-action" href="?view=website_cms">✎ Customer website CMS</a></p>
+<?php pageHeader('Products',['action_href'=>'?view=stock','action_label'=>'Stock control →','action_class'=>'quick-action']);?><p class="page-inline-link"><a class="quick-action" href="?view=settings&amp;tab=website">✎ Customer website CMS</a></p>
 <style>
 .ankh-visibility-manager{border:1px solid #d2af6a66;background:linear-gradient(140deg,#1b201b,#10140f);border-radius:17px;margin:17px 0 22px;padding:23px}
 .ankh-visibility-top{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
@@ -6164,15 +6186,14 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php else:?><p class="muted">No stock movements recorded for this fridge yet.</p><?php endif;?></section>
 <script>(()=>{document.querySelectorAll('[data-pack-form]').forEach(form=>form.querySelectorAll('[data-pack-qty]').forEach(button=>button.addEventListener('click',()=>{const input=form.querySelector('[data-pack-quantity]');if(input&&!input.disabled)input.value=Math.min(Number(button.dataset.packQty),Number(input.max||999999))})))})();</script>
 <?php endif;?>
-<?php elseif($view==='sheets'):?>
-<?php pageHeader('Google Sheets');?>
+<?php elseif($view==='settings'&&$settingsTab==='sheets'):?>
 <section class="panel">
 <h2>ANKH Admin Orders</h2>
 <p><a class="button" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/<?=e($sheetId)?>/edit">Open Google Sheet ↗</a></p>
 <div class="line"><span>Connection</span><strong><?=$sheetWebhook?'Webhook saved':'Not connected yet'?></strong></div>
 <?php if($sheetLastSync):?><div class="line"><span>Last successful sync</span><strong><?=e(date('d M Y H:i',strtotime($sheetLastSync)))?></strong></div><?php endif;?>
 <?php if($sheetLastError):?><p class="error">Last sync problem: <?=e($sheetLastError)?></p><?php endif;?>
-<form method="post"><?php csrf();?><input type="hidden" name="action" value="sheets_settings"><input type="hidden" name="return" value="sheets"><label>Google Apps Script Web App URL<input type="url" name="webhook" value="<?=e($sheetWebhook)?>" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></label><button>Save Google connection</button></form>
+<form method="post"><?php csrf();?><input type="hidden" name="action" value="sheets_settings"><input type="hidden" name="return" value="settings"><input type="hidden" name="settings_tab" value="sheets"><label>Google Apps Script Web App URL<input type="url" name="webhook" value="<?=e($sheetWebhook)?>" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></label><button>Save Google connection</button></form>
 <?php if($sheetWebhook):?><form method="post" style="margin-top:14px"><?php csrf();?><input type="hidden" name="action" value="sheets_sync_all"><button>Sync all existing orders</button></form><?php endif;?>
 </section>
 <section class="panel">
@@ -6974,14 +6995,48 @@ document.addEventListener('DOMContentLoaded',()=>{
 </script>
 <?php elseif($view==='supplier'):?>
 <?php if($isBuying)$_GET['tab']=$supplierTabOverride;sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
-<?php elseif($view==='activity'):?>
-<?php pageHeader('Order & payment activity',['back_href'=>'?view=more','back_label'=>'More']);?>
-<section class="panel"><div class="activity-list">
-<?php $activityRows=$db->query("SELECT entity_type,entity_id,action,actor_name,details_json,created FROM activity_events ORDER BY id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC); ?>
-<?php foreach($activityRows as $entry):$detail=json_decode((string)$entry['details_json'],true)?:[];$orderTarget=$entry['entity_type']==='order'?(int)$entry['entity_id']:(int)($detail['order_id']??0);?>
-<article class="activity-row"><div><strong><?=e($entry['action'])?></strong><small><?=e($entry['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime($entry['created'])))?></small><?php if($summary=activitySummary($detail)):?><small><?=e($summary)?></small><?php endif;?></div>
+<?php elseif($view==='notifications'):?>
+<?php
+require_once __DIR__.'/business-alerts.php';$businessPrefs=ankhAlertPrefs($db);
+$alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS email_state FROM orders o LEFT JOIN settings s ON s.key='business_alert_new_order:'||o.id ORDER BY o.id DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
+$activityRows=$db->query("SELECT entity_type,entity_id,action,actor_name,details_json,created FROM activity_events ORDER BY id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC);
+$notificationFeed=[];
+foreach($visibleNotifications as $notice)$notificationFeed[]=['kind'=>'alert-live','ts'=>PHP_INT_MAX,'sort'=>(int)($notice['priority']??0),'notice'=>$notice];
+foreach($activityRows as $entry){
+ $notificationFeed[]=['kind'=>'activity','ts'=>strtotime((string)$entry['created'])?:0,'sort'=>(int)$entry['entity_id'],'entry'=>$entry];
+}
+foreach($alertRows as $mailRow){
+ $mailState=(string)$mailRow['email_state'];
+ $notificationFeed[]=['kind'=>'mail','ts'=>strtotime((string)$mailRow['created'])?:0,'sort'=>(int)$mailRow['id'],'row'=>$mailRow,'state'=>$mailState];
+}
+usort($notificationFeed,static function($a,$b){
+ if($a['ts']!==$b['ts'])return $b['ts']<=>$a['ts'];
+ return ($b['sort']??0)<=>($a['sort']??0);
+});
+?>
+<div class="notification-screen">
+<?php pageHeader('Notifications',['class'=>'notification-heading','back_href'=>'?view=more','back_label'=>'More']);?>
+<p class="page-inline-link"><a class="quick-action" href="?view=settings&amp;tab=alerts">Alert settings →</a></p>
+<section class="panel notification-panel">
+<p class="muted notification-note">Active alerts, order and payment activity, and new-order email history — newest first.</p>
+<?php if(empty($businessPrefs['new_order'])):?><p role="status" class="notification-off-note">New-order email notifications are currently switched off. Turn them on in Settings → Alerts.</p><?php endif;?>
+<div class="activity-list notification-list" id="ankh-notifications">
+<?php foreach($notificationFeed as $item):?>
+<?php if($item['kind']==='alert-live'):$notice=$item['notice'];?>
+<article class="ankh-notification-item tone-<?=e($notice['tone'])?> notification-feed-item"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="notifications"><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="notifications"><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="notifications"><button class="quiet">Dismiss</button></form></div></article>
+<?php elseif($item['kind']==='activity'):$entry=$item['entry'];$detail=json_decode((string)$entry['details_json'],true)?:[];$orderTarget=$entry['entity_type']==='order'?(int)$entry['entity_id']:(int)($detail['order_id']??0);?>
+<article class="activity-row notification-activity" data-created="<?=e((string)$entry['created'])?>"><div><strong><?=e($entry['action'])?></strong><small><?=e($entry['actor_name'])?> · <?=e(date('d M Y, H:i',strtotime((string)$entry['created'])))?></small><?php if($summary=activitySummary($detail)):?><small><?=e($summary)?></small><?php endif;?></div>
 <?php if($orderTarget>0):?><a href="?view=edit&amp;id=<?=$orderTarget?>">Order #<?=$orderTarget?> →</a><?php endif;?></article>
-<?php endforeach;?><?php if(!$activityRows):?><p class="muted">Activity tracking is ready. New changes will appear here.</p><?php endif;?></div></section>
+<?php else:$mailRow=$item['row'];$mailId=(int)$mailRow['id'];$mailState=$item['state'];$mailFailed=str_starts_with($mailState,'failed:');$mailBusy=str_starts_with($mailState,'sending');$mailAccepted=($mailState!==''&&!$mailFailed&&!$mailBusy);$mailLabel=$mailFailed?'Failed':($mailBusy?'Sending / uncertain':($mailAccepted?'Accepted by Google':'Not recorded'));$mailDetails=$mailFailed?substr($mailState,8):($mailAccepted?'Google accepted the SMTP submission.':($mailBusy?'Do not resend until the previous attempt has been investigated.':'No automatic send attempt is recorded for this order.'));?>
+<article class="activity-row notification-mail" data-created="<?=e((string)$mailRow['created'])?>"><div><strong>ANK-<?=str_pad((string)$mailId,4,'0',STR_PAD_LEFT)?> · <?=e($mailRow['customer'])?></strong><small>New-order email · <?=e(date('d M Y, H:i',strtotime((string)$mailRow['created'])))?> · <?=e($mailLabel)?></small><small><?=e($mailDetails)?></small></div>
+<?php if($mailFailed||$mailState===''):?>
+<form method="post" onsubmit="return confirm('Send the ANK-<?=str_pad((string)$mailId,4,'0',STR_PAD_LEFT)?> email to info@ankhpeptides.com now? This does not create another order.');"><?php csrf();?><input type="hidden" name="action" value="business_alert_retry_order"><input type="hidden" name="id" value="<?=$mailId?>"><button type="submit" class="quiet"><?=$mailFailed?'Retry failed email':'Send missing email'?></button></form>
+<?php endif;?></article>
+<?php endif;?>
+<?php endforeach;?>
+<?php if(!$notificationFeed):?><p class="muted">You’re all caught up.</p><?php endif;?>
+</div></section>
+</div>
 <?php elseif($view==='supplies'):
  $supplySection=in_array($_GET['section']??'',['cupboard','shopping','purchases'],true)?(string)$_GET['section']:((isset($_GET['new'])||isset($_GET['edit'])||isset($_GET['status'])||isset($_GET['q'])||($_POST['action']??'')==='business_supply_save')?'purchases':'cupboard');
  if(isset($_POST['return_section'])&&in_array($_POST['return_section'],['cupboard','shopping','purchases'],true))$supplySection=(string)$_POST['return_section'];
@@ -7113,11 +7168,8 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php endif;?>
 <?php elseif($view==='shipping'):?>
 <?php require __DIR__.'/shipping-intelligence.php'; ?>
-<?php elseif($view==='business_alerts'):?>
-<?php require_once __DIR__.'/business-alerts.php'; $businessPrefs=ankhAlertPrefs($db); 
-$alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS email_state FROM orders o LEFT JOIN settings s ON s.key='business_alert_new_order:'||o.id ORDER BY o.id DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
-?>
-<?php pageHeader('Business Alerts',['back_href'=>'?view=more','back_label'=>'More']);?>
+<?php elseif($view==='settings'&&$settingsTab==='alerts'):?>
+<?php require_once __DIR__.'/business-alerts.php'; $businessPrefs=ankhAlertPrefs($db); ?>
 <?php if(isset($_GET['saved'])):?><p class="notice">Alert preferences saved.</p><?php endif;?>
 <?php if(isset($_GET['sent'])):?><p class="notice">Test emails accepted by Google. Check your inboxes.</p><?php endif;?>
 <?php if(isset($_GET['order_preview_sent'])):?><p class="notice">New-order preview sent to info@ankhpeptides.com. Check it in Gmail on your iPhone.</p><?php endif;?>
@@ -7137,29 +7189,7 @@ $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS 
 <form method="post" style="margin-top:12px"><?php csrf();?><input type="hidden" name="action" value="business_alert_preview_order"><button class="quiet" type="submit">Preview latest order email</button></form>
 <p class="muted" style="margin-top:10px">Preview uses the most recent saved order without creating a new order or changing stock. The email subject says PREVIEW. Daily sending requires a scheduled task on Krystal. No customer emails are sent.</p>
 </section>
-<section class="panel" style="max-width:720px;padding:20px;margin-top:16px">
-<h2>New-order email history</h2>
-<p class="muted">The 12 most recent orders. “Accepted” means Google SMTP accepted the message; it does not guarantee delivery to Gmail. Failed messages show the reason and can be retried. No orders or stock are changed.</p>
-<?php if(empty($businessPrefs['new_order'])):?><p role="status" style="padding:12px;border-radius:9px;background:rgba(178,124,36,.12)">New-order notifications are currently switched off. Tick “Email me immediately when a new order is added” above, then Save.</p><?php endif;?>
-<?php foreach($alertRows as $mailRow):
- $mailId=(int)$mailRow['id'];$mailState=(string)$mailRow['email_state'];
- $mailFailed=str_starts_with($mailState,'failed:');$mailBusy=str_starts_with($mailState,'sending');
- $mailAccepted=($mailState!==''&&!$mailFailed&&!$mailBusy);
- $mailLabel=$mailFailed?'Failed':($mailBusy?'Sending / uncertain':($mailAccepted?'Accepted by Google':'Not recorded'));
- $mailDetails=$mailFailed?substr($mailState,8):($mailAccepted?'Google accepted the SMTP submission.':($mailBusy?'Do not resend until the previous attempt has been investigated.':'No automatic send attempt is recorded for this order.'));
-?>
-<div style="border-top:1px solid var(--border);padding:15px 0">
-<div style="display:flex;justify-content:space-between;gap:12px;align-items:start;flex-wrap:wrap">
-<div><strong>ANK-<?=str_pad((string)$mailId,4,'0',STR_PAD_LEFT)?> · <?=e($mailRow['customer'])?></strong><div class="muted" style="font-size:12px;margin-top:3px"><?=e(date('d M Y, H:i',strtotime((string)$mailRow['created'])))?></div></div>
-<strong style="font-size:13px"><?=e($mailLabel)?></strong>
-</div>
-<p class="muted" style="font-size:12px;line-height:1.5;overflow-wrap:anywhere;margin:8px 0"><?=e($mailDetails)?></p>
-<?php if($mailFailed||$mailState===''):?>
-<form method="post" onsubmit="return confirm('Send the ANK-<?=str_pad((string)$mailId,4,'0',STR_PAD_LEFT)?> email to info@ankhpeptides.com now? This does not create another order.');"><?php csrf();?><input type="hidden" name="action" value="business_alert_retry_order"><input type="hidden" name="id" value="<?=$mailId?>"><button type="submit" class="quiet"><?=$mailFailed?'Retry failed email':'Send missing email'?></button></form>
-<?php endif;?>
-</div>
-<?php endforeach;?>
-</section>
+<p class="page-inline-link"><a class="quick-action" href="?view=notifications">View new-order email history and activity →</a></p>
 <?php elseif($view==='run'):
 $runToday=$now->format('Y-m-d');$runTotal=0;$runStopsData=[];
 foreach($deliveryRunStops as $runOrder){
@@ -7253,8 +7283,8 @@ if($runRouteAddresses){
 <section class="more-group">
 <h2 class="more-group-heading">Admin</h2>
 <div class="more-grid">
-<a class="more-card" href="?view=business_alerts"><span class="more-icon">✉</span><div><h2>Business alerts</h2></div><b>›</b></a>
-<a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2></div><b>›</b></a>
+<a class="more-card" href="?view=notifications"><span class="more-icon">✉</span><div><h2>Notifications</h2></div><b>›</b></a>
+<a class="more-card" href="?view=settings"><span class="more-icon">⚙</span><div><h2>Settings</h2></div><b>›</b></a>
 </div>
 <div class="more-grid utility-grid">
 <section class="panel device-card"><span class="more-icon">⌂</span><div><h2>Install ANKH</h2></div><button type="button" id="install-ankh-app" class="quiet">Install / instructions</button><div id="install-ankh-help" class="install-help" hidden><strong>On iPhone</strong><p>Open this page in Safari, tap Share, then choose <b>Add to Home Screen</b>.</p></div></section>
@@ -7276,7 +7306,7 @@ $savedEmailFailed=str_starts_with($savedEmailState,'failed:');
 $savedEmailAccepted=$savedEmailState!==''&&!$savedEmailFailed&&!str_starts_with($savedEmailState,'sending');
 $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedEmailState,8):($savedEmailAccepted?'Order email accepted by Google SMTP for info@ankhpeptides.com.':(empty(ankhAlertPrefs($db)['new_order'])?'New-order notifications are disabled.':'No completed email submission recorded for this order.'));
 ?>
-<p role="status" class="muted" style="margin-top:10px;font-size:13px;line-height:1.5"><?=e($savedEmailStatus)?> <a href="?view=business_alerts">Check email status →</a></p>
+<p role="status" class="muted" style="margin-top:10px;font-size:13px;line-height:1.5"><?=e($savedEmailStatus)?> <a href="?view=notifications">Check email status →</a></p>
 <div class="saved-items"><?php foreach($savedOrder['items'] as $savedItem):?><div class="line"><span><?=e($savedItem['quantity'].' × '.$savedItem['name'].(!empty($savedItem['presentation'])?' · '.$savedItem['presentation']:'').((int)($savedItem['discount_pence']??0)>0?' · Family & Friends':''))?></span><strong><?=money($savedItem['unit_price_pence']*$savedItem['quantity'])?></strong></div><?php endforeach;?><?php if((int)$savedOrder['delivery_charge_pence']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($savedOrder['delivery_charge_pence'])?></strong></div><?php endif;?></div><div class="saved-meta"><span>Paid: <?=money((int)($savedOrder['paid_amount_pence']??0))?></span><span>Balance: <?=money((int)($savedOrder['balance_due_pence']??0))?></span><?php if($savedOrder['payment_method']):?><span>Payment: <?=e($savedOrder['payment_method'])?></span><?php endif;?><?php if($savedOrder['delivery_method']):?><span>Delivery: <?=e($savedOrder['delivery_method'])?></span><?php endif;?><?php if($savedOrder['assigned_to']):?><span>Assigned: <?=e($savedOrder['assigned_to'])?></span><?php endif;?></div>
 <div class="saved-actions"><a class="button" href="?view=dashboard">Dashboard</a><a class="button" href="?view=new">+ New order</a><a class="quick-action" href="?view=orders">View orders</a><a class="quick-action" href="?view=new&amp;repeat_order=<?=$savedOrder['id']?>">Repeat order</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$savedOrder['id']?>&amp;type=invoice">Invoice PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$savedOrder['id']?>" data-document-type="receipt">Share receipt</button></div>
 </section>
@@ -7288,7 +7318,7 @@ $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedE
 <a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Clients</span></a>
-<a class="<?=in_array($view,['enquiries','supplies','more','run','products','product','reports','reorder','shipping','sheets','supplier','stock','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
+<a class="<?=in_array($view,['enquiries','supplies','more','run','products','product','reports','reorder','shipping','sheets','settings','notifications','supplier','stock','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 </div>
 
