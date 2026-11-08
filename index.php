@@ -2143,6 +2143,7 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
   $packagedStepLocked=!$reconstitutedStepDone&&!$packagedStepDone;
   $stepReturn='<input type="hidden" name="return" value="'.e($return).'">';if($surface==='dashboard')$stepReturn.='<input type="hidden" name="return_queue" value="'.$returnQueue.'">';
  ?>
+ <?php if($surface==='dashboard'):?>
  <section class="od-steps" aria-label="Order quick steps">
   <?php if($stepsStatic):?>
    <?php if($paidStepDone):?><span class="od-step done od-step-static"><?=orderStepIcon('paid')?><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><?=orderStepIcon('paid')?><span class="od-step-label">Paid</span></button><?php endif;?>
@@ -2168,6 +2169,7 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
    <form method="post" class="od-step-form" onsubmit="return confirm('Confirm this order was actually delivered today? Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="delivery_date" value="<?=e($today)?>"><?=$stepReturn?><button type="submit" class="od-step"><?=orderStepIcon('delivered')?><span class="od-step-label">Delivered</span></button></form>
   <?php endif;?>
  </section>
+ <?php endif;?>
  <?php
   $recipientName=trim((string)($order['recipient_name']??''));if($recipientName==='')$recipientName=trim((string)($order['customer']??''));
   $postcode='';if($address!==''&&preg_match('/\b([A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2})\b/i',$address,$postcodeMatch))$postcode=strtoupper(preg_replace('/\s+/',' ',trim((string)$postcodeMatch[1])));
