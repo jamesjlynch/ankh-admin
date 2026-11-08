@@ -1359,7 +1359,7 @@ $groupOpen=in_array($groupKey,['purchased','stocked'],true)||$groupHasDraft;?>
 </section>
 <?php elseif($tab==='incoming'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">EXISTING INVENTORY</p><h2>Incoming &amp; receiving</h2><p>Placed orders go directly into your existing Incoming Stock system. When parcels arrive, confirm exactly how many units were received and allocate them to James’s or Tony’s fridge.</p></div></div>
-<div class="sc-incoming-links"><a class="quick-action" href="?view=stock&amp;section=incoming">Open Incoming Stock →</a><a class="quick-action quiet" href="?view=reorder">Reorder suggestions →</a><a class="quick-action quiet" href="?view=stock">Combined fridge stock →</a></div>
+<div class="sc-incoming-links"><a class="quick-action" href="?view=stock&amp;section=incoming">Open Incoming Stock →</a><a class="quick-action quiet" href="?view=plan&amp;tab=reorder">Reorder suggestions →</a><a class="quick-action quiet" href="?view=stock">Combined fridge stock →</a></div>
 <p class="sc-notice">Buying stock never adds it to a fridge automatically. Your original purchases, exchange rates, supplier messages and unit-cost snapshots remain saved.</p>
 </section>
 <?php endif;?>
@@ -4341,12 +4341,37 @@ function reportTakingsData(PDO $db,DateTimeImmutable $today,DateTimeZone $tz):ar
  unset($period);
  return $result;
 }
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','plan','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 // Legacy fridge screens now live inside the merged Stock screen.
 if($view==='fridge_jay'||$view==='fridge_tony'){header('Location: ./?view=stock&who='.($view==='fridge_jay'?'jay':'tony'),true,302);exit;}
 // The hidden live board alias keeps working for old bookmarks.
 if($view==='stockboard'){header('Location: ./?view=stock',true,302);exit;}
 if($view==='packing_centre'&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
+// One Plan screen now owns the reorder, cycle and shipping views.
+$planLegacyTabs=['reorder'=>'reorder','reta'=>'cycles','shipping'=>'shipping'];
+if(isset($planLegacyTabs[$view])){
+ $legacyPlanTab=$planLegacyTabs[$view];
+ if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
+  $legacyQuery=$_GET;$legacyQuery['view']='plan';
+  if($view==='shipping'&&isset($legacyQuery['tab'])){
+   $legacyShipTab=(string)$legacyQuery['tab'];unset($legacyQuery['tab']);
+   if(in_array($legacyShipTab,['calendar','stock'],true))$legacyQuery['ship_tab']=$legacyShipTab;
+  }
+  $legacyQuery['tab']=$legacyPlanTab;
+  header('Location: ./?'.http_build_query($legacyQuery),true,302);exit;
+ }
+ // A POST has already run its action; render the matching Plan tab without losing it.
+ if($view==='shipping'&&isset($_GET['tab'])&&in_array($_GET['tab'],['calendar','stock'],true))$_GET['ship_tab']=$_GET['tab'];
+ $view='plan';$_GET['tab']=$legacyPlanTab;
+}
+$isPlan=$view==='plan';
+$planTab='';
+$shipTabOverride=null;
+if($isPlan){
+ $planTab=in_array((string)($_GET['tab']??''),['reorder','cycles','shipping'],true)?(string)($_GET['tab']??''):'reorder';
+ if($planTab==='shipping')$shipTabOverride=(string)($_GET['ship_tab']??'')==='stock'?'stock':'calendar';
+ $view=['reorder'=>'reorder','cycles'=>'reta','shipping'=>'shipping'][$planTab];
+}
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
 $stylesheet=$view==='supplier'?'style.min.css':'style.core.min.css';
@@ -4846,7 +4871,7 @@ foreach($trackedStock as $stockAlert){
  if($gap>0){
   $packs=(int)ceil($gap/$packSize);$notificationReorderProductIds[$productId]=true;
   $body=$available.' available'.($incoming>0?' + '.$incoming.' incoming':'').' · target '.$target.' · '.$packs.' supplier pack'.($packs===1?'':'s').' suggested.';
-  $ankhNotifications[]=['id'=>'reorder:'.$productId.':'.$available.':'.$incoming.':'.$target,'tone'=>'reorder','title'=>$name.' reorder needed','body'=>$body,'href'=>'?view=reorder','priority'=>30+$gap];
+  $ankhNotifications[]=['id'=>'reorder:'.$productId.':'.$available.':'.$incoming.':'.$target,'tone'=>'reorder','title'=>$name.' reorder needed','body'=>$body,'href'=>'?view=plan&tab=reorder','priority'=>30+$gap];
  }
 }
 foreach($lowStock as $stockAlert){
@@ -4857,7 +4882,7 @@ foreach($lowStock as $stockAlert){
 
 if($retaDue7){
  $count=count($retaDue7);$weekKey=$retaToday->format('o-W');
- $ankhNotifications[]=['id'=>'recurring-week:'.$weekKey.':'.$count,'tone'=>'cycle','title'=>$count.' recurring customer'.($count===1?' is':'s are').' due within 7 days','body'=>'Review upcoming repeat orders and the stock they are expected to need.','href'=>'?view=reta&weeks=4','priority'=>15];
+ $ankhNotifications[]=['id'=>'recurring-week:'.$weekKey.':'.$count,'tone'=>'cycle','title'=>$count.' recurring customer'.($count===1?' is':'s are').' due within 7 days','body'=>'Review upcoming repeat orders and the stock they are expected to need.','href'=>'?view=plan&tab=cycles&weeks=4','priority'=>15];
 }
 
 usort($ankhNotifications,fn($a,$b)=>(int)($b['priority']??0)<=>(int)($a['priority']??0));
@@ -5199,7 +5224,7 @@ if($view==='reportsboard'){
 <a class="<?=in_array($view,['enquiries','supplies','more','run','supplier','reorder','shipping','stock','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <?php if(!$testingNoAuth):?><form method="post" class="sidebar-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
+<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($isPlan?'plan':$view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <?php if($premiumV2Preview):?><div class="premium-v2-preview-banner"><span>Premium V2 · design preview</span><a class="premium-v2-preview-chip" href="?view=dashboard&amp;premium=0">Return to original design <span aria-hidden="true">↗</span></a></div><?php endif;?>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
 <?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
@@ -5231,6 +5256,14 @@ if($view==='reportsboard'){
 </div>
 <?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <?php if(!empty($_SESSION['flash'])):$flashType=(($_SESSION['flash_type']??'')==='error')?'error':'ok';?><div class="ankh-toast-region" data-ankh-toast-region><div class="ankh-toast" data-ankh-toast data-type="<?=$flashType?>" role="status" aria-live="polite"><p class="ankh-toast-message"><?=e($_SESSION['flash'])?></p><?php if(is_array($_SESSION['stock_undo']??null)&&time()<=(int)($_SESSION['stock_undo']['expires']??0)):?><form method="post"><?php csrf();?><input type="hidden" name="action" value="stock_undo"><button type="submit" class="quiet stock-undo-button">Undo stock change</button></form><?php endif;?><button type="button" class="ankh-toast-close" data-ankh-toast-close aria-label="Dismiss notification"><span aria-hidden="true">×</span></button></div></div><?php unset($_SESSION['flash'],$_SESSION['flash_type']);endif;?>
+<?php if($isPlan):?>
+<div class="plan-screen">
+<?php pageHeader('Plan',['class'=>'plan-heading','back_href'=>'?view=more','back_label'=>'More']);?>
+<nav class="plan-switch" aria-label="Plan sections">
+<?php foreach(['reorder'=>'Reorder','cycles'=>'Cycles','shipping'=>'Shipping'] as $planKey=>$planLabel):?><a href="?view=plan&amp;tab=<?=e($planKey)?>" class="<?=$planTab===$planKey?'selected':''?>" <?=$planTab===$planKey?'aria-current="page"':''?>><?=e($planLabel)?></a><?php endforeach;?>
+</nav>
+</div>
+<?php endif;?>
 <?php if($view==='dashboard'):
 if(empty($_SESSION['dashboard_focus_ready'])){unset($_SESSION['dashboard_queue']);$_SESSION['dashboard_focus_ready']=true;}
 $dashboardAll=dashboardWorklist($awaitingPayment,$awaitingDelivery,$futureDeliveries);
@@ -5325,7 +5358,7 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 <!-- dashboard-worklist-end -->
 <?php if($reorderDueRows):?>
 <section class="panel reorder-due-card" id="due-for-reorder" aria-labelledby="reorder-due-title">
- <div class="reorder-due-head"><div><p class="eyebrow">RECURRING</p><h2 id="reorder-due-title">Due for reorder · this week</h2></div><a class="reorder-due-link" href="?view=reta">Cycle planner <span aria-hidden="true">→</span></a></div>
+ <div class="reorder-due-head"><div><p class="eyebrow">RECURRING</p><h2 id="reorder-due-title">Due for reorder · this week</h2></div><a class="reorder-due-link" href="?view=plan&amp;tab=cycles">Plan <span aria-hidden="true">→</span></a></div>
  <div class="reorder-due-list">
  <?php foreach($reorderDueRows as $dueRow):
   $dueCustomerId=(int)($customerIdByKey[strtolower(trim((string)$dueRow['customer'])).'|'.trim((string)$dueRow['phone'])]??0);
@@ -6281,9 +6314,9 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php endif;?>
 
 <?php elseif($view==='reta'):?>
-<?php pageHeader('Upcoming cycles',['class'=>'reta-heading','back_href'=>'?view=dashboard','back_label'=>'Dashboard']);?>
+<?php if(!$isPlan)pageHeader('Upcoming cycles',['class'=>'reta-heading','back_href'=>'?view=dashboard','back_label'=>'Dashboard']);?>
 
-<div class="cycle-horizon-tabs"><?php foreach([4,5,8,12] as $weeks):?><a href="?view=reta&amp;weeks=<?=$weeks?>" class="<?=$cycleHorizonWeeks===$weeks?'selected':''?>"><?=$weeks?> weeks</a><?php endforeach;?></div>
+<div class="cycle-horizon-tabs"><?php foreach([4,5,8,12] as $weeks):?><a href="?view=plan&amp;tab=cycles&amp;weeks=<?=$weeks?>" class="<?=$cycleHorizonWeeks===$weeks?'selected':''?>"><?=$weeks?> weeks</a><?php endforeach;?></div>
 
 <div class="reta-forecast-grid cycle-forecast-grid">
  <article><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($retaOverdue)?> currently overdue</small></article>
@@ -6344,12 +6377,12 @@ $reportWindowLabel=$reportRangeLabels[$reportRange]??'Selected period';
 $reportTrendMax=1;foreach($reportTrend as $trendRow)$reportTrendMax=max($reportTrendMax,(int)$trendRow['order_value']);
 ksort($reportTrend);
 $reportUpcomingPreview=array_slice(cycleOccurrences($retaCyclesActive,$retaToday,8),0,5);
-$reportExportParams=['view'=>$view==='reorder'?'reorder':'reports','type'=>$reportType,'range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo,'period'=>$reportType==='profit'?$reportPeriodKey:'','export'=>'1'];if($reportType==='reorder')$reportExportParams['demand_days']=$reorderWindowDays;
+$reportExportParams=['view'=>($isPlan&&$view==='reorder')?'plan':($view==='reorder'?'reorder':'reports'),'type'=>$reportType,'range'=>$reportRange,'from'=>$reportFrom,'to'=>$reportTo,'period'=>$reportType==='profit'?$reportPeriodKey:'','export'=>'1'];if($isPlan&&$view==='reorder')$reportExportParams['tab']='reorder';if($reportType==='reorder')$reportExportParams['demand_days']=$reorderWindowDays;
 if($reportType==='productorders'){$reportExportParams['product']=$reportProductName;$reportExportParams['source']=$reportProductSource;}
 $reportExportUrl='?'.http_build_query($reportExportParams);
 $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['export'=>'stock-movements']));
 ?>
-<?php pageHeader($view==='reorder'?'Reorder planner':'Reports',['back_href'=>'?view=more','back_label'=>'More']);?>
+<?php if(!$isPlan)pageHeader($view==='reorder'?'Reorder planner':'Reports',['back_href'=>'?view=more','back_label'=>'More']);?>
 <?php if($view==='reports'&&is_array($reportTakings)):?>
 <section class="takings-hero" id="report-takings" data-takings aria-labelledby="takings-heading">
  <div class="takings-head">
@@ -6427,7 +6460,7 @@ $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['
 <?php if(!$reportRangeError):?><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><?php endif;?><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button>
 </form></details>
 <?php if($reportRangeError):?><p class="error report-warning">Choose both dates to run a custom report.</p><?php else:?><p class="report-range-note">Showing <strong><?=e($reportWindowLabel)?></strong><?php if($reportFrom!==''||$reportTo!==''):?> · <?=e($reportFrom?:'Start')?> to <?=e($reportTo?:'Today')?><?php endif;?>. Order value is based on order date; cash received is based on payment date.</p><?php endif;?>
-<?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="reorder"><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">The target includes your low-stock alert, estimated non-recurring demand during the 7-day supplier wait, and potential repeat orders due in the next 30 days. Current open orders are already reserved out of available stock. Suggested quantities are rounded up to full supplier packs.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
+<?php elseif($reportType==='reorder'):?><form class="report-filter-bar reorder-window-filter" method="get"><input type="hidden" name="view" value="<?=$isPlan?'plan':'reorder'?>"><?php if($isPlan):?><input type="hidden" name="tab" value="reorder"><?php endif;?><label>Sales lookback<select name="demand_days"><option value="30" <?=$reorderWindowDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$reorderWindowDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$reorderWindowDays===90?'selected':''?>>Last 90 days</option></select></label><button>Update estimate</button><a class="button quiet report-export" href="<?=e($reportExportUrl)?>">Download CSV</a><button type="button" class="quiet report-print" onclick="window.print()">Print / Save PDF</button></form><p class="report-range-note">The target includes your low-stock alert, estimated non-recurring demand during the 7-day supplier wait, and potential repeat orders due in the next 30 days. Current open orders are already reserved out of available stock. Suggested quantities are rounded up to full supplier packs.</p><?php else:?><div class="report-range-note">Profit summaries use the selected profit period below and group sales by payment date. <a href="<?=e($reportExportUrl)?>">Download this period</a></div><?php endif;?>
 <div class="report-infographic-actions"><button type="button" id="report-infographic-download">☥&nbsp; Create square infographic</button><span id="report-infographic-status" aria-live="polite"></span></div>
 <section class="report-infographic-preview" id="report-infographic-preview" hidden aria-label="Infographic preview">
 <?php if(in_array($reportType,['personal','productorders'],true)):?><style>.report-infographic-actions{display:none!important}</style><?php endif;?>
@@ -7124,7 +7157,7 @@ if($runRouteAddresses){
 <div class="more-grid">
 <a class="more-card" href="?view=run"><span class="more-icon">➤</span><div><h2>Delivery run</h2></div><b>›</b></a>
 <a class="more-card" href="?view=packing_centre"><span class="more-icon">▣</span><div><h2>Packing Centre</h2></div><b>›</b></a>
-<a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle planner</h2></div><b>›</b></a>
+<a class="more-card" href="?view=plan"><span class="more-icon">☰</span><div><h2>Plan</h2></div><b>›</b></a>
 </div>
 </section>
 <section class="more-group">
@@ -7132,7 +7165,6 @@ if($runRouteAddresses){
 <div class="more-grid">
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2></div><b>›</b></a>
 <a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; profit</h2></div><b>›</b></a>
-<a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2></div><b>›</b></a>
 <a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2></div><b>›</b></a>
 </div>
 </section>
@@ -7148,7 +7180,6 @@ if($runRouteAddresses){
 <h2 class="more-group-heading">Admin</h2>
 <div class="more-grid">
 <a class="more-card" href="?view=business_alerts"><span class="more-icon">✉</span><div><h2>Business alerts</h2></div><b>›</b></a>
-<a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping intelligence</h2></div><b>›</b></a>
 <a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2></div><b>›</b></a>
 </div>
 <div class="more-grid utility-grid">

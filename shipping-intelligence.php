@@ -258,15 +258,16 @@ usort($shipRows,static fn($a,$b)=>($shipRank[$a['state']]<=>$shipRank[$b['state'
 </style>
 <div class="ship-page">
 <?php $shipMode=in_array((string)($_GET['mode']??''),['manage','event'],true)?(string)$_GET['mode']:'overview';
-$shipTab=(string)($_GET['tab']??'')==='stock'?'stock':'calendar';
+$shipTab=(string)($shipTabOverride??($_GET['tab']??''))==='stock'?'stock':'calendar';
 $shipSelectedId=(string)($_GET['event']??'');
 $shipSelected=null;foreach($shippingEvents as $candidate){if($candidate['id']===$shipSelectedId)$shipSelected=$candidate;}
 $shipTotalAttention=$shipAtRisk+$shipNeedsCount;
 ?>
 <?php if($shipMode==='overview'):?>
-<div class="heading page-header ship-head ship-head-compact">
+<?php if(empty($isPlan)):?><div class="heading page-header ship-head ship-head-compact">
  <div class="page-header-main"><a class="page-header-back ship-back ship-head-back" href="?view=more">← More</a><h1>Shipping Intelligence</h1></div>
 </div>
+<?php endif;?>
 <nav class="ship-view-tabs" aria-label="Shipping Intelligence sections">
  <a href="?view=shipping" class="<?=$shipTab==='calendar'?'active':''?>" <?=$shipTab==='calendar'?'aria-current="page"':''?>>
   <span class="ship-tab-icon" aria-hidden="true">▦</span><span>Calendar</span><small><?=count($shipUpcoming)?></small>
@@ -341,7 +342,7 @@ $shipTotalAttention=$shipAtRisk+$shipNeedsCount;
   <?php else:?>
    <div class="ship-forecast-empty"><strong>No upcoming calendar disruptions found.</strong><p>Add an event to enable automatic stock coverage planning.</p><a class="ship-action ship-secondary" href="?view=shipping&amp;mode=manage">Manage calendar →</a></div>
   <?php endif;?>
-  <a class="ship-action ship-secondary ship-reorder-link" href="?view=reorder">Open full Reorder Planner →</a>
+  <a class="ship-action ship-secondary ship-reorder-link" href="?view=plan&amp;tab=reorder">Open full Reorder Planner →</a>
   <p class="ship-foot">Estimates use non-recurring delivered sales (last 30 days), projected recurring orders not already open, fridge balances net of reservations, and only incoming orders with a future ETA within this cover period. Expiry dates, changes in demand and actual customs/carrier delays still require a manual check. Nothing is ordered automatically.</p>
  </section>
 <?php endif;?>

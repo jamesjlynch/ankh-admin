@@ -816,7 +816,7 @@ $groupOpen=in_array($groupKey,['purchased','stocked'],true)||$groupHasDraft;?>
 </section>
 <?php elseif($tab==='incoming'):?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">EXISTING INVENTORY</p><h2>Incoming &amp; receiving</h2><p>Placed orders go directly into your existing Incoming Stock system. When parcels arrive, confirm exactly how many units were received and allocate them to James’s or Tony’s fridge.</p></div></div>
-<div class="sc-incoming-links"><a class="quick-action" href="?view=stock&amp;section=incoming">Open Incoming Stock →</a><a class="quick-action quiet" href="?view=reorder">Reorder suggestions →</a><a class="quick-action quiet" href="?view=stock">Combined fridge stock →</a></div>
+<div class="sc-incoming-links"><a class="quick-action" href="?view=stock&amp;section=incoming">Open Incoming Stock →</a><a class="quick-action quiet" href="?view=plan&amp;tab=reorder">Reorder suggestions →</a><a class="quick-action quiet" href="?view=stock">Combined fridge stock →</a></div>
 <p class="sc-notice">Buying stock never adds it to a fridge automatically. Your original purchases, exchange rates, supplier messages and unit-cost snapshots remain saved.</p>
 </section>
 <?php endif;?>
