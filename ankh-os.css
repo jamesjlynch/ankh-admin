@@ -225,7 +225,7 @@ body .stockboard .stockboard-card{
 }
 
 /* Inputs and selects. */
-.admin-app-shell input:not([type=checkbox]):not([type=radio]),
+.admin-app-shell input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
 .admin-app-shell select,
 .admin-app-shell textarea,
 .login input,
@@ -1397,6 +1397,103 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
 @media(max-width:380px){
   .admin-app-shell .reorder-due-row{grid-template-columns:minmax(0,1fr)}
   .admin-app-shell .reorder-due-button{width:100%}
+}
+
+.admin-app-shell .reorder-due-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.admin-app-shell .reorder-due-stop-form{margin:0}
+.admin-app-shell .reorder-due-stop{
+  min-height:44px;
+  min-width:44px;
+  padding:0 10px;
+  background:transparent!important;
+  color:var(--ankh-os-muted)!important;
+  border:1px solid transparent!important;
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  font-size:12px;
+  font-weight:700;
+}
+.admin-app-shell .reorder-due-stop:hover,
+.admin-app-shell .reorder-due-stop:focus-visible{
+  color:var(--ankh-os-text)!important;
+  border-color:rgba(255,215,140,.24)!important;
+}
+@media(max-width:560px){
+  .admin-app-shell .reorder-due-actions{justify-content:flex-start}
+}
+
+/* Cycles tab: many repeated cards on a phone. Keep the page shell glassy but
+   remove stacked blur layers and per-card motion, which crash WebKit on iOS. */
+.cycle-light,
+.cycle-light *{
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.cycle-light :is(.reta-cycle-row,.reta-cycle-card,.cycle-calendar-card,.cycle-stock-row,.reta-forecast-grid article){
+  box-shadow:none!important;
+}
+.cycle-light .ankh-reveal,
+.cycle-light .ankh-reveal.ankh-in,
+.cycle-light .ankh-skeleton{
+  animation:none!important;
+  animation-delay:0s!important;
+  opacity:1!important;
+  transform:none!important;
+}
+.cycle-light .reta-forecast-grid article{background:#141516}
+.reta-recurring-panel .dashboard-panel-head{margin-bottom:10px}
+.reta-recurring-list{display:grid;gap:8px}
+.reta-cycle-row{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto auto;
+  align-items:center;
+  gap:10px;
+  padding:11px 12px;
+  border:1px solid #303234;
+  border-radius:12px;
+  background:#131415;
+}
+.reta-cycle-row.soon{border-color:#65532f;background:#17150f}
+.reta-cycle-row.overdue{border-color:#754545;background:#1b1212}
+.reta-cycle-row[hidden]{display:none}
+.reta-cycle-row-main{min-width:0}
+.reta-cycle-row-main h3{margin:0;color:#f1eadc;font-size:14px;line-height:1.25;overflow-wrap:anywhere}
+.reta-cycle-row-main p{margin:2px 0 0;color:#aaa49a;font-size:10px;line-height:1.35;overflow-wrap:anywhere}
+.reta-cycle-row-meta{display:grid;gap:2px;color:#b5afa3;font-size:10px;line-height:1.35;text-align:right;white-space:nowrap}
+.reta-cycle-row-due{color:#e3c57d;font-weight:800}
+.reta-cycle-row-due.is-overdue{color:#F2A196}
+.reta-cycle-row-actions{display:flex;align-items:center;gap:6px}
+.reta-cycle-row-actions form{margin:0}
+.reta-cycle-row-actions :is(.quick-action,.quiet){
+  min-height:44px;
+  padding:0 12px;
+  font-size:10px;
+  white-space:nowrap;
+}
+.cycle-search{display:grid;gap:5px;margin:0 0 10px}
+.cycle-search span{color:#8f8b82;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.cycle-search input{width:100%}
+.cycle-search-empty{margin:10px 0 0;color:#9f9b94;font-size:11px}
+.cycle-forecast-details{margin:12px 0;padding:0;overflow:hidden}
+.cycle-forecast-details>summary{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-height:48px;
+  padding:14px 16px;
+  cursor:pointer;
+  color:#d8d2c6;
+  font-weight:800;
+}
+.cycle-forecast-details>summary small{color:#8f8b82;font-size:10px;font-weight:600}
+.cycle-forecast-body{padding:0 14px 14px}
+.cycle-occurrence-more{margin:10px 0 0;color:#e3c57d;font-size:11px;font-weight:700}
+@media(max-width:560px){
+  .reta-cycle-row{grid-template-columns:minmax(0,1fr) auto;gap:8px 10px}
+  .reta-cycle-row-meta{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:wrap;gap:3px 12px;text-align:left}
+  .reta-cycle-row-actions{grid-column:2;grid-row:1}
 }
 
 @media(max-width:760px){

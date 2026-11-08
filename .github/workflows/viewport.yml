@@ -42,3 +42,5 @@ jobs:
         run: node tests/product-order-report-viewport.cjs
       - name: Test rebuilt products list
         run: node tests/products-viewport.cjs
+      - name: Test light recurring cycles view at phone width
+        run: node tests/cycles-light-viewport.cjs

@@ -2824,8 +2824,9 @@ function dueReorderRows(array $cycles,DateTimeImmutable $today,int $days=7):arra
   $date=$overdue?$due->format('Y-m-d'):(string)($source['occurrence_date']??$due->format('Y-m-d'));
   $customer=(string)($source['customer_name']??'');$phone=(string)($source['phone']??'');$client=cycleRecipientName($source);
   $key=strtolower(trim($customer)).'|'.trim($phone).'|'.strtolower(trim($client));
-  if(!isset($groups[$key]))$groups[$key]=['client'=>$client!==''?$client:$customer,'customer'=>$customer,'phone'=>$phone,'date'=>$date,'overdue'=>false,'products'=>[],'cadences'=>[],'last_order_id'=>0];
+  if(!isset($groups[$key]))$groups[$key]=['client'=>$client!==''?$client:$customer,'customer'=>$customer,'phone'=>$phone,'date'=>$date,'overdue'=>false,'products'=>[],'cadences'=>[],'last_order_id'=>0,'cycle_id'=>0];
   $group=&$groups[$key];
+  if((int)$group['cycle_id']<1)$group['cycle_id']=(int)($source['id']??0);
   if($date<$group['date'])$group['date']=$date;
   $product=trim((string)($source['product_summary']??''));if($product==='')$product=trim((string)($source['product_name']??''));
   if($product!==''){
@@ -5758,7 +5759,10 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
    <p class="reorder-due-products"><?=e($dueRow['products']?implode(' · ',$dueRow['products']):'Recurring order')?></p>
    <div class="reorder-due-meta"><span><?=e($dueRow['cadence']?:'Recurring cycle')?></span><span class="reorder-due-date"><?=e($dueRow['due_label'])?></span></div>
   </div>
-  <a class="button reorder-due-button" href="<?=e($dueHref)?>">Reorder</a>
+  <div class="reorder-due-actions">
+   <a class="button reorder-due-button" href="<?=e($dueHref)?>">Reorder</a>
+   <?php if((int)$dueRow['cycle_id']>0):?><form method="post" class="reorder-due-stop-form" onsubmit="return confirm('<?=e(addslashes('Stop recurring for '.$dueRow['client'].'? They won\'t show as due again.'))?>');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=(int)$dueRow['cycle_id']?>"><input type="hidden" name="reason" value="Customer no longer wants it"><input type="hidden" name="return" value="dashboard"><button type="submit" class="quiet reorder-due-stop">Stop</button></form><?php endif;?>
+  </div>
  </article>
  <?php endforeach;?>
  </div>
@@ -6749,8 +6753,36 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php elseif($view==='reta'):?>
 <?php if(!$isPlan)pageHeader('Upcoming cycles',['class'=>'reta-heading','back_href'=>'?view=dashboard','back_label'=>'Dashboard']);?>
 
+<div class="cycle-light">
 <div class="cycle-horizon-tabs"><?php foreach([4,5,8,12] as $weeks):?><a href="?view=plan&amp;tab=cycles&amp;weeks=<?=$weeks?>" class="<?=$cycleHorizonWeeks===$weeks?'selected':''?>"><?=$weeks?> weeks</a><?php endforeach;?></div>
 
+<section class="panel reta-cycle-panel reta-recurring-panel">
+<div class="dashboard-panel-head"><div><p class="eyebrow">RECURRING CUSTOMERS</p><h2>Active cycles</h2><p class="muted">One row per active cycle. Stop a customer here when they no longer want the repeat.</p></div></div>
+<?php if($retaCyclesActive):?>
+<?php if(count($retaCyclesActive)>8):?><label class="cycle-search"><span>Search recurring customers</span><input type="search" data-cycle-search placeholder="Search name or product" aria-controls="active-cycle-list" autocomplete="off"></label><?php endif;?>
+<div class="reta-cycle-list reta-recurring-list" id="active-cycle-list" data-cycle-list>
+<?php foreach($retaCyclesActive as $cycle):
+ $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;$dueClass=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');$cycleWeeks=max(1,(int)($cycle['cycle_weeks']??4));$cycleRecipient=cycleRecipientName($cycle);?>
+<article class="reta-cycle-row <?=$dueClass?>" data-cycle-row>
+ <div class="reta-cycle-row-main"><h3><?=e($cycleRecipient)?></h3><p><?=e($cycle['product_summary']?:$cycle['product_name'])?></p></div>
+ <div class="reta-cycle-row-meta"><span>Every <?=$cycleWeeks?> week<?=$cycleWeeks===1?'':'s'?></span><span class="reta-cycle-row-due<?=$daysAway<0?' is-overdue':''?>"><?=$daysAway<0?'Overdue · ':'Due '?><?=e(date('d M Y',strtotime($cycle['next_due_date'])))?></span></div>
+ <div class="reta-cycle-row-actions">
+  <?php if((int)$cycle['last_order_id']>0):?><a class="quick-action" href="?view=edit&amp;id=<?=$cycle['last_order_id']?>">Edit</a><?php endif;?>
+  <form method="post" onsubmit="return confirm('<?=e(addslashes('Stop recurring for '.$cycleRecipient.'? They won\'t show as due again.'))?>');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="reason" value="Customer no longer wants it"><input type="hidden" name="return" value="reta"><button class="quiet danger-button reorder-due-stop">Stop</button></form>
+ </div>
+</article>
+<?php endforeach;?>
+</div>
+<p class="cycle-search-empty" data-cycle-empty hidden>No recurring customers match that search.</p>
+<?php else:?><p class="empty">No active cycles yet. Add a Retatrutide order and it defaults to 4 weeks, or switch on Recurring cycle for another product.</p><?php endif;?>
+</section>
+
+<?php
+$occurrenceTotal=count($cycleOccurrences);$occurrenceShown=array_slice($cycleOccurrences,0,30);$occurrenceMore=max(0,$occurrenceTotal-count($occurrenceShown));
+?>
+<details class="panel cycle-forecast-details">
+<summary><span>Forecast &amp; stock</span><small>Next <?=$cycleHorizonWeeks?> weeks</small></summary>
+<div class="cycle-forecast-body">
 <div class="reta-forecast-grid cycle-forecast-grid">
  <article><span>Active cycles</span><strong><?=count($retaCyclesActive)?></strong><small><?=count($retaOverdue)?> currently overdue</small></article>
  <article><span>Expected repeats</span><strong><?=$cycleForecast['orders']?></strong><small>Next <?=$cycleHorizonWeeks?> weeks</small></article>
@@ -6761,9 +6793,9 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 
 <div class="cycle-planner-grid">
 <section class="panel cycle-calendar-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">CALENDAR</p><h2>Expected orders · next <?=$cycleHorizonWeeks?> weeks</h2><p class="muted">A delivery rolls that product’s next expected date forward by its chosen cycle.</p></div></div>
-<?php if($cycleOccurrences):
+<?php if($occurrenceShown):
  $currentWeek='';
- foreach($cycleOccurrences as $occ):
+ foreach($occurrenceShown as $occ):
   $date=(string)$occ['occurrence_date'];$dateObj=DateTimeImmutable::createFromFormat('!Y-m-d',$date,$tz);$weekStartLabel=$dateObj?$dateObj->modify('monday this week')->format('Y-m-d'):$date;
   if($weekStartLabel!==$currentWeek):$currentWeek=$weekStartLabel;?>
   <div class="cycle-week-heading"><span>Week of <?=e(date('d M',strtotime($currentWeek)))?></span></div>
@@ -6775,6 +6807,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
   <div class="reta-cycle-actions"><?php if((int)$occ['last_order_id']>0):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$occ['last_order_id']?>">Create repeat order</a><a class="quick-action" href="?view=edit&amp;id=<?=$occ['last_order_id']?>">Edit cycle</a><?php endif;?></div>
  </article>
  <?php endforeach;?>
+<?php if($occurrenceMore>0):?><p class="cycle-occurrence-more">and <?=$occurrenceMore?> more occurrence<?=$occurrenceMore===1?'':'s'?></p><?php endif;?>
 <?php else:?><p class="empty">Nothing is currently forecast in the next <?=$cycleHorizonWeeks?> weeks.</p><?php endif;?>
 </section>
 
@@ -6784,23 +6817,14 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php endforeach;?></div><?php else:?><p class="muted">No recurring stock demand in this window yet.</p><?php endif;?>
 </section>
 </div>
-
-<section class="panel reta-cycle-panel"><div class="dashboard-panel-head"><div><p class="eyebrow">ACTIVE CYCLES</p><h2>Customers & products</h2><p class="muted">Retatrutide defaults to 4 weeks. Any other product can be switched on and given its own cycle from the order screen.</p></div></div>
-<?php if($retaCyclesActive):?><div class="reta-cycle-list"><?php foreach($retaCyclesActive as $cycle):
- $dueObj=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$cycle['next_due_date'],$tz);$daysAway=$dueObj?(int)$retaToday->diff($dueObj)->format('%r%a'):0;$dueClass=$daysAway<0?'overdue':($daysAway<=7?'soon':'future');?>
-<article class="reta-cycle-card <?=$dueClass?>">
- <div class="reta-cycle-top"><div><span class="reta-due-badge"><?=$daysAway<0?'OVERDUE '.abs($daysAway).' DAYS':($daysAway===0?'DUE TODAY':($daysAway===1?'DUE TOMORROW':'NEXT '.strtoupper(e(date('d M',strtotime($cycle['next_due_date']))))))?></span><h3><?=e(cycleRecipientName($cycle))?></h3><p><?=e($cycle['product_summary'])?></p><small>Ordered by <?=e($cycle['customer_name'])?> · For <?=e(cycleRecipientName($cycle))?></small></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong><small><?=money($cycle['expected_profit'])?> projected profit<?=$cycle['cost_missing']?' · cost missing':''?></small></div></div>
- <div class="reta-cycle-meta"><span><b>Last delivered</b><?=e($cycle['last_delivery_date']?date('d M Y',strtotime($cycle['last_delivery_date'])):'—')?></span><span><b>Next expected</b><?=e(date('d M Y',strtotime($cycle['next_due_date'])))?></span><span><b>Cycle</b>Every <?=max(1,(int)($cycle['cycle_weeks']??4))?> weeks</span></div>
- <div class="reta-cycle-actions"><?php if((int)$cycle['last_order_id']>0):?><a class="quick-action" href="?view=new&amp;repeat_order=<?=$cycle['last_order_id']?>">Create repeat order</a><a class="quick-action" href="?view=edit&amp;id=<?=$cycle['last_order_id']?>">Edit last order</a><?php endif;?>
- <form method="post" onsubmit="return confirm('Stop this recurring cycle for <?=e(addslashes($cycle['customer_name']))?>?');"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_stop"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="reason" value="Recurring cycle stopped manually"><input type="hidden" name="return" value="reta"><button class="quiet danger-button">Stop cycle</button></form></div>
-</article>
-<?php endforeach;?></div><?php else:?><p class="empty">No active cycles yet. Add a Retatrutide order and it defaults to 4 weeks, or switch on Recurring cycle for another product.</p><?php endif;?>
-</section>
+</div>
+</details>
 
 <?php if($retaCyclesStopped):?><details class="panel reta-stopped"><summary>Stopped cycles (<?=count($retaCyclesStopped)?>)</summary><div class="reta-cycle-list stopped"><?php foreach($retaCyclesStopped as $cycle):?>
 <article class="reta-cycle-card stopped"><div class="reta-cycle-top"><div><h3><?=e(cycleRecipientName($cycle))?></h3><p><?=e($cycle['product_summary']?:$cycle['product_name'])?></p><small>Ordered by <?=e($cycle['customer_name'])?> · For <?=e(cycleRecipientName($cycle))?> · <?=e($cycle['end_reason']?:'Stopped')?></small></div><div class="reta-cycle-money"><strong><?=money($cycle['expected_value'])?></strong></div></div>
 <form method="post" class="reta-resume-form"><?php csrf();?><input type="hidden" name="action" value="reta_cycle_resume"><input type="hidden" name="cycle_id" value="<?=$cycle['id']?>"><input type="hidden" name="return" value="reta"><label>Restart next expected date<input type="date" name="next_due_date" value="<?=e($retaToday->modify('+'.max(1,(int)($cycle['cycle_weeks']??4)).' weeks')->format('Y-m-d'))?>" required></label><button class="quiet">Restart cycle</button></form></article>
 <?php endforeach;?></div></details><?php endif;?>
+</div>
 
 <?php elseif(in_array($view,['reports','reorder'],true)):?>
 <?php

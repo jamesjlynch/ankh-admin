@@ -59,6 +59,7 @@ jobs:
           php -l tests/worklist-person.php
           php -l tests/print-sheets.php
           php -l tests/backup-sqlite.php
+          php -l tests/cycles-light.php
       - name: Test individual admin authentication
         run: php tests/auth-users.php
       - name: Test automated shipping stock forecast
@@ -131,6 +132,8 @@ jobs:
         run: php tests/bank-details.php
       - name: Test private SQLite backup and integrity
         run: php tests/backup-sqlite.php
+      - name: Test the light recurring cycles view
+        run: php tests/cycles-light.php
       - name: Check Bash rollback helpers
         run: |
           bash -n deploy-krystal.sh

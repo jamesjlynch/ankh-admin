@@ -1061,6 +1061,29 @@
     });
   };
 
+  const initCycleSearch = () => {
+    const input = document.querySelector('[data-cycle-search]');
+    const list = document.querySelector('[data-cycle-list]');
+    if (!input || !list) return;
+    const empty = document.querySelector('[data-cycle-empty]');
+    const rows = [...list.querySelectorAll('[data-cycle-row]')].map((row) => ({
+      row,
+      text: row.textContent.toLowerCase()
+    }));
+    const filter = () => {
+      const query = input.value.trim().toLowerCase();
+      let shown = 0;
+      rows.forEach(({ row, text }) => {
+        const match = query === '' || text.includes(query);
+        row.hidden = !match;
+        if (match) shown++;
+      });
+      if (empty) empty.hidden = shown > 0 || query === '';
+    };
+    input.addEventListener('input', filter);
+    filter();
+  };
+
   const start = () => {
     adoptToasts();
     initOrderCards();
@@ -1069,6 +1092,7 @@
     initBalanceReminders();
     initReportTakings();
     initLowStock();
+    initCycleSearch();
     init();
   };
 
