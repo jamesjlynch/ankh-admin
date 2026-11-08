@@ -1396,3 +1396,37 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();
 })();
+
+// Sticky step footers (New order, Edit order) must clear the pinned bottom nav
+// whichever element scrolls. CI scrolls <main>; the iOS Home Screen app scrolls
+// the page behind the nav. Measure the real overlap and expose it as a CSS var.
+(function () {
+  var root = document.documentElement;
+  function scroller() {
+    var main = document.getElementById('ankh-main');
+    if (main) {
+      var oy = getComputedStyle(main).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && main.scrollHeight > main.clientHeight + 1) return main;
+    }
+    return null;
+  }
+  function measure() {
+    var nav = document.querySelector('.admin-app-shell > nav.mobile-nav');
+    if (!nav || getComputedStyle(nav).display === 'none') { root.style.removeProperty('--ankh-sticky-bottom'); return; }
+    var navRect = nav.getBoundingClientRect();
+    var plus = nav.querySelector('.nav-new');
+    var top = Math.min(navRect.top, plus ? plus.getBoundingClientRect().top : navRect.top);
+    var el = scroller();
+    var portBottom = el ? el.getBoundingClientRect().bottom : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    var offset = Math.max(0, Math.ceil(portBottom - top)) + 6;
+    root.style.setProperty('--ankh-sticky-bottom', offset + 'px');
+  }
+  var raf = 0;
+  function queue() { if (raf) return; raf = requestAnimationFrame(function () { raf = 0; measure(); }); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', measure, { once: true }); else measure();
+  window.addEventListener('load', measure, { once: true });
+  window.addEventListener('resize', queue);
+  window.addEventListener('orientationchange', queue);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', queue);
+  document.addEventListener('scroll', queue, { passive: true, capture: true });
+})();

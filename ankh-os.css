@@ -281,6 +281,7 @@ body .stockboard .stockboard-card{
   appearance:none;
   text-align:left;
 }
+.admin-app-shell input::-webkit-date-and-time-value{text-align:left}
 .admin-app-shell :is(
   .order-date-field,
   .edit-order-date-control,
@@ -2073,7 +2074,7 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
     position:sticky!important;
     left:auto!important;
     right:auto!important;
-    bottom:var(--ankh-nav-overhang)!important;
+    bottom:var(--ankh-sticky-bottom,var(--ankh-nav-overhang))!important;
     z-index:20!important;
     width:auto!important;
     margin:18px 0 0!important;
@@ -2088,7 +2089,7 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
   .admin-app-shell .wizard-progress>span>span{font-size:11px;top:36px}
   .admin-app-shell .new-order-head{padding-bottom:26px}
   /* Edit order keeps its total bar above the same pinned nav. */
-  .admin-app-shell .edit-total{bottom:var(--ankh-nav-overhang)!important}
+  .admin-app-shell .edit-total{bottom:var(--ankh-sticky-bottom,var(--ankh-nav-overhang))!important}
 }
 
 @media(max-width:760px){
