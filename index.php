@@ -4487,7 +4487,7 @@ if($view==='packing_centre'){
 $isPacking=$view==='packing';
 $packingTab='';
 if($isPacking){
- $packingTab=in_array((string)($_GET['tab']??''),['runs','pick'],true)?(string)$_GET['tab']:(isset($_GET['id'])?'pick':'runs');
+ $packingTab=in_array((string)($_GET['tab']??''),['runs','pick','print'],true)?(string)$_GET['tab']:(isset($_GET['id'])?'pick':'runs');
 }
 if($isPacking&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
 // One Plan screen now owns the reorder, cycle and shipping views.
@@ -5433,7 +5433,7 @@ if($view==='reportsboard'){
 <div class="packing-screen">
 <?php pageHeader('Packing',['class'=>'packing-heading','back_href'=>'?view=more','back_label'=>'More']);?>
 <nav class="packing-switch" aria-label="Packing sections">
-<?php foreach(['runs'=>'Packing runs','pick'=>'Pick &amp; prepare'] as $packingKey=>$packingLabel):?><a href="?view=packing&amp;tab=<?=e($packingKey)?>" class="<?=$packingTab===$packingKey?'selected':''?>" <?=$packingTab===$packingKey?'aria-current="page"':''?>><?=$packingLabel?></a><?php endforeach;?>
+<?php foreach(['runs'=>'Packing runs','pick'=>'Pick &amp; prepare','print'=>'Print sheets'] as $packingKey=>$packingLabel):?><a href="?view=packing&amp;tab=<?=e($packingKey)?>" class="<?=$packingTab===$packingKey?'selected':''?>" <?=$packingTab===$packingKey?'aria-current="page"':''?>><?=$packingLabel?></a><?php endforeach;?>
 </nav>
 </div>
 <?php endif;?>
@@ -7420,7 +7420,7 @@ if($runRouteAddresses){
  $runRoute.='&destination='.rawurlencode($runRouteDestination);
 }
 ?>
-<?php pageHeader('Today’s delivery run',['class'=>'delivery-run-heading','back_href'=>'?view=dashboard','back_label'=>'Today']);?>
+<?php pageHeader('Today’s delivery run',['class'=>'delivery-run-heading','back_href'=>'?view=dashboard','back_label'=>'Today','action_href'=>'?view=packing&tab=print&sheet=delivery&person=Everyone&date='.$runToday,'action_label'=>'Print']);?>
 <?php if(!$runStopsData):?>
 <section class="panel delivery-run-empty-state"><p role="status">Nothing to deliver today</p><a class="quick-action" href="?view=orders&amp;scope=to_deliver">View all deliveries →</a></section>
 <?php else:?>

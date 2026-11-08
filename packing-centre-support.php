@@ -109,3 +109,90 @@ function ankhPackingCentreTotals(array $orders):array{
  }
  uasort($totals,static fn($a,$b)=>strnatcasecmp($a['name'].' '.$a['presentation'],$b['name'].' '.$b['presentation']));return array_values($totals);
 }
+/** Read-only fridge sheets. James is stored as Jay in assigned_to. */
+function ankhPrintPerson(string $assignedTo):string{
+ $assignee=trim($assignedTo);
+ if(in_array($assignee,['James','Jay'],true))return 'Jay';
+ if($assignee==='Tony')return 'Tony';
+ return 'Holding';
+}
+function ankhPrintPersonLabel(string $person):string{
+ return in_array($person,['Jay','Tony','Holding','Everyone'],true)?$person:'Everyone';
+}
+function ankhPrintPersonFromRequest(string $person):string{
+ return in_array($person,['Jay','Tony','Holding','Everyone'],true)?$person:'Everyone';
+}
+function ankhPrintSheetFromRequest(string $sheet):string{
+ return $sheet==='delivery'?'delivery':'packing';
+}
+function ankhPrintClientName(array $order):string{
+ $recipient=trim((string)($order['recipient_name']??''));
+ return $recipient!==''?$recipient:trim((string)($order['customer']??''));
+}
+function ankhPrintFirstName(string $name):string{
+ $name=trim(preg_replace('/\s+/',' ',$name));
+ if($name==='')return 'Client';
+ $parts=preg_split('/\s+/',$name) ?: [$name];
+ return (string)($parts[0]??$name);
+}
+function ankhPrintOrderReference(array $order):string{
+ return 'ANK-'.str_pad((string)(int)($order['id']??0),4,'0',STR_PAD_LEFT);
+}
+function ankhPrintOrderBalance(array $order):int{
+ return max(0,(int)($order['total']??0)-(int)($order['paid_amount']??0));
+}
+function ankhPrintOrderLines(array $order):array{
+ return ankhPackingCentreLines(is_array($order['lines']??null)?$order['lines']:[]);
+}
+function ankhPrintOrderItemsText(array $order):string{
+ $parts=[];
+ foreach(ankhPrintOrderLines($order) as $line){
+  $label=(int)$line['quantity'].' × '.$line['name'];
+  $presentation=trim((string)($line['presentation']??''));
+  if($presentation!=='')$label.=' · '.$presentation;
+  $parts[]=$label;
+ }
+ return implode(' · ',$parts);
+}
+/** Excludes back orders, cancelled and delivered orders. Undated orders stay in every date view. */
+function ankhPrintSheetOrders(array $orders,string $person,string $date,bool $allUndelivered):array{
+ $person=ankhPrintPersonFromRequest($person);$selected=[];
+ foreach($orders as $order){
+  if((int)($order['back_order']??0)===1)continue;
+  if(in_array((string)($order['status']??''),['Cancelled','Delivered'],true))continue;
+  if(trim((string)($order['delivery_date']??''))!=='')continue;
+  if($person!=='Everyone'&&ankhPrintPerson((string)($order['assigned_to']??''))!==$person)continue;
+  if(!$allUndelivered){
+   $scheduled=trim((string)($order['scheduled_delivery_date']??''));
+   if($scheduled!==''&&$scheduled>$date)continue;
+  }
+  $selected[]=$order;
+ }
+ usort($selected,static function(array $a,array $b):int{
+  return strcmp((string)($a['scheduled_delivery_date']??''),(string)($b['scheduled_delivery_date']??''))
+   ?: strcmp((string)($a['created']??''),(string)($b['created']??''))
+   ?: (int)($a['id']??0)<=>(int)($b['id']??0);
+ });
+ return $selected;
+}
+function ankhPrintSheetTotals(array $orders):array{
+ return ankhPackingCentreTotals($orders);
+}
+function ankhPrintSheetTitle(string $sheet,string $person,string $date,bool $allUndelivered):string{
+ $type=$sheet==='delivery'?'Delivery sheet':'Packing list';
+ $when=$allUndelivered?'All undelivered':date('D j M Y',strtotime($date) ?: time());
+ return $type.' · '.ankhPrintPersonLabel($person).' · '.$when;
+}
+/** Loads saved order lines for display without changing orders, stock or payments. */
+function ankhPrintAttachLines(PDO $db,array $orders):array{
+ $ids=array_values(array_unique(array_filter(array_map(static fn($order)=>(int)($order['id']??0),$orders),static fn($id)=>$id>0)));
+ if(!$ids)return $orders;
+ $placeholders=implode(',',array_fill(0,count($ids),'?'));
+ $q=$db->prepare("SELECT id,order_id,product_id,name,quantity,presentation FROM items WHERE order_id IN ($placeholders) ORDER BY id");
+ $q->execute($ids);
+ $lines=[];
+ foreach($q->fetchAll(PDO::FETCH_ASSOC) as $line)$lines[(int)$line['order_id']][]=$line;
+ foreach($orders as &$order)$order['lines']=$lines[(int)($order['id']??0)]??[];
+ unset($order);
+ return $orders;
+}

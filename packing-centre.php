@@ -1,6 +1,120 @@
 <?php
 if(isset($_SERVER['SCRIPT_FILENAME'])&&realpath($_SERVER['SCRIPT_FILENAME'])===__FILE__){$q=$_GET;$q['view']='packing';header('Location: ./?'.http_build_query($q),true,302);exit;}
 if(!($auth??false)||!($db instanceof PDO)){http_response_code(403);exit('Forbidden');}
+if(($packingTab??'')==='print'){
+ $printTz=new DateTimeZone('Europe/London');
+ $printToday=isset($now)&&$now instanceof DateTimeImmutable?$now->setTime(0,0):new DateTimeImmutable('today',$printTz);
+ $printPerson=ankhPrintPersonFromRequest((string)($_GET['person']??'Everyone'));
+ $printSheet=ankhPrintSheetFromRequest((string)($_GET['sheet']??'packing'));
+ $printDateRaw=trim((string)($_GET['date']??''));
+ $printAll=!empty($_GET['all'])||$printDateRaw==='all';
+ $printDate=$printToday;
+ if(!$printAll&&$printDateRaw!==''){
+  $printParsed=DateTimeImmutable::createFromFormat('!Y-m-d',$printDateRaw,$printTz);
+  if($printParsed&&$printParsed->format('Y-m-d')===$printDateRaw)$printDate=$printParsed;
+ }
+ $printOrders=ankhPrintSheetOrders(is_array($orders??null)?$orders:[],$printPerson,$printDate->format('Y-m-d'),$printAll);
+ $printOrders=ankhPrintAttachLines($db,$printOrders);
+ $printTotals=ankhPrintSheetTotals($printOrders);
+ $printTitle=ankhPrintSheetTitle($printSheet,$printPerson,$printDate->format('Y-m-d'),$printAll);
+ $printTotalToCollect=array_sum(array_map('ankhPrintOrderBalance',$printOrders));
+ $printPeople=['Jay'=>'Jay','Tony'=>'Tony','Holding'=>'Holding','Everyone'=>'Everyone'];
+ ?>
+<style>
+.print-sheets-screen{max-width:1160px;margin:auto}
+.print-controls{display:grid;gap:16px;padding:18px;border:1px solid #39352d;border-radius:18px;background:var(--surface,#17191c);margin:20px 0}
+.print-people{display:flex;flex-wrap:wrap;gap:10px;border:0;padding:0;margin:0;min-width:0}
+.print-people legend{padding:0;color:#bdbab1;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.print-chip{display:inline-flex!important;flex-direction:row!important;align-items:center;gap:8px;min-height:44px;padding:10px 16px;border:1px solid #4b4434;border-radius:999px;font-size:13px;cursor:pointer;margin:0}
+.print-chip input{width:18px!important;min-height:18px!important;margin:0!important;accent-color:#d4b878}
+.print-chip span{font-size:13px;line-height:1}
+.print-chip:has(input:checked){background:#d4b878;color:#171713;border-color:#d4b878}
+.print-fields{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;min-width:0}
+.print-fields label{display:flex!important;flex-direction:column!important;gap:7px;font-size:12px;margin:0;min-width:150px;max-width:100%}
+.print-fields input[type=date],.print-fields select{min-height:44px;font-size:14px}
+.print-all{flex-direction:row!important;align-items:center!important;min-height:44px;gap:9px!important;min-width:0!important}
+.print-all input{width:18px!important;min-height:18px!important;margin:0!important;accent-color:#d4b878}
+.print-actions{display:flex;flex-wrap:wrap;gap:10px}
+.print-actions button{min-height:44px;font-size:14px}
+.print-sheet-preview{background:#fff;color:#111;border:1px solid #b9b2a2;border-radius:16px;padding:24px;margin:20px 0;max-width:100%;overflow-wrap:anywhere}
+.print-sheet-head{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px}
+.print-sheet-head .eyebrow{color:#6b5524;font-size:12px;margin:0 0 4px}
+.print-sheet-head h2{font-size:clamp(19px,4vw,28px);margin:4px 0;color:#111;line-height:1.2}
+.print-sheet-meta{font-size:13px;color:#555;margin:0}
+.print-section-title{font-size:14px;margin:18px 0 8px;color:#111;letter-spacing:.08em;text-transform:uppercase}
+.print-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+.print-table{width:100%;border-collapse:collapse;font-size:13px;color:#111;min-width:560px}
+.print-table th,.print-table td{text-align:left;padding:9px 8px;border-bottom:1px solid #ccc;vertical-align:top;overflow-wrap:anywhere}
+.print-table thead th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:#444}
+.print-delivery-table{min-width:900px}
+.print-tick{display:inline-grid;place-items:center;width:17px;height:17px;border:1.5px solid #111;border-radius:2px;vertical-align:middle}
+.print-tick.is-checked{background:#111;color:#fff;border-color:#111}
+.print-tick.is-checked::after{content:"✓";font-size:12px;line-height:1}
+.print-ref{display:block;font-size:12px;color:#555;margin-top:2px;font-weight:400}
+.print-num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.print-nowrap{white-space:nowrap}
+.print-total-label{text-align:right;font-size:14px;padding-top:12px;border-top:2px solid #111;white-space:nowrap}
+.print-empty{padding:24px;text-align:center;color:#555;font-size:14px}
+@media(max-width:650px){.print-sheet-preview{padding:14px;border-radius:12px}.print-fields{flex-direction:column;align-items:stretch}.print-fields label{min-width:0}.print-chip{flex:1 1 calc(50% - 5px);justify-content:center}.print-table{font-size:12px}}
+@media print{
+ @page{size:A4 portrait;margin:12mm}
+ html,body{background:#fff!important;color:#000!important}
+ body:has(>.admin-app-shell){height:auto!important;overflow:visible!important}
+ .admin-app-shell{display:block!important;height:auto!important;overflow:visible!important}
+ .admin-app-shell>aside,.admin-app-shell>nav.mobile-nav,.admin-app-shell>main#ankh-main>header,.packing-screen,.print-sheets-screen>.heading,.print-controls,.no-print,.ux-skip-link,.ios-status-bar,.ankh-toast-region{display:none!important}
+ .admin-app-shell>main#ankh-main{overflow:visible!important;height:auto!important;max-width:none!important;padding:0!important;margin:0!important}
+ .print-sheets-screen{max-width:none!important;margin:0!important}
+ .print-sheet-preview{border:0!important;border-radius:0!important;padding:0!important;margin:0!important;box-shadow:none!important;background:#fff!important;color:#000!important}
+ .print-sheet-head,.print-sheet-head h2,.print-sheet-meta,.print-section-title,.print-table th,.print-table td,.print-ref,.print-empty,.print-total-label{color:#000!important}
+ .print-table{font-size:10.5pt!important;width:100%!important;min-width:0!important}
+ .print-delivery-table{font-size:10pt!important}
+ .print-table th,.print-table td{padding:5px 4px!important;border-color:#999!important}
+ .print-table-wrap{overflow:visible!important}
+ .print-table tr{break-inside:avoid!important;page-break-inside:avoid!important}
+ .print-sheet-head{break-after:avoid!important;page-break-after:avoid!important}
+ .print-tick{border-color:#000!important}
+ .print-tick.is-checked{background:#000!important;color:#fff!important}
+ a{color:#000!important;text-decoration:none!important}
+}
+</style>
+<div class="pc-workspace print-sheets-screen">
+ <div class="heading page-header"><div class="page-header-main"><h1>Print sheets</h1></div></div>
+ <form method="get" class="print-controls" data-print-controls>
+  <input type="hidden" name="view" value="packing"><input type="hidden" name="tab" value="print">
+  <fieldset class="print-people"><legend>Person</legend>
+   <?php foreach($printPeople as $printKey=>$printLabel):?><label class="print-chip"><input type="radio" name="person" value="<?=e($printKey)?>" <?=$printPerson===$printKey?'checked':''?>><span><?=e($printLabel)?></span></label><?php endforeach;?>
+  </fieldset>
+  <div class="print-fields">
+   <label>Date<input type="date" name="date" value="<?=$printAll?'':e($printDate->format('Y-m-d'))?>" <?=$printAll?'disabled':''?>></label>
+   <label class="print-all"><input type="checkbox" name="all" value="1" <?=$printAll?'checked':''?>> All undelivered</label>
+   <label>Sheet<select name="sheet"><option value="packing" <?=$printSheet==='packing'?'selected':''?>>Packing list</option><option value="delivery" <?=$printSheet==='delivery'?'selected':''?>>Delivery sheet</option></select></label>
+  </div>
+  <div class="print-actions"><button type="submit" class="quiet">Update preview</button><button type="button" class="button" onclick="window.print()">Print</button></div>
+ </form>
+ <section class="print-sheet-preview" data-print-sheet="<?=e($printSheet)?>" data-print-person="<?=e($printPerson)?>">
+  <div class="print-sheet-head"><p class="eyebrow">ANKH PEPTIDES</p><h2 data-print-title><?=e($printTitle)?></h2><p class="print-sheet-meta"><?=count($printOrders)?> order<?=count($printOrders)===1?'':'s'?> · Printing never changes order status, stock or payments.</p></div>
+  <?php if(!$printOrders):?><p class="print-empty" role="status">No undelivered orders match this sheet.</p>
+  <?php elseif($printSheet==='delivery'):?>
+  <div class="print-table-wrap"><table class="print-table print-delivery-table"><thead><tr><th>#</th><th>Client</th><th>Address</th><th>Phone</th><th>Items</th><th class="print-num">Collect</th><th>Paid</th><th>Notes</th><th>Signature</th></tr></thead><tbody>
+  <?php foreach($printOrders as $printIndex=>$printOrder):$printBalance=ankhPrintOrderBalance($printOrder);$printAddress=trim((string)($printOrder['address']??''));?>
+  <tr class="print-sheet-row"><td><?=$printIndex+1?></td><td><strong><?=e(ankhPrintClientName($printOrder))?></strong><span class="print-ref"><?=e(ankhPrintOrderReference($printOrder))?></span></td><td><?=$printAddress!==''?nl2br(e($printAddress)):'—'?></td><td class="print-nowrap"><?=e((string)($printOrder['phone']??''))?></td><td><?=e(ankhPrintOrderItemsText($printOrder))?></td><td class="print-num"><?=$printBalance>0?money($printBalance):'Paid'?></td><td><span class="print-tick<?=$printBalance<=0?' is-checked':''?>" aria-hidden="true"></span></td><td><?=trim((string)($printOrder['notes']??''))!==''?nl2br(e((string)$printOrder['notes'])):'—'?></td><td><span class="print-tick" aria-hidden="true"></span></td></tr>
+  <?php endforeach;?></tbody><tfoot><tr><th colspan="5" class="print-total-label">Total to collect</th><th class="print-num" data-print-total><?=money($printTotalToCollect)?></th><th colspan="3"></th></tr></tfoot></table></div>
+  <?php else:?>
+  <h3 class="print-section-title">Products to pull</h3>
+  <div class="print-table-wrap"><table class="print-table"><thead><tr><th>Tick</th><th>Product</th><th class="print-num">Total qty</th></tr></thead><tbody>
+  <?php foreach($printTotals as $printTotal):?><tr class="print-sheet-row"><td><span class="print-tick" aria-hidden="true"></span></td><td><?=e($printTotal['name'])?><?=trim((string)$printTotal['presentation'])!==''?' · '.e($printTotal['presentation']):''?></td><td class="print-num"><strong><?=(int)$printTotal['quantity']?></strong></td></tr><?php endforeach;?>
+  </tbody></table></div>
+  <h3 class="print-section-title">Orders</h3>
+  <div class="print-table-wrap"><table class="print-table"><thead><tr><th>Tick</th><th>Client / order</th><th>Items</th></tr></thead><tbody>
+  <?php foreach($printOrders as $printOrder):?><tr class="print-sheet-row"><td><span class="print-tick" aria-hidden="true"></span></td><td><strong><?=e(ankhPrintFirstName(ankhPrintClientName($printOrder)))?></strong><span class="print-ref"><?=e(ankhPrintOrderReference($printOrder))?></span></td><td><?=e(ankhPrintOrderItemsText($printOrder))?></td></tr><?php endforeach;?>
+  </tbody></table></div>
+  <?php endif;?>
+ </section>
+</div>
+<script>
+(()=>{const form=document.querySelector('[data-print-controls]');if(!form)return;const all=form.querySelector('input[name="all"]');const date=form.querySelector('input[name="date"]');if(!all||!date)return;const sync=()=>{date.disabled=all.checked;};all.addEventListener('change',()=>{sync();form.requestSubmit?form.requestSubmit():form.submit();});form.querySelectorAll('input[name="person"],select[name="sheet"]').forEach(el=>el.addEventListener('change',()=>{form.requestSubmit?form.requestSubmit():form.submit();}));sync();})();
+</script>
+<?php return; }
 $pcRun=ankhPackingCentreRun($db,(int)($_GET['run']??0));
 $pcRuns=$db->query('SELECT r.*, (SELECT COUNT(*) FROM packing_run_orders m WHERE m.run_id=r.id) order_count FROM packing_runs r ORDER BY r.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll(PDO::FETCH_KEY_PAIR);
