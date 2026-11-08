@@ -80,6 +80,35 @@ const assert=require('node:assert/strict');
    }
    assert(m.tiles.every(t=>Math.abs(t.top-m.tiles[0].top)<1),width+'px sheet steps must stay on one row');
   }
+  // After an in-place step in the sheet, closing and opening another order must show that order, not the last one.
+  {
+   await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=dashboard');
+   const cards=page.locator('.focus-worklist details.focus-order');
+   const first=cards.first();const firstId=await first.getAttribute('data-order-id');
+   await first.locator(':scope > summary').click();
+   const sheet=page.locator('#focus-action-sheet');
+   await sheet.locator('.od-steps').waitFor({state:'visible',timeout:5000});
+   const stepBtn=sheet.locator('.od-steps form button:not([disabled])').first();
+   if(await stepBtn.count()){
+    const done=page.waitForResponse(r=>r.request().method()==='POST',{timeout:10000}).catch(()=>null);
+    await stepBtn.click();await done;await page.waitForTimeout(600);
+   }
+   assert(await sheet.evaluate(d=>d.open),'sheet should stay open after an in-place step');
+   await page.locator('#focus-sheet-close').click();
+   await page.waitForFunction(()=>!document.getElementById('focus-action-sheet').open);
+   assert.equal(await page.locator('#focus-sheet-body > *').count(),0,'sheet body must be empty after closing');
+   const counts=await page.evaluate(()=>[...document.querySelectorAll('.focus-worklist details.focus-order')].map(c=>c.querySelectorAll(':scope > .focus-sheet-content').length));
+   assert(counts.every(n=>n===1),'every worklist card must own exactly one sheet content after an in-place step: '+JSON.stringify(counts));
+   if(await cards.count()>1){
+    const second=cards.nth(1);const secondId=await second.getAttribute('data-order-id');
+    await second.locator(':scope > summary').click();
+    await sheet.locator('.focus-sheet-content').first().waitFor({state:'visible',timeout:5000});
+    assert.equal(await page.locator('#focus-sheet-body > .focus-sheet-content').count(),1,'sheet must hold one order only');
+    const shownIds=await page.locator('#focus-sheet-body input[name="id"]').evaluateAll(els=>[...new Set(els.map(e=>e.value))]);
+    assert.deepEqual(shownIds,[secondId],'sheet shows the wrong order (expected '+secondId+', first was '+firstId+')');
+    await page.locator('#focus-sheet-close').click();
+   }
+  }
   await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=orders&section=backorders');
   await waitingCard.locator(':scope > summary').click();
   const banner=waitingCard.locator('.od-backorder-banner');
