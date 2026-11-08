@@ -110,6 +110,8 @@ const assert=require('node:assert/strict');
     await page.locator('#focus-sheet-close').click();
    }
   }
+  await page.goto(host+'/?view=new');
+  assert.equal(await page.locator('#payment-method').inputValue(),'Bank Transfer','New order payment method defaults to Bank Transfer');
   await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=orders&section=backorders');
   await waitingCard.locator(':scope > summary').click();
   const banner=waitingCard.locator('.od-backorder-banner');

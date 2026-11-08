@@ -2224,7 +2224,7 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
    <details class="od-action od-primary-payment" id="od-record-payment"><summary>Record payment</summary><div class="od-action-body">
     <form method="post" class="od-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
     <div class="od-form-grid"><label>Payment<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment</option></select></label><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($balance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($balance/100,2,'.',''))?>"></label></div>
-    <div class="od-form-grid"><label>Method<select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label></div>
+    <div class="od-form-grid"><label>Method<select name="method" required><option value="">Choose method</option><?php $defaultPayMethod=trim((string)($order['payment_method']??''))?:'Bank Transfer';foreach($paymentMethods as $method):?><option <?=$method===$defaultPayMethod?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label></div>
     <label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or reference"></label><button>Save payment</button></form>
    </div></details>
    <?php endif;?>
@@ -2257,7 +2257,7 @@ function backOrderPaymentAndRemoval(PDO $db,array $order):void{
  ?><div class="backorder-payment-summary"><span>Paid <strong><?=money($paid)?></strong></span><span>Balance <strong><?=money($balance)?></strong></span></div>
  <?php if($balance>0):?><details class="backorder-payment"><summary>Record payment <span aria-hidden="true">⌄</span></summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders">
  <label>Payment received<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment / deposit</option></select></label><label>Amount (£) — part payments only<input type="number" name="amount" min="0.01" max="<?=e(number_format($balance/100,2,'.',''))?>" step="0.01" inputmode="decimal" placeholder="Enter the deposit or part payment"><small>For Paid in full, the outstanding balance is used automatically.</small></label>
- <div class="two"><label>Method<select name="method" required><option value="">Choose…</option><?php foreach(['Cash','Bank Transfer','Card','PayPal','Other'] as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" value="<?=$today?>" max="<?=$today?>" required></label></div><label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or bank reference"></label><button>Save payment</button><p class="muted">Recording payment keeps this order on the waiting list until you move it to active.</p></form></details>
+ <div class="two"><label>Method<select name="method" required><option value="">Choose…</option><?php foreach(['Cash','Bank Transfer','Card','PayPal','Other'] as $method):?><option <?=$method==='Bank Transfer'?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" value="<?=$today?>" max="<?=$today?>" required></label></div><label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or bank reference"></label><button>Save payment</button><p class="muted">Recording payment keeps this order on the waiting list until you move it to active.</p></form></details>
  <?php else:?><p class="backorder-paid-note"><?=$paid>0?'Paid in full · on back orders':'No payment required · on back orders'?></p><?php endif;?>
  <?php backOrderRemovalActions($order,$paid,'backorders');?><?php
 }
@@ -4486,6 +4486,11 @@ function orderCardStatusLine(array $order):string{
  else $delivery='Not delivered';
  return $payment.' · '.$delivery;
 }
+function currentAdminAssignee(PDO $db):string{
+ $id=(int)($_SESSION['admin_user_id']??0);if($id<=0)return '';
+ try{$q=$db->prepare('SELECT username FROM admin_users WHERE id=?');$q->execute([$id]);$u=strtolower(trim((string)($q->fetchColumn()?:'')));}catch(Throwable $e){return '';}
+ return match($u){'jay','james'=>'James','tony','anthony'=>'Tony',default=>''};
+}
 function worklistStageTrack(array $order):void{
  if(isBackOrder($order)||(string)($order['status']??'')==='Cancelled')return;
  $delivered=(string)($order['status']??'')==='Delivered'||trim((string)($order['delivery_date']??''))!=='';
@@ -6149,7 +6154,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php futureDeliveryFields();?>
 <div class="order-subsection compact-delivery"><span class="order-check-label">Delivery</span>
 <label>Delivery method<select id="delivery-method" name="delivery_method" required><?php $selectedDelivery=$_POST['delivery_method']??($repeatDeliveryMethod?:'Local Delivery');foreach($deliveryMethods as $method):?><option value="<?=e($method)?>" <?=$selectedDelivery===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label>
-<label>Assigned to <span class="muted">(optional)</span><select id="assigned-to" name="assigned_to"><option value="">Unassigned</option><?php $selectedAssignee=$_POST['assigned_to']??'';foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$selectedAssignee===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label>
+<label>Assigned to <span class="muted">(optional)</span><select id="assigned-to" name="assigned_to"><option value="">Unassigned</option><?php $selectedAssignee=$_POST['assigned_to']??currentAdminAssignee($db);foreach($deliveryAssignees as $assignee):?><option value="<?=e($assignee)?>" <?=$selectedAssignee===$assignee?'selected':''?>><?=e($assignee)?></option><?php endforeach;?></select></label>
 <div id="postage-fields" class="postage-fields" hidden><label>Tracking / reference <span class="muted">(optional)</span><input id="tracking-reference" name="tracking_reference" maxlength="200" value="<?=e($_POST['tracking_reference']??$repeatTrackingReference)?>" placeholder="Royal Mail / courier reference"></label><div class="two"><label>Postage charged (£)<input id="delivery-charge" name="delivery_charge" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($_POST['delivery_charge']??number_format($repeatDeliveryCharge/100,2,'.',''))?>"></label><label>Actual postage cost (£)<input id="postage-cost" name="postage_cost" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($_POST['postage_cost']??number_format($repeatPostageCost/100,2,'.',''))?>"></label></div></div>
 </div>
 <div class="wizard-actions wizard-actions-next"><button type="button" data-wizard-next="2">Next · Add products →</button></div>
@@ -6176,7 +6181,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="line order-check-total"><strong>Total</strong><strong id="subtotal">£0.00</strong></div>
 </div>
 <details class="back-order-option"><summary>Save for later? Add to back orders</summary><label class="check"><input type="checkbox" name="back_order" value="1" <?=($_POST['back_order']??'')==='1'?'checked':''?>> Save as back order</label><p class="muted">Optional. Normal orders stay active by default. Back orders stay off the dashboard and reserve no stock.</p></details>
-<div class="order-subsection"><span class="order-check-label">Payment</span><label>Payment method <span class="muted">(optional until paid)</span><select id="payment-method" name="payment_method"><option value="">Not set yet</option><?php $selectedPayment=$_POST['payment_method']??$repeatPaymentMethod;foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$selectedPayment===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div>
+<div class="order-subsection"><span class="order-check-label">Payment</span><label>Payment method <span class="muted">(optional until paid)</span><select id="payment-method" name="payment_method"><option value="">Not set yet</option><?php $selectedPayment=$_POST['payment_method']??($repeatPaymentMethod!==''?$repeatPaymentMethod:'Bank Transfer');foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$selectedPayment===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div>
 <label>Notes <span class="muted">(optional)</span><textarea name="notes" maxlength="4000" placeholder="Delivery instructions, payment reference…"><?=e($_POST['notes']??'')?></textarea></label>
 <div class="wizard-actions"><button type="button" class="quiet wizard-back" data-wizard-back="2">← Back</button><button class="save-order">Save order</button></div>
 </section>
@@ -8452,7 +8457,7 @@ function restoreDraftOrder(){
  if(customerSearch)customerSearch.value=draft.customer||'';if(recipientName)recipientName.value=draft.recipient_name||'';if(customerPhone)customerPhone.value=draft.phone||'';if(customerAddress)customerAddress.value=draft.address||'';
  const ref=document.querySelector('#customer-referrer'),orderDate=document.querySelector('#order-date'),notes=wizard.querySelector('textarea[name="notes"]');if(ref)ref.value=draft.referrer||'';if(orderDate&&draft.order_date)orderDate.value=draft.order_date;if(notes)notes.value=draft.notes||'';
  if(futureDeliveryToggle)futureDeliveryToggle.checked=draft.future_delivery===true;if(scheduledDeliveryInput)scheduledDeliveryInput.value=draft.scheduled_delivery_date||'';toggleFutureDelivery();
- if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||'Local Delivery';if(assignedToSelect)assignedToSelect.value=draft.assigned_to||'';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';
+ if(deliveryMethodSelect)deliveryMethodSelect.value=draft.delivery_method||'Local Delivery';if(assignedToSelect)assignedToSelect.value=draft.assigned_to||assignedToSelect.querySelector('option[selected]')?.value||'';if(trackingReferenceInput)trackingReferenceInput.value=draft.tracking_reference||'';if(deliveryChargeInput)deliveryChargeInput.value=draft.delivery_charge||'0.00';if(postageCostInput)postageCostInput.value=draft.postage_cost||'0.00';if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||paymentMethodInput.querySelector('option[selected]')?.value||'';
  selectedLinesContainer?.replaceChildren();(draft.lines||[]).forEach(line=>addOrderLine(line,false));if(clearDraftButton)clearDraftButton.hidden=false;togglePostageFields();showWizardStep(Math.min(3,Math.max(1,Number(draft.step)||1)));return true;
 }
 clearDraftButton?.addEventListener('click',()=>{try{localStorage.removeItem(orderDraftKey)}catch(_){}location.href='?view=new'});
@@ -8524,8 +8529,8 @@ function applyVoiceDraft(payload){
  if(recipientName)recipientName.value=draft.recipient_name||'';
  const ref=document.querySelector('#customer-referrer');if(ref&&draft.referrer)ref.value=draft.referrer;
  if(deliveryMethodSelect&&draft.delivery_method)deliveryMethodSelect.value=draft.delivery_method;
- if(assignedToSelect)assignedToSelect.value=draft.assigned_to||'';
- if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||'';
+ if(assignedToSelect)assignedToSelect.value=draft.assigned_to||assignedToSelect.querySelector('option[selected]')?.value||'';
+ if(paymentMethodInput)paymentMethodInput.value=draft.payment_method||paymentMethodInput.querySelector('option[selected]')?.value||'';
  const notes=wizard?.querySelector('textarea[name="notes"]');if(notes&&draft.notes)notes.value=draft.notes;
  selectedLinesContainer?.replaceChildren();(draft.lines||[]).forEach(line=>addOrderLine(line,false));
  productSearchMoved=false;togglePostageFields();updateSelectedState();updateTotal();saveDraftOrder();
