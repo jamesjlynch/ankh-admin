@@ -4088,6 +4088,52 @@ function orderBuyerCaption(array $order):void{
  $buyer=trim((string)($order['customer']??''));
  if($buyer!==''&&strcasecmp(orderDisplayName($order),$buyer)!==0){?><p class="order-buyer-caption">Ordered by <?=e($buyer)?></p><?php }
 }
+function morningBriefData(array $orders,array $products,array $reorderDueRows,array $supplierOrders,?DateTimeImmutable $now=null):array{
+ $tz=new DateTimeZone('Europe/London');$now=($now??new DateTimeImmutable('now',$tz))->setTimezone($tz);$today=$now->format('Y-m-d');
+ $deliveries=[];
+ foreach($orders as $order){
+  if(isBackOrder($order)||in_array((string)($order['status']??''),['Cancelled','Delivered'],true)||trim((string)($order['delivery_date']??''))!==''||trim((string)($order['scheduled_delivery_date']??''))!==$today)continue;
+  $deliveries[]=orderDisplayName($order);
+ }
+ $owed=0;$clients=[];
+ foreach($orders as $order){
+  if(isBackOrder($order)||(string)($order['status']??'')==='Cancelled')continue;
+  $due=max(0,(int)($order['total']??0)-(int)($order['paid_amount']??0));
+  if($due<=0)continue;
+  $owed+=$due;$clients[strtolower(trim((string)($order['customer']??''))).'|'.trim((string)($order['phone']??''))]=true;
+ }
+ $lowStock=0;
+ foreach($products as $product){
+  if((int)($product['active']??0)!==1||(int)($product['stock_tracking']??0)!==1)continue;
+  $available=(int)($product['stock_jay_qty']??0)+(int)($product['stock_tony_qty']??0)+(int)($product['stock_unallocated_qty']??0);
+  if($available<=(int)($product['low_stock_at']??0))$lowStock++;
+ }
+ $supplierCount=0;$supplierUnits=0;
+ foreach($supplierOrders as $supplierOrder){
+  if(in_array((string)($supplierOrder['status']??''),['Received','Cancelled'],true))continue;
+  $due=max(0,(int)($supplierOrder['total_qty']??0)-(int)($supplierOrder['received_qty']??0));
+  if($due<=0)continue;
+  $supplierCount++;$supplierUnits+=$due;
+ }
+ $deliveryCount=count($deliveries);$clientCount=count($clients);$reorderCount=count($reorderDueRows);$lines=[];
+ if($deliveryCount>0){
+  $names=array_slice($deliveries,0,3);$detail=$deliveryCount.' · '.implode(', ',$names).($deliveryCount>3?' +'.($deliveryCount-3).' more':'');
+  $lines[]=['key'=>'deliveries','label'=>'Deliveries today','detail'=>$detail,'count'=>$deliveryCount,'href'=>'?view=dashboard&queue=delivery#dashboard-actions'];
+ }
+ if($clientCount>0){
+  $lines[]=['key'=>'money','label'=>'Money owed','detail'=>money($owed).' · '.$clientCount.' client'.($clientCount===1?'':'s'),'count'=>$clientCount,'href'=>'?view=balances'];
+ }
+ if($lowStock>0){
+  $lines[]=['key'=>'low-stock','label'=>'Low stock','detail'=>$lowStock.' product'.($lowStock===1?'':'s').' below threshold','count'=>$lowStock,'href'=>'?view=products&filter=low#products-list'];
+ }
+ if($reorderCount>0){
+  $lines[]=['key'=>'reorders','label'=>'Reorders due','detail'=>$reorderCount.' due in the next 7 days','count'=>$reorderCount,'href'=>'?view=plan&tab=cycles'];
+ }
+ if($supplierCount>0){
+  $lines[]=['key'=>'supplier','label'=>'Supplier orders','detail'=>$supplierCount.' incoming · '.$supplierUnits.' unit'.($supplierUnits===1?'':'s'),'count'=>$supplierCount,'href'=>'?view=buying&tab=supplier&supplier_tab=incoming'];
+ }
+ return ['today'=>$today,'owed'=>$owed,'clients'=>$clientCount,'deliveries'=>$deliveryCount,'low_stock'=>$lowStock,'reorders'=>$reorderCount,'supplier_orders'=>$supplierCount,'supplier_units'=>$supplierUnits,'lines'=>$lines,'all_clear'=>!$lines];
+}
 function dashboardQueueView(array $counts,string $requested='',string $remembered=''):string{
  foreach([$requested,$remembered] as $queue)if(in_array($queue,['all','payment','delivery','future'],true))return $queue;
  return 'all';
@@ -5354,8 +5400,21 @@ if(!in_array($dashboardLayout,['cards','dispatch'],true))$dashboardLayout='cards
 $_SESSION['dashboard_layout']=$dashboardLayout;
 $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaitingPayment,'delivery'=>$dashboardDeliveries,'future'=>$futureDeliveries,default=>$dashboardAll},$now->format('Y-m-d'));
 $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
+$morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders,$now);
 ?>
 <?php pageHeader('',['class'=>'dashboard-heading today-heading','title_html'=>'<span class="today-date">'.e($now->format('l j F')).'</span><span class="today-greeting">'.e($greeting).', <span class="today-greeting-name">'.e($adminFirstName).'</span></span>','action_href'=>'?view=new','action_label'=>'+ New order']);?>
+<section class="morning-brief" aria-labelledby="morning-brief-title">
+ <div class="morning-brief-head"><p class="eyebrow" id="morning-brief-title">Morning brief</p><span class="morning-brief-date"><?=e($now->format('D j M'))?></span></div>
+ <?php if($morningBrief['lines']):$briefIcons=['deliveries'=>'↗','money'=>'£','low-stock'=>'▣','reorders'=>'↻','supplier'=>'◎'];?>
+ <div class="morning-brief-lines">
+ <?php foreach($morningBrief['lines'] as $briefLine):?>
+ <a class="morning-brief-line" href="<?=e($briefLine['href'])?>" aria-label="<?=e($briefLine['label'].': '.$briefLine['detail'])?>"><span class="morning-brief-icon" aria-hidden="true"><?=e($briefIcons[$briefLine['key']]??'•')?></span><span class="morning-brief-copy"><strong><?=e($briefLine['label'])?></strong><span><?=e($briefLine['detail'])?></span></span><span class="morning-brief-arrow" aria-hidden="true">›</span></a>
+ <?php endforeach;?>
+ </div>
+ <?php else:?>
+ <p class="morning-brief-clear"><span aria-hidden="true">✓</span> All clear today</p>
+ <?php endif;?>
+</section>
 <section class="today-hero" aria-labelledby="today-hero-title">
  <div class="today-hero-head"><p class="today-hero-label" id="today-hero-title">THIS MONTH</p><?php if($lastMonthSales>0):?><span class="today-hero-pill <?=$monthDeltaPercent<0?'is-down':'is-up'?>"><?=$monthDeltaPercent<0?'▼':'▲'?> <?=$monthDeltaPercent<0?'':'+'?><?=$monthDeltaPercent?>% vs <?=e($now->modify('first day of last month')->format('F'))?></span><?php endif;?></div>
  <p class="today-hero-total" data-ankh-count="<?=$monthSales?>" data-ankh-format="money"><?=money($monthSales)?></p>
@@ -5921,7 +5980,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </div>
 <p id="products-no-results" class="products-no-results" role="status" aria-live="polite" hidden>No products match that search or filter.</p>
 <script>(()=>{const input=document.querySelector('#product-filter');if(!input)return;const active=[...document.querySelectorAll('.product-catalog-grid .product-tile')],hidden=[...document.querySelectorAll('.hidden-product-grid .product-admin-card')],hiddenList=document.querySelector('#hidden-product-list'),empty=document.querySelector('#product-no-results');input.addEventListener('input',()=>{const query=input.value.trim().toLocaleLowerCase();let visible=0;active.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)visible++});const v2cards=[...document.querySelectorAll('.product-v2-tile')];if(v2cards.length)visible=0;v2cards.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)visible++});let hiddenVisible=0;hidden.forEach(card=>{const match=!query||card.textContent.toLocaleLowerCase().includes(query);card.hidden=!match;if(match)hiddenVisible++});if(query&&hiddenVisible)hiddenList.open=true;empty.hidden=visible+hiddenVisible>0;});})();</script>
-<script>(()=>{const input=document.querySelector('#products-search'),list=document.querySelector('#products-list');if(!input||!list)return;const rows=[...list.querySelectorAll('.products-row')],chips=[...document.querySelectorAll('[data-products-filter]')],empty=document.querySelector('#products-no-results');let filter='all';const apply=()=>{const query=input.value.trim().toLocaleLowerCase();let shown=0;rows.forEach(row=>{const matchText=!query||(row.dataset.name||'').includes(query);const matchFilter=filter==='all'||(filter==='low'&&row.dataset.low==='1')||(filter==='hidden'&&row.dataset.hidden==='1');const show=matchText&&matchFilter;row.hidden=!show;if(show)shown++;});if(empty)empty.hidden=shown>0;};input.addEventListener('input',apply);chips.forEach(chip=>chip.addEventListener('click',()=>{filter=chip.dataset.productsFilter||'all';chips.forEach(other=>{const on=other===chip;other.classList.toggle('is-active',on);other.setAttribute('aria-pressed',on?'true':'false');});apply();}));apply();})();</script>
+<script>(()=>{const input=document.querySelector('#products-search'),list=document.querySelector('#products-list');if(!input||!list)return;const rows=[...list.querySelectorAll('.products-row')],chips=[...document.querySelectorAll('[data-products-filter]')],empty=document.querySelector('#products-no-results'),requested=new URLSearchParams(location.search).get('filter');let filter=requested==='low'||requested==='hidden'?requested:'all';const syncChips=()=>chips.forEach(chip=>{const on=(chip.dataset.productsFilter||'all')===filter;chip.classList.toggle('is-active',on);chip.setAttribute('aria-pressed',on?'true':'false');});const apply=()=>{const query=input.value.trim().toLocaleLowerCase();let shown=0;rows.forEach(row=>{const matchText=!query||(row.dataset.name||'').includes(query);const matchFilter=filter==='all'||(filter==='low'&&row.dataset.low==='1')||(filter==='hidden'&&row.dataset.hidden==='1');const show=matchText&&matchFilter;row.hidden=!show;if(show)shown++;});if(empty)empty.hidden=shown>0;};input.addEventListener('input',apply);chips.forEach(chip=>chip.addEventListener('click',()=>{filter=chip.dataset.productsFilter||'all';syncChips();apply();}));syncChips();apply();})();</script>
 <script>(()=>{const manage=document.querySelector('#products-manage');if(!manage)return;const revealAdd=()=>{const add=manage.querySelector('.add-product-disclosure');if(add)add.open=true;};document.querySelectorAll('[data-products-manage-open]').forEach(link=>link.addEventListener('click',event=>{event.preventDefault();manage.open=true;revealAdd();manage.scrollIntoView({block:'start'});const name=manage.querySelector('.add-product-form input[name="name"]');if(name)setTimeout(()=>name.focus({preventScroll:true}),0);}));if(location.hash==='#products-manage'){manage.open=true;revealAdd();}})();</script>
 <script>
 document.querySelectorAll('[data-product-v2-photo]').forEach(img=>img.addEventListener('error',()=>{img.hidden=true;const fallback=img.parentElement?.querySelector('.product-v2-tile-placeholder');if(fallback)fallback.hidden=false},{once:true}));
