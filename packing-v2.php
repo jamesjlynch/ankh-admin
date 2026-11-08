@@ -3,11 +3,8 @@
  * ANKH Premium V2 packing desk. Included from authenticated index.php only.
  * All order lifecycle changes still use the existing server-validated forms.
  */
+if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {$q=$_GET;$q['view']='packing';$q['tab']='pick'; header('Location: ./?'.http_build_query($q),true,302);exit;}
 if (!($auth??false) || !($db instanceof PDO)) {http_response_code(403);exit('Forbidden');}
-if (!($premiumV2Preview??false)){?>
- <div class="heading page-header"><div class="page-header-main"><h1>Packing station</h1></div></div>
- <a class="quick-action" href="?view=packing&amp;premium=1">Open Premium V2 packing station →</a>
-<?php return;}
 $pvSelection=filter_var($_GET['id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
 $pvSelectedOrder=null;
 if($pvSelection!==false && $pvSelection!==null){
@@ -31,7 +28,7 @@ $pvReadableDate=static function(string $date):string{
   <div><p class="eyebrow">ANKH / OPERATIONS V2</p><h1><?=$pvSelectedOrder?'Packing checklist':'Order journey'?></h1>
    </div>
   <div class="packing-v2-page-actions">
-   <a href="?view=packing" class="packing-v2-link <?=$pvSelectedOrder?'':'current'?>">Workflow board</a>
+   <a href="?view=packing&amp;tab=pick" class="packing-v2-link <?=$pvSelectedOrder?'':'current'?>">Workflow board</a>
    <a href="?view=orders" class="packing-v2-link">All orders →</a>
   </div>
  </div>
@@ -48,7 +45,7 @@ $pvReadableDate=static function(string $date):string{
  $pvDelivered=(string)$pvOrder['status']==='Delivered'||trim((string)($pvOrder['delivery_date']??''))!=='';
  $pvStageIndex=$pvDelivered?4:((string)$pvOrder['status']==='Dispatched'?3:($pvState==='packaged'?3:($pvState==='reconstituted'?2:1)));
 ?>
- <nav class="packing-v2-breadcrumb" aria-label="Breadcrumb"><a href="?view=packing">Packing station</a><span aria-hidden="true">›</span><span>ANK-<?=str_pad((string)$pvOrderId,4,'0',STR_PAD_LEFT)?></span></nav>
+ <nav class="packing-v2-breadcrumb" aria-label="Breadcrumb"><a href="?view=packing&amp;tab=pick">Packing</a><span aria-hidden="true">›</span><span>ANK-<?=str_pad((string)$pvOrderId,4,'0',STR_PAD_LEFT)?></span></nav>
  <section class="packing-v2-order-hero">
   <div><span class="packing-v2-ref">ANK-<?=str_pad((string)$pvOrderId,4,'0',STR_PAD_LEFT)?></span>
    <h2><?=e(orderDisplayName($pvOrder))?></h2>
@@ -153,7 +150,7 @@ $pvReadableDate=static function(string $date):string{
    <div class="packing-v2-column-head"><div><p class="eyebrow"><?=e(strtoupper($bucket))?></p><h2><?=e($details[0])?></h2><small><?=e($details[1])?></small></div><b><?=$pvCount[$bucket]?></b></div>
    <div class="packing-v2-card-list">
     <?php foreach($pvGroups[$bucket] as $pvOrder):$pvId=(int)$pvOrder['id'];$pvOrderLines=$pvBoardItems[$pvId]??[];$pvBalance=max(0,(int)$pvOrder['total']-(int)($pvOrder['paid_amount']??0));?>
-    <a class="packing-v2-card" href="?view=packing&amp;id=<?=$pvId?>">
+    <a class="packing-v2-card" href="?view=packing&amp;tab=pick&amp;id=<?=$pvId?>">
      <div class="packing-v2-card-top"><span>ANK-<?=str_pad((string)$pvId,4,'0',STR_PAD_LEFT)?></span><span><?=e(trim((string)($pvOrder['assigned_to']??''))?:'Unassigned')?></span></div>
      <strong class="packing-v2-card-name"><?=e(orderDisplayName($pvOrder))?></strong>
      <?php if(strcasecmp(trim((string)$pvOrder['customer']),orderDisplayName($pvOrder))!==0):?><small class="packing-v2-card-buyer">Ordered by <?=e((string)$pvOrder['customer'])?></small><?php endif;?>

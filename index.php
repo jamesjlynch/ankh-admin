@@ -3318,13 +3318,13 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   if($action==='packing_run_create'){
    $packingRunId=ankhPackingCentreCreate($db,is_array($_POST['order_ids']??null)?$_POST['order_ids']:[],(string)($_POST['run_name']??''),(string)($_POST['owner']??''),(string)($_POST['run_notes']??''),(string)($_POST['request_key']??''),(int)($_SESSION['admin_user_id']??0));
    $_SESSION['flash']='Packing run saved. Order statuses and stock are unchanged.';
-   header('Location: ./?view=packing_centre&run='.$packingRunId);exit;
+   header('Location: ./?view=packing&tab=runs&run='.$packingRunId);exit;
   }
   if($action==='packing_run_update'){
    $packingRunId=(int)($_POST['run_id']??0);
    ankhPackingCentreUpdate($db,$packingRunId,(string)($_POST['run_action']??''),(int)($_POST['order_id']??0));
    $_SESSION['flash']='Packing run updated. Order statuses and stock are unchanged.';
-   header('Location: ./?view=packing_centre&run='.$packingRunId);exit;
+   header('Location: ./?view=packing&tab=runs&run='.$packingRunId);exit;
   }
   if($action==='logout'){if($hasIndividualLogins)ankhAuthClearRemember($db);$_SESSION=[];session_destroy();header('Location: ./');exit;}
   if($action==='business_alert_save'){
@@ -3731,7 +3731,6 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    setOrderPreparation($db,$orderId,'reconstituted',$complete==='1');
   }
   if($action==='packing_pick'){
-   if(empty($_SESSION['ankh_premium_v2_preview']))throw new Exception('Enable Premium V2 to use packing checks.');
    $packingOrderId=filter_var($_POST['id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    $packingItemId=filter_var($_POST['item_id']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
    $packingPicked=(string)($_POST['picked']??'');
@@ -4347,7 +4346,21 @@ $view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard'
 if($view==='fridge_jay'||$view==='fridge_tony'){header('Location: ./?view=stock&who='.($view==='fridge_jay'?'jay':'tony'),true,302);exit;}
 // The hidden live board alias keeps working for old bookmarks.
 if($view==='stockboard'){header('Location: ./?view=stock',true,302);exit;}
-if($view==='packing_centre'&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
+// One Packing screen now owns the packing centre and pick desk.
+if($view==='packing_centre'){
+ if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
+  $legacyPackingQuery=$_GET;$legacyPackingQuery['view']='packing';
+  header('Location: ./?'.http_build_query($legacyPackingQuery),true,302);exit;
+ }
+ // A POST has already run its action; render the Packing screen without losing it.
+ $view='packing';$_GET['view']='packing';
+}
+$isPacking=$view==='packing';
+$packingTab='';
+if($isPacking){
+ $packingTab=in_array((string)($_GET['tab']??''),['runs','pick'],true)?(string)$_GET['tab']:(isset($_GET['id'])?'pick':'runs');
+}
+if($isPacking&&isset($_GET['print'])&&$auth){require __DIR__.'/packing-centre-print.php';exit;}
 // One Plan screen now owns the reorder, cycle and shipping views.
 $planLegacyTabs=['reorder'=>'reorder','reta'=>'cycles','shipping'=>'shipping'];
 if(isset($planLegacyTabs[$view])){
@@ -5240,7 +5253,7 @@ if($view==='reportsboard'){
 </button><?php endif;?></div>
 <nav class="desktop-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Dashboard</span></a>
-<a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="<?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Customers</span></a>
 <a class="<?=$view==='balances'?'selected':''?>" href="?view=balances"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 7h14v11H5z"/><path d="M8 11h8M8 15h5"/><circle cx="17" cy="15" r="1"/></svg></span><span class="nav-label">Balances</span></a>
@@ -5298,6 +5311,14 @@ if($view==='reportsboard'){
 </nav>
 </div>
 <?php endif;?>
+<?php if($isPacking):?>
+<div class="packing-screen">
+<?php pageHeader('Packing',['class'=>'packing-heading','back_href'=>'?view=more','back_label'=>'More']);?>
+<nav class="packing-switch" aria-label="Packing sections">
+<?php foreach(['runs'=>'Packing runs','pick'=>'Pick &amp; prepare'] as $packingKey=>$packingLabel):?><a href="?view=packing&amp;tab=<?=e($packingKey)?>" class="<?=$packingTab===$packingKey?'selected':''?>" <?=$packingTab===$packingKey?'aria-current="page"':''?>><?=$packingLabel?></a><?php endforeach;?>
+</nav>
+</div>
+<?php endif;?>
 <?php if($view==='dashboard'):
 if(empty($_SESSION['dashboard_focus_ready'])){unset($_SESSION['dashboard_queue']);$_SESSION['dashboard_focus_ready']=true;}
 $dashboardAll=dashboardWorklist($awaitingPayment,$awaitingDelivery,$futureDeliveries);
@@ -5320,7 +5341,7 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
  <div class="today-hero-spark" data-ankh-sparkline><?=todaySparklineSvg($monthDailySales)?></div>
 </section>
 <nav class="ux-mobile-actions" aria-label="Quick actions">
- <a href="?view=packing_centre"><span aria-hidden="true">▣</span><strong>Packing Centre</strong></a>
+ <a href="?view=packing"><span aria-hidden="true">▣</span><strong>Packing</strong></a>
  <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
  <a href="?view=orders&amp;scope=to_deliver"><span aria-hidden="true">↗</span><strong>Deliveries</strong></a>
  <a href="?view=stock"><span aria-hidden="true">▣</span><strong>Stock</strong></a>
@@ -5474,8 +5495,7 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 <?php foreach(array_slice($lowStock,0,6) as $stockProduct):?><a class="dashboard-row dashboard-stock-link" href="?view=stock&amp;filter=low#stock-product-<?=(int)$stockProduct['id']?>"><span><?=e($stockProduct['name'])?></span><strong><?=max(0,$stockProduct['fridge_available'])?> left <i aria-hidden="true">›</i></strong></a><?php endforeach;?>
 </section></div><?php endif;?>
 <?php if($uncostedSales>0):?><p class="muted dashboard-note">Gross profit excludes costs that have not been mapped yet.</p><?php endif;?>
-<?php elseif($view==='packing_centre'):require __DIR__.'/packing-centre.php';?>
-<?php elseif($view==='packing'):require __DIR__.'/packing-v2.php';?>
+<?php elseif($view==='packing'):?><?php if($packingTab==='pick'):require __DIR__.'/packing-v2.php';else:require __DIR__.'/packing-centre.php';endif;?>
 <?php elseif($view==='orders'): ?>
 <?php
 $ordersSection=in_array($_GET['section']??'', ['recurring','backorders'],true)?(string)$_GET['section']:'all';
@@ -5500,7 +5520,7 @@ $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['t
 ?>
 <?php pageHeader($ordersSection==='backorders'?'Back orders':'Orders',['class'=>'orders-page-heading','action_href'=>'?view=new','action_label'=>'+ New order']);?>
 <nav class="ux-mobile-scopes order-view-nav" aria-label="Order views">
- <a class="packing-v2-orders-link" href="?view=packing_centre">Packing Centre · runs &amp; printing ↗</a>
+ <a class="packing-v2-orders-link" href="?view=packing">Packing · runs &amp; printing ↗</a>
  <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
  <a href="?view=orders&amp;section=backorders" <?=$ordersSection==='backorders'?'aria-current="page"':''?>>Back orders <b><?=count($backOrders)?></b></a>
  <a href="?view=orders&amp;section=recurring" <?=$ordersSection==='recurring'?'aria-current="page"':''?>>Recurring</a>
@@ -7192,7 +7212,7 @@ if($runRouteAddresses){
 <h2 class="more-group-heading">Sell</h2>
 <div class="more-grid">
 <a class="more-card" href="?view=run"><span class="more-icon">➤</span><div><h2>Delivery run</h2></div><b>›</b></a>
-<a class="more-card" href="?view=packing_centre"><span class="more-icon">▣</span><div><h2>Packing Centre</h2></div><b>›</b></a>
+<a class="more-card" href="?view=packing"><span class="more-icon">▣</span><div><h2>Packing</h2></div><b>›</b></a>
 <a class="more-card" href="?view=plan"><span class="more-icon">☰</span><div><h2>Plan</h2></div><b>›</b></a>
 </div>
 </section>
@@ -7246,7 +7266,7 @@ $savedEmailStatus=$savedEmailFailed?'Email notification failed: '.substr($savedE
 </main>
 <nav class="mobile-nav">
 <a class="<?=$view==='dashboard'?'selected':''?>" href="?view=dashboard"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg></span><span class="nav-label">Today</span></a>
-<a class="<?=in_array($view,['orders','packing','packing_centre'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
+<a class="<?=in_array($view,['orders','packing'],true)?'selected':''?>" href="?view=orders"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v13H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span><span class="nav-label">Orders</span></a>
 <a class="nav-new <?=$view==='new'?'selected':''?>" href="?view=new"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-label">New</span></a>
 <a class="<?=in_array($view,['customers','customer','balances'],true)?'selected':''?>" href="?view=customers"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3.5 18c.8-3 2.7-4.5 5.5-4.5S13.7 15 14.5 18"/><circle cx="17" cy="9" r="2"/><path d="M15.5 14c2.7.2 4.3 1.5 5 4"/></svg></span><span class="nav-label">Clients</span></a>
 <a class="<?=in_array($view,['enquiries','supplies','more','run','products','product','reports','reorder','shipping','sheets','supplier','stock','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>

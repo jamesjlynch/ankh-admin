@@ -21,7 +21,7 @@ $printName=static fn(array $o):string=>trim((string)($o['recipient_name']??''))?
 .picking-table .order-ref{display:inline-block;white-space:nowrap}
 @media print{.picking-table{min-width:0}.picking-table-wrap{overflow:visible}}
 </style></head><body>
-<div class="toolbar"><button type="button" onclick="window.print()">Print / Save as PDF</button><a href="?view=packing_centre&amp;run=<?=(int)$printRun['id']?>">Back to run</a><p>A4<?= $printKind==='labels'?' · Cut-out name labels; not a courier shipping label':''?> · Printing leaves order statuses unchanged.</p></div>
+<div class="toolbar"><button type="button" onclick="window.print()">Print / Save as PDF</button><a href="?view=packing&amp;tab=runs&amp;run=<?=(int)$printRun['id']?>">Back to run</a><p>A4<?= $printKind==='labels'?' · Cut-out name labels; not a courier shipping label':''?> · Printing leaves order statuses unchanged.</p></div>
 <main>
 <?php if($printKind==='pick'):?>
 <header><p>ANKH · PACKING CENTRE · RUN #<?=(int)$printRun['id']?></p><h1>Combined picking sheet</h1><h2><?=e($printRun['name'])?></h2><div class="meta"><span>Owner: <?=e($printRun['owner']?:'Unassigned')?></span><span><?=count($printOrders)?> orders · Printed <?=e(gmdate('d M Y H:i'))?> UTC</span></div></header>

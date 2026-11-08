@@ -1,12 +1,13 @@
 <?php
+if(isset($_SERVER['SCRIPT_FILENAME'])&&realpath($_SERVER['SCRIPT_FILENAME'])===__FILE__){$q=$_GET;$q['view']='packing';header('Location: ./?'.http_build_query($q),true,302);exit;}
 if(!($auth??false)||!($db instanceof PDO)){http_response_code(403);exit('Forbidden');}
 $pcRun=ankhPackingCentreRun($db,(int)($_GET['run']??0));
 $pcRuns=$db->query('SELECT r.*, (SELECT COUNT(*) FROM packing_run_orders m WHERE m.run_id=r.id) order_count FROM packing_runs r ORDER BY r.id DESC')->fetchAll(PDO::FETCH_ASSOC);
 $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll(PDO::FETCH_KEY_PAIR);
 ?>
 <div class="pc-workspace">
- <div class="heading page-header"><div class="page-header-main"><h1>Packing Centre</h1></div><a class="button page-action" href="?view=packing_centre">+ New packing run</a></div>
- <div class="pc-tabs" role="navigation" aria-label="Packing Centre"><a href="?view=packing_centre" <?=$pcRun?'':'aria-current="page"'?>>Choose orders</a><a href="#pc-runs">Saved runs (<?=count($pcRuns)?>)</a><a href="?view=orders">All orders →</a></div>
+ <div class="heading page-header"><div class="page-header-main"><h1>Packing Centre</h1></div><a class="button page-action" href="?view=packing&amp;tab=runs">+ New packing run</a></div>
+ <div class="pc-tabs" role="navigation" aria-label="Packing Centre"><a href="?view=packing&amp;tab=runs" <?=$pcRun?'':'aria-current="page"'?>>Choose orders</a><a href="#pc-runs">Saved runs (<?=count($pcRuns)?>)</a><a href="?view=orders">All orders →</a></div>
 <?php if(isset($_GET['run'])&&!$pcRun):?><p role="alert" class="error">Packing run not found. Choose a saved run below.</p><?php endif;?>
 <?php if($pcRun):$pcRunId=(int)$pcRun['id'];$pcTotals=ankhPackingCentreTotals($pcRun['orders']);?>
  <section class="pc-panel">
@@ -14,7 +15,7 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
   <p class="muted"><?=e($pcRun['owner']?:'Unassigned')?> · Created <?=e(date('j M Y, H:i',strtotime($pcRun['created'])))?> UTC · <?=count($pcRun['orders'])?> orders</p>
   <?php if($pcRun['notes']!==''):?><p class="pc-note"><?=nl2br(e($pcRun['notes']))?></p><?php endif;?>
   <div class="pc-print-actions">
-   <?php foreach(['pick'=>'Combined picking sheet','slips'=>'Individual packing slips','labels'=>'Envelope name labels'] as $kind=>$label):?><a class="button" href="?view=packing_centre&amp;run=<?=$pcRunId?>&amp;print=<?=$kind?>" target="_blank" rel="noopener"><?=e($label)?> ↗</a><?php endforeach;?>
+   <?php foreach(['pick'=>'Combined picking sheet','slips'=>'Individual packing slips','labels'=>'Envelope name labels'] as $kind=>$label):?><a class="button" href="?view=packing&amp;tab=runs&amp;run=<?=$pcRunId?>&amp;print=<?=$kind?>" target="_blank" rel="noopener"><?=e($label)?> ↗</a><?php endforeach;?>
   </div>
   <p class="muted">Print or save as PDF from the print view. Labels are an A4 cut-out sheet. Printing never marks orders prepared, packaged, paid or delivered.</p>
   <?php if($pcRun['state']==='open'):?><div class="pc-run-actions"><?php foreach(['completed'=>'Finish run','cancelled'=>'Cancel run'] as $state=>$label):?><form method="post" onsubmit="return confirm('Close this packing run and release its orders? Order preparation and delivery statuses will stay unchanged.');"><?php csrf();?><input type="hidden" name="action" value="packing_run_update"><input type="hidden" name="run_id" value="<?=$pcRunId?>"><input type="hidden" name="run_action" value="<?=$state?>"><button class="quiet" type="submit"><?=$label?></button></form><?php endforeach;?></div><?php else:?><p class="pc-note">This run is closed. Its orders are released for future runs. Saved runs show the current order details.</p><?php endif;?>
@@ -41,7 +42,7 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
 ?>
  <section class="pc-panel"><h2>Create a packing run</h2><p class="muted">Select active orders, back orders or both. Unpaid and zero-stock orders can be included. Orders in an open run are reserved for that run.</p>
  <div class="pc-filters"><label>Search orders<input type="search" id="pc-search" placeholder="Customer, order number or product"></label><label>Order list<select id="pc-source"><option value="all">Active &amp; back orders</option><option value="active">Active orders</option><option value="back">Back orders</option></select></label><label>Assigned to<select id="pc-assignee"><option value="all">Everyone</option><?php $pcOwners=[];foreach($pcCandidates as $o)$pcOwners[(string)$o['assigned_to']]=true;foreach(array_keys($pcOwners) as $owner):?><option value="<?=e($owner?:'__unassigned')?>"><?=e($owner?:'Unassigned')?></option><?php endforeach;?></select></label></div>
- <form method="post" id="pc-create"><?php csrf();?><input type="hidden" name="action" value="packing_run_create"><input type="hidden" name="request_key" value="<?=e(bin2hex(random_bytes(16)))?>"><input type="hidden" name="return" value="packing_centre">
+ <form method="post" id="pc-create"><?php csrf();?><input type="hidden" name="action" value="packing_run_create"><input type="hidden" name="request_key" value="<?=e(bin2hex(random_bytes(16)))?>"><input type="hidden" name="return" value="packing">
  <div class="pc-run-fields"><label>Run name<input name="run_name" maxlength="100" value="Packing run · <?=e($now->format('j M Y'))?>" required></label><label>Run owner<input name="owner" maxlength="80" placeholder="Jay or Tony"></label><label>Run notes<textarea name="run_notes" maxlength="2000" rows="2" placeholder="Instructions for this packing run"></textarea></label></div>
  <div class="pc-selection-bar"><div><strong id="pc-selected" aria-live="polite">0 orders selected</strong><small>Selection is kept when filtering.</small></div><button type="button" class="quiet" id="pc-select-visible">Select visible</button><button type="button" class="quiet" id="pc-clear">Clear selection</button></div>
  <div class="pc-order-list">
@@ -51,7 +52,7 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
     <?php foreach(ankhPackingCentreLines($lines) as $line):?><small><?=(int)$line['quantity']?> × <?=e($line['name'])?><?=$line['presentation']!==''?' · '.e($line['presentation']):''?></small><?php endforeach;?>
     <?php if(!$lines):?><small>No order lines — review this order first.</small><?php endif;?>
    </span></label>
-   <?php if($claimed):?><a class="pc-claim" href="?view=packing_centre&amp;run=<?=$claimed?>">In run #<?=$claimed?> →</a><?php endif;?>
+   <?php if($claimed):?><a class="pc-claim" href="?view=packing&amp;tab=runs&amp;run=<?=$claimed?>">In run #<?=$claimed?> →</a><?php endif;?>
   </article>
  <?php endforeach;?>
  </div><p id="pc-empty" class="muted" <?=count($pcCandidates)?'hidden':''?>>No orders match these filters.</p>
@@ -59,7 +60,7 @@ $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll
  </form></section>
 <?php endif;?>
  <section class="pc-panel" id="pc-runs"><h2>Saved packing runs</h2><p class="muted">Open runs reserve their orders until you release an order, finish or cancel the run.</p><div class="pc-saved-list">
- <?php foreach($pcRuns as $r):?><a href="?view=packing_centre&amp;run=<?=(int)$r['id']?>"><div><strong><?=e($r['name'])?></strong><small>#<?=(int)$r['id']?> · <?=e($r['owner']?:'Unassigned')?> · <?=(int)$r['order_count']?> orders · <?=e(substr($r['created'],0,10))?></small></div><span><?=e(ucfirst($r['state']))?> →</span></a><?php endforeach;?>
+ <?php foreach($pcRuns as $r):?><a href="?view=packing&amp;tab=runs&amp;run=<?=(int)$r['id']?>"><div><strong><?=e($r['name'])?></strong><small>#<?=(int)$r['id']?> · <?=e($r['owner']?:'Unassigned')?> · <?=(int)$r['order_count']?> orders · <?=e(substr($r['created'],0,10))?></small></div><span><?=e(ucfirst($r['state']))?> →</span></a><?php endforeach;?>
  <?php if(!$pcRuns):?><p class="muted">Your first saved run will appear here for both admins.</p><?php endif;?></div></section>
 </div>
 <script>
