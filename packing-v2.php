@@ -5,7 +5,7 @@
  */
 if (!($auth??false) || !($db instanceof PDO)) {http_response_code(403);exit('Forbidden');}
 if (!($premiumV2Preview??false)){?>
- <div class="heading"><div><h1>Packing station</h1><p class="muted">Available within the optional Premium V2 interface.</p></div></div>
+ <div class="heading page-header"><div class="page-header-main"><h1>Packing station</h1></div></div>
  <a class="quick-action" href="?view=packing&amp;premium=1">Open Premium V2 packing station →</a>
 <?php return;}
 $pvSelection=filter_var($_GET['id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
@@ -29,7 +29,7 @@ $pvReadableDate=static function(string $date):string{
 <div class="packing-v2-workspace">
  <div class="packing-v2-page-head">
   <div><p class="eyebrow">ANKH / OPERATIONS V2</p><h1><?=$pvSelectedOrder?'Packing checklist':'Order journey'?></h1>
-   <p class="muted"><?=$pvSelectedOrder?'Check each order line, then use the existing preparation and delivery controls.':'Your work from preparation through delivery, with payment tracked separately.'?></p></div>
+   </div>
   <div class="packing-v2-page-actions">
    <a href="?view=packing" class="packing-v2-link <?=$pvSelectedOrder?'':'current'?>">Workflow board</a>
    <a href="?view=orders" class="packing-v2-link">All orders →</a>

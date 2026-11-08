@@ -5,7 +5,7 @@ $pcRuns=$db->query('SELECT r.*, (SELECT COUNT(*) FROM packing_run_orders m WHERE
 $pcClaims=$db->query('SELECT order_id,run_id FROM packing_run_claims')->fetchAll(PDO::FETCH_KEY_PAIR);
 ?>
 <div class="pc-workspace">
- <div class="heading"><div><p class="eyebrow">ANKH / OPERATIONS</p><h1>Packing Centre</h1><p class="muted">Plan the work. Pick together. Pack by customer.</p></div><a class="button" href="?view=packing_centre">+ New packing run</a></div>
+ <div class="heading page-header"><div class="page-header-main"><h1>Packing Centre</h1></div><a class="button page-action" href="?view=packing_centre">+ New packing run</a></div>
  <div class="pc-tabs" role="navigation" aria-label="Packing Centre"><a href="?view=packing_centre" <?=$pcRun?'':'aria-current="page"'?>>Choose orders</a><a href="#pc-runs">Saved runs (<?=count($pcRuns)?>)</a><a href="?view=orders">All orders →</a></div>
 <?php if(isset($_GET['run'])&&!$pcRun):?><p role="alert" class="error">Packing run not found. Choose a saved run below.</p><?php endif;?>
 <?php if($pcRun):$pcRunId=(int)$pcRun['id'];$pcTotals=ankhPackingCentreTotals($pcRun['orders']);?>

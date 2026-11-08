@@ -17,7 +17,7 @@ function loadPresentationFunction(string $source,string $name):void{
  }
  throw new RuntimeException('Unclosed helper: '.$name);
 }
-foreach(['backOrderControls','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
+foreach(['backOrderControls','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','orderCardStatusLine','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>'Lee'])==='Lee','Recipient should lead the card.');
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>' '])==='Morgan','Blank recipient should fall back to purchaser.');
 recordingCheck(dashboardQueueView(['payment'=>0,'delivery'=>2,'future'=>1])==='all','Default worklist must show all work.');
@@ -59,12 +59,12 @@ foreach(['cards','dispatch'] as $dashboardLayout)foreach(['all'=>6,'payment'=>5,
  if(in_array($dashboardQueue,['all','payment'],true)){
   recordingCheck(str_contains($html,'Delivered fixture'),'Delivered-unpaid work must remain visible.');
   preg_match('/id="work-order-3".*?<\/details>/s',$html,$match);
-  recordingCheck(str_contains($match[0],'focus-paid">Delivered')&&str_contains($match[0],'£65.00 unpaid'),'Payment and delivery statuses must be independent.');
+  recordingCheck(str_contains($match[0],'order-card-status')&&str_contains($match[0],'Unpaid · Delivered 12 Oct'),'Payment and delivery must share one status line.');
   recordingCheck(!str_contains($match[0],'name="stage"')&&!str_contains($match[0],'Mark delivered'),'Delivered orders must not offer preparation or delivery again.');
  }
 }
 ob_start();orderFocusStatuses($partial);$partialHtml=ob_get_clean();
-recordingCheck(str_contains($partialHtml,'£45.00 remaining')&&str_contains($partialHtml,'Packaged · Ready'),'Partial payment and preparation must both remain visible.');
+recordingCheck(str_contains($partialHtml,'Part paid')&&str_contains($partialHtml,'Planned 24 Oct'),'Partial payment and planned delivery must share one status line.');
 ob_start();orderFocusStatuses(array_replace($base,['customer'=>'<script>x</script>','recipient_name'=>'<b>unsafe</b>']));$statuses=ob_get_clean();
 ob_start();orderBuyerCaption(array_replace($base,['customer'=>'<script>x</script>']));$caption=ob_get_clean();
 recordingCheck(!str_contains($caption,'<script>')&&str_contains($caption,'&lt;script&gt;'),'Buyer captions must remain escaped.');

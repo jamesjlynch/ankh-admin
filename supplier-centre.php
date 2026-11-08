@@ -524,7 +524,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $groupedSmart=['attention'=>[],'covered'=>[]];
  foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
  ?>
-<div class="heading sc-heading"><div><p class="eyebrow">ANKH / SUPPLIER CENTRE</p><h1>Supplier &amp; Profit</h1><p class="muted page-description">Compare costs, build combined MJT orders and split stock after delivery.</p></div></div>
+<div class="heading page-header sc-heading"><div class="page-header-main"><h1>Supplier &amp; Profit</h1></div></div>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
  <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
  <a href="?view=supplier&amp;tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>

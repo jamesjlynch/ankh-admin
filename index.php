@@ -1067,7 +1067,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $groupedSmart=['attention'=>[],'covered'=>[]];
  foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
  ?>
-<div class="heading sc-heading"><div><p class="eyebrow">ANKH / SUPPLIER CENTRE</p><h1>Supplier &amp; Profit</h1><p class="muted page-description">Compare costs, build combined MJT orders and split stock after delivery.</p></div></div>
+<div class="heading page-header sc-heading"><div class="page-header-main"><h1>Supplier &amp; Profit</h1></div></div>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
  <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
  <a href="?view=supplier&amp;tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
@@ -4107,16 +4107,32 @@ function dashboardWorklistSort(array $orders,string $today):array{
    ?: (int)$b['id']<=>(int)$a['id'];
  });return $orders;
 }
+function orderCardStatusLine(array $order):string{
+ $total=max(0,(int)($order['total']??0));$paid=max(0,(int)($order['paid_amount']??0));$balance=max(0,$total-$paid);
+ $payment=$total===0?'No payment required':($balance<=0?'Paid':($paid>0?'Part paid':'Unpaid'));
+ $status=(string)($order['status']??'');$deliveredDate=trim((string)($order['delivery_date']??''));$scheduled=trim((string)($order['scheduled_delivery_date']??''));
+ if($status==='Cancelled')$delivery='Cancelled';
+ elseif(isBackOrder($order))$delivery='Back order';
+ elseif($status==='Delivered'||$deliveredDate!=='')$delivery='Delivered'.($deliveredDate!==''?' '.date('j M',strtotime($deliveredDate)):'');
+ elseif($scheduled!=='')$delivery='Planned '.date('j M',strtotime($scheduled));
+ else $delivery='Not delivered';
+ return $payment.' · '.$delivery;
+}
 function orderFocusStatuses(array $order):void{
- $balance=max(0,(int)($order['total']??0)-(int)($order['paid_amount']??0));
- $state=orderPreparationState($order);$cancelled=($order['status']??'')==='Cancelled';
- ?><div class="focus-statuses"><span class="focus-status <?=$balance>0?'focus-unpaid':'focus-paid'?>"><?=$balance>0?e(money($balance).' '.((int)($order['paid_amount']??0)>0?'remaining':'unpaid')):((int)($order['total']??0)===0?'No payment required':'Paid')?></span>
- <?php if($cancelled):?><span class="focus-status">Cancelled</span><?php elseif(isBackOrder($order)):?><span class="focus-status">Back order</span><?php elseif($state==='closed'):?><span class="focus-status focus-paid">Delivered</span><?php else:?><span class="focus-status <?=$state==='packaged'?'focus-ready':'focus-preparing'?>"><?=$state==='packaged'?'Packaged · Ready':($state==='reconstituted'?'Reconstituted':'To prepare')?></span><span class="focus-status"><?=($order['status']??'')==='Dispatched'?'Dispatched':'To deliver'?></span><?php endif;?></div><?php
+ ?><p class="order-card-status"><?=e(orderCardStatusLine($order))?></p><?php
 }
 function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
- $date=trim((string)($order['scheduled_delivery_date']??''));
- $active=!in_array((string)($order['status']??''),['Cancelled','Delivered'],true)&&trim((string)($order['delivery_date']??''))==='';
- ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span><?php if($active&&$date!==''):?><span class="delivery-plan-date" title="Planned delivery <?=e($date)?>">▦ <?=e((new DateTimeImmutable($date))->format('D d M'))?> · <?=e(deliveryCountdown($date,$today))?></span><?php endif;?></div><?php
+ ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span></div><?php
+}
+function pageHeader(string $title,array $options=[]):void{
+ $backHref=(string)($options['back_href']??'');$backLabel=(string)($options['back_label']??'Back');$class=trim('heading page-header '.(string)($options['class']??''));
+ $actionHref=(string)($options['action_href']??'');$actionLabel=(string)($options['action_label']??'');$actionClass=(string)($options['action_class']??'button page-action');$actionHtml=(string)($options['action_html']??'');$titleHtml=(string)($options['title_html']??'');
+ echo '<div class="'.e($class).'"><div class="page-header-main">';
+ if($backHref!=='')echo '<a class="page-header-back" href="'.e($backHref).'">← '.e($backLabel).'</a>';
+ echo '<h1>'.($titleHtml!==''?$titleHtml:e($title)).'</h1></div>';
+ if($actionHtml!=='')echo $actionHtml;
+ elseif($actionHref!==''&&$actionLabel!=='')echo '<a class="'.e($actionClass).'" href="'.e($actionHref).'">'.e($actionLabel).'</a>';
+ echo '</div>';
 }
 function dashboardPlannedDateTile(array $order):void{
  $scheduled=trim((string)($order['scheduled_delivery_date']??''));
@@ -5222,7 +5238,7 @@ $_SESSION['dashboard_layout']=$dashboardLayout;
 $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaitingPayment,'delivery'=>$dashboardDeliveries,'future'=>$futureDeliveries,default=>$dashboardAll},$now->format('Y-m-d'));
 $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 ?>
-<div class="heading dashboard-heading today-heading"><div><p class="focus-date today-date"><?=e($now->format('l j F'))?></p><h1 class="today-greeting"><?=e($greeting)?>, <span class="today-greeting-name"><?=e($adminFirstName)?></span></h1><p class="muted page-description">Your orders. Your next steps.</p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<?php pageHeader('',['class'=>'dashboard-heading today-heading','title_html'=>'<span class="today-date">'.e($now->format('l j F')).'</span><span class="today-greeting">'.e($greeting).', <span class="today-greeting-name">'.e($adminFirstName).'</span></span>','action_href'=>'?view=new','action_label'=>'+ New order']);?>
 <section class="today-hero" aria-labelledby="today-hero-title">
  <div class="today-hero-head"><p class="today-hero-label" id="today-hero-title">THIS MONTH</p><?php if($lastMonthSales>0):?><span class="today-hero-pill <?=$monthDeltaPercent<0?'is-down':'is-up'?>"><?=$monthDeltaPercent<0?'▼':'▲'?> <?=$monthDeltaPercent<0?'':'+'?><?=$monthDeltaPercent?>% vs <?=e($now->modify('first day of last month')->format('F'))?></span><?php endif;?></div>
  <p class="today-hero-total" data-ankh-count="<?=$monthSales?>" data-ankh-format="money"><?=money($monthSales)?></p>
@@ -5230,7 +5246,6 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
  <div class="today-hero-spark" data-ankh-sparkline><?=todaySparklineSvg($monthDailySales)?></div>
 </section>
 <nav class="ux-mobile-actions" aria-label="Quick actions">
- <?php if($premiumV2Preview):?><a href="?view=packing"><span aria-hidden="true">▣</span><strong>Packing station</strong></a><?php endif;?>
  <a href="?view=packing_centre"><span aria-hidden="true">▣</span><strong>Packing Centre</strong></a>
  <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
  <a href="?view=orders&amp;scope=to_deliver"><span aria-hidden="true">↗</span><strong>Deliveries</strong></a>
@@ -5270,7 +5285,7 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 <?php if($workGroup!==$lastGroup):?><h3 class="focus-group-heading"><?=e($workGroup)?></h3><?php $lastGroup=$workGroup;endif;?>
 <details class="todo-card todo-accordion focus-order" id="work-order-<?=(int)$todo['id']?>" data-focus-sheet data-order-card data-order-id="<?=(int)$todo['id']?>" data-order-outstanding="<?=$todoBalance?>" data-order-total="<?=(int)$todo['total']?>" data-order-client="<?=e(orderDisplayName($todo))?>" data-order-payment-method="<?=e($todo['payment_method']??'')?>" data-order-paid="<?=$todoBalance<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($todo)&&(string)($todo['status']??'')!=='Cancelled'&&((string)($todo['status']??'')==='Delivered'||trim((string)($todo['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($todo['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($todo)?'1':'0'?>">
 <summary class="todo-accordion-summary">
-<div class="focus-card-top"><span class="focus-order-ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?> · <?=e($workGroup)?></span><strong><?=money($todo['total'])?></strong></div>
+<div class="focus-card-top"><span class="focus-order-ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?> · <?=e($workGroup)?></span><span class="order-card-due"><strong><?=money($todoBalance)?></strong><small>Due</small></span></div>
 <p class="operations-step-hint"><?=e(dashboardNextActionLabel($todo))?></p>
 <div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span data-ankh-product-name="<?=e($item['name'])?>"><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php orderFocusStatuses($todo);?></div>
 <div class="focus-card-footer"><?php deliveryScheduleTags($todo,$now);?><span class="focus-order-open">View order <span aria-hidden="true">↗</span></span></div>
@@ -5409,10 +5424,9 @@ $listedOpen=count(array_filter($listedOrders,fn($o)=>!in_array($o['status'],['Di
 $listedPaid=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$listedOrders));
 $listedValue=array_sum(array_map(fn($o)=>$orderScope==='unpaid'?max(0,(int)$o['total']-(int)($o['paid_amount']??0)):(int)$o['total'],$listedOrders));
 ?>
-<div class="heading orders-page-heading"><div><h1><?=$ordersSection==='backorders'?'Back orders':'Orders'?></h1><p class="muted page-description"><?=$ordersSection==='backorders'?'Orders you have put on hold.':'Search, update or repeat any order.'?></p></div><a class="button page-action" href="?view=new">+ New order</a></div>
+<?php pageHeader($ordersSection==='backorders'?'Back orders':'Orders',['class'=>'orders-page-heading','action_href'=>'?view=new','action_label'=>'+ New order']);?>
 <nav class="ux-mobile-scopes order-view-nav" aria-label="Order views">
  <a class="packing-v2-orders-link" href="?view=packing_centre">Packing Centre · runs &amp; printing ↗</a>
- <?php if($premiumV2Preview):?><a class="packing-v2-orders-link" href="?view=packing">Visual packing station ↗</a><?php endif;?>
  <a href="?view=orders" <?=$ordersSection==='all'&&$orderScope===''?'aria-current="page"':''?>>All orders</a>
  <a href="?view=orders&amp;section=backorders" <?=$ordersSection==='backorders'?'aria-current="page"':''?>>Back orders <b><?=count($backOrders)?></b></a>
  <a href="?view=orders&amp;section=recurring" <?=$ordersSection==='recurring'?'aria-current="page"':''?>>Recurring</a>
@@ -5492,7 +5506,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="filters ux-order-filters <?=$ordersSection==='backorders'?'backorder-search':''?>"><label><?=$ordersSection==='backorders'?'Search waiting orders':'Search orders'?><input id="search" type="search" placeholder="Name, phone or ANK no." value="<?=e(is_scalar($_GET['search']??null)?(string)$_GET['search']:'')?>"></label><label <?=$ordersSection==='backorders'?'hidden':''?>>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <p class="ux-result-count" id="ux-order-visible" role="status" aria-live="polite"><?=count($listedOrders)?> orders</p>
 <div class="order-list">
-<?php foreach($listedOrders as $o):?><details class="order compact-order" data-order-card data-order-id="<?=(int)$o['id']?>" data-order-outstanding="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))?>" data-order-total="<?=(int)$o['total']?>" data-order-client="<?=e(orderDisplayName($o))?>" data-order-payment-method="<?=e($o['payment_method']??'')?>" data-order-paid="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($o)&&(string)($o['status']??'')!=='Cancelled'&&((string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($o['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($o)?'1':'0'?>" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><?php if(isBackOrder($o)):$lines=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$lines->execute([(int)$o['id']]);?><p class="backorder-order-products"><?php $parts=[];foreach($lines as $line)$parts[]=(int)$line['quantity'].' × '.$line['name'].($line['presentation']?' · '.$line['presentation']:'');echo e(implode(' / ',$parts));?></p><?php endif;?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><div class="order-summary-badges"><?php orderFocusStatuses($o);?><?php if(trim((string)($o['scheduled_delivery_date']??''))!=='' && $o['status']!=='Cancelled' && trim((string)($o['delivery_date']??''))===''):?><span class="scheduled-delivery-badge">Planned <?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M'))?></span><?php endif;?></div><strong><?=money($o['total'])?></strong><?php $orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><small><?=$orderBalance>0?'Balance '.money($orderBalance):((int)$o['total']===0?'No payment required':'Paid in full')?></small></div></summary><div class="detail">
+<?php foreach($listedOrders as $o):?><details class="order compact-order" data-order-card data-order-id="<?=(int)$o['id']?>" data-order-outstanding="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))?>" data-order-total="<?=(int)$o['total']?>" data-order-client="<?=e(orderDisplayName($o))?>" data-order-payment-method="<?=e($o['payment_method']??'')?>" data-order-paid="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($o)&&(string)($o['status']??'')!=='Cancelled'&&((string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($o['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($o)?'1':'0'?>" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><?php if(isBackOrder($o)):$lines=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$lines->execute([(int)$o['id']]);?><p class="backorder-order-products"><?php $parts=[];foreach($lines as $line)$parts[]=(int)$line['quantity'].' × '.$line['name'].($line['presentation']?' · '.$line['presentation']:'');echo e(implode(' / ',$parts));?></p><?php endif;?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><?php orderFocusStatuses($o);$orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><span class="order-card-due"><strong><?=money($orderBalance)?></strong><small>Due</small></span></div></summary><div class="detail">
 <?php backOrderControls($db,$o);?>
 <?php if(isBackOrder($o)):?><p class="muted" style="margin:8px 0 14px">Delivery confirmation is unavailable while this order is in the waiting-for-stock list. Move it to active orders first using the control above.</p><?php elseif(in_array((string)($o['status']??''),['Delivered','Cancelled'],true)||trim((string)($o['delivery_date']??''))!==''):?><p class="muted" style="margin:8px 0 14px"><?=($o['status']==='Cancelled')?'This order is cancelled.':(trim((string)($o['delivery_date']??''))!==''?'Delivery was already recorded.':'Marked Delivered but the actual date has not been entered.')?></p><?php endif;?>
 <div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?></div>
@@ -5528,7 +5542,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <p id="empty" class="empty" <?=count($listedOrders)?'hidden':''?>>No orders to show.</p>
 <?php endif;?>
 <?php elseif($view==='new'):?>
-<div class="new-order-head"><div><h1><?=$repeatOrderData?'Repeat order':'New order'?></h1><?php if($repeatOrderData):?><p class="muted page-description">Based on ANK-<?=str_pad((string)$repeatOrderData['id'],4,'0',STR_PAD_LEFT)?>. Check anything that has changed.</p><div class="repeat-order-note"><strong>Current repeat only</strong><span>Remove any product they no longer want or take. The previous order stays unchanged.</span></div><?php endif;?></div><div class="new-order-tools"><button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button></div><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div></div>
+<?php pageHeader($repeatOrderData?'Repeat order':'New order',['class'=>'new-order-head','action_html'=>'<button type="button" id="clear-draft" class="quiet draft-clear" hidden>Clear draft</button>']);?><div class="wizard-progress" aria-label="Order progress"><span class="active" data-progress-step="1">1<span>Customer</span></span><i></i><span data-progress-step="2">2<span>Products</span></span><i></i><span data-progress-step="3">3<span>Save</span></span></div>
 <?php if($voiceOrderingEnabled):?>
 <section class="voice-order-launch">
  <div class="voice-order-launch-copy">
@@ -5611,9 +5625,9 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 </form>
 
 <?php elseif($view==='edit'):?>
-<?php if(!$editOrder):?><div class="heading"><div><h1>Edit order</h1></div><a class="quick-action" href="?view=orders">← Orders</a></div><p class="error">That order could not be found.</p>
+<?php if(!$editOrder):?><?php pageHeader('Edit order',['back_href'=>'?view=orders','back_label'=>'Orders']);?><p class="error">That order could not be found.</p>
 <?php else:?>
-<div class="heading"><div><h1>Edit ANK-<?=str_pad((string)$editOrder['id'],4,'0',STR_PAD_LEFT)?></h1><p class="muted page-description">Correct the customer, products, formats, prices, payment or delivery details.</p></div><a class="quick-action" href="?view=orders">Cancel</a></div>
+<?php pageHeader('Edit ANK-'.str_pad((string)$editOrder['id'],4,'0',STR_PAD_LEFT),['back_href'=>'?view=orders','back_label'=>'Orders']);?>
 <?php backOrderControls($db,$editOrder);?>
 <?php if(isBackOrder($editOrder)):?><p class="note">Back order — editing keeps this order on the waiting list. Move it to active orders whenever you choose.</p><?php endif;?>
 <form method="post" class="panel edit-order-form" id="edit-order-form"><?php csrf();?><input type="hidden" name="action" value="order_edit"><input type="hidden" name="return" value="orders"><input type="hidden" name="id" value="<?=$editOrder['id']?>">
@@ -5650,7 +5664,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php elseif($view==='products'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);
  $allCategories=ankhCategories($db);$assignedCategories=ankhProductCategories($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
-<div class="heading"><div><h1>Products</h1><p class="muted">Retail prices, supplier costs and optional stock tracking.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="quick-action" href="?view=website_cms">✎ Customer website CMS</a><a class="quick-action" href="?view=stock">Stock control →</a></div></div>
+<?php pageHeader('Products',['action_href'=>'?view=stock','action_label'=>'Stock control →','action_class'=>'quick-action']);?><p class="page-inline-link"><a class="quick-action" href="?view=website_cms">✎ Customer website CMS</a></p>
 <style>
 .ankh-visibility-manager{border:1px solid #d2af6a66;background:linear-gradient(140deg,#1b201b,#10140f);border-radius:17px;margin:17px 0 22px;padding:23px}
 .ankh-visibility-top{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap}
@@ -5743,7 +5757,7 @@ document.querySelectorAll('[data-product-v2-photo]').forEach(img=>img.addEventLi
 $trackedProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));
 if($stockLowOnly){$initialQty=fn($p)=>$stockInitialView==='combined'?(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0):(int)($p[$stockInitialView==='jay'?'stock_jay_qty':'stock_tony_qty']??0);usort($trackedProducts,fn($a,$b)=>$initialQty($a)<=>$initialQty($b) ?: strcasecmp((string)$a['name'],(string)$b['name']));}
 $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incoming','forecast','history'],true)?(string)($_GET['section']??'overview'):'overview';?>
-<div class="heading stock-heading"><div><p class="eyebrow">INVENTORY</p><h1>Stock control</h1><p class="muted page-description"><?=$stockSection==='overview'?'Your stock at a glance. Add, move and check balances without a long admin screen':($stockSection==='incoming'?'Supplier orders and stock that is on the way':($stockSection==='forecast'?'Plan ahead using available, incoming and expected recurring demand':'A complete recent audit of stock changes'))?>.</p></div><a class="quick-action stock-manage-link" href="?view=products"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 4v6M6 14v6"/></svg><span>Manage stock</span><b>›</b></a></div>
+<?php pageHeader('Stock control',['class'=>'stock-heading','action_href'=>'?view=products','action_label'=>'Manage stock →','action_class'=>'quick-action stock-manage-link']);?>
 <nav class="stock-workspace-nav stock-workspace-dock" aria-label="Stock sections">
  <a href="?view=stock" class="<?=$stockSection==='overview'?'selected':''?>">
   <span class="stock-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg></span><span class="stock-nav-copy"><strong>Overview</strong><small>Stock now</small></span>
@@ -5829,7 +5843,7 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 <?php if((int)($fridgeTotals['unallocated']??0)>0):?><div class="panel fridge-legacy-note"><strong><?=e($fridgeTotals['unallocated'])?> units need assigning</strong><span>These existing counts aren’t assigned to a fridge yet. Use Products to assign them to Jay or Tony.</span></div><?php endif;?>
 <?php endif;?>
 <?php if($stockSection==='incoming'):?>
-<div class="stock-subpage-heading"><a href="?view=stock">← Stock overview</a><div><p class="eyebrow">SUPPLIER STOCK</p><h2>Incoming stock</h2><p>Keep supplier orders separate from the stock you already have.</p></div></div>
+<?php pageHeader('Incoming stock',['class'=>'stock-subpage-heading','back_href'=>'?view=stock','back_label'=>'Stock overview']);?>
 <?php $backOrderIncomingByProduct=array_column(backOrderStockPlan($db,array_column($incomingProductBreakdown,null,'product_id')),null,'id');?>
 <section class="incoming-stock-section">
  <div class="incoming-stock-head"><div><p class="eyebrow">INCOMING STOCK</p><h2>Supplier orders</h2><p class="muted">Orders are entered in packs. One pack = 10 units.</p></div><div class="incoming-stock-total"><strong><?=$totalIncomingUnits?></strong><span>units incoming</span></div></div>
@@ -5954,7 +5968,7 @@ $stockBannerThreshold=max(0,(int)($sp['low_stock_at']??2));$stockBannerLow=(int)
 })();</script>
 <?php endif;?>
 <?php if($stockSection==='forecast'):?>
-<div class="stock-subpage-heading"><a href="?view=stock">← Stock overview</a><div><p class="eyebrow">STOCK PLANNING</p><h2>Potential stock needed</h2><p>Available + incoming stock compared with expected recurring demand.</p></div></div>
+<?php pageHeader('Potential stock needed',['class'=>'stock-subpage-heading','back_href'=>'?view=stock','back_label'=>'Stock overview']);?>
 <?php
 $stockForecastRange=forecastDateRange($retaToday,(string)($_GET['forecast']??'30'),(string)($_GET['from']??''),(string)($_GET['to']??''),[7,14,30,60,90]);
 $stockExpectedForecast=retaProjectionRange($retaForecastCycles,$stockForecastRange['start'],$stockForecastRange['end'],(bool)$stockForecastRange['include_overdue']);$stockExpectedRows=[];$stockExpectedRiskCount=0;
@@ -5991,7 +6005,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <script>(()=>{const button=document.querySelector('[data-stock-custom-toggle]'),form=document.querySelector('[data-stock-custom-form]');if(button&&form)button.addEventListener('click',()=>form.classList.toggle('open'))})();</script>
 <?php endif;?>
 <?php if($stockSection==='history'):?>
-<div class="stock-subpage-heading"><a href="?view=stock">← Stock overview</a><div><p class="eyebrow">STOCK AUDIT</p><h2>Movement history</h2><p>Every addition, transfer, correction, reservation and release in one place.</p></div></div>
+<?php pageHeader('Movement history',['class'=>'stock-subpage-heading','back_href'=>'?view=stock','back_label'=>'Stock overview']);?>
 <section class="panel stock-history"><div class="dashboard-panel-head"><div><p class="eyebrow">MOVEMENT HISTORY</p><h2>Recent stock changes</h2></div></div>
 <?php if($recentStockMovements):?><div class="stock-movement-list"><?php foreach($recentStockMovements as $move):
  $moveLabel=match($move['movement_type']){'opening'=>'Opening count','received'=>'Stock added','manual_add'=>'Quick stock added','manual_remove'=>'Quick stock removed','supplier_received'=>'Supplier stock received','count_adjustment'=>'Count correction','transfer_out'=>'Stock transferred out','transfer_in'=>'Stock transferred in','order_reserved'=>'Order reserved','order_release'=>'Reservation released','order_delivery'=>'Delivered order','order_edit'=>'Order allocation edited',default=>'Stock movement'};
@@ -6002,7 +6016,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php endif;?>
 <?php elseif($view==='fridge_jay'||$view==='fridge_tony'):
  $fridgePerson=$view==='fridge_jay'?'Jay':'Tony';$otherPerson=$fridgePerson==='Jay'?'Tony':'Jay';$fridgeKey=strtolower($fridgePerson);$fridgeColumn=stockLocationColumn($fridgePerson);$personAvailable=(int)($fridgeTotals[$fridgeKey]??0);$personReserved=(int)($fridgeReservedTotals[$fridgeKey]??0);$personPhysical=$personAvailable+$personReserved;$fridgeProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));$untrackedFridgeProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)!==1&&(int)($p['active']??0)===1));$personMovements=array_slice($stockMovementsByLocation[$fridgePerson]??[],0,30);?>
-<div class="heading fridge-page-heading"><div><a class="fridge-back-link" href="?view=stock">Back to Stock control</a><p class="eyebrow"><?=$fridgePerson==='Jay'?'JAY’S INVENTORY':'TONY’S INVENTORY'?></p><h1><?=$fridgePerson?>’s fridge</h1><p class="muted page-description">Balances, transfers and a complete recent audit for this fridge.</p></div><a class="quick-action" href="?view=fridge_<?=strtolower($otherPerson)?>">View <?=e($otherPerson)?>’s fridge</a></div>
+<?php pageHeader($fridgePerson.'’s fridge',['class'=>'fridge-page-heading','back_href'=>'?view=stock','back_label'=>'Stock control','action_href'=>'?view=fridge_'.strtolower($otherPerson),'action_label'=>'View '.$otherPerson.'’s fridge','action_class'=>'quick-action']);?>
 <div class="fridge-person-hero fridge-person-<?=strtolower($fridgePerson)?>"><div class="fridge-hero-main"><span>PHYSICAL STOCK</span><strong><?=max(0,$personPhysical)?></strong><small>units physically in this fridge</small></div><div class="fridge-hero-breakdown"><span><b><?=$personReserved?></b>Reserved</span><span><b><?=max(0,$personAvailable)?></b>Available</span></div><p>Saved orders are already included in Physical but removed from Available.</p></div>
 <div class="fridge-page-actions"><a href="?view=stock" class="button">+ Add stock</a><a href="?view=stock" class="quick-action">Move between fridges</a></div>
 <div class="fridge-screen-list fridge-balance-list">
@@ -6031,7 +6045,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php else:?><p class="muted">No stock movements recorded for this fridge yet.</p><?php endif;?></section>
 <script>(()=>{document.querySelectorAll('[data-pack-form]').forEach(form=>form.querySelectorAll('[data-pack-qty]').forEach(button=>button.addEventListener('click',()=>{const input=form.querySelector('[data-pack-quantity]');if(input&&!input.disabled)input.value=Math.min(Number(button.dataset.packQty),Number(input.max||999999))})))})();</script>
 <?php elseif($view==='sheets'):?>
-<div class="heading"><div><h1>Google Sheets</h1><p class="muted page-description">Order backup and reporting connection.</p></div></div>
+<?php pageHeader('Google Sheets');?>
 <section class="panel">
 <h2>ANKH Admin Orders</h2>
 <p><a class="button" target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/<?=e($sheetId)?>/edit">Open Google Sheet ↗</a></p>
@@ -6060,7 +6074,7 @@ foreach($balanceAccounts as $balanceAccount)$customerOutstandingByKey[(string)$b
 foreach($retaCyclesActive as $customerCycle){$cycleKey=strtolower(trim((string)$customerCycle['customer_name'])).'|'.trim((string)$customerCycle['phone']);$customerRecurringKeys[$cycleKey]=true;}
 $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiveKey=strtolower(trim((string)$inactiveCustomer['name'])).'|'.trim((string)$inactiveCustomer['phone']);$inactiveHistory=$customerOrderHistory[$inactiveKey]??[];$inactiveLast=$inactiveHistory[0]??null;if($inactiveLast && strtotime((string)$inactiveLast['created'])<strtotime('-60 days'))$inactiveCustomerCount++;}
 ?>
-<div class="heading customer-heading"><div><h1>Customers</h1><p class="muted page-description">Search, contact or start another order.</p></div><div class="customer-heading-actions"><a class="quick-action customer-balances-link" href="?view=balances">Balances<?php if($balancesTotalOutstanding>0):?> · <?=money($balancesTotalOutstanding)?><?php endif;?></a><button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button></div></div>
+<?php pageHeader('Customers',['class'=>'customer-heading','action_html'=>'<button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button>']);?><p class="page-inline-link"><a class="quick-action customer-balances-link" href="?view=balances">Balances<?php if($balancesTotalOutstanding>0):?> · <?=money($balancesTotalOutstanding)?><?php endif;?></a></p>
 <div class="customer-page-filters"><label>Search customers<input id="customer-page-search" type="search" placeholder="Name, phone, address or product"></label><label>Show<select id="customer-status-filter"><option value="active">Active</option><option value="archived">Archived</option><option value="all">All</option></select></label></div>
 <div class="customer-intelligence-filters" role="group" aria-label="Customer intelligence filters"><button type="button" class="selected" data-customer-insight="all">All</button><button type="button" data-customer-insight="top">Top customers</button><button type="button" data-customer-insight="inactive">Inactive 60+ days <b><?=$inactiveCustomerCount?></b></button><button type="button" data-customer-insight="outstanding">Outstanding balance <b><?=count($customerOutstandingByKey)?></b></button><button type="button" data-customer-insight="recurring">Recurring <b><?=count($customerRecurringKeys)?></b></button></div>
 <p class="ux-result-count" id="ux-customer-visible" role="status" aria-live="polite"></p>
@@ -6093,7 +6107,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;?>
 
 <?php elseif($view==='balances'):?>
-<div class="heading balances-heading"><div><p class="eyebrow">MONEY OWED</p><h1>Customer balances</h1><p class="muted page-description">Outstanding customer balances and payment history.</p></div><a class="quick-action" href="?view=customers">Customers →</a></div>
+<?php pageHeader('Customer balances',['class'=>'balances-heading','action_href'=>'?view=customers','action_label'=>'Customers →','action_class'=>'quick-action']);?>
 <section class="balances-hero">
  <div><span>Total outstanding</span><strong><?=money($balancesTotalOutstanding)?></strong><small><?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?> currently owe money</small></div>
  <div><span>Paid towards open orders</span><strong><?=money($balancesTotalPaid)?></strong><small>Partial payments already received</small></div>
@@ -6155,7 +6169,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 
 <?php elseif($view==='customer'):?>
 <?php if(!$customerAccount):?>
-<div class="heading"><div><h1>Customer account</h1></div><a class="quick-action" href="?view=customers">← Customers</a></div><p class="error">That customer could not be found.</p>
+<?php pageHeader('Customer account',['back_href'=>'?view=customers','back_label'=>'Customers']);?><p class="error">That customer could not be found.</p>
 <?php else:
  $accountKey=strtolower(trim((string)$customerAccount['name'])).'|'.trim((string)$customerAccount['phone']);$accountHistory=$customerOrderHistory[$accountKey]??[];
  $accountPaid=array_values(array_filter($accountHistory,fn($o)=>in_array($o['status'],$paidStatuses,true)));$accountPaidCount=count($accountPaid);
@@ -6185,17 +6199,8 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
  }
 ?>
 <section class="customer-profile">
- <div class="customer-profile-head">
-  <div class="customer-profile-identity">
-   <span class="customer-avatar" aria-hidden="true"><?=e(customerInitials((string)$customerAccount['name']))?></span>
-   <div class="customer-profile-copy">
-    <p class="eyebrow">CUSTOMER ACCOUNT</p>
-    <h1><?=e($customerAccount['name'])?></h1>
-    <p class="muted"><?=e($customerAccount['phone']?:'No phone saved')?> · Pricing: <?=e(['standard'=>'Standard','family_friends'=>'Family & Friends','free'=>'Free'][(string)$customerAccount['pricing_type']]??'Standard')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p>
-   </div>
-  </div>
-  <a class="quick-action customer-profile-back" href="?view=customers">← Customers</a>
- </div>
+ <?php pageHeader($customerAccount['name'],['back_href'=>'?view=customers','back_label'=>'Customers']);?>
+ <p class="customer-profile-meta muted"><?=e($customerAccount['phone']?:'No phone saved')?> · Pricing: <?=e(['standard'=>'Standard','family_friends'=>'Family & Friends','free'=>'Free'][(string)$customerAccount['pricing_type']]??'Standard')?><?php if($customerAccount['archived']):?> · Archived<?php endif;?></p>
  <div class="customer-profile-tiles">
   <article><span>Total spend</span><strong><?=money($accountTotalSpend)?></strong></article>
   <article><span>Orders</span><strong><?=$accountOrderCount?></strong></article>
@@ -6262,7 +6267,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php endif;?>
 
 <?php elseif($view==='reta'):?>
-<div class="heading reta-heading"><div><p class="eyebrow">CYCLE PLANNER</p><h1>Upcoming cycles</h1><p class="muted page-description">Customers who may be ready for their next peptide order.</p></div><a class="quick-action" href="?view=dashboard">← Dashboard</a></div>
+<?php pageHeader('Upcoming cycles',['class'=>'reta-heading','back_href'=>'?view=dashboard','back_label'=>'Dashboard']);?>
 
 <div class="cycle-horizon-tabs"><?php foreach([4,5,8,12] as $weeks):?><a href="?view=reta&amp;weeks=<?=$weeks?>" class="<?=$cycleHorizonWeeks===$weeks?'selected':''?>"><?=$weeks?> weeks</a><?php endforeach;?></div>
 
@@ -6330,7 +6335,7 @@ if($reportType==='productorders'){$reportExportParams['product']=$reportProductN
 $reportExportUrl='?'.http_build_query($reportExportParams);
 $reportMovementExportUrl='?'.http_build_query(array_merge($reportExportParams,['export'=>'stock-movements']));
 ?>
-<div class="heading"><div><h1><?=$view==='reorder'?'Reorder planner':'Reports'?></h1><p class="muted page-description"><?=$view==='reorder'?'Suggested purchases based on available stock, recent sales and supplier pack sizes.':'Sales, products, customers, recurring orders and confirmed stock.'?></p></div><a class="quick-action" href="?view=more">← More</a></div>
+<?php pageHeader($view==='reorder'?'Reorder planner':'Reports',['back_href'=>'?view=more','back_label'=>'More']);?>
 <?php if($view==='reports'&&is_array($reportTakings)):?>
 <section class="takings-hero" id="report-takings" data-takings aria-labelledby="takings-heading">
  <div class="takings-head">
@@ -6850,7 +6855,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php elseif($view==='supplier'):?>
 <?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
 <?php elseif($view==='activity'):?>
-<div class="heading"><div><h1>Order &amp; payment activity</h1><p class="muted page-description">Recent recorded operational changes (test mode).</p></div><a class="quick-action" href="?view=more">← More</a></div>
+<?php pageHeader('Order & payment activity',['back_href'=>'?view=more','back_label'=>'More']);?>
 <section class="panel"><div class="activity-list">
 <?php $activityRows=$db->query("SELECT entity_type,entity_id,action,actor_name,details_json,created FROM activity_events ORDER BY id DESC LIMIT 100")->fetchAll(PDO::FETCH_ASSOC); ?>
 <?php foreach($activityRows as $entry):$detail=json_decode((string)$entry['details_json'],true)?:[];$orderTarget=$entry['entity_type']==='order'?(int)$entry['entity_id']:(int)($detail['order_id']??0);?>
@@ -6888,7 +6893,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(($_POST['action']??'')==='business_supply_save')foreach(array_keys($supplyForm) as $field)if(isset($_POST[$field])&&is_scalar($_POST[$field]))$supplyForm[$field]=(string)$_POST[$field];
  }
 ?>
-<div class="heading supplies-heading"><div><p class="eyebrow">YOUR SHARED SUPPLIES</p><h1>Business Supplies</h1><p class="muted page-description">Know what you need, where to buy it and who is handling it.</p></div><a class="button" href="?view=supplies&amp;section=<?=e($supplySection)?>&amp;<?=$supplySection==='purchases'?'new=1#supply-form':'new_item=1#cupboard-form'?>"><?=$supplySection==='purchases'?'+ Add purchase':($supplySection==='shopping'?'+ Add request':'+ Add supply')?></a></div>
+<?php pageHeader('Business Supplies',['class'=>'supplies-heading','action_href'=>'?view=supplies&section='.$supplySection.'&'.($supplySection==='purchases'?'new=1#supply-form':'new_item=1#cupboard-form'),'action_label'=>$supplySection==='purchases'?'+ Add purchase':($supplySection==='shopping'?'+ Add request':'+ Add supply')]);?>
 <div class="supply-top-links"><a class="quick-action" href="?view=more">← More</a><a class="quick-action" href="?view=reports&amp;type=outgoings">Outgoings report →</a></div>
 <div class="supply-section-tabs" role="navigation" aria-label="Business supplies sections"><?php foreach(['cupboard'=>'Supplies cupboard','shopping'=>'Shopping list','purchases'=>'Purchases'] as $key=>$label):?><a class="<?=$key===$supplySection?'selected':''?>" <?=$key===$supplySection?'aria-current="page"':''?> href="?view=supplies&amp;section=<?=$key?>"><?=e($label)?><span><?=$key==='cupboard'?count($cupboardActive):($key==='shopping'?count($cupboardShopping):count($supplyOpen))?></span></a><?php endforeach;?></div>
 <?php if($supplySection!=='purchases'):?>
@@ -6990,7 +6995,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <?php require_once __DIR__.'/business-alerts.php'; $businessPrefs=ankhAlertPrefs($db); 
 $alertRows=$db->query("SELECT o.id,o.customer,o.created,COALESCE(s.value,'') AS email_state FROM orders o LEFT JOIN settings s ON s.key='business_alert_new_order:'||o.id ORDER BY o.id DESC LIMIT 12")->fetchAll(PDO::FETCH_ASSOC);
 ?>
-<div class="heading"><div><h1>Business Alerts</h1><p class="muted page-description">Private email notifications for Jay and Tony, through Google Workspace.</p></div></div>
+<?php pageHeader('Business Alerts',['back_href'=>'?view=more','back_label'=>'More']);?>
 <?php if(isset($_GET['saved'])):?><p class="notice">Alert preferences saved.</p><?php endif;?>
 <?php if(isset($_GET['sent'])):?><p class="notice">Test emails accepted by Google. Check your inboxes.</p><?php endif;?>
 <?php if(isset($_GET['order_preview_sent'])):?><p class="notice">New-order preview sent to info@ankhpeptides.com. Check it in Gmail on your iPhone.</p><?php endif;?>
@@ -7060,7 +7065,7 @@ if($runRouteAddresses){
  $runRoute.='&destination='.rawurlencode($runRouteDestination);
 }
 ?>
-<div class="heading delivery-run-heading"><div><p class="eyebrow">DELIVERY RUN</p><h1>Today’s delivery run</h1><p class="muted page-description"><?=e($now->format('l j F'))?> · <?=count($runStopsData)?> stop<?=count($runStopsData)===1?'':'s'?></p></div><a class="button page-action" href="?view=dashboard">Back to Today</a></div>
+<?php pageHeader('Today’s delivery run',['class'=>'delivery-run-heading','back_href'=>'?view=dashboard','back_label'=>'Today']);?>
 <?php if(!$runStopsData):?>
 <section class="panel delivery-run-empty-state"><p role="status">Nothing to deliver today</p><a class="quick-action" href="?view=orders&amp;scope=to_deliver">View all deliveries →</a></section>
 <?php else:?>
@@ -7099,28 +7104,44 @@ if($runRouteAddresses){
 </section>
 <?php endif;?>
 <?php elseif($view==='more'):?>
-<div class="heading"><div><h1>More</h1><p class="muted page-description">Products, profit and integrations.</p></div></div>
+<?php pageHeader('More');?>
+<section class="more-group">
+<h2 class="more-group-heading">Sell</h2>
 <div class="more-grid">
-<a class="more-card" href="?view=run"><span class="more-icon">➤</span><div><h2>Delivery run</h2><p>Today’s stops, addresses, WhatsApp links and the full route.</p></div><b>›</b></a>
-<a class="more-card" href="?view=packing_centre"><span class="more-icon">▣</span><div><h2>Packing Centre</h2><p>Saved packing runs, combined picking sheets, packing slips and envelope labels.</p></div><b>›</b></a>
-<a class="more-card" href="?view=business_alerts"><span class="more-icon">✉</span><div><h2>Business Alerts</h2><p>Email reminders to Jay and Tony, daily summaries, low stock and deliveries.</p></div><b>›</b></a>
-<a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping Intelligence</h2><p>China holidays, disruption countdowns and mobile-friendly stock protection forecasts.</p></div><b>›</b></a>
-<a class="more-card" href="?view=activity"><span class="more-icon">≡</span><div><h2>Order &amp; payment activity</h2><p>Review recent changes to orders, payments, preparation and deliveries.</p></div><b>›</b></a>
-<a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2><p><?=money($balancesTotalOutstanding)?> currently outstanding across <?=count($balanceAccounts)?> customer<?=count($balanceAccounts)===1?'':'s'?>.</p></div><b>›</b></a>
-<a class="more-card" href="?view=enquiries"><span class="more-icon">✉</span><div><h2>Customer enquiries</h2><p>Read product questions, reply and manage their status.</p></div><b>›</b></a>
-<a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2><p>Prices, supplier costs and availability.</p></div><b>›</b></a>
-<a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; Profit Centre</h2><p>Supplier box prices, margins, combined purchases and incoming stock.</p></div><b>›</b></a>
-<a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2><p>See what’s running low and suggested supplier pack quantities.</p></div><b>›</b></a>
-<a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2><p>Opening counts, receipts, adjustments and movement history.</p></div><b>›</b></a>
-<a class="more-card" href="?view=supplies"><span class="more-icon">▤</span><div><h2>Business Supplies</h2><p>Labels, ink, envelopes and other purchases. Suppliers, tracking and outgoings.</p></div><b>›</b></a>
-<a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit & reports</h2><p>Sales, costs, fees, profit and product performance.</p></div><b>›</b></a>
-<a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle Planner</h2><p>Recurring order calendar, demand forecast, projected profit and stock needed.</p></div><b>›</b></a>
-<a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2><p>Connection, sync and reporting setup.</p></div><b>›</b></a>
+<a class="more-card" href="?view=run"><span class="more-icon">➤</span><div><h2>Delivery run</h2></div><b>›</b></a>
+<a class="more-card" href="?view=packing_centre"><span class="more-icon">▣</span><div><h2>Packing Centre</h2></div><b>›</b></a>
+<a class="more-card" href="?view=reta"><span class="more-icon">↻</span><div><h2>Cycle planner</h2></div><b>›</b></a>
+</div>
+</section>
+<section class="more-group">
+<h2 class="more-group-heading">Stock</h2>
+<div class="more-grid">
+<a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2></div><b>›</b></a>
+<a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; profit</h2></div><b>›</b></a>
+<a class="more-card" href="?view=reorder"><span class="more-icon">↗</span><div><h2>Reorder planner</h2></div><b>›</b></a>
+<a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2></div><b>›</b></a>
+</div>
+</section>
+<section class="more-group">
+<h2 class="more-group-heading">Money</h2>
+<div class="more-grid">
+<a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2></div><b>›</b></a>
+<a class="more-card" href="?view=supplies"><span class="more-icon">▤</span><div><h2>Business supplies</h2></div><b>›</b></a>
+<a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit &amp; reports</h2></div><b>›</b></a>
+</div>
+</section>
+<section class="more-group">
+<h2 class="more-group-heading">Admin</h2>
+<div class="more-grid">
+<a class="more-card" href="?view=business_alerts"><span class="more-icon">✉</span><div><h2>Business alerts</h2></div><b>›</b></a>
+<a class="more-card" href="?view=shipping"><span class="more-icon">◈</span><div><h2>Shipping intelligence</h2></div><b>›</b></a>
+<a class="more-card" href="?view=sheets"><span class="more-icon">▦</span><div><h2>Google Sheets</h2></div><b>›</b></a>
 </div>
 <div class="more-grid utility-grid">
-<section class="panel device-card"><span class="more-icon">⌂</span><div><h2>Install ANKH</h2><p>Add ANKH to your iPhone Home Screen for a full-screen app experience.</p></div><button type="button" id="install-ankh-app" class="quiet">Install / instructions</button><div id="install-ankh-help" class="install-help" hidden><strong>On iPhone</strong><p>Open this page in Safari, tap Share, then choose <b>Add to Home Screen</b>.</p></div></section>
-<section class="panel device-card"><span class="more-icon">◎</span><div><h2>Face ID / Passkey</h2><p>Use your iPhone passkey instead of entering the PIN on future sign-ins. PIN stays available as a fallback.</p><small><?=$passkeyCount?> passkey<?=$passkeyCount===1?'':'s'?> registered</small></div><button type="button" id="setup-passkey" class="quiet">Set up Face ID / Passkey</button><p id="setup-passkey-status" class="muted passkey-status"></p></section>
+<section class="panel device-card"><span class="more-icon">⌂</span><div><h2>Install ANKH</h2></div><button type="button" id="install-ankh-app" class="quiet">Install / instructions</button><div id="install-ankh-help" class="install-help" hidden><strong>On iPhone</strong><p>Open this page in Safari, tap Share, then choose <b>Add to Home Screen</b>.</p></div></section>
+<section class="panel device-card"><span class="more-icon">◎</span><div><h2>Face ID / Passkey</h2><small><?=$passkeyCount?> passkey<?=$passkeyCount===1?'':'s'?> registered</small></div><button type="button" id="setup-passkey" class="quiet">Set up Face ID / Passkey</button><p id="setup-passkey-status" class="muted passkey-status"></p></section>
 </div>
+</section>
 <?php if(!$testingNoAuth):?><form method="post" class="more-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?>
 
 <?php else:?>

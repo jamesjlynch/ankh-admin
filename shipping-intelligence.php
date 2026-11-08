@@ -264,9 +264,8 @@ $shipSelected=null;foreach($shippingEvents as $candidate){if($candidate['id']===
 $shipTotalAttention=$shipAtRisk+$shipNeedsCount;
 ?>
 <?php if($shipMode==='overview'):?>
-<div class="ship-head ship-head-compact">
- <div><div class="ship-kicker">Operations · Shipping</div><h1>Shipping Intelligence</h1><p class="ship-sub">China → United Kingdom</p></div>
- <a class="ship-back ship-head-back" href="?view=more" aria-label="Back to More">← More</a>
+<div class="heading page-header ship-head ship-head-compact">
+ <div class="page-header-main"><a class="page-header-back ship-back ship-head-back" href="?view=more">← More</a><h1>Shipping Intelligence</h1></div>
 </div>
 <nav class="ship-view-tabs" aria-label="Shipping Intelligence sections">
  <a href="?view=shipping" class="<?=$shipTab==='calendar'?'active':''?>" <?=$shipTab==='calendar'?'aria-current="page"':''?>>

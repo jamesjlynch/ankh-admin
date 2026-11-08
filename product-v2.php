@@ -66,7 +66,7 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
 <div class="product-v2-workspace">
  <nav class="product-v2-breadcrumb" aria-label="Breadcrumb"><a href="?view=products">Products</a><span aria-hidden="true">›</span><span><?=e($pvName)?></span></nav>
  <div class="product-v2-workspace-top">
-  <div><p class="eyebrow">ANKH / PRODUCT WORKSPACE</p><h1><?=e($pvName)?></h1><p class="muted">Prices, availability, reservations and order activity in one place.</p></div>
+  <div class="page-header-main"><h1><?=e($pvName)?></h1></div>
   <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end"><a class="product-v2-edit-link" href="?view=website_cms&amp;id=<?=$pvId?>#cms-edit">Edit website content <span aria-hidden="true">↗</span></a><a class="product-v2-edit-link" href="?view=products&amp;edit_product=<?=$pvId?>">Edit product settings <span aria-hidden="true">↗</span></a></div>
  </div>
  <section class="product-v2-hero" aria-label="Product overview">

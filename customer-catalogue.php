@@ -324,7 +324,7 @@ function ankhPortalCatalogueActions(PDO $store,PDO $admin,array $customer,bool $
     catch(Throwable $e){error_log('ANKH catalogue interaction: '.$e->getMessage());$GLOBALS['catalogueInteractionError']='Your request could not be saved. Please try again.';}
 }
 function ankhCustomerInbox(PDO $admin):void {
-    ?><div class="heading"><div><h1>Customer enquiries</h1><p class="muted">Product questions and replies. Staff preview tests are labelled separately.</p></div><a class="quick-action" href="?view=more">← More</a></div><?php
+    ?><div class="heading page-header"><div class="page-header-main"><h1>Customer enquiries</h1></div></div><?php
     try{$store=ankhCustomerInteractionStore();$rows=$store->query('SELECT * FROM catalogue_enquiries ORDER BY CASE status WHEN "Open" THEN 0 WHEN "Answered" THEN 1 ELSE 2 END,created_at DESC LIMIT 100')->fetchAll();foreach($rows as &$row)$row['lines']=ankhCustomerEnquiryLines($store,(int)$row['id']);unset($row);}
     catch(Throwable $e){error_log('ANKH customer inbox: '.$e->getMessage());?><div class="panel"><p>The customer inbox is temporarily unavailable. Please try again later.</p></div><?php return;}
     if(!$rows){?><div class="panel"><h2>No enquiries yet</h2><p>Customer product questions will appear here.</p></div><?php }
