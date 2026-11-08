@@ -29,6 +29,7 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
  $pvHasImage=(int)($pvContent['image_bytes']??0)>0;
  $pvTracked=(int)($productV2['stock_tracking']??0)===1;
  $pvActive=(int)($productV2['active']??0)===1;
+ $pvAdminHidden=(int)($productV2['admin_hidden']??0)===1;
  $pvPrice=(int)$productV2['price'];
  $pvFamily=$productV2['family_friends_price']===null?max(0,$pvPrice-500):(int)$productV2['family_friends_price'];
  $pvCost=$productV2['cost']===null?null:(int)$productV2['cost'];
@@ -67,7 +68,7 @@ if($productV2Id){foreach($products as $item){if((int)$item['id']===(int)$product
  <nav class="product-v2-breadcrumb" aria-label="Breadcrumb"><a href="?view=products">Products</a><span aria-hidden="true">›</span><span><?=e($pvName)?></span></nav>
  <div class="product-v2-workspace-top">
   <div class="page-header-main"><h1><?=e($pvName)?></h1></div>
-  <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end"><a class="product-v2-edit-link" href="?view=settings&amp;tab=website&amp;id=<?=$pvId?>#cms-edit">Edit website content <span aria-hidden="true">↗</span></a><a class="product-v2-edit-link" href="?view=catalogue&amp;edit_product=<?=$pvId?>#product-edit-<?=$pvId?>">Edit price &amp; settings <span aria-hidden="true">↗</span></a></div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end"><a class="product-v2-edit-link" href="?view=settings&amp;tab=website&amp;id=<?=$pvId?>#cms-edit">Edit website content <span aria-hidden="true">↗</span></a><a class="product-v2-edit-link" href="?view=catalogue&amp;edit_product=<?=$pvId?>#product-edit-<?=$pvId?>">Edit price &amp; settings <span aria-hidden="true">↗</span></a><form method="post" style="display:flex;align-items:center"><?php csrf();?><input type="hidden" name="action" value="product_admin_hidden"><input type="hidden" name="return" value="product"><input type="hidden" name="product_id" value="<?=$pvId?>"><input type="hidden" name="hidden" value="<?=$pvAdminHidden?'0':'1'?>"><button type="submit" class="quiet" style="min-height:44px"><?=$pvAdminHidden?'Show in admin':'Hide from admin (not stocked yet)'?></button></form></div>
  </div>
  <section class="product-v2-hero" aria-label="Product overview">
   <div class="product-v2-photo" aria-label="<?=e($pvName)?> product photograph">

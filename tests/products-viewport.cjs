@@ -15,11 +15,12 @@ const assert=require('node:assert/strict');
  const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`],{encoding:'utf8'});
  try{
   for(let i=0;i<60;i++){try{if((await fetch(host+'/?view=products',{headers:{'X-Ankh-Fixture-Auth':'yes'}})).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
-  sql(`$db->exec("INSERT INTO products(id,name,price,cost,family_friends_price,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty,low_stock_at,supplier_pack_size,active,is_accessory) VALUES(99001,'Alpha Cream 5mg',5000,1000,4000,1,2,1,1,4,5,10,1,0),(99002,'Beta Serum 10ml',3000,800,2500,1,20,10,5,35,5,10,1,0),(99003,'Gamma Oil',2000,500,1500,0,0,0,0,NULL,5,10,1,0),(99004,'Delta Hidden 5mg',1000,200,800,0,0,0,0,NULL,5,10,0,0),(99005,'UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890',1200,400,900,0,0,0,0,NULL,5,10,1,0),(99006,'Epsilon Out 5mg',1500,400,1200,1,0,0,0,0,5,10,1,0),(99007,'Accessory Vial Cap',800,200,600,1,10,0,0,10,5,10,1,1),(99008,'Category Beaker',1800,600,1300,0,0,0,0,NULL,5,10,1,0);INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(99001,1,'2026-01-01'),(99002,1,'2026-01-01'),(99003,0,'2026-01-01'),(99004,0,'2026-01-01'),(99005,1,'2026-01-01'),(99006,1,'2026-01-01'),(99007,1,'2026-01-01'),(99008,1,'2026-01-01');INSERT INTO catalogue_product_categories(product_id,category_id,updated_at) SELECT 99008,id,'2026-01-01' FROM catalogue_categories WHERE name='Petri Dishes' AND NOT EXISTS(SELECT 1 FROM catalogue_product_categories WHERE product_id=99008);");`);
+  sql(`$db->exec("INSERT INTO products(id,name,price,cost,family_friends_price,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty,low_stock_at,supplier_pack_size,active,is_accessory,admin_hidden) VALUES(99001,'Alpha Cream 5mg',5000,1000,4000,1,2,1,1,4,5,10,1,0,0),(99002,'Beta Serum 10ml',3000,800,2500,1,20,10,5,35,5,10,1,0,0),(99003,'Gamma Oil',2000,500,1500,0,0,0,0,NULL,5,10,1,0,0),(99004,'Delta Hidden 5mg',1000,200,800,0,0,0,0,NULL,5,10,1,0,1),(99005,'UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890',1200,400,900,0,0,0,0,NULL,5,10,1,0,0),(99006,'Epsilon Out 5mg',1500,400,1200,1,0,0,0,0,5,10,1,0,0),(99007,'Accessory Vial Cap',800,200,600,1,10,0,0,10,5,10,1,1,0),(99008,'Category Beaker',1800,600,1300,0,0,0,0,NULL,5,10,1,0,0);INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(99001,1,'2026-01-01'),(99002,1,'2026-01-01'),(99003,0,'2026-01-01'),(99004,0,'2026-01-01'),(99005,1,'2026-01-01'),(99006,1,'2026-01-01'),(99007,1,'2026-01-01'),(99008,1,'2026-01-01');INSERT INTO catalogue_product_categories(product_id,category_id,updated_at) SELECT 99008,id,'2026-01-01' FROM catalogue_categories WHERE name='Petri Dishes' AND NOT EXISTS(SELECT 1 FROM catalogue_product_categories WHERE product_id=99008);");`);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const page=await browser.newPage({viewport:{width:390,height:844},extraHTTPHeaders:{'X-Ankh-Fixture-Auth':'yes'}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const fixtureNames=['Beta Serum 10ml','Alpha Cream 5mg','Epsilon Out 5mg','Delta Hidden 5mg','Gamma Oil','UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890'];
+  const fixtureNames=['Beta Serum 10ml','Alpha Cream 5mg','Epsilon Out 5mg','Gamma Oil','UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890'];
+  const hiddenFixtureName='Delta Hidden 5mg';
   const visibleNames=()=>page.locator('.products-card').evaluateAll(nodes=>nodes.filter(node=>!node.hidden).map(node=>node.querySelector('.products-card-name').textContent.trim()));
   const fixtureVisible=async()=>(await visibleNames()).filter(name=>fixtureNames.includes(name));
   await page.goto(host+'/?view=products');
@@ -50,6 +51,34 @@ const assert=require('node:assert/strict');
   assert.deepEqual(await fixtureVisible(),['Epsilon Out 5mg'],'Out chip shows products with no available stock');
   await page.locator('[data-products-filter="all"]').click();
   assert.deepEqual(await fixtureVisible(),fixtureNames,'All chip restores every card');
+  assert.equal(await page.locator('.products-card',{hasText:hiddenFixtureName}).evaluate(node=>node.hidden),true,'Admin-hidden products are absent from All');
+  // Admin-hidden products live behind the Hidden chip and are restored with Show.
+  assert.equal((await page.locator('[data-products-filter="hidden"]').innerText()).trim(),'Hidden (1)','Hidden chip counts admin-hidden products');
+  await page.locator('[data-products-filter="hidden"]').click();
+  assert.deepEqual(await visibleNames(),[hiddenFixtureName],'Hidden chip shows only admin-hidden products');
+  assert.equal(await page.locator('.products-card[data-admin-hidden="1"]',{hasText:hiddenFixtureName}).count(),1,'Hidden card is shown in the Hidden view');
+  await page.goto(host+'/?view=new');
+  const hiddenPickerNames=await page.evaluate(()=>{try{return JSON.parse(document.querySelector('#ankh-visual-product-data').textContent||'[]').map(item=>item.name);}catch{return [];}});
+  assert(!hiddenPickerNames.includes(hiddenFixtureName),'Admin-hidden products are absent from the New order picker');
+  await page.goto(host+'/?view=products');
+  await page.locator('[data-products-filter="hidden"]').click();
+  await Promise.all([page.waitForNavigation(),page.locator('.products-card--hidden form.products-card-show button').click()]);
+  assert.match(page.url(),/view=products\b/,'Show returns to the Products grid');
+  assert((await visibleNames()).includes(hiddenFixtureName),'Show restores the product to All');
+  const shownFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT admin_hidden FROM products WHERE id=99004")->fetchColumn();`],{encoding:'utf8'}).trim();
+  assert.equal(shownFlag,'0','Show clears admin_hidden');
+  // The product page toggle round trips without touching any other field.
+  await page.goto(host+'/?view=product&id=99004');
+  await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Hide from admin (not stocked yet)'}).click()]);
+  assert.match(page.url(),/view=product\b/,'Product toggle returns to the product page');
+  assert.match(page.url(),/[?&]id=99004\b/,'Product toggle keeps the product id');
+  assert(await page.getByRole('button',{name:'Show in admin'}).isVisible(),'Product page offers Show once hidden');
+  const hiddenFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT admin_hidden FROM products WHERE id=99004")->fetchColumn();`],{encoding:'utf8'}).trim();
+  assert.equal(hiddenFlag,'1','Product page toggle sets admin_hidden');
+  await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Show in admin'}).click()]);
+  assert(await page.getByRole('button',{name:'Hide from admin (not stocked yet)'}).isVisible(),'Product page offers Hide once shown');
+  const restoredFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT admin_hidden FROM products WHERE id=99004")->fetchColumn();`],{encoding:'utf8'}).trim();
+  assert.equal(restoredFlag,'0','Product page toggle round trip restores admin_hidden');
   // Phone widths use two columns and never overflow.
   for(const width of [375,390,430]){
    await page.setViewportSize({width,height:844});
@@ -103,6 +132,8 @@ const assert=require('node:assert/strict');
   assert.equal(await page.getByRole('link',{name:'✎ Customer website CMS'}).count(),1,'Website CMS link is kept in catalogue');
   assert((await page.locator('input[name="is_accessory"]').count())>=1,'Accessory flag is available on product forms');
   assert.equal(await page.locator('#products-manage-add input[name="is_accessory"]').count(),1,'Add product form has the accessory flag');
+  assert.equal(await page.locator('#product-edit-99002 input[name="admin_hidden_present"]').count(),1,'Admin hidden flag uses the safe presence pattern on the product edit tile');
+  assert.equal(await page.locator('#product-edit-99002 input[name="admin_hidden"]').count(),1,'Admin hidden checkbox is available on the product edit tile');
   // The accessory checkbox saves through the existing product handler and removes the product from the grid.
   await page.goto(host+'/?view=catalogue');
   await page.locator('#product-edit-99001').evaluate(node=>{node.open=true;});
