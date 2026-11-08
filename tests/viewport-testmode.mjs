@@ -79,6 +79,16 @@ async function layout(page,label){
   check(personBox&&tabsBox&&tabsBox.y>=personBox.y+personBox.height+12,label+' needs 12px between person filter and status tabs '+JSON.stringify({personBox,tabsBox}));
   const worklistBox=await page.locator('.focus-worklist').boundingBox();
   check(tabsBox&&worklistBox&&worklistBox.y>=tabsBox.y+tabsBox.height+14,label+' needs 14px between status tabs and worklist '+JSON.stringify({tabsBox,worklistBox}));
+  const cards=page.locator('.focus-worklist .focus-order');
+  check(await cards.count()>0,label+' worklist cards missing');
+  for(const card of await cards.all()){
+   const cardBox=await card.boundingBox();
+   const contentBox=await card.locator('.focus-card-main').first().boundingBox();
+   check(cardBox&&contentBox&&contentBox.x>=cardBox.x+12,label+' card content touches the card edge '+JSON.stringify({cardBox,contentBox}));
+   check(await card.locator('a[aria-label="Open order"]').count()===1,label+' card chevron missing');
+   const summaryText=await card.locator(':scope > summary').innerText();
+   check(!summaryText.includes('£0.00'),label+' settled card shows a zero amount');
+  }
  }
  await page.goto(host+'/index.php?view=customers');
  check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');
@@ -107,6 +117,19 @@ try{
  execFileSync('php',['-r',insert],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
  for(const [width,height] of [[375,844],[390,844],[430,844],[768,1024],[820,1180],[1024,768],[1180,820],[1440,900]]){
   await page.setViewportSize({width,height});await page.goto(host+'/index.php?view=dashboard');await layout(page,width+'px');
+ }
+ await page.setViewportSize({width:390,height:844});
+ await page.goto(host+'/index.php?view=dashboard&layout=dispatch');
+ await page.locator('.focus-worklist.layout-dispatch').waitFor({state:'visible'});
+ check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'390px list layout horizontal overflow');
+ const listCards=page.locator('.focus-worklist.layout-dispatch .focus-order');
+ check(await listCards.count()>0,'390px list layout cards missing');
+ for(const card of await listCards.all()){
+  const cardBox=await card.boundingBox();
+  const contentBox=await card.locator('.focus-card-main').first().boundingBox();
+  check(cardBox&&cardBox.height>=56&&cardBox.height<=64,'390px list card must be 56-64px tall '+JSON.stringify(cardBox));
+  check(cardBox&&contentBox&&contentBox.x>=cardBox.x+12,'390px list card content touches the card edge '+JSON.stringify({cardBox,contentBox}));
+  check(await card.locator('a[aria-label="Open order"]').count()===1,'390px list card chevron missing');
  }
  await page.setViewportSize({width:820,height:1180});
  await page.goto(host+'/index.php?view=dashboard');

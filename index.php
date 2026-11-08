@@ -2089,14 +2089,22 @@ function backOrderControls(PDO $db,array $order):void{
  if(isBackOrder($order)){backOrderBanner($db,$order);backOrderPaymentAndRemoval($db,$order);return;}
  backOrderMoveForm($order,'backorders');
 }
-function orderStepIcon(string $name):string{
- $icons=[
+function ankhIcon(string $name):string{
+ static $icons=[
+  'calendar'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg>',
+  'hash'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 4 7 20M17 4l-2 16M4 9h16M3 15h16"/></svg>',
+  'person'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="8" r="3.5"/><path d="M5.2 20a7 7 0 0 1 13.6 0"/></svg>',
+  'chevron'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 5 7 7-7 7"/></svg>',
+  'check'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m5 12 4.5 4.5L19 7"/></svg>',
   'paid'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M14.6 8.5a3.1 3.1 0 0 0-5.2 2.3c0 1.6 1.1 2.6 1.1 3.7h-1.9m0 2.1h5m-5-4.2h4.4"/></svg>',
   'reconstituted'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 3h6M10 3v13a2 2 0 0 0 4 0V3"/><path d="M10 10h4"/></svg>',
   'packaged'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/></svg>',
-  'delivered'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9.5Z"/><path d="m9 14.5 2 2 4-4"/></svg>',
+  'delivered'=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h11v10H3zM14 9h4l3 3v4h-7z"/><circle cx="7" cy="18" r="1.8"/><circle cx="17.5" cy="18" r="1.8"/></svg>',
  ];
  return $icons[$name]??'';
+}
+function orderStepIcon(string $name):string{
+ return ankhIcon($name);
 }
 function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
  $surface=(string)($options['surface']??'orders');$now=$options['now']??new DateTimeImmutable('now',new DateTimeZone('Europe/London'));
@@ -4313,6 +4321,26 @@ function dashboardNextActionLabel(array $order):string{
  if($state==='packaged')return 'Next: deliver';
  return 'Review order';
 }
+function worklistCardTone(array $order,DateTimeImmutable $today):string{
+ $todayValue=$today->format('Y-m-d');$state=orderPreparationState($order);
+ $delivered=trim((string)($order['delivery_date']??''));$scheduled=trim((string)($order['scheduled_delivery_date']??''));
+ if($state==='closed'||$state==='packaged'||$delivered===$todayValue)return 'ready';
+ if($scheduled!==''&&$scheduled<=$todayValue)return 'action';
+ $balance=max(0,(int)($order['total']??0)-(int)($order['paid_amount']??0));
+ return $balance>0?'unpaid':'future';
+}
+function worklistNextStep(array $order):array{
+ $balance=max(0,(int)($order['total']??0)-(int)($order['paid_amount']??0));
+ $state=orderPreparationState($order);
+ if($state==='closed'){
+  if($balance>0)return ['key'=>'pay','icon'=>'paid','label'=>'Follow up'];
+  return ['key'=>'complete','icon'=>'check','label'=>'Complete'];
+ }
+ if($balance>0)return ['key'=>'pay','icon'=>'paid','label'=>'Pay'];
+ if($state==='reconstituted')return ['key'=>'package','icon'=>'packaged','label'=>'Package'];
+ if($state==='packaged')return ['key'=>'deliver','icon'=>'delivered','label'=>'Deliver'];
+ return ['key'=>'reconstitute','icon'=>'reconstituted','label'=>'Reconstitute'];
+}
 function dashboardOneTapActions(array $order,?DateTimeImmutable $today=null):void{
  $state=orderPreparationState($order);
  if($state==='closed')return;
@@ -4460,7 +4488,14 @@ function orderFocusStatuses(array $order):void{
  ?><p class="order-card-status"><?=e(orderCardStatusLine($order))?></p><?php
 }
 function deliveryScheduleTags(array $order,?DateTimeImmutable $today=null):void{
- ?><div class="delivery-schedule-tags"><span class="delivery-assignee <?=!empty($order['assigned_to'])?'assigned '.e(assigneeClass($order['assigned_to'])):'assignee-unassigned'?>"><?=e($order['assigned_to']?:'Unassigned')?></span></div><?php
+ $tz=new DateTimeZone('Europe/London');$today=($today??new DateTimeImmutable('today',$tz))->setTimezone($tz);
+ $todayValue=$today->format('Y-m-d');$delivered=trim((string)($order['delivery_date']??''));$scheduled=trim((string)($order['scheduled_delivery_date']??''));
+ if($delivered!=='')$dateLabel='Delivered '.date('j M',strtotime($delivered));
+ elseif($scheduled==='')$dateLabel='To arrange';
+ elseif($scheduled===$todayValue)$dateLabel='Today';
+ else $dateLabel='Planned '.date('j M',strtotime($scheduled));
+ $assignee=trim((string)($order['assigned_to']??''));
+ ?><div class="focus-card-meta"><span class="focus-meta-item"><?=ankhIcon('calendar')?><span><?=e($dateLabel)?></span></span><span class="focus-meta-item"><?=ankhIcon('hash')?><span>ANK-<?=str_pad((string)(int)($order['id']??0),4,'0',STR_PAD_LEFT)?></span></span><span class="focus-meta-item"><?=ankhIcon('person')?><span><?=e($assignee!==''?$assignee:'Unassigned')?></span></span></div><?php
 }
 function pageHeader(string $title,array $options=[]):void{
  $backHref=(string)($options['back_href']??'');$backLabel=(string)($options['back_label']??'Back');$class=trim('heading page-header '.(string)($options['class']??''));
@@ -5756,14 +5791,23 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
 </div></div>
 
 <div class="focus-worklist layout-<?=e($dashboardLayout)?>">
-<?php $lastGroup='';foreach($dashboardWork as $todo):$items=$todoItems[(int)$todo['id']]??[];$todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);$workGroup=dashboardWorkGroup($todo,$now->format('Y-m-d'));$delivered=orderPreparationState($todo)==='closed';?>
-<?php if($workGroup!==$lastGroup):?><h3 class="focus-group-heading"><?=e($workGroup)?></h3><?php $lastGroup=$workGroup;endif;?>
-<details class="todo-card todo-accordion focus-order" id="work-order-<?=(int)$todo['id']?>" data-focus-sheet data-order-card data-order-id="<?=(int)$todo['id']?>" data-order-outstanding="<?=$todoBalance?>" data-order-total="<?=(int)$todo['total']?>" data-order-client="<?=e(orderDisplayName($todo))?>" data-order-payment-method="<?=e($todo['payment_method']??'')?>" data-order-paid="<?=$todoBalance<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($todo)&&(string)($todo['status']??'')!=='Cancelled'&&((string)($todo['status']??'')==='Delivered'||trim((string)($todo['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($todo['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($todo)?'1':'0'?>">
+<?php $workGroupCounts=[];foreach($dashboardWork as $groupTodo){$groupKey=dashboardWorkGroup($groupTodo,$now->format('Y-m-d'));$workGroupCounts[$groupKey]=($workGroupCounts[$groupKey]??0)+1;}$lastGroup='';foreach($dashboardWork as $todo):$items=$todoItems[(int)$todo['id']]??[];$todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);$workGroup=dashboardWorkGroup($todo,$now->format('Y-m-d'));$cardTone=worklistCardTone($todo,$now);$nextStep=worklistNextStep($todo);?>
+<?php if($workGroup!==$lastGroup):?><h3 class="focus-group-heading"><span><?=e($workGroup)?></span><b><?=$workGroupCounts[$workGroup]??0?></b></h3><?php $lastGroup=$workGroup;endif;?>
+<details class="todo-card todo-accordion focus-order" data-worklist-tone="<?=e($cardTone)?>" id="work-order-<?=(int)$todo['id']?>" data-focus-sheet data-order-card data-order-id="<?=(int)$todo['id']?>" data-order-outstanding="<?=$todoBalance?>" data-order-total="<?=(int)$todo['total']?>" data-order-client="<?=e(orderDisplayName($todo))?>" data-order-payment-method="<?=e($todo['payment_method']??'')?>" data-order-paid="<?=$todoBalance<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($todo)&&(string)($todo['status']??'')!=='Cancelled'&&((string)($todo['status']??'')==='Delivered'||trim((string)($todo['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($todo['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($todo)?'1':'0'?>">
 <summary class="todo-accordion-summary"><span class="order-anchor" id="order-<?=(int)$todo['id']?>" aria-hidden="true"></span>
-<div class="focus-card-top"><span class="focus-order-ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?> · <?=e($workGroup)?></span><span class="order-card-due"><strong><?=money($todoBalance)?></strong><small>Due</small></span></div>
-<p class="operations-step-hint"><?=e(dashboardNextActionLabel($todo))?></p>
-<div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span data-ankh-product-name="<?=e($item['name'])?>"><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php orderFocusStatuses($todo);?></div>
-<div class="focus-card-footer"><?php deliveryScheduleTags($todo,$now);?><span class="focus-order-open">View order <span aria-hidden="true">↗</span></span></div>
+<div class="focus-card-layout">
+<div class="focus-card-main">
+<div class="focus-card-top"><h3><?=e(orderDisplayName($todo))?></h3><?php if($todoBalance>0):?><span class="focus-order-due"><?=money($todoBalance)?> due</span><?php else:?><span class="focus-order-paid"><?=ankhIcon('check')?><span>Paid</span></span><?php endif;?></div>
+<?php deliveryScheduleTags($todo,$now);?>
+<?php orderBuyerCaption($todo);?>
+<?php if($items):?><div class="todo-accordion-products"><?php foreach($items as $item):?><span data-ankh-product-name="<?=e($item['name'])?>"><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php endif;?>
+<?php orderFocusStatuses($todo);?>
+</div>
+<div class="focus-card-footer">
+<span class="focus-next-step focus-next-<?=e((string)$nextStep['key'])?>"><?=ankhIcon((string)$nextStep['icon'])?><span class="focus-next-label"><?=e((string)$nextStep['label'])?></span></span>
+<a class="focus-order-open" href="?view=edit&amp;id=<?=(int)$todo['id']?>" aria-label="Open order"><?=ankhIcon('chevron')?></a>
+</div>
+</div>
 </summary>
 <div class="todo-accordion-body focus-sheet-content">
 <?php renderOrderDetail($db,$todo,['surface'=>'dashboard','now'=>$now,'payment_methods'=>$paymentMethods,'statuses'=>$statuses]);?>

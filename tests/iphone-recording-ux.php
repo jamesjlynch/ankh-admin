@@ -17,7 +17,7 @@ function loadPresentationFunction(string $source,string $name):void{
  }
  throw new RuntimeException('Unclosed helper: '.$name);
 }
-foreach(['renderOrderDetail','orderStepIcon','backOrderControls','backOrderBanner','backOrderDetails','backOrderActivationForm','backOrderMoveForm','backOrderRemovalActions','orderCustomerAccountId','orderAssignedFridge','ukMobileWhatsApp','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','worklistPersonView','orderMatchesWorklistPerson','dashboardWorklistsForPerson','orderCardStatusLine','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
+foreach(['ankhIcon','orderStepIcon','renderOrderDetail','backOrderControls','backOrderBanner','backOrderDetails','backOrderActivationForm','backOrderMoveForm','backOrderRemovalActions','orderCustomerAccountId','orderAssignedFridge','ukMobileWhatsApp','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','worklistCardTone','worklistNextStep','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','worklistPersonView','orderMatchesWorklistPerson','dashboardWorklistsForPerson','orderCardStatusLine','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>'Lee'])==='Lee','Recipient should lead the card.');
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>' '])==='Morgan','Blank recipient should fall back to purchaser.');
 recordingCheck(dashboardQueueView(['payment'=>0,'delivery'=>2,'future'=>1])==='all','Default worklist must show all work.');
@@ -57,6 +57,11 @@ foreach(['cards','dispatch'] as $dashboardLayout)foreach(['all'=>6,'payment'=>5,
  recordingCheck(str_contains($html,'layout-'.$dashboardLayout),'Chosen layout must be rendered.');
  recordingCheck(str_contains($html,'?view=edit&amp;id='),'Every worklist must preserve editing access.');
  recordingCheck(str_contains($html,'Move to back orders'),'Every active worklist must expose the waiting-list action.');
+ recordingCheck(substr_count($html,'aria-label="Open order"')===$cards,'Each card must offer one chevron link that opens the order.');
+ recordingCheck(!str_contains($html,'View order')&&!str_contains($html,'Next: '),'Legacy loose link and next-step text must be gone.');
+ preg_match_all('/<summary.*?<\/summary>/s',$html,$summaries);recordingCheck(!str_contains(implode('',$summaries[0]),'£0.00'),'A settled card must not show a zero amount.');
+ if(array_filter($dashboardWork,fn($order)=>max(0,(int)$order['total']-(int)$order['paid_amount'])<=0))recordingCheck(str_contains($html,'class="focus-order-paid"'),'A settled card must show a paid pill.');
+ recordingCheck(str_contains($html,'focus-next-step'),'Cards must show a next-step pill.');
  if(in_array($dashboardQueue,['all','payment'],true)){
   recordingCheck(str_contains($html,'Delivered fixture'),'Delivered-unpaid work must remain visible.');
   preg_match('/id="work-order-3".*?<\/details>/s',$html,$match);

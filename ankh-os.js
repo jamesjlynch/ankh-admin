@@ -653,7 +653,6 @@
       '#ankh-main > header',
       '#ankh-main .today-hero',
       '#ankh-main .dashboard-stat-card',
-      '#ankh-main .focus-worklist .focus-order',
       '#ankh-main .dashboard-secondary',
       '#ankh-main .ux-mobile-actions a',
       '#ankh-main .panel',
@@ -696,7 +695,6 @@
     const skeletonSelector = [
       '#ankh-main .today-hero',
       '#ankh-main .dashboard-stat-card',
-      '#ankh-main .focus-worklist .focus-order',
       '#ankh-main .dashboard-secondary',
       '#ankh-main .panel',
       '#ankh-main .card',

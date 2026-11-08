@@ -4234,3 +4234,299 @@ body .admin-app-shell .fridge-overview-grid .combined-stock-head>i{
     width:auto;
   }
 }
+
+/* Today worklist order cards: padded dark surfaces with a state accent,
+   compact meta, one next-step pill and a chevron that opens the order. */
+.admin-app-shell .dashboard-action-queue .focus-worklist{
+  gap:10px;
+  margin-top:16px;
+  align-items:start;
+}
+.admin-app-shell .dashboard-action-queue .focus-group-heading{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  grid-column:1/-1;
+  margin:20px 0 8px;
+  color:var(--ankh-os-muted);
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.14em;
+  line-height:1.2;
+  text-transform:uppercase;
+}
+.admin-app-shell .dashboard-action-queue .focus-group-heading:first-child{margin-top:0}
+.admin-app-shell .dashboard-action-queue .focus-group-heading b{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:18px;
+  height:18px;
+  padding:0 5px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:999px;
+  background:rgba(255,255,255,.035);
+  color:var(--ankh-os-muted);
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:0;
+  line-height:1;
+}
+.admin-app-shell .dashboard-action-queue .focus-order.todo-card{
+  --work-accent:#6B7078;
+  margin:0;
+  min-width:0;
+  overflow:hidden;
+  border:1px solid var(--ankh-os-border);
+  border-left:3px solid var(--work-accent);
+  border-radius:16px;
+  background:var(--ankh-os-surface);
+  box-shadow:none;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+.admin-app-shell .dashboard-action-queue .focus-order[data-worklist-tone="action"]{--work-accent:var(--ankh-os-gold)}
+.admin-app-shell .dashboard-action-queue .focus-order[data-worklist-tone="unpaid"]{--work-accent:#E0A24A}
+.admin-app-shell .dashboard-action-queue .focus-order[data-worklist-tone="ready"]{--work-accent:#65C48B}
+.admin-app-shell .dashboard-action-queue .focus-order[data-worklist-tone="future"]{--work-accent:#6B7078}
+.admin-app-shell .dashboard-action-queue .focus-order>.todo-accordion-summary{
+  display:block;
+  padding:16px;
+  min-width:0;
+  cursor:pointer;
+}
+.admin-app-shell .dashboard-action-queue .focus-order[open]>.todo-accordion-summary{
+  background:rgba(255,255,255,.025);
+}
+.admin-app-shell .dashboard-action-queue .focus-card-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:10px;
+  min-width:0;
+}
+.admin-app-shell .dashboard-action-queue .focus-card-main{
+  display:grid;
+  gap:6px;
+  min-width:0;
+}
+.admin-app-shell .dashboard-action-queue .focus-card-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  min-width:0;
+  margin:0;
+}
+.admin-app-shell .dashboard-action-queue .focus-card-top h3{
+  min-width:0;
+  margin:0;
+  overflow:hidden;
+  color:var(--ankh-os-text);
+  font-size:17px;
+  font-weight:600;
+  letter-spacing:-.2px;
+  line-height:1.3;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.admin-app-shell .dashboard-action-queue .focus-order-due{
+  flex:0 0 auto;
+  color:#F0B45C;
+  font-size:13px;
+  font-weight:700;
+  font-variant-numeric:tabular-nums;
+  line-height:1.3;
+  white-space:nowrap;
+}
+.admin-app-shell .dashboard-action-queue .focus-order-paid{
+  display:inline-flex;
+  flex:0 0 auto;
+  align-items:center;
+  gap:4px;
+  padding:3px 8px;
+  border:1px solid rgba(101,196,139,.3);
+  border-radius:999px;
+  background:rgba(101,196,139,.14);
+  color:#8DDBA9;
+  font-size:11px;
+  font-weight:700;
+  line-height:1;
+  white-space:nowrap;
+}
+.admin-app-shell .dashboard-action-queue .focus-order-paid svg{width:12px;height:12px}
+.admin-app-shell .dashboard-action-queue .focus-card-meta{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:4px 12px;
+  min-width:0;
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  line-height:1.4;
+}
+.admin-app-shell .dashboard-action-queue .focus-meta-item{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-width:0;
+}
+.admin-app-shell .dashboard-action-queue .focus-meta-item svg{
+  flex:0 0 auto;
+  width:14px;
+  height:14px;
+  color:currentColor;
+}
+.admin-app-shell .dashboard-action-queue .focus-meta-item span{
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+.admin-app-shell .dashboard-action-queue .focus-order .order-buyer-caption{
+  margin:0;
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  line-height:1.4;
+}
+.admin-app-shell .dashboard-action-queue .focus-order .todo-accordion-products{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  margin:0;
+}
+.admin-app-shell .dashboard-action-queue .focus-order .todo-accordion-products span{
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  line-height:1.45;
+  overflow-wrap:anywhere;
+  white-space:normal;
+}
+.admin-app-shell .dashboard-action-queue .focus-order .order-card-status{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0 0 0 0);
+  border:0;
+  white-space:nowrap;
+}
+.admin-app-shell .dashboard-action-queue .focus-card-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  min-width:0;
+  margin:0;
+  padding:0;
+  border:0;
+}
+.admin-app-shell .dashboard-action-queue .focus-next-step{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:30px;
+  padding:4px 10px;
+  border:1px solid rgba(245,166,35,.3);
+  border-radius:999px;
+  background:rgba(245,166,35,.14);
+  color:var(--ankh-os-gold-bright);
+  font-size:12px;
+  font-weight:700;
+  line-height:1;
+  white-space:nowrap;
+}
+.admin-app-shell .dashboard-action-queue .focus-next-step svg{
+  flex:0 0 auto;
+  width:15px;
+  height:15px;
+}
+.admin-app-shell .dashboard-action-queue .focus-order-open{
+  display:inline-flex;
+  flex:0 0 auto;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  height:44px;
+  min-width:44px;
+  min-height:44px;
+  margin:-6px -6px -6px 0;
+  border-radius:12px;
+  color:var(--ankh-os-muted);
+  text-decoration:none;
+}
+.admin-app-shell .dashboard-action-queue .focus-order-open svg{width:20px;height:20px}
+.admin-app-shell .dashboard-action-queue .focus-order-open:hover,
+.admin-app-shell .dashboard-action-queue .focus-order-open:focus-visible{
+  background:rgba(255,255,255,.06);
+  color:var(--ankh-os-gold-bright);
+  outline:2px solid var(--ankh-os-gold);
+  outline-offset:2px;
+}
+.admin-app-shell .dashboard-action-queue .focus-worklist.layout-dispatch{
+  grid-template-columns:minmax(0,1fr);
+  gap:0;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-group-heading{
+  display:flex;
+  margin:20px 0 8px;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-group-heading:first-child{margin-top:0}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-order.todo-card{
+  border:0;
+  border-left:3px solid var(--work-accent);
+  border-bottom:1px solid var(--ankh-os-border);
+  border-radius:0;
+  background:transparent;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-order>.todo-accordion-summary{
+  min-height:60px;
+  padding:8px 10px!important;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-card-layout{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-height:44px;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-card-main{
+  display:flex;
+  flex:1 1 auto;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-card-top{
+  flex:1 1 auto;
+  align-items:center;
+  gap:10px;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-card-top h3{font-size:15px}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-card-meta,
+.admin-app-shell .dashboard-action-queue .layout-dispatch .order-buyer-caption,
+.admin-app-shell .dashboard-action-queue .layout-dispatch .todo-accordion-products,
+.admin-app-shell .dashboard-action-queue .layout-dispatch .order-card-status{
+  display:none;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-card-footer{
+  flex:0 0 auto;
+  gap:2px;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-next-step{
+  justify-content:center;
+  width:32px;
+  height:32px;
+  min-width:32px;
+  min-height:32px;
+  padding:0;
+  border-radius:9px;
+}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-next-label{display:none}
+.admin-app-shell .dashboard-action-queue .layout-dispatch .focus-order-open{
+  margin:0;
+  width:44px;
+  height:44px;
+}
+@media(max-width:760px){
+  .admin-app-shell .dashboard-action-queue .focus-order>.todo-accordion-summary{padding:16px}
+  .admin-app-shell .dashboard-action-queue .layout-dispatch .focus-order>.todo-accordion-summary{padding:8px 10px!important}
+}
