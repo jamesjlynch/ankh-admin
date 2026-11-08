@@ -3396,12 +3396,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='stock_quick_adjust'){
    $productId=(int)($_POST['product_id']??0);$delta=filter_var($_POST['delta']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));
-   if($productId<1||$delta===false||!in_array((int)$delta,[-10,-1,1,10],true)||!in_array($location,['Jay','Tony'],true))throw new Exception('Choose a valid quick stock adjustment.');
+   if($productId<1||$delta===false||!in_array((int)$delta,[-10,-1,1,10],true)||!in_array($location,['Jay','Tony','Unallocated'],true))throw new Exception('Choose a valid quick stock adjustment.');
    $column=stockLocationColumn($location);$q=$db->prepare("SELECT stock_tracking,{$column} AS available FROM products WHERE id=?");$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);
    if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');
    $before=(int)$product['available'];if((int)$delta<0&&$before<abs((int)$delta))throw new Exception('There is not enough available stock to remove that quantity. Orders already reserved are protected.');
    $db->beginTransaction();adjustProductStockAtLocation($db,$productId,$location,(int)$delta);
-   $movementType=(int)$delta>0?'manual_add':'manual_remove';$movementNote=(int)$delta>0?'Quick stock added to '.$location.'’s fridge':'Quick stock removed from '.$location.'’s fridge';
+   $movementType=(int)$delta>0?'manual_add':'manual_remove';$locationLabel=$location==='Unallocated'?'Holding stock':$location.'’s fridge';$movementNote=(int)$delta>0?'Quick stock added to '.$locationLabel:'Quick stock removed from '.$locationLabel;
    addStockMovement($db,$productId,$movementType,(int)$delta,$movementNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-(int)$delta],[$location=>$movementId],true,$movementType,'Quick stock change');
   }
   if($action==='stock_fridge_counts'){
@@ -3427,11 +3427,11 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   }
   if($action==='stock_count'){
    $productId=(int)($_POST['product_id']??0);$counted=filter_var($_POST['counted_qty']??'',FILTER_VALIDATE_INT);$location=stockLocationName((string)($_POST['location']??''));$note=trim((string)($_POST['note']??''));
-   if($productId<1||$counted===false||$counted<0||$counted>999999||!in_array($location,['Jay','Tony'],true)||strlen($note)>500)throw new Exception('Enter a valid fridge stock count.');
-   $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');
+   if($productId<1||$counted===false||$counted<0||$counted>999999||!in_array($location,['Jay','Tony','Unallocated'],true)||strlen($note)>500)throw new Exception('Enter a valid stock count.');
+   $q=$db->prepare('SELECT stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty FROM products WHERE id=?');$q->execute([$productId]);$product=$q->fetch(PDO::FETCH_ASSOC);if(!$product)throw new Exception('Product could not be found.');if((int)$product['stock_tracking']!==1)throw new Exception('Confirm an opening fridge count first.');
    $column=stockLocationColumn($location);$before=(int)$product[$column];$reserved=activeReservedStock($db,$productId,$location);$beforePhysical=$before+$reserved;
    $available=(int)$counted-$reserved;$delta=$available-$before;
-   if($delta!==0){$countNote='Physical count corrected from '.$beforePhysical.' to '.(int)$counted.'; reservations preserved'.($note!==''?' · '.$note:'');$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,$available);addStockMovement($db,$productId,'count_adjustment',$delta,$countNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-$delta],[$location=>$movementId],true,'count_adjustment','Physical stock count');}
+   if($delta!==0){$locationLabel=$location==='Unallocated'?'Holding stock':$location.'’s fridge';$countNote='Physical count corrected from '.$beforePhysical.' to '.(int)$counted.' on '.$locationLabel.'; reservations preserved'.($note!==''?' · '.$note:'');$db->beginTransaction();setProductStockAtLocation($db,$productId,$location,$available);addStockMovement($db,$productId,'count_adjustment',$delta,$countNote,null,'','','',null,$location);$movementId=(int)$db->lastInsertId();$db->commit();rememberStockUndo($productId,[$location=>-$delta],[$location=>$movementId],true,'count_adjustment','Physical stock count');}
   }
   if($action==='stock_transfer'){
    $productId=(int)($_POST['product_id']??0);$quantity=filter_var($_POST['quantity']??'',FILTER_VALIDATE_INT);$from=stockLocationName((string)($_POST['from_location']??''));$to=stockLocationName((string)($_POST['to_location']??''));$note=trim((string)($_POST['note']??''));
@@ -4001,10 +4001,10 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  }
  if($action==='order' && $savedOrderId>0 && (string)($_POST['back_order']??'')==='1'){header('Location: ./?view=orders&section=backorders');exit;}
  if($action==='order' && $savedOrderId>0){header('Location: ./?view=saved&id='.$savedOrderId);exit;}
- $returnView=(string)($_POST['return']??'orders');$returnSection=(string)($_POST['return_section']??'');$returnWho=in_array((string)($_POST['return_who']??''),['jay','tony'],true)?(string)$_POST['return_who']:'';
+ $returnView=(string)($_POST['return']??'orders');$returnSection=(string)($_POST['return_section']??'');$returnWho=in_array((string)($_POST['return_who']??''),['jay','tony','holding'],true)?(string)$_POST['return_who']:'';
  if($returnView==='fridge_jay'||$returnView==='fridge_tony'){$returnWho=$returnView==='fridge_jay'?'jay':'tony';$returnView='stock';}
  elseif(in_array($returnView,['jay','tony'],true)){$returnWho=$returnView;$returnView='stock';}
- elseif($returnView==='stock'&&$returnWho===''&&in_array((string)($_GET['who']??''),['jay','tony'],true))$returnWho=(string)$_GET['who'];
+ elseif($returnView==='stock'&&$returnWho===''&&in_array((string)($_GET['who']??''),['jay','tony','holding'],true))$returnWho=(string)$_GET['who'];
  if($returnView==='supplies'&&in_array($returnSection,['cupboard','shopping','purchases'],true)){header('Location: ./?view=buying&tab=supplies&section='.$returnSection);exit;}
  if($action==='stock_fridge_counts'){
   $returnFilter=(($_POST['return_filter']??'')==='low')?'&filter=low':'';
@@ -5848,15 +5848,16 @@ document.querySelectorAll('[data-product-v2-photo]').forEach(img=>img.addEventLi
 </script>
 <?php elseif($view==='stock'):?>
 <?php $stockLowOnly=(($_GET['filter']??'')==='low');$stockInitialView=in_array($_GET['fridge']??'combined',['combined','jay','tony'],true)?(string)($_GET['fridge']??'combined'):'combined';
-$stockWho=in_array((string)($_GET['who']??'all'),['all','jay','tony'],true)?(string)($_GET['who']??'all'):'all';
+$stockWho=in_array((string)($_GET['who']??'all'),['all','jay','tony','holding'],true)?(string)($_GET['who']??'all'):'all';
 $trackedProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));
 if($stockLowOnly){$initialQty=fn($p)=>$stockInitialView==='combined'?(int)($p['stock_jay_qty']??0)+(int)($p['stock_tony_qty']??0):(int)($p[$stockInitialView==='jay'?'stock_jay_qty':'stock_tony_qty']??0);usort($trackedProducts,fn($a,$b)=>$initialQty($a)<=>$initialQty($b) ?: strcasecmp((string)$a['name'],(string)$b['name']));}
 $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incoming','forecast','history'],true)?(string)($_GET['section']??'overview'):'overview';?>
-<?php pageHeader($stockWho==='all'?'Stock control':($stockWho==='jay'?'Jay’s fridge':'Tony’s fridge'),['class'=>'stock-heading','action_href'=>'?view=products','action_label'=>'Manage stock →','action_class'=>'quick-action stock-manage-link']);?>
+<?php pageHeader($stockWho==='all'?'Stock control':($stockWho==='jay'?'Jay’s fridge':($stockWho==='tony'?'Tony’s fridge':'Holding stock')),['class'=>'stock-heading','action_href'=>'?view=products','action_label'=>'Manage stock →','action_class'=>'quick-action stock-manage-link']);?>
 <nav class="stock-who-switch" aria-label="Choose stock screen">
  <a href="?view=stock" class="<?=$stockWho==='all'?'selected':''?>" <?=$stockWho==='all'?'aria-current="page"':''?>>All</a>
  <a href="?view=stock&amp;who=jay" class="<?=$stockWho==='jay'?'selected':''?>" <?=$stockWho==='jay'?'aria-current="page"':''?>>Jay</a>
  <a href="?view=stock&amp;who=tony" class="<?=$stockWho==='tony'?'selected':''?>" <?=$stockWho==='tony'?'aria-current="page"':''?>>Tony</a>
+ <a href="?view=stock&amp;who=holding" class="<?=$stockWho==='holding'?'selected':''?>" <?=$stockWho==='holding'?'aria-current="page"':''?>>Holding</a>
 </nav>
 <?php if($stockWho==='all'):?>
 <nav class="stock-workspace-nav stock-workspace-dock" aria-label="Stock sections">
@@ -5941,7 +5942,7 @@ $stockSection=in_array((string)($_GET['section']??'overview'),['overview','incom
 </details>
 <?php endif;?>
 <div class="fridge-direct-links"><a href="?view=stock&amp;who=jay">Open Jay’s fridge <span>→</span></a><a href="?view=stock&amp;who=tony">Open Tony’s fridge <span>→</span></a><div><strong><?=max(0,(int)($fridgeTotals['unallocated']??0))?></strong><span>Holding stock</span></div></div>
-<?php if((int)($fridgeTotals['unallocated']??0)>0):?><div class="panel fridge-legacy-note"><strong><?=e($fridgeTotals['unallocated'])?> units need assigning</strong><span>These existing counts aren’t assigned to a fridge yet. Use Products to assign them to Jay or Tony.</span></div><?php endif;?>
+<?php if((int)($fridgeTotals['unallocated']??0)>0):?><div class="panel fridge-legacy-note"><strong>Holding stock · <?=e($fridgeTotals['unallocated'])?> units need assigning</strong><span>These counts aren’t assigned to a fridge yet. <a href="?view=stock&amp;who=holding">Open Holding stock to assign them →</a></span></div><?php endif;?>
 <?php endif;?>
 <?php if($stockSection==='incoming'):?>
 <?php pageHeader('Incoming stock',['class'=>'stock-subpage-heading','back_href'=>'?view=stock','back_label'=>'Stock overview']);?>
@@ -6115,6 +6116,24 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php endforeach;?></div><?php else:?><p class="muted">No stock movements yet. Count each fridge to start.</p><?php endif;?>
 </section>
 <?php endif;?>
+<?php elseif($stockWho==='holding'):?>
+<?php $holdingShowAll=(string)($_GET['show']??'')==='all';$holdingTracked=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));$holdingAvailable=(int)($fridgeTotals['unallocated']??0);$holdingReserved=(int)($fridgeReservedTotals['unallocated']??0);$holdingPhysical=$holdingAvailable+$holdingReserved;$holdingProducts=$holdingShowAll?$holdingTracked:array_values(array_filter($holdingTracked,fn($p)=>(int)($p['stock_unallocated_qty']??0)>0));?>
+<div class="fridge-person-hero fridge-person-holding"><div class="fridge-hero-main"><span>PHYSICAL STOCK</span><strong><?=max(0,$holdingPhysical)?></strong><small>units physically in holding</small></div><div class="fridge-hero-breakdown"><span><b><?=$holdingReserved?></b>Reserved</span><span><b><?=max(0,$holdingAvailable)?></b>Available</span></div><p>Delivered stock waiting to be assigned to Jay or Tony. Saved orders are already included in Physical but removed from Available.</p></div>
+<div class="holding-page-actions"><a href="?view=stock&amp;who=holding&amp;show=<?=$holdingShowAll?'holding':'all'?>" class="quick-action"><?=$holdingShowAll?'Show only products with holding':'Show all tracked products'?></a></div>
+<div class="holding-screen-list">
+<?php foreach($holdingProducts as $hp):$holdingQty=(int)($hp['stock_unallocated_qty']??0);$holdingReservedQty=(int)($reservedStockByProduct[(int)$hp['id']]['unallocated']??0);$holdingAvailableQty=max(0,$holdingQty);$holdingPhysicalQty=max(0,$holdingQty+$holdingReservedQty);$holdingCanMove=$holdingAvailableQty>0;?>
+<article class="holding-item-card">
+ <div class="holding-item-head"><div><h2><?=e($hp['name'])?></h2><small><?=money($hp['price'])?> retail</small></div><div class="holding-item-qty"><strong><?=$holdingAvailableQty?></strong><span>holding</span></div></div>
+ <div class="holding-balance"><span><small>Holding</small><b><?=$holdingAvailableQty?></b></span><?php if($holdingReservedQty>0):?><span><small>Reserved from holding</small><b><?=$holdingReservedQty?></b></span><?php else:?><span><small>Reserved</small><b>0</b></span><?php endif;?></div>
+ <?php if($holdingPhysicalQty>$holdingAvailableQty):?><p class="holding-short-note"><?=$holdingPhysicalQty-$holdingAvailableQty?> unit<?=$holdingPhysicalQty-$holdingAvailableQty===1?'':'s'?> reserved from holding. Only the available quantity can be moved.</p><?php endif;?>
+ <form method="post" class="holding-quick-adjust"><?php csrf();?><input type="hidden" name="action" value="stock_quick_adjust"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_who" value="holding"><input type="hidden" name="product_id" value="<?=(int)$hp['id']?>"><input type="hidden" name="location" value="Unallocated"><span>Quick stock</span><div><button type="submit" name="delta" value="-1" <?=$holdingAvailableQty<1?'disabled':''?>>−1</button><button type="submit" name="delta" value="1" class="add">+1</button><button type="submit" name="delta" value="10" class="add">+10</button></div></form>
+ <form method="post" class="holding-move-form" data-pack-form><?php csrf();?><input type="hidden" name="action" value="stock_transfer"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_who" value="holding"><input type="hidden" name="product_id" value="<?=(int)$hp['id']?>"><input type="hidden" name="from_location" value="Unallocated"><h3>Move from holding</h3><div class="holding-pack"><span>Quick</span><div><button type="button" data-pack-qty="10">10</button><button type="button" data-pack-qty="20">20</button></div></div><label>Quantity<input name="quantity" type="number" min="1" max="<?=max(1,$holdingAvailableQty)?>" value="<?=$holdingCanMove?$holdingAvailableQty:1?>" data-pack-quantity <?=$holdingCanMove?'':'disabled'?>></label><div class="holding-move-buttons"><button type="submit" name="to_location" value="Jay" <?=$holdingCanMove?'':'disabled'?>>→ Jay</button><button type="submit" name="to_location" value="Tony" <?=$holdingCanMove?'':'disabled'?>>→ Tony</button></div></form>
+ <details class="holding-count-details"><summary>Correct count</summary><form method="post" class="holding-count-form"><?php csrf();?><input type="hidden" name="action" value="stock_count"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_who" value="holding"><input type="hidden" name="product_id" value="<?=(int)$hp['id']?>"><input type="hidden" name="location" value="Unallocated"><p>Only use this after physically counting the holding shelf.</p><label>Counted holding qty<input name="counted_qty" type="number" min="0" max="999999" value="<?=$holdingPhysicalQty?>" required></label><label>Note <span>(optional)</span><input name="note" maxlength="500" placeholder="Count correction"></label><button class="quiet">Save correction</button></form></details>
+</article>
+<?php endforeach;?>
+<?php if(!$holdingProducts):?><div class="panel holding-empty"><h2>No holding stock<?=$holdingShowAll?' tracked':' waiting'?></h2><p><?=$holdingShowAll?'No tracked products yet. Add stock or count a product to start.':'Everything is assigned. Delivered stock will appear here until it is moved to Jay or Tony.'?></p></div><?php endif;?>
+</div>
+<script>(()=>{document.querySelectorAll('[data-pack-form]').forEach(form=>form.querySelectorAll('[data-pack-qty]').forEach(button=>button.addEventListener('click',()=>{const input=form.querySelector('[data-pack-quantity]');if(input&&!input.disabled)input.value=Math.min(Number(button.dataset.packQty),Number(input.max||999999))})))})();</script>
 <?php else:?>
 <?php $fridgePerson=$stockWho==='jay'?'Jay':'Tony';$fridgeWho=strtolower($fridgePerson);$otherPerson=$fridgePerson==='Jay'?'Tony':'Jay';$fridgeKey=strtolower($fridgePerson);$fridgeColumn=stockLocationColumn($fridgePerson);$personAvailable=(int)($fridgeTotals[$fridgeKey]??0);$personReserved=(int)($fridgeReservedTotals[$fridgeKey]??0);$personPhysical=$personAvailable+$personReserved;$fridgeProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));$untrackedFridgeProducts=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)!==1&&(int)($p['active']??0)===1));$personMovements=array_slice($stockMovementsByLocation[$fridgePerson]??[],0,30);?>
 <div class="fridge-person-hero fridge-person-<?=strtolower($fridgePerson)?>"><div class="fridge-hero-main"><span>PHYSICAL STOCK</span><strong><?=max(0,$personPhysical)?></strong><small>units physically in this fridge</small></div><div class="fridge-hero-breakdown"><span><b><?=$personReserved?></b>Reserved</span><span><b><?=max(0,$personAvailable)?></b>Available</span></div><p>Saved orders are already included in Physical but removed from Available.</p></div>

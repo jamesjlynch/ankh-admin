@@ -5862,3 +5862,60 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
  .stock-primary-action{min-height:44px}
  .stock-pack-picker button{min-height:44px}
 }
+
+/* Holding stock tab */
+.stock-who-switch{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fridge-person-hero.fridge-person-holding{border-color:#6b5a33;background:radial-gradient(ellipse at 12% 20%,#332b1a 0,transparent 55%),linear-gradient(140deg,#252117,#17191a)}
+.fridge-person-hero.fridge-person-holding>div span{font-size:12px}
+.fridge-legacy-note a{color:#f0cf83;font-weight:700;text-decoration:underline}
+.fridge-legacy-note a:hover{color:#ffe3a1}
+.holding-page-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.holding-page-actions .quick-action{min-height:44px;display:inline-flex;align-items:center;padding:10px 14px;font-size:13px}
+.holding-screen-list{display:grid;gap:11px}
+.holding-item-card{display:grid;gap:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(155deg,#1d1f20,#171819)}
+.holding-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.holding-item-head>div:first-child{min-width:0}
+.holding-item-head h2{margin:0 0 4px;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.holding-item-head small{color:var(--muted);font-size:12px}
+.holding-item-qty{display:flex;align-items:baseline;gap:6px;flex:none}
+.holding-item-qty strong{font-size:30px;line-height:1;color:#f2d58f}
+.holding-item-qty span{color:var(--muted);font-size:12px}
+.holding-balance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.holding-balance>span{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;padding:9px 10px;border:1px solid #303233;border-radius:10px;background:#141516}
+.holding-balance small{color:#b9b3a6;font-size:12px;font-weight:700;line-height:1.3}
+.holding-balance b{font-size:16px;color:#e3dfd7}
+.holding-short-note{margin:0;color:#d8a46b;font-size:12px;line-height:1.45}
+.holding-quick-adjust{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:10px;border:1px solid #2c2f30;border-radius:12px;background:#141617}
+.holding-quick-adjust>span{color:#c9c3b6;font-size:12px;font-weight:700}
+.holding-quick-adjust>div{display:flex;gap:6px}
+.holding-quick-adjust button{min-width:54px;min-height:44px;padding:8px 12px;border:1px solid #3a3c3e;border-radius:10px;background:#1c1e1f;color:#e5e0d7;font-size:14px;font-weight:700}
+.holding-quick-adjust button.add{border-color:#6d5a2e;color:#f0cf83}
+.holding-quick-adjust button:disabled{opacity:.45}
+.holding-move-form,.holding-count-form{display:grid;gap:9px;padding:11px;border:1px solid #2c2f30;border-radius:12px;background:#141617}
+.holding-move-form h3{margin:0;font-size:13px;color:#e4c879}
+.holding-move-form label,.holding-count-form label{display:grid;gap:5px;color:#c9c3b6;font-size:12px;font-weight:700}
+.holding-move-form input,.holding-count-form input{width:100%;min-height:44px;padding:9px 11px;border:1px solid #3a3d3e;border-radius:10px;background:#0f1112;color:#f4f0e8;font-size:16px}
+.holding-pack{display:flex;align-items:center;gap:8px}
+.holding-pack>span{color:#c9c3b6;font-size:12px;font-weight:700}
+.holding-pack>div{display:flex;gap:6px}
+.holding-pack button{min-width:54px;min-height:44px;padding:8px 12px;border:1px solid #3a3c3e;border-radius:10px;background:#1c1e1f;color:#e5e0d7;font-size:14px;font-weight:700}
+.holding-move-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.holding-move-buttons button{min-height:44px;padding:9px 12px;border:1px solid #6d5a2e;border-radius:10px;background:#221d12;color:#f0cf83;font-size:14px;font-weight:800}
+.holding-move-buttons button:disabled{opacity:.45}
+.holding-count-details{border-top:1px solid #292b2c;padding-top:10px}
+.holding-count-details>summary{min-height:44px;display:flex;align-items:center;justify-content:space-between;color:#dfc880;font-size:13px;font-weight:700;cursor:pointer;list-style:none}
+.holding-count-details>summary::-webkit-details-marker{display:none}
+.holding-count-details>summary:after{content:"＋";color:var(--gold);font-size:16px}
+.holding-count-details[open]>summary:after{content:"−"}
+.holding-count-details .holding-count-form{margin-top:9px}
+.holding-count-form p{margin:0;color:#b9b3a6;font-size:12px;line-height:1.45}
+.holding-count-form button{min-height:44px;font-size:14px}
+.holding-empty{padding:22px}
+.holding-empty h2{margin-top:0}
+@media(max-width:430px){
+ .holding-item-card{padding:12px;border-radius:14px}
+ .holding-balance{grid-template-columns:1fr}
+ .holding-quick-adjust>span{width:100%}
+ .holding-quick-adjust>div{width:100%}
+ .holding-quick-adjust button{flex:1;min-width:0}
+}

@@ -32,6 +32,7 @@ jobs:
           php -l setup.php
           php -l tests/future-delivery.php
           php -l tests/stock-shortfall.php
+          php -l tests/holding-stock.php
           php -l supplier-centre.php
           php -l shipping-intelligence.php
           php -l tests/shipping-intelligence.php
@@ -78,6 +79,8 @@ jobs:
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
         run: php tests/stock-shortfall.php
+      - name: Test holding stock moves and count corrections
+        run: php tests/holding-stock.php
       - name: Test supplier centre
         run: php tests/supplier-centre.php
       - name: Test supplier purchase into incoming stock
