@@ -56,7 +56,6 @@ async function layout(page,label){
   }
   const tabsOverflow=await page.locator('.dashboard-queue-tabs').evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth}));
   check(tabsOverflow.scrollWidth<=tabsOverflow.clientWidth+2,label+' status tabs overflow horizontally '+JSON.stringify(tabsOverflow));
-<<<<<<< HEAD
   const brief=page.locator('details.morning-brief');
   check(await brief.count()===1,label+' morning brief missing');
   check(await brief.evaluate(el=>!el.open),label+' morning brief must start collapsed');
@@ -76,12 +75,10 @@ async function layout(page,label){
   const openBriefWidth=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   check(openBriefWidth.scrollWidth<=openBriefWidth.width+2,label+' open morning brief horizontal overflow '+JSON.stringify(openBriefWidth));
   await briefSummary.click();
-=======
   const tabsBox=await page.locator('.dashboard-queue-tabs').boundingBox();
   check(personBox&&tabsBox&&tabsBox.y>=personBox.y+personBox.height+12,label+' needs 12px between person filter and status tabs '+JSON.stringify({personBox,tabsBox}));
   const worklistBox=await page.locator('.focus-worklist').boundingBox();
   check(tabsBox&&worklistBox&&worklistBox.y>=tabsBox.y+tabsBox.height+14,label+' needs 14px between status tabs and worklist '+JSON.stringify({tabsBox,worklistBox}));
->>>>>>> bddcb10 (Keep order actions in place and limit launch splash)
  }
  await page.goto(host+'/index.php?view=customers');
  check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');
