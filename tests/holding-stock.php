@@ -20,8 +20,12 @@ INSERT INTO products VALUES(1,'Retatrutide 20mg',1,'2026-10-01',0,0,25,25);
 INSERT INTO products VALUES(2,'Holding reserved 10mg',1,'2026-10-01',0,0,5,5);
 INSERT INTO products VALUES(3,'Empty holding 5mg',1,'2026-10-01',0,0,0,0);
 INSERT INTO products VALUES(4,'Untracked holding',0,'',0,0,4,4);
+INSERT INTO products VALUES(5,'Clear holding A',1,'2026-10-01',4,6,7,17);
+INSERT INTO products VALUES(6,'Clear holding B',1,'2026-10-01',9,2,5,16);
 INSERT INTO orders(id,status,delivery_date) VALUES(1,'Paid','');
-INSERT INTO stock_fulfilments VALUES(1,2,3,'Unallocated');");
+INSERT INTO orders(id,status,delivery_date) VALUES(2,'Paid','');
+INSERT INTO stock_fulfilments VALUES(1,2,3,'Unallocated');
+INSERT INTO stock_fulfilments VALUES(2,6,3,'Unallocated');");
 
 $fetchProduct=static function(int $id)use($db):array{return $db->query('SELECT * FROM products WHERE id='.$id)->fetch(PDO::FETCH_ASSOC);};
 $moves=static function(int $id)use($db):array{return $db->query('SELECT * FROM stock_movements WHERE product_id='.$id.' ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);};
@@ -40,6 +44,11 @@ $start=strpos($source,"  if(\$action==='stock_quick_adjust'){");
 $end=strpos($source,"  if(\$action==='stock_fridge_counts'){",$start);
 check($start!==false&&$end!==false,'Quick stock adjustment handler exists.');
 $quickHandler=substr($source,$start,$end-$start);
+
+$start=strpos($source,"  if(\$action==='holding_clear'){");
+$end=strpos($source,"  if(\$action==='supplier_order_edit'){",$start);
+check($start!==false&&$end!==false,'Clear holding handler exists.');
+$clearHandler=substr($source,$start,$end-$start);
 
 // Move holding -> Jay through the existing stock_transfer action.
 $action='stock_transfer';
@@ -111,6 +120,26 @@ $action='stock_transfer';$_POST=['product_id'=>'4','quantity'=>'1','from_locatio
 $threw=false;try{eval($transferHandler);}catch(Exception $ex){$threw=str_contains($ex->getMessage(),'Confirm an opening fridge count first');}
 check($threw,'Untracked products must not be transferred from holding.');
 
+// Clear all unreserved holding in one action: reserved fulfilments and both fridges stay untouched.
+$before1=$fetchProduct(1);$before5=$fetchProduct(5);$before6=$fetchProduct(6);
+$action='holding_clear';$_POST=['return'=>'stock','return_who'=>'holding'];
+eval($clearHandler);
+$row1=$fetchProduct(1);$row5=$fetchProduct(5);$row6=$fetchProduct(6);
+check($holdingClearedUnits===24,'Clear holding must report every removed unit.');
+check((int)$row5['stock_unallocated_qty']===0,'Clear holding must wipe unreserved holding.');
+check((int)$row5['stock_jay_qty']===(int)$before5['stock_jay_qty']&&(int)$row5['stock_tony_qty']===(int)$before5['stock_tony_qty'],'Clear holding must not change Jay or Tony quantities.');
+check((int)$row6['stock_unallocated_qty']===0,'Clear holding must wipe unreserved holding even when some units are reserved.');
+check((int)$row6['stock_unallocated_qty']+activeReservedStock($db,6,'Unallocated')===3,'Clear holding must leave physical holding equal to the reserved amount.');
+check((int)$db->query('SELECT COUNT(*) FROM stock_fulfilments WHERE product_id=6')->fetchColumn()===1,'Clear holding must preserve reservations.');
+check((int)$row6['stock_jay_qty']===(int)$before6['stock_jay_qty']&&(int)$row6['stock_tony_qty']===(int)$before6['stock_tony_qty'],'Clear holding must not change Jay or Tony quantities when holding is reserved.');
+check((int)$row1['stock_unallocated_qty']===0&&(int)$row1['stock_jay_qty']===(int)$before1['stock_jay_qty'],'Clear holding must wipe every product with unreserved holding.');
+check((int)$row5['stock_qty']===10&&(int)$row6['stock_qty']===11,'Clear holding must keep the aggregate stock total in step.');
+$clearMoves=$db->query("SELECT * FROM stock_movements WHERE note='Holding cleared' ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
+check(count($clearMoves)===3,'Clear holding must log one movement for each cleared product.');
+check($clearMoves[0]['movement_type']==='manual_remove'&&(int)$clearMoves[0]['quantity_change']===-12&&$clearMoves[0]['location']==='Unallocated','Clear holding movements must be logged at Unallocated.');
+check($clearMoves[1]['movement_type']==='manual_remove'&&(int)$clearMoves[1]['quantity_change']===-7,'Clear holding must log each product quantity.');
+check(!str_contains($clearHandler,'rememberStockUndo'),'A bulk holding clear must not offer a single-product undo.');
+
 // Presentation: fourth switch option, forms return to Holding, and cache version bumped.
 check(str_contains($source,'?view=stock&amp;who=holding'),'The stock switch must include a Holding option.');
 check(str_contains($source,'name="return_who" value="holding"'),'Holding forms must return to the Holding tab.');
@@ -119,9 +148,14 @@ check(str_contains($source,'class="fridge-overview-card fridge-holding"')&&str_c
 check(!str_contains($source,'class="fridge-direct-links"')&&!str_contains($source,'fridge-legacy-note"><strong>Holding stock'),'The All tab must not repeat Holding as separate links and a legacy note.');
 check(str_contains($source,'Counted holding qty'),'Holding cards must offer a count correction field.');
 check(str_contains($source,'from_location" value="Unallocated"'),'Holding move forms must transfer from Unallocated.');
+check(str_contains($source,'>Clear holding</button>'),'The Holding tab must offer a Clear holding action above the list.');
+check(str_contains($source,"onsubmit=\"return confirm('Set all holding stock to 0? Jay’s and Tony’s fridges are not changed.');\""),'Clear holding must ask for confirmation.');
+check(str_contains($source,"'holding_clear'=>'Holding cleared: '.(\$holdingClearedUnits??0).' units removed.'"),'Clear holding must have a flash message with the unit total.');
+check(str_contains($source,"'payment_add','payment_delete','holding_clear']"),'Clear holding must be in the audited actions list.');
 $sw=file_get_contents(dirname(__DIR__).'/service-worker.js');
 check((bool)preg_match("/ankh-shell-v[0-9]+-/",$sw),"The service worker cache name must be versioned.");
 $css=file_get_contents(dirname(__DIR__).'/style.css');
 check(str_contains($css,'.holding-item-card')&&str_contains($css,'.fridge-person-holding'),'Holding tab styles must exist.');
+check(str_contains($css,'.holding-clear-button{min-height:44px'),'The Clear holding action must be a 44px danger-style button.');
 check(str_contains($css,'.stock-who-switch{grid-template-columns:repeat(4'),'The stock switch must lay out four options.');
 echo "PASS: holding -> fridge moves, holding count corrections, quick adjustments, reservation guards and audit rows.\n";

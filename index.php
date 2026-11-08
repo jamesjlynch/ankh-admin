@@ -3497,7 +3497,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
  $action=$_POST['action']??'';
  // Snapshot only operational fields; do not store customer contact details in audit records.
- $auditedActions=['packing_pick','backorder_cancel','order_backorder','order','order_edit','order_delete','status','order_dates','delivery_mark','order_schedule','order_delivery_section','order_preparation','order_reconstituted','payment_add','payment_delete'];
+ $auditedActions=['packing_pick','backorder_cancel','order_backorder','order','order_edit','order_delete','status','order_dates','delivery_mark','order_schedule','order_delivery_section','order_preparation','order_reconstituted','payment_add','payment_delete','holding_clear'];
  $auditTrack=in_array((string)$action,$auditedActions,true);
  $auditOrderId=$auditTrack?(int)($_POST['id']??0):0;
  $auditPaymentBefore=null;
@@ -3679,6 +3679,18 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    }
    if(empty($undo['tracking_before']) && array_sum($nextByLocation)===0 && activeReservedStock($db,$productId,'Jay')===0 && activeReservedStock($db,$productId,'Tony')===0)$db->prepare("UPDATE products SET stock_tracking=0,stock_tracking_since='' WHERE id=?")->execute([$productId]);
    $db->commit();unset($_SESSION['stock_undo']);$_SESSION['flash']='Stock change undone.';header('Location: ./?view=stock');exit;
+  }
+  if($action==='holding_clear'){
+   $db->beginTransaction();$holdingClearedUnits=0;
+   $holdingClearRows=$db->query('SELECT id,stock_unallocated_qty FROM products WHERE stock_tracking=1 AND stock_unallocated_qty>0 ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+   foreach($holdingClearRows as $holdingClearRow){
+    $holdingClearProductId=(int)$holdingClearRow['id'];$holdingClearQty=(int)$holdingClearRow['stock_unallocated_qty'];
+    if($holdingClearQty<1)continue;
+    adjustProductStockAtLocation($db,$holdingClearProductId,'Unallocated',-$holdingClearQty);
+    addStockMovement($db,$holdingClearProductId,'manual_remove',-$holdingClearQty,'Holding cleared',null,'','','',null,'Unallocated');
+    $holdingClearedUnits+=$holdingClearQty;
+   }
+   $db->commit();
   }
   if($action==='supplier_order_edit'){
    editIncomingSupplierOrder($db,(int)($_POST['supplier_order_id']??0),$_POST);
@@ -4172,6 +4184,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   'supplier_order_cancel'=>'Supplier order cancelled.',
   'stock_fridge_counts'=>'Fridge totals saved; reserved orders were preserved.',
   'stock_count'=>'Physical stock count reconciled.',
+  'holding_clear'=>'Holding cleared: '.($holdingClearedUnits??0).' units removed.',
   'stock_untrack'=>'Product removed from Stock Control. Historical movements were kept.',
   'product_delete'=>'Product deleted.',
   'delivery_mark'=>orderBalancePence($db,(int)($_POST['id']??0))>0?'Delivery recorded; balance remains outstanding.':'Delivery recorded; no payment outstanding.',
@@ -6462,7 +6475,7 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 <?php elseif($stockWho==='holding'):?>
 <?php $holdingShowAll=(string)($_GET['show']??'')==='all';$holdingTracked=array_values(array_filter($stockProducts,fn($p)=>(int)($p['stock_tracking']??0)===1));$holdingAvailable=(int)($fridgeTotals['unallocated']??0);$holdingReserved=(int)($fridgeReservedTotals['unallocated']??0);$holdingPhysical=$holdingAvailable+$holdingReserved;$holdingProducts=$holdingShowAll?$holdingTracked:array_values(array_filter($holdingTracked,fn($p)=>(int)($p['stock_unallocated_qty']??0)>0));?>
 <div class="fridge-person-hero fridge-person-holding"><div class="fridge-hero-main"><span>PHYSICAL STOCK</span><strong><?=max(0,$holdingPhysical)?></strong><small>units physically in holding</small></div><div class="fridge-hero-breakdown"><span><b><?=$holdingReserved?></b>Reserved</span><span><b><?=max(0,$holdingAvailable)?></b>Available</span></div><p>Delivered stock waiting to be assigned to Jay or Tony. Saved orders are already included in Physical but removed from Available.</p></div>
-<div class="holding-page-actions"><a href="?view=stock&amp;who=holding&amp;show=<?=$holdingShowAll?'holding':'all'?>" class="quick-action"><?=$holdingShowAll?'Show only products with holding':'Show all tracked products'?></a></div>
+<div class="holding-page-actions"><a href="?view=stock&amp;who=holding&amp;show=<?=$holdingShowAll?'holding':'all'?>" class="quick-action"><?=$holdingShowAll?'Show only products with holding':'Show all tracked products'?></a><?php if($holdingAvailable>0):?><form method="post" class="holding-clear-form" onsubmit="return confirm('Set all holding stock to 0? Jay’s and Tony’s fridges are not changed.');"><?php csrf();?><input type="hidden" name="action" value="holding_clear"><input type="hidden" name="return" value="stock"><input type="hidden" name="return_who" value="holding"><button type="submit" class="holding-clear-button">Clear holding</button></form><?php endif;?></div>
 <div class="holding-screen-list">
 <?php foreach($holdingProducts as $hp):$holdingQty=(int)($hp['stock_unallocated_qty']??0);$holdingReservedQty=(int)($reservedStockByProduct[(int)$hp['id']]['unallocated']??0);$holdingAvailableQty=max(0,$holdingQty);$holdingPhysicalQty=max(0,$holdingQty+$holdingReservedQty);$holdingCanMove=$holdingAvailableQty>0;?>
 <article class="holding-item-card">

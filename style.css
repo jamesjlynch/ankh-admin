@@ -5871,6 +5871,9 @@ a.fridge-overview-card:hover{transform:translateY(-2px);border-color:#937640}
 .fridge-legacy-note a:hover{color:#ffe3a1}
 .holding-page-actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
 .holding-page-actions .quick-action{min-height:44px;display:inline-flex;align-items:center;padding:10px 14px;font-size:13px}
+.holding-clear-form{margin:0}
+.holding-clear-button{min-height:44px;display:inline-flex;align-items:center;padding:10px 14px;border:1px solid #6b3833;border-radius:10px;background:#2a1716;color:#e58d82;font-size:13px;font-weight:700;cursor:pointer}
+.holding-clear-button:hover,.holding-clear-button:focus-visible{background:#3a1d1b;border-color:#8c4740;color:#f0b0a6}
 .holding-screen-list{display:grid;gap:11px}
 .holding-item-card{display:grid;gap:12px;padding:14px;border:1px solid var(--border);border-radius:16px;background:linear-gradient(155deg,#1d1f20,#171819)}
 .holding-item-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
