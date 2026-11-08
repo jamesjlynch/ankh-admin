@@ -4530,3 +4530,14 @@ body .admin-app-shell .fridge-overview-grid .combined-stock-head>i{
   .admin-app-shell .dashboard-action-queue .focus-order>.todo-accordion-summary{padding:16px}
   .admin-app-shell .dashboard-action-queue .layout-dispatch .focus-order>.todo-accordion-summary{padding:8px 10px!important}
 }
+
+/* Worklist stage track (James 2026-11-08: see at a glance where each order is) */
+.focus-order .worklist-stage{display:flex;align-items:center;gap:10px;margin-top:10px;min-width:0}
+.focus-order .worklist-stage-track{display:flex;gap:4px;margin:0;padding:0;list-style:none;flex:0 0 auto}
+.focus-order .worklist-stage-track li{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;border:1px solid var(--ankh-os-border,rgba(255,255,255,.14));color:var(--muted,#8d8f94);background:transparent}
+.focus-order .worklist-stage-track li svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9}
+.focus-order .worklist-stage-track li.is-done{background:var(--gold,#dfb666);border-color:var(--gold,#dfb666);color:#16130c}
+.focus-order .worklist-stage-label{font-size:13px;font-weight:600;color:var(--muted,#8d8f94);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.focus-order .worklist-stage[data-stage="reconstituted"] .worklist-stage-label,.focus-order .worklist-stage[data-stage="packaged"] .worklist-stage-label{color:var(--gold,#dfb666)}
+.focus-order .worklist-stage[data-stage="delivered"] .worklist-stage-label{color:#7fd19b}
+.layout-dispatch .focus-order .worklist-stage{display:none}

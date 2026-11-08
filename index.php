@@ -4486,6 +4486,16 @@ function orderCardStatusLine(array $order):string{
  else $delivery='Not delivered';
  return $payment.' · '.$delivery;
 }
+function worklistStageTrack(array $order):void{
+ if(isBackOrder($order)||(string)($order['status']??'')==='Cancelled')return;
+ $delivered=(string)($order['status']??'')==='Delivered'||trim((string)($order['delivery_date']??''))!=='';
+ $packaged=$delivered||(int)($order['packaged']??0)===1;
+ $recon=$packaged||(int)($order['reconstituted']??0)===1;
+ $steps=[['reconstituted','Reconstituted',$recon],['packaged','Packaged',$packaged],['delivered','Delivered',$delivered]];
+ $label=$delivered?'Delivered':($packaged?'Packed · awaiting delivery':($recon?'Reconstituted · to package':'Not started'));
+ $stage=$delivered?'delivered':($packaged?'packaged':($recon?'reconstituted':'pending'));
+ ?><div class="worklist-stage" data-stage="<?=e($stage)?>" aria-label="Stage: <?=e($label)?>"><ol class="worklist-stage-track" aria-hidden="true"><?php foreach($steps as [$key,$name,$done]):?><li class="<?=$done?'is-done':''?>"><?=ankhIcon($key)?></li><?php endforeach;?></ol><span class="worklist-stage-label"><?=e($label)?></span></div><?php
+}
 function orderFocusStatuses(array $order):void{
  ?><p class="order-card-status"><?=e(orderCardStatusLine($order))?></p><?php
 }
@@ -5878,6 +5888,7 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
 <?php orderBuyerCaption($todo);?>
 <?php if($items):?><div class="todo-accordion-products"><?php foreach($items as $item):?><span data-ankh-product-name="<?=e($item['name'])?>"><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php endif;?>
 <?php orderFocusStatuses($todo);?>
+<?php worklistStageTrack($todo);?>
 </div>
 <div class="focus-card-footer">
 <span class="focus-next-step focus-next-<?=e((string)$nextStep['key'])?>"><?=ankhIcon((string)$nextStep['icon'])?><span class="focus-next-label"><?=e((string)$nextStep['label'])?></span></span>
