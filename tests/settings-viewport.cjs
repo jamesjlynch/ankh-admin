@@ -14,13 +14,13 @@ const {spawn,execFileSync}=require('node:child_process');const assert=require('n
   for(let i=0;i<60;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const page=await browser.newPage({viewport:{width:390,height:844},extraHTTPHeaders:{'X-Ankh-Fixture-Auth':'yes'}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const markers={sheets:'ANKH Admin Orders',website:'Customer website CMS',alerts:'Email recipients'};
+  const markers={sheets:'ANKH Admin Orders',website:'Customer website CMS',payments:'Payment details',alerts:'Email recipients'};
   for(const width of [375,390,430]){
    await page.setViewportSize({width,height:844});
    for(const [tab,marker] of Object.entries(markers)){
     await page.goto(host+'/?view=settings&tab='+tab);
     assert.equal(await page.locator('.settings-switch').count(),1,'Settings switch missing on '+tab);
-    assert.equal(await page.locator('.settings-switch a').count(),3,'Settings switch needs three tabs');
+    assert.equal(await page.locator('.settings-switch a').count(),4,'Settings switch needs four tabs');
     assert.equal((await page.locator('.settings-switch a[aria-current="page"]').innerText()).trim(),tab[0].toUpperCase()+tab.slice(1),'Wrong active Settings tab');
     assert.equal(await page.locator('main').getAttribute('data-view'),'settings','Settings screen must expose data-view="settings"');
     assert((await page.locator('main').innerText()).toLowerCase().includes(marker.toLowerCase()),'Missing '+tab+' settings content');
@@ -74,6 +74,6 @@ const {spawn,execFileSync}=require('node:child_process');const assert=require('n
   assert.equal(await page.locator('.more-card',{hasText:'Notifications'}).count(),1,'More needs one Notifications entry');
   assert.equal(await page.getByRole('button',{name:'Sign out'}).count(),1,'More must keep Sign out');
   assert.deepEqual(errors,[]);
-  console.log('PASS: Settings has Sheets/Website/Alerts at 375/390/430px with no overflow; legacy routes redirect and POSTs return to the matching tab; Notifications merges activity newest-first with 44px targets and the bell links there.');
+  console.log('PASS: Settings has Sheets/Website/Payments/Alerts at 375/390/430px with no overflow; legacy routes redirect and POSTs return to the matching tab; Notifications merges activity newest-first with 44px targets and the bell links there.');
  }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -22,7 +22,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_sqlite
+          extensions: pdo_sqlite, mbstring
       - name: Lint PHP
         run: |
           php -l auth-users.php
@@ -54,6 +54,7 @@ jobs:
           php -l tests/iphone-recording-ux.php
           php -l scripts/backup-sqlite.php
           php -l tests/operations-testmode.php
+          php -l tests/bank-details.php
           php -l tests/morning-brief.php
           php -l tests/backup-sqlite.php
       - name: Test individual admin authentication
@@ -120,6 +121,8 @@ jobs:
         run: php tests/operations-testmode.php
       - name: Test customer pricing and personal stock use
         run: php tests/customer-pricing.php
+      - name: Test bank details and payment reminder references
+        run: php tests/bank-details.php
       - name: Test private SQLite backup and integrity
         run: php tests/backup-sqlite.php
       - name: Check Bash rollback helpers

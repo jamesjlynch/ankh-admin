@@ -1514,6 +1514,48 @@ function setting(PDO $db,string $key,string $default=''):string{
 function saveSetting(PDO $db,string $key,string $value):void{
  $db->prepare('INSERT OR REPLACE INTO settings(key,value) VALUES (?,?)')->execute([$key,$value]);
 }
+function ankhBankSettings(PDO $db):array{
+ return [
+  'account_name'=>trim(setting($db,'bank_account_name','')),
+  'sort_code'=>trim(setting($db,'bank_sort_code','')),
+  'account_number'=>trim(setting($db,'bank_account_number','')),
+  'bank_name'=>trim(setting($db,'bank_name',''))
+ ];
+}
+function ankhBankSortCode(string $value):string{
+ $value=trim($value);
+ if(!preg_match('/^\d{2}[ -]?\d{2}[ -]?\d{2}$/',$value))return '';
+ $digits=preg_replace('/\D+/','',$value);
+ return substr($digits,0,2).'-'.substr($digits,2,2).'-'.substr($digits,4,2);
+}
+function ankhBankAccountNumber(string $value):string{
+ $value=trim($value);
+ if(!preg_match('/^\d{4}[ -]?\d{4}$/',$value))return '';
+ return preg_replace('/\D+/','',$value);
+}
+function ankhBankDetailsComplete(array $bank):bool{
+ return trim((string)($bank['account_name']??''))!==''
+  && ankhBankSortCode((string)($bank['sort_code']??''))!==''
+  && ankhBankAccountNumber((string)($bank['account_number']??''))!=='';
+}
+function ankhBankReminderReference(array $orders):string{
+ $references=[];
+ foreach($orders as $order){
+  $id=is_array($order)?(int)($order['id']??0):(int)$order;
+  if($id<1)continue;
+  $reference='ANK-'.str_pad((string)$id,4,'0',STR_PAD_LEFT);
+  if(!in_array($reference,$references,true))$references[]=$reference;
+  if(count($references)>=5)break;
+ }
+ return implode(', ',$references);
+}
+function ankhBankReminderFooter(array $bank,string $reference):string{
+ if(!ankhBankDetailsComplete($bank))return '';
+ $footer="\n\nPay by bank transfer:\nName: ".trim((string)$bank['account_name'])."\nSort code: ".ankhBankSortCode((string)$bank['sort_code'])."\nAccount: ".ankhBankAccountNumber((string)$bank['account_number']);
+ $reference=trim($reference);
+ if($reference!=='')$footer.="\nReference: ".$reference;
+ return $footer;
+}
 
 
 // Additive operations audit: never modify historical orders or payments.
@@ -3904,6 +3946,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
    if($url!==''&&!sheetsWebhookValid($url))throw new Exception('Paste the Google Apps Script Web App URL ending in /exec.');
    saveSetting($db,'sheets_webhook',$url);
   }
+  if($action==='bank_details_save'){
+   $bankAccountName=trim((string)($_POST['bank_account_name']??''));
+   $bankSortCode=ankhBankSortCode((string)($_POST['bank_sort_code']??''));
+   $bankAccountNumber=ankhBankAccountNumber((string)($_POST['bank_account_number']??''));
+   $bankName=trim((string)($_POST['bank_name']??''));
+   if($bankAccountName===''||mb_strlen($bankAccountName)>120)throw new Exception('Enter the account name, up to 120 characters.');
+   if($bankSortCode==='')throw new Exception('Enter a six-digit sort code in the format 00-00-00.');
+   if($bankAccountNumber==='')throw new Exception('Enter an eight-digit account number.');
+   if(mb_strlen($bankName)>120)throw new Exception('Enter a bank name up to 120 characters, or leave it blank.');
+   saveSetting($db,'bank_account_name',$bankAccountName);
+   saveSetting($db,'bank_sort_code',$bankSortCode);
+   saveSetting($db,'bank_account_number',$bankAccountNumber);
+   saveSetting($db,'bank_name',$bankName);
+   header('Location: ./?view=settings&tab=payments&saved=1',true,303);exit;
+  }
   if($action==='sheets_sync_all'){
    if(setting($db,'sheets_webhook')==='')throw new Exception('Connect the Google Apps Script Web App first.');
    $ids=$db->query('SELECT id FROM orders ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);$ok=0;$failed=0;
@@ -4013,7 +4070,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   header('Location: ./?view=stock'.$returnFilter.'&fridge='.urlencode($returnFridge).'#stock-product-'.(int)($_POST['product_id']??0));exit;
  }
  if($action==='product_catalogue_content' && in_array($returnView,['website_cms','settings'],true))header('Location: ./?view=settings&tab=website&id='.(int)($_POST['product_id']??0).'#cms-edit');
- else if($returnView==='settings')header('Location: ./?view=settings&tab='.rawurlencode(in_array($_POST['settings_tab']??'',['sheets','website','alerts'],true)?(string)$_POST['settings_tab']:'sheets'));
+ else if($returnView==='settings')header('Location: ./?view=settings&tab='.rawurlencode(in_array($_POST['settings_tab']??'',['sheets','website','alerts','payments'],true)?(string)$_POST['settings_tab']:'sheets'));
  else if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
  else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['all','payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).'#dashboard-actions');
  else if($returnView==='packing' && (int)($_POST['id']??0)>0)header('Location: ./?view=packing&id='.(int)$_POST['id'].'#packing-lines');
@@ -4239,7 +4296,7 @@ function balanceDaysOverdue(string $created,DateTimeImmutable $today,DateTimeZon
  $days=(int)$createdDate->setTime(0,0,0)->diff($today->setTime(0,0,0))->format('%r%a');
  return max(0,$days);
 }
-function balanceReminderMessage(string $name,int $outstanding,int $orderCount,array $dates,string $adminFirstName):string{
+function balanceReminderMessage(string $name,int $outstanding,int $orderCount,array $dates,string $adminFirstName,array $orders=[],array $bankDetails=[]):string{
  $first=balanceCustomerFirstName($name);if($first==='')$first=$name;
  $labels=[];foreach($dates as $date){$ts=strtotime((string)$date);if($ts!==false)$labels[date('Y-m-d',$ts)]=$ts;}
  asort($labels);
@@ -4249,7 +4306,8 @@ function balanceReminderMessage(string $name,int $outstanding,int $orderCount,ar
  elseif(count($labels)===2)$dateText=$labels[0].' and '.$labels[1];
  elseif(count($labels)>2)$dateText=implode(', ',array_slice($labels,0,-1)).' and '.end($labels);
  $orderLabel=$orderCount===1?'order':'orders';
- return 'Hi '.$first.', just a reminder '.money($outstanding).' is outstanding for your '.$orderLabel.($dateText!==''?' from '.$dateText:'').'. Thanks, '.$adminFirstName;
+ $message='Hi '.$first.', just a reminder '.money($outstanding).' is outstanding for your '.$orderLabel.($dateText!==''?' from '.$dateText:'').'. Thanks, '.$adminFirstName;
+ return $message.ankhBankReminderFooter($bankDetails,ankhBankReminderReference($orders));
 }
 function todaySparklineSvg(array $daily):string{
  $values=array_values(array_map('floatval',$daily));
@@ -4407,7 +4465,7 @@ if(isset($settingsLegacyTabs[$view])){
 }
 $isSettings=$view==='settings';
 $settingsTab='';
-if($isSettings)$settingsTab=in_array((string)($_GET['tab']??''),['sheets','website','alerts'],true)?(string)$_GET['tab']:'sheets';
+if($isSettings)$settingsTab=in_array((string)($_GET['tab']??''),['sheets','website','alerts','payments'],true)?(string)$_GET['tab']:'sheets';
 // One Notifications screen now owns Activity and the legacy alert bookmarks.
 if($view==='activity'||$view==='alerts'){
  if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
@@ -5383,7 +5441,7 @@ if($view==='reportsboard'){
 <div class="settings-screen">
 <?php pageHeader('Settings',['class'=>'settings-heading','back_href'=>'?view=more','back_label'=>'More']);?>
 <nav class="settings-switch" aria-label="Settings sections">
-<?php foreach(['sheets'=>'Sheets','website'=>'Website','alerts'=>'Alerts'] as $settingsKey=>$settingsLabel):?><a href="?view=settings&amp;tab=<?=e($settingsKey)?>" class="<?=$settingsTab===$settingsKey?'selected':''?>" <?=$settingsTab===$settingsKey?'aria-current="page"':''?>><?=e($settingsLabel)?></a><?php endforeach;?>
+<?php foreach(['sheets'=>'Sheets','website'=>'Website','payments'=>'Payments','alerts'=>'Alerts'] as $settingsKey=>$settingsLabel):?><a href="?view=settings&amp;tab=<?=e($settingsKey)?>" class="<?=$settingsTab===$settingsKey?'selected':''?>" <?=$settingsTab===$settingsKey?'aria-current="page"':''?>><?=e($settingsLabel)?></a><?php endforeach;?>
 </nav>
 </div>
 <?php endif;?>
@@ -6379,13 +6437,16 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 </div>
 <p class="balance-filter-note">The Overdue filter shows delivered orders with a balance still due. The days chip shows how long each client’s oldest unpaid order has been open.</p>
 <div class="balance-account-list" id="balance-account-list">
-<?php foreach($balanceAccounts as $account):$oldest=$account['oldest'];$days=(int)$account['days_overdue'];$ageClass=$days>=14?'is-red':($days>=7?'is-amber':'is-neutral');$reminderMessage=balanceReminderMessage((string)$account['customer'],(int)$account['outstanding'],(int)$account['open_orders'],$account['order_dates'],$adminFirstName);?>
+<?php $bankDetails=ankhBankSettings($db);$bankDetailsReady=ankhBankDetailsComplete($bankDetails);foreach($balanceAccounts as $account):$oldest=$account['oldest'];$days=(int)$account['days_overdue'];$ageClass=$days>=14?'is-red':($days>=7?'is-amber':'is-neutral');$reminderMessage=balanceReminderMessage((string)$account['customer'],(int)$account['outstanding'],(int)$account['open_orders'],$account['order_dates'],$adminFirstName,$account['orders'],$bankDetails);?>
 <details class="balance-account-card" data-balance-unpaid="<?=$account['unpaid']?'1':'0'?>" data-balance-partial="<?=$account['part_paid']?'1':'0'?>" data-balance-overdue="<?=$account['overdue']?'1':'0'?>">
  <summary>
   <div class="balance-customer-main"><h2><?=e($account['customer'])?></h2><span><?=$account['open_orders']?> open balance<?=$account['open_orders']===1?'':'s'?> · <?=$account['total_orders']?> total order<?=$account['total_orders']===1?'':'s'?></span><?php if($oldest):?><small>Oldest unpaid: ANK-<?=str_pad((string)$oldest['id'],4,'0',STR_PAD_LEFT)?> · <?=e(date('d M Y',strtotime($oldest['created'])))?></small><?php endif;?><b class="balance-age-chip <?=$ageClass?>"><?=$days?> day<?=$days===1?'':'s'?> overdue</b></div>
   <div class="balance-customer-side">
    <div class="balance-customer-money"><?php if($account['paid']>0):?><span><b><?=money($account['paid'])?></b><small>paid</small></span><?php endif;?><strong><?=money($account['outstanding'])?><small>due</small></strong><i>⌄</i></div>
+   <div class="balance-reminder-stack">
    <button type="button" class="balance-reminder-trigger" data-balance-reminder data-reminder-customer="<?=e($account['customer'])?>" data-reminder-message="<?=e($reminderMessage)?>" data-reminder-phone="<?=e($account['phone'])?>"><svg class="balance-reminder-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20Zm4.6-5.9c-.3-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1-.2.3-.6.8-.8 1-.1.2-.3.2-.5.1a6.5 6.5 0 0 1-3.2-2.8c-.2-.3 0-.5.1-.7l.4-.5c.1-.2.1-.3 0-.5l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3c-.2.3-.9.9-.9 2.1s.9 2.4 1 2.6c.1.2 1.7 2.7 4.2 3.7 2 .8 2.4.7 2.9.6.4-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2-.1-.1-.2-.2-.5-.3Z"/></svg>WhatsApp reminder</button>
+   <?php if(!$bankDetailsReady):?><a class="balance-bank-link" href="?view=settings&amp;tab=payments">Add bank details in Settings</a><?php endif;?>
+   </div>
   </div>
  </summary>
  <div class="balance-account-body">
@@ -7285,6 +7346,31 @@ usort($notificationFeed,static function($a,$b){
 <?php endif;?>
 <?php elseif($view==='shipping'):?>
 <?php require __DIR__.'/shipping-intelligence.php'; ?>
+<?php elseif($view==='settings'&&$settingsTab==='payments'):?>
+<?php $bankDetails=ankhBankSettings($db);$bankPreview=trim(ankhBankReminderFooter($bankDetails,'ANK-0001'));?>
+<?php if(isset($_GET['saved'])):?><p class="notice">Payment details saved.</p><?php endif;?>
+<section class="panel settings-payments">
+<div class="dashboard-panel-head"><div><p class="eyebrow">BANK TRANSFER</p><h2>Payment details</h2></div></div>
+<p class="muted">These details are added to WhatsApp payment reminders. They are kept private and never written to the activity log.</p>
+<form method="post" data-bank-details-form><?php csrf();?><input type="hidden" name="action" value="bank_details_save"><input type="hidden" name="return" value="settings"><input type="hidden" name="settings_tab" value="payments">
+<div class="bank-details-grid">
+<label>Account name<input name="bank_account_name" maxlength="120" required autocomplete="off" value="<?=e($bankDetails['account_name'])?>" placeholder="Account holder name"></label>
+<label>Sort code<input name="bank_sort_code" inputmode="numeric" maxlength="8" required autocomplete="off" value="<?=e($bankDetails['sort_code'])?>" placeholder="00-00-00" pattern="[0-9]{2}[ -]?[0-9]{2}[ -]?[0-9]{2}"></label>
+<label>Account number<input name="bank_account_number" inputmode="numeric" maxlength="9" required autocomplete="off" value="<?=e($bankDetails['account_number'])?>" placeholder="8 digits" pattern="[0-9]{4}[ -]?[0-9]{4}"></label>
+<label>Bank name <span class="muted">(optional)</span><input name="bank_name" maxlength="120" autocomplete="off" value="<?=e($bankDetails['bank_name'])?>" placeholder="e.g. Tide"></label>
+</div>
+<button>Save payment details</button>
+</form>
+<div class="bank-preview-block"><p class="eyebrow">REMINDER PREVIEW</p><pre class="bank-details-preview" id="bank-details-preview"><?=e($bankPreview!==''?$bankPreview:'Add the required details above to preview the reminder footer.')?></pre></div>
+</section>
+<script>
+(()=>{const form=document.querySelector('[data-bank-details-form]'),preview=document.getElementById('bank-details-preview');if(!form||!preview)return;
+ const read=name=>{const field=form.querySelector('[name="'+name+'"]');return field?String(field.value||'').trim():'';};
+ const normaliseSort=value=>{const digits=value.replace(/\D/g,'');return digits.length===6?digits.slice(0,2)+'-'+digits.slice(2,4)+'-'+digits.slice(4,6):'';};
+ const normaliseAccount=value=>{const digits=value.replace(/\D/g,'');return digits.length===8?digits:'';};
+ const update=()=>{const name=read('bank_account_name'),sort=normaliseSort(read('bank_sort_code')),account=normaliseAccount(read('bank_account_number'));if(!name||!sort||!account){preview.textContent='Add the required details above to preview the reminder footer.';return;}preview.textContent='Pay by bank transfer:\nName: '+name+'\nSort code: '+sort+'\nAccount: '+account+'\nReference: ANK-0001';};
+ form.addEventListener('input',update);})();
+</script>
 <?php elseif($view==='settings'&&$settingsTab==='alerts'):?>
 <?php require_once __DIR__.'/business-alerts.php'; $businessPrefs=ankhAlertPrefs($db); ?>
 <?php if(isset($_GET['saved'])):?><p class="notice">Alert preferences saved.</p><?php endif;?>
