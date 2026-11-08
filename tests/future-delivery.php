@@ -180,8 +180,11 @@ $futureUiEnd=strpos($source,'<!-- dashboard-worklist-end -->',$futureUiStart);
 check($futureUiStart!==false && $futureUiEnd!==false,'Unified worklist must render future deliveries.');
 $futureUi=substr($source,$futureUiStart,$futureUiEnd-$futureUiStart);
 check(str_contains($futureUi,'<details class="todo-card todo-accordion focus-order"') && str_contains($futureUi,'<summary class="todo-accordion-summary"'),'All worklist cards must expand when tapped.');
-check(str_contains($futureUi,'?view=edit&amp;id='),'Edit order must remain available inside expansion.');
-check(strpos($futureUi,'focus-sheet-content') < strpos($futureUi,'dashboardDeliveryScheduleForm(') && str_contains($futureUi,'dashboardPreparationControls('),'Delivery and preparation controls must stay inside the expandable area.');
+check(str_contains($futureUi,'renderOrderDetail('),'Worklist cards must render the shared order detail.');
+$detailStart=strpos($source,'function renderOrderDetail(');$detailEnd=strpos($source,'function backOrderPaymentAndRemoval(',$detailStart);
+$detailUi=substr($source,$detailStart,$detailEnd-$detailStart);
+check(str_contains($detailUi,'?view=edit&amp;id='),'Edit order must remain available inside expansion.');
+check(str_contains($detailUi,'dashboardDeliveryScheduleForm(') && str_contains($detailUi,'dashboardPreparationControls('),'Delivery and preparation controls must stay inside the expandable area.');
 $futureCss=file_get_contents(dirname(__DIR__).'/style.css');
 check(str_contains($futureCss,'.future-order-entry[open] .future-order-chevron') && str_contains($futureCss,'.future-order-details'),'Compact future order CSS must include an expanded state.');
 echo "PASS: compact expandable future delivery tiles, paid/unpaid/part-paid labels, edit access, hidden preparation and date controls.\\n";
@@ -219,7 +222,7 @@ foreach(['Cancelled','Delivered'] as $terminal){
  $_POST=['id'=>$id,'delivery_section'=>'awaiting'];$rejected=false;try{eval($moveCode);}catch(Exception $e){$rejected=true;}
  check($rejected&&!$db->inTransaction(),'Completed/cancelled orders cannot be manually moved.');
 }
-check(str_contains($source,"dashboardDeliveryMoveControls(\$todo,deliveryBoardSection(\$todo,\$now->format('Y-m-d'))==='future'?'awaiting':'future')"),'Unified cards must preserve manual moves in both directions.');
+check(str_contains($source,"dashboardDeliveryMoveControls(\$order,deliveryBoardSection(\$order,\$today)==='future'?'awaiting':'future')"),'Unified cards must preserve manual moves in both directions.');
 echo "PASS: exclusive 4-day/5-day grouping, manual moves, persistence, date-change reset, terminal-order protections.\\n";
 
 $tileStart=strpos($source,'function dashboardPlannedDateTile(');

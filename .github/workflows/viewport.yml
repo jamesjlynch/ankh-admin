@@ -30,6 +30,8 @@ jobs:
         run: node tests/settings-viewport.cjs
       - name: Test back-order mobile workflow against isolated SQLite data
         run: node tests/back-orders-viewport.cjs
+      - name: Test redesigned order detail screen
+        run: node tests/order-detail-viewport.cjs
       - name: Test incoming supplier order editing
         run: node tests/supplier-edit-viewport.cjs
       - name: Test shared supplies cupboard workflow

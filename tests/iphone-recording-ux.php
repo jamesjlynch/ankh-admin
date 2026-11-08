@@ -17,7 +17,7 @@ function loadPresentationFunction(string $source,string $name):void{
  }
  throw new RuntimeException('Unclosed helper: '.$name);
 }
-foreach(['backOrderControls','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','orderCardStatusLine','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
+foreach(['renderOrderDetail','backOrderControls','backOrderBanner','backOrderDetails','backOrderActivationForm','backOrderMoveForm','backOrderRemovalActions','orderCustomerAccountId','orderAssignedFridge','ukMobileWhatsApp','isBackOrder','e','money','csrf','assigneeClass','deliveryCountdown','deliveryBoardSection','orderPreparationState','orderPreparationBadge','dashboardPreparationControls','dashboardNextActionLabel','dashboardOneTapActions','futureDeliveryPaymentLabel','orderDisplayName','orderBuyerCaption','dashboardQueueView','dashboardWorklist','dashboardWorkGroup','dashboardWorklistSort','orderCardStatusLine','orderFocusStatuses','deliveryScheduleTags','dashboardDeliveryScheduleForm','dashboardDeliveryMoveControls'] as $name)loadPresentationFunction($source,$name);
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>'Lee'])==='Lee','Recipient should lead the card.');
 recordingCheck(orderDisplayName(['customer'=>'Morgan','recipient_name'=>' '])==='Morgan','Blank recipient should fall back to purchaser.');
 recordingCheck(dashboardQueueView(['payment'=>0,'delivery'=>2,'future'=>1])==='all','Default worklist must show all work.');
@@ -41,7 +41,7 @@ $todoItems=[1=>[['quantity'=>1,'name'=>'Test product','presentation'=>'Vial']],2
 $all=dashboardWorklist($awaitingPayment,$awaitingDelivery,$futureDeliveries);$delivery=dashboardWorklist([],$awaitingDelivery,$futureDeliveries);
 recordingCheck(count($all)===6,'Overlapping work must be deduplicated by order ID.');
 recordingCheck(array_column(dashboardWorklistSort($all,'2026-10-13'),'id')===[4,1,2,6,5,3],'Overdue, upcoming, unscheduled and delivered-unpaid work must sort predictably.');
-$dashboardQueueCounts=['all'=>6,'payment'=>5,'delivery'=>5,'future'=>2];$stockShortages=[];$stockShortageUnits=0;$unpaidBalance=30500;$paymentMethods=['Bank Transfer'];
+$dashboardQueueCounts=['all'=>6,'payment'=>5,'delivery'=>5,'future'=>2];$stockShortages=[];$stockShortageUnits=0;$unpaidBalance=30500;$paymentMethods=['Bank Transfer'];$statuses=['New','Awaiting payment','Paid','Packed','Dispatched','Delivered','Cancelled'];
 foreach(['cards','dispatch'] as $dashboardLayout)foreach(['all'=>6,'payment'=>5,'delivery'=>5,'future'=>2] as $dashboardQueue=>$expected){
  $_SESSION=['csrf'=>'fixture-only','dashboard_queue'=>$dashboardQueue];
  $dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaitingPayment,'delivery'=>$delivery,'future'=>$futureDeliveries,default=>$all},'2026-10-13');

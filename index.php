@@ -2041,19 +2041,145 @@ function setOrderBackOrder(PDO $db,int $id,bool $waiting,?string $activationAssi
   $db->commit();
  }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();throw $ex;}
 }
+function orderCustomerAccountId(PDO $db,array $order):int{
+ $name=trim((string)($order['customer']??''));$phone=trim((string)($order['phone']??''));
+ if($name==='')return 0;
+ try{
+  $q=$db->prepare('SELECT id FROM customers WHERE lower(trim(name))=lower(trim(?)) AND trim(phone)=trim(?) ORDER BY id LIMIT 1');$q->execute([$name,$phone]);$id=(int)$q->fetchColumn();
+  if($id<1&&$phone===''){$q=$db->prepare('SELECT id FROM customers WHERE lower(trim(name))=lower(trim(?)) ORDER BY id LIMIT 1');$q->execute([$name]);$id=(int)$q->fetchColumn();}
+  return $id;
+ }catch(Throwable $ex){return 0;}
+}
+function orderAssignedFridge(array $order):string{
+ $assignee=strtolower(trim((string)($order['assigned_to']??'')));
+ if(in_array($assignee,['jay','james'],true))return 'Jay’s fridge';
+ if($assignee==='tony')return 'Tony’s fridge';
+ return 'Holding stock';
+}
+function backOrderDetails(PDO $db,array $order):array{
+ $since=(string)(($order['back_order_since']??'')?:($order['created']??''));$days=0;
+ try{if($since!=='')$days=(int)(new DateTimeImmutable($since))->diff(new DateTimeImmutable('now'))->format('%a');}catch(Throwable $ex){$days=0;}
+ return ['days'=>$days,'stock'=>backOrderAvailability($db,$order)];
+}
+function backOrderActivationForm(PDO $db,array $order):void{
+ $selected=(string)($order['assigned_to']??'');$selected=$selected==='Jay'?'James':$selected;$locations=[];
+ foreach(['James'=>"Jay’s fridge",'Tony'=>"Tony’s fridge",''=>'Holding stock'] as $assignee=>$label){$locations[$assignee]=['label'=>$label]+backOrderAvailability($db,array_replace($order,['assigned_to'=>$assignee]));}
+ ?><form method="post" class="backorder-activate-form" onsubmit="return confirm('Move this order to active orders? Stock and payment do not block this move.')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="0"><input type="hidden" name="return" value="orders">
+ <label>Stock location<select name="activation_assigned_to"><?php foreach($locations as $assignee=>$choice):?><option value="<?=e($assignee)?>" <?=$selected===$assignee?'selected':''?>><?=e($choice['label'])?></option><?php endforeach;?></select></label>
+ <button>Move to active orders</button></form><?php
+}
+function backOrderBanner(PDO $db,array $order):void{
+ $details=backOrderDetails($db,$order);$stock=$details['stock'];$days=$details['days'];
+ ?><section class="od-backorder-banner" data-backorder-banner>
+ <p class="od-backorder-line"><strong>Back order · <?=$days?> day<?=$days===1?'':'s'?> waiting</strong><span class="<?=$stock['ready']?'stock-ready':'muted'?>"><?=$stock['ready']?'Stock available':e(implode(' · ',$stock['issues']))?></span></p>
+ <details class="od-backorder-activate" data-focus-sheet><summary>Move to active</summary><div class="od-backorder-activate-body focus-sheet-content"><?php backOrderActivationForm($db,$order);?></div></details>
+ </section><?php
+}
+function backOrderMoveForm(array $order,string $return='backorders'):void{
+ ?><form method="post" class="od-backorder-move" onsubmit="return confirm('Move this order to the waiting list? Stock reservations will be released and preparation reset.')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="1"><input type="hidden" name="return" value="<?=e($return)?>"><button class="quiet od-secondary-button">Move to back orders</button></form><?php
+}
+function backOrderRemovalActions(array $order,int $paid,string $return='backorders'):void{
+ $id=(int)$order['id'];
+ ?><details class="backorder-removal"><summary>Customer no longer wants it? <span aria-hidden="true">⌄</span></summary>
+ <form method="post" onsubmit="return confirm('Cancel this back order and remove it from the waiting list? Its order and payment history will be kept.');"><?php csrf();?><input type="hidden" name="action" value="backorder_cancel"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=e($return)?>"><button class="quiet danger-button">Cancel back order</button><p class="muted">Removes it from the waiting list and keeps the history. Any payment remains recorded.</p></form>
+ <?php if($paid===0):?><form method="post" onsubmit="return confirm('Permanently delete this unpaid back order and its items? This cannot be undone.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=e($return)?>"><button class="quiet danger-button">Delete back order</button><p class="muted">Permanently removes this unpaid order and its items.</p></form><?php else:?><p class="muted">Use Cancel for a paid back order so its payment history is retained.</p><?php endif;?></details><?php
+}
 function backOrderControls(PDO $db,array $order):void{
  if(in_array((string)$order['status'],['Cancelled','Dispatched','Delivered'],true)||trim((string)$order['delivery_date'])!=='')return;
- $waiting=isBackOrder($order);$stock=$waiting?backOrderAvailability($db,$order):null;$locations=[];$selected=(string)($order['assigned_to']??'');$selected=$selected==='Jay'?'James':$selected;
- if($waiting){foreach(['James'=>"Jay’s fridge",'Tony'=>"Tony’s fridge",''=>'Holding stock'] as $assignee=>$label){$locations[$assignee]=['label'=>$label]+backOrderAvailability($db,array_replace($order,['assigned_to'=>$assignee]));}}
- ?><section class="back-order-controls">
- <?php if($waiting):$since=(string)($order['back_order_since']?:$order['created']);$days=(int)(new DateTimeImmutable($since))->diff(new DateTimeImmutable('now'))->format('%a');?>
- <strong>Back order · <?=$days?> day<?=$days===1?'':'s'?> waiting</strong>
- <p class="<?=$stock['ready']?'stock-ready':'muted'?>"><?=$stock['ready']?'Stock available':e(implode(' · ',$stock['issues']))?> · <?=e($stock['location']==='Unallocated'?'Holding stock':$stock['location'].'’s fridge')?></p>
- <?php else:?><strong>Move to back orders</strong><p class="muted">Move this order out of the active list whenever you choose. Its details and payments stay with it.</p><?php endif;?>
- <form method="post" class="backorder-activate-form" onsubmit="return confirm('<?=$waiting?'Move this order to active orders? Stock and payment do not block this move.':'Move this order to the waiting list? Stock reservations will be released and preparation reset.'?>')"><?php csrf();?><input type="hidden" name="action" value="order_backorder"><input type="hidden" name="id" value="<?=(int)$order['id']?>"><input type="hidden" name="back_order" value="<?=$waiting?'0':'1'?>"><input type="hidden" name="return" value="<?=$waiting?'orders':'backorders'?>">
- <?php if($waiting):?><label>Stock location<select name="activation_assigned_to"><?php foreach($locations as $assignee=>$choice):?><option value="<?=e($assignee)?>" <?=$selected===$assignee?'selected':''?>><?=e($choice['label'])?></option><?php endforeach;?></select></label><p class="muted">You can move this order now, regardless of stock or payment. Stock figures above are for reference.</p><?php endif;?>
- <button class="<?=$waiting?'':'quiet'?>"><?=$waiting?'Move to active orders':'Move to back orders'?></button></form>
- <?php if($waiting):backOrderPaymentAndRemoval($db,$order);endif;?></section><?php
+ if(isBackOrder($order)){backOrderBanner($db,$order);backOrderPaymentAndRemoval($db,$order);return;}
+ backOrderMoveForm($order,'backorders');
+}
+function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
+ $surface=(string)($options['surface']??'orders');$now=$options['now']??new DateTimeImmutable('now',new DateTimeZone('Europe/London'));
+ $paymentMethods=$options['payment_methods']??['Cash','Bank Transfer','Card','PayPal','Other'];$statuses=$options['statuses']??['New','Awaiting payment','Paid','Packed','Dispatched','Delivered','Cancelled'];
+ $id=(int)$order['id'];$telephone=trim((string)($order['phone']??''));$status=(string)($order['status']??'');
+ $waiting=isBackOrder($order);$cancelled=$status==='Cancelled';$delivered=$status==='Delivered'||trim((string)($order['delivery_date']??''))!=='';
+ $paid=(int)($order['paid_amount']??0);$total=(int)($order['total']??orderTotalPence($db,$id));$balance=max(0,$total-$paid);
+ $return=$surface==='dashboard'?'dashboard':($waiting?'backorders':'orders');$returnQueue=$surface==='dashboard'?e($_SESSION['dashboard_queue']??'all'):'';
+ $customerId=orderCustomerAccountId($db,$order);$whatsApp=ukMobileWhatsApp($telephone);$today=$now->format('Y-m-d');
+ try{$q=$db->prepare('SELECT * FROM items WHERE order_id=? ORDER BY id');$q->execute([$id]);$itemRows=$q->fetchAll(PDO::FETCH_ASSOC);}catch(Throwable $ex){$itemRows=[];}
+ $listSubtotal=0;$saleSubtotal=0;
+ foreach($itemRows as $line){$qty=max(1,(int)$line['quantity']);$base=(isset($line['base_price'])&&$line['base_price']!==null)?(int)$line['base_price']:(int)$line['price'];$listSubtotal+=$base*$qty;$saleSubtotal+=(int)$line['price']*$qty;}
+ $deliveryCharge=(int)($order['delivery_charge']??0);$discountTotal=max(0,$listSubtotal-$saleSubtotal);$orderTotal=$saleSubtotal+$deliveryCharge;
+ if((int)($order['total']??0)>0)$orderTotal=$total;
+ try{$q=$db->prepare('SELECT * FROM payments WHERE order_id=? ORDER BY datetime(created) DESC,id DESC');$q->execute([$id]);$payments=$q->fetchAll(PDO::FETCH_ASSOC);}catch(Throwable $ex){$payments=[];}
+ $notes=trim((string)($order['notes']??''));$address=trim((string)($order['address']??''));
+ ?>
+ <div class="od-detail" data-order-detail>
+ <?php if($waiting):backOrderBanner($db,$order);endif;?>
+ <section class="od-card od-header" aria-label="Order summary">
+  <div class="od-header-main">
+   <?php if($customerId>0):?><a class="od-client" href="?view=customer&amp;id=<?=$customerId?>"><?=e(trim((string)($order['customer']??'')))?></a><?php else:?><strong class="od-client"><?=e(trim((string)($order['customer']??'')))?></strong><?php endif;?>
+   <p class="od-ref">ANK-<?=str_pad((string)$id,4,'0',STR_PAD_LEFT)?> · <?=e(date('d M Y',strtotime((string)$order['created'])))?></p>
+   <p class="od-status order-card-status"><?=e(orderCardStatusLine($order))?></p>
+  </div>
+  <div class="od-header-side">
+   <span class="od-due"><strong><?=money($balance)?></strong><small><?=$balance>0?'Due':'Paid'?></small></span>
+   <?php if($telephone!==''):?><span class="od-contact"><a class="od-icon-button" href="tel:<?=e(preg_replace('/[^0-9+]/','',$telephone))?>" aria-label="Call <?=e(trim((string)($order['customer']??'')))?>"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a12 12 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2.2 2A16 16 0 0 1 3 6.2 2 2 0 0 1 5 4Z"/></svg></a><?php if($whatsApp!==''):?><a class="od-icon-button" href="https://wa.me/<?=e($whatsApp)?>" target="_blank" rel="noopener" aria-label="Message on WhatsApp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.4-4.1A8 8 0 1 1 8 18.6L4 20Z"/><path d="M8.5 8.5c.2 3 2 4.8 5 5l1-1.4 1.8.8c-.3 1.6-1.4 2.3-3 2.3-3.6-.2-6.3-2.9-6.5-6.5 0-1.6.7-2.7 2.3-3l.8 1.8-1.4 1Z"/></svg></a><?php endif;?></span><?php endif;?>
+  </div>
+ </section>
+ <?php if(($balance>0&&!$cancelled)||(!$waiting&&!$delivered&&!$cancelled)):?>
+ <div class="od-primary">
+  <?php if($balance>0&&!$cancelled):?>
+  <details class="od-action od-primary-payment"><summary>Record payment</summary><div class="od-action-body">
+   <form method="post" class="od-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
+   <div class="od-form-grid"><label>Payment<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment</option></select></label><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($balance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($balance/100,2,'.',''))?>"></label></div>
+   <div class="od-form-grid"><label>Method<select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label></div>
+   <label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or reference"></label><button>Save payment</button></form>
+  </div></details>
+  <?php endif;?>
+  <?php if(!$waiting&&!$delivered&&!$cancelled):?>
+  <details class="od-action od-primary-deliver"><summary>Mark delivered</summary><div class="od-action-body">
+   <form method="post" class="od-deliver-form" onsubmit="return confirm('<?=$surface==='dashboard'?'Confirm this order was actually delivered today?':'Confirm this order was actually delivered on the selected date?'?> Any unpaid balance will stay outstanding.');"><?php csrf();?><input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="<?=$return?>"><?php if($surface==='dashboard'):?><input type="hidden" name="return_queue" value="<?=$returnQueue?>"><?php endif;?>
+   <label>Delivery date<input type="date" name="delivery_date" max="<?=e($today)?>" value="<?=e($today)?>" required></label><button>Confirm delivered</button></form>
+  </div></details>
+  <?php endif;?>
+ </div>
+ <?php endif;?>
+ <section class="od-card od-items" aria-label="Order items">
+  <div class="od-card-head"><h3>Items</h3><span><?=count($itemRows)?></span></div>
+  <div class="od-item-list"><?php foreach($itemRows as $line):$qty=max(1,(int)$line['quantity']);$unit=(int)$line['price'];$base=(isset($line['base_price'])&&$line['base_price']!==null)?(int)$line['base_price']:$unit;?>
+   <div class="od-item" data-ankh-product-name="<?=e($line['name'])?>"><span class="od-item-qty"><?=$qty?> ×</span><span class="od-item-name"><strong><?=e($line['name'])?></strong><small><?=e(trim((string)($line['presentation']??'')))?><?=((int)($line['discount']??0)>0?' · F&F':'')?><?php if($base!==$unit):?> · was <?=money($base)?><?php endif;?></small></span><span class="od-item-price"><?=money($unit)?></span><strong class="od-item-total"><?=money($unit*$qty)?></strong></div>
+  <?php endforeach;?></div>
+  <dl class="od-totals">
+   <div><dt>Subtotal</dt><dd><?=money($listSubtotal)?></dd></div>
+   <?php if($discountTotal>0):?><div class="od-discount"><dt>Discount</dt><dd>−<?=money($discountTotal)?></dd></div><?php endif;?>
+   <?php if($deliveryCharge>0):?><div><dt>Delivery</dt><dd><?=money($deliveryCharge)?></dd></div><?php endif;?>
+   <div class="od-total"><dt>Total</dt><dd><?=money($orderTotal)?></dd></div>
+   <div><dt>Paid</dt><dd><?=money($paid)?></dd></div>
+   <div class="od-balance"><dt>Balance</dt><dd><?=money($balance)?></dd></div>
+  </dl>
+ </section>
+ <section class="od-card od-delivery" aria-label="Delivery and schedule">
+  <div class="od-card-head"><h3>Delivery &amp; schedule</h3><?php if(!$delivered&&!$cancelled&&!$waiting):?><details class="od-edit"><summary>Edit</summary><div class="od-edit-body"><?php dashboardDeliveryScheduleForm($order);dashboardDeliveryMoveControls($order,deliveryBoardSection($order,$today)==='future'?'awaiting':'future');?></div></details><?php endif;?></div>
+  <dl class="od-facts">
+   <div><dt>Delivery</dt><dd><?php $deliveryDate=trim((string)($order['delivery_date']??''));$scheduled=trim((string)($order['scheduled_delivery_date']??''));if($deliveryDate!=='')echo 'Delivered '.e(date('d M Y',strtotime($deliveryDate)));elseif($scheduled!=='')echo 'Planned '.e(date('d M Y',strtotime($scheduled)));else echo e((string)($order['delivery_method']??'')?:'Not scheduled');?></dd></div>
+   <div><dt>Assigned</dt><dd><?=e(orderAssignedFridge($order))?></dd></div>
+   <div><dt>Address</dt><dd><?=$address!==''?nl2br(e($address)):'No address saved'?></dd></div>
+   <?php if(trim((string)($order['tracking_reference']??''))!==''):?><div><dt>Tracking</dt><dd><?=e((string)$order['tracking_reference'])?></dd></div><?php endif;?>
+   <?php if($notes!==''):?><div class="od-notes"><dt>Notes</dt><dd><?=nl2br(e($notes))?></dd></div><?php endif;?>
+  </dl>
+ </section>
+ <section class="od-card od-payments" aria-label="Payments">
+  <div class="od-card-head"><h3>Payments</h3><span><?=money($paid)?> received</span></div>
+  <?php if($payments):?><div class="od-payment-list"><?php foreach($payments as $pay):?><div class="od-payment-row"><div><strong><?=money($pay['amount'])?></strong><small><?=e(date('d M Y',strtotime($pay['created'])))?> · <?=e($pay['method']?:'Not recorded')?><?php if($pay['note']):?> · <?=e($pay['note'])?><?php endif;?></small></div><form method="post" onsubmit="return confirm('Remove this payment?');"><?php csrf();?><input type="hidden" name="action" value="payment_delete"><input type="hidden" name="payment_id" value="<?=$pay['id']?>"><input type="hidden" name="return" value="<?=$return?>"><button class="quiet od-remove" aria-label="Remove payment">×</button></form></div><?php endforeach;?></div><?php else:?><p class="od-muted">No payments recorded.</p><?php endif;?>
+  <?php if($waiting&&$balance<=0):?><p class="od-paid-note"><?=$paid>0?'Paid in full · on back orders':'No payment required · on back orders'?></p><?php endif;?>
+ </section>
+ <details class="od-more">
+  <summary>More actions</summary>
+  <div class="od-more-body">
+   <div class="od-more-links"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$id?>">Edit order</a><?php if($telephone!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',$telephone))?>">Call</a><?php endif;?><?php if($address!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($address)?>">Copy address</button><?php endif;?></div>
+   <?php if($waiting):backOrderRemovalActions($order,$paid,'backorders');else:backOrderMoveForm($order,'backorders');endif;?>
+   <div class="od-more-group"><h4>Preparation</h4><?php dashboardPreparationControls($order,$return);?></div>
+   <div class="od-more-group"><h4>Documents</h4><div class="od-more-links"><a class="quick-action" href="?api=order-pdf&amp;id=<?=$id?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$id?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$id?>" data-document-type="receipt">Share receipt</button></div></div>
+   <?php if($surface==='orders'):?><div class="od-more-group"><h4>Order settings</h4><div class="od-more-links"><a class="quick-action" href="?view=new&amp;repeat_order=<?=$id?>">Repeat</a></div>
+    <details class="order-date-editor"><summary>Edit payment / delivery dates</summary><form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="<?=$return?>"><input type="hidden" name="id" value="<?=$id?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($today)?>" value="<?=e($order['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($today)?>" value="<?=e($order['delivery_date']??'')?>"></label></div><button>Save dates</button></form></details>
+    <form method="post" class="status-form compact-status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$id?>"><div class="status-fields"><label>Status<select name="status"><?php foreach($statuses as $statusOption):?><option <?=$statusOption===$status?'selected':''?>><?=e($statusOption)?></option><?php endforeach;?></select></label><label>Payment method<select name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=($order['payment_method']??'')===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div><button>Save</button></form>
+    <?php if(!$waiting):?><form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$id,4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form><?php endif;?>
+   </div><?php endif;?>
+  </div>
+ </details>
+ </div><?php
 }
 function backOrderPaymentAndRemoval(PDO $db,array $order):void{
  $id=(int)$order['id'];$paid=orderPaidPence($db,$id);$balance=orderBalancePence($db,$id);$today=(new DateTimeImmutable('today',new DateTimeZone('Europe/London')))->format('Y-m-d');
@@ -2062,9 +2188,7 @@ function backOrderPaymentAndRemoval(PDO $db,array $order):void{
  <label>Payment received<select name="payment_type"><option value="full">Paid in full · <?=money($balance)?></option><option value="partial">Part payment / deposit</option></select></label><label>Amount (£) — part payments only<input type="number" name="amount" min="0.01" max="<?=e(number_format($balance/100,2,'.',''))?>" step="0.01" inputmode="decimal" placeholder="Enter the deposit or part payment"><small>For Paid in full, the outstanding balance is used automatically.</small></label>
  <div class="two"><label>Method<select name="method" required><option value="">Choose…</option><?php foreach(['Cash','Bank Transfer','Card','PayPal','Other'] as $method):?><option><?=e($method)?></option><?php endforeach;?></select></label><label>Payment date<input type="date" name="payment_date" value="<?=$today?>" max="<?=$today?>" required></label></div><label>Note (optional)<input name="note" maxlength="500" placeholder="Deposit or bank reference"></label><button>Save payment</button><p class="muted">Recording payment keeps this order on the waiting list until you move it to active.</p></form></details>
  <?php else:?><p class="backorder-paid-note"><?=$paid>0?'Paid in full · on back orders':'No payment required · on back orders'?></p><?php endif;?>
- <details class="backorder-removal"><summary>Customer no longer wants it? <span aria-hidden="true">⌄</span></summary>
- <form method="post" onsubmit="return confirm('Cancel this back order and remove it from the waiting list? Its order and payment history will be kept.');"><?php csrf();?><input type="hidden" name="action" value="backorder_cancel"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders"><button class="quiet danger-button">Cancel back order</button><p class="muted">Removes it from the waiting list and keeps the history. Any payment remains recorded.</p></form>
- <?php if($paid===0):?><form method="post" onsubmit="return confirm('Permanently delete this unpaid back order and its items? This cannot be undone.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="return" value="backorders"><button class="quiet danger-button">Delete back order</button><p class="muted">Permanently removes this unpaid order and its items.</p></form><?php else:?><p class="muted">Use Cancel for a paid back order so its payment history is retained.</p><?php endif;?></details><?php
+ <?php backOrderRemovalActions($order,$paid,'backorders');?><?php
 }
 function supplierEditRevision(array $order,array $lines):string{
  usort($lines,fn($a,$b)=>(int)$a['id']<=>(int)$b['id']);
@@ -5525,26 +5649,7 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
 <div class="focus-card-footer"><?php deliveryScheduleTags($todo,$now);?><span class="focus-order-open">View order <span aria-hidden="true">↗</span></span></div>
 </summary>
 <div class="todo-accordion-body focus-sheet-content">
-<?php backOrderControls($db,$todo);?>
-<div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=(int)$todo['id']?>">Edit order</a><?php if(trim((string)($todo['phone']??''))!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$todo['phone']))?>">Call</a><?php endif;?></div>
-<div class="todo-detail-strip"><span>Order total <?=money($todo['total'])?></span><span>Paid <?=money($todoPaid)?></span><span>Due <?=money($todoBalance)?></span></div>
-<?php dashboardOneTapActions($todo,$now);?>
-<?php if($todoBalance>0):?>
-<form method="post" class="todo-action dashboard-payment-form"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$todo['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'all')?>">
-<div class="dashboard-payment-heading"><strong>Record payment</strong><small><?=money($todoBalance)?> outstanding</small></div>
-<div class="dashboard-payment-choice" role="group" aria-label="Payment amount type"><label><input type="radio" name="payment_type" value="full" checked><span><b>Paid in full</b><small>Record <?=money($todoBalance)?></small></span></label><label><input type="radio" name="payment_type" value="partial"><span><b>Part payment</b><small>Enter amount received</small></span></label></div>
-<label class="dashboard-payment-field dashboard-partial-amount"><span>Amount received</span><div class="money-input"><i>£</i><input name="amount" type="number" min=".01" max="<?=e(number_format($todoBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($todoBalance/100,2,'.',''))?>"></div><small>Remaining balance updates automatically.</small></label>
-<div class="dashboard-payment-meta"><label class="dashboard-payment-field"><span>Payment method</span><select name="method" required><option value="">Choose method</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$todo['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label><label class="dashboard-payment-field"><span>Payment date</span><input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label></div><button class="dashboard-payment-save">✓ Save payment</button></form>
-<?php endif;?>
-<?php if(!$delivered):?>
-<details class="focus-action-group"><summary>Preparation</summary><?php dashboardPreparationControls($todo);?></details>
-<details class="focus-action-group"><summary>Delivery &amp; scheduling</summary>
-<?php dashboardDeliveryScheduleForm($todo);dashboardDeliveryMoveControls($todo,deliveryBoardSection($todo,$now->format('Y-m-d'))==='future'?'awaiting':'future');?>
-<?php if(trim((string)($todo['address']??''))!==''):?><p class="todo-address"><?=nl2br(e($todo['address']))?></p><?php endif;?><?php if(!empty($todo['tracking_reference'])):?><p class="todo-tracking">Tracking: <?=e($todo['tracking_reference'])?></p><?php endif;?>
-<form method="post" class="todo-action"><?php csrf();?><input type="hidden" name="action" value="<?=$todoBalance>0?'delivery_mark':'status'?>"><input type="hidden" name="status" value="Delivered"><input type="hidden" name="id" value="<?=(int)$todo['id']?>"><input type="hidden" name="return" value="dashboard"><input type="hidden" name="return_queue" value="<?=e($_SESSION['dashboard_queue']??'all')?>"><label class="todo-date">Actual delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><button>Mark delivered</button></form>
-</details>
-<?php endif;?>
-<details class="focus-action-group"><summary>Documents &amp; sharing</summary><div class="order-quick-actions"><a class="quick-action" href="?api=order-pdf&amp;id=<?=(int)$todo['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=(int)$todo['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=(int)$todo['id']?>" data-document-type="receipt">Share receipt</button></div></details>
+<?php renderOrderDetail($db,$todo,['surface'=>'dashboard','now'=>$now,'payment_methods'=>$paymentMethods,'statuses'=>$statuses]);?>
 </div></details>
 <?php endforeach;?>
 <?php if(!$dashboardWork):?><p class="queue-empty" role="status">No orders need action in this view.</p><?php endif;?>
@@ -5740,38 +5845,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <p class="ux-result-count" id="ux-order-visible" role="status" aria-live="polite"><?=count($listedOrders)?> orders</p>
 <div class="order-list">
 <?php foreach($listedOrders as $o):?><details class="order compact-order" data-order-card data-order-id="<?=(int)$o['id']?>" data-order-outstanding="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))?>" data-order-total="<?=(int)$o['total']?>" data-order-client="<?=e(orderDisplayName($o))?>" data-order-payment-method="<?=e($o['payment_method']??'')?>" data-order-paid="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($o)&&(string)($o['status']??'')!=='Cancelled'&&((string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($o['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($o)?'1':'0'?>" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><?php if(isBackOrder($o)):$lines=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$lines->execute([(int)$o['id']]);?><p class="backorder-order-products"><?php $parts=[];foreach($lines as $line)$parts[]=(int)$line['quantity'].' × '.$line['name'].($line['presentation']?' · '.$line['presentation']:'');echo e(implode(' / ',$parts));?></p><?php endif;?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><?php orderFocusStatuses($o);$orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><span class="order-card-due"><strong><?=money($orderBalance)?></strong><small>Due</small></span></div></summary><div class="detail">
-<?php backOrderControls($db,$o);?>
-<?php if(isBackOrder($o)):?><p class="muted" style="margin:8px 0 14px">Delivery confirmation is unavailable while this order is in the waiting-for-stock list. Move it to active orders first using the control above.</p><?php elseif(in_array((string)($o['status']??''),['Delivered','Cancelled'],true)||trim((string)($o['delivery_date']??''))!==''):?><p class="muted" style="margin:8px 0 14px"><?=($o['status']==='Cancelled')?'This order is cancelled.':(trim((string)($o['delivery_date']??''))!==''?'Delivery was already recorded.':'Marked Delivered but the actual date has not been entered.')?></p><?php endif;?>
-<div class="order-quick-actions"><a class="quick-action edit-action" href="?view=edit&amp;id=<?=$o['id']?>">Edit order</a><?php if(trim((string)$o['phone'])!==''):?><a class="quick-action" href="tel:<?=e(preg_replace('/[^0-9+]/','',(string)$o['phone']))?>">Call</a><?php endif;?><?php if(trim((string)$o['address'])!==''):?><button type="button" class="quick-action quiet" data-copy-text="<?=e($o['address'])?>">Copy address</button><?php endif;?></div>
-<?php if(orderPreparationState($o)!=='closed'||((string)($o['status']??'')==='Delivered'&&!isBackOrder($o)&&trim((string)($o['delivery_date']??''))==='')):?>
-<section class="order-fulfilment" aria-label="Preparation and delivery">
-<h3>Preparation &amp; delivery</h3>
-<?php if((int)$o['total']===0):?><p class="muted">Free order · No payment required. Preparation and delivery can be recorded normally.</p><?php endif;?>
-<?php dashboardPreparationControls($o,'orders');?>
-<?php if((string)($o['status']??'')==='Delivered' && trim((string)($o['delivery_date']??''))===''):?><p class="muted">This order is marked Delivered, but no actual delivery date is recorded. Select the date below to complete the record.</p><?php endif;?>
-<form method="post" class="operations-next-form" onsubmit="return confirm('Confirm this order was actually delivered on the selected date? Any unpaid balance will stay outstanding.');"><?php csrf();?>
-<input type="hidden" name="action" value="delivery_mark"><input type="hidden" name="id" value="<?=(int)$o['id']?>"><input type="hidden" name="return" value="orders">
-<label class="todo-date">Actual delivery date <input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label>
-<button type="submit" class="operations-next-button">✓ Confirm delivered</button>
-<p class="muted" style="font-size:12px;margin:4px 0 0">Delivery does not require payment or packaging to be recorded. If it was delivered earlier, choose the actual date.</p>
-</form></section>
-<?php endif;?>
-<details class="order-disclosure order-documents" data-focus-sheet><summary>Documents &amp; sharing <span aria-hidden="true">⌄</span></summary><div class="focus-sheet-content"><div class="order-quick-actions"><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=invoice">Invoice PDF</a><a class="quick-action" href="?api=order-pdf&amp;id=<?=$o['id']?>&amp;type=receipt">Receipt PDF</a><button type="button" class="quick-action quiet" data-share-pdf="<?=$o['id']?>" data-document-type="receipt">Share receipt</button></div></div></details>
-<details class="order-disclosure order-information"><summary>Order details <span aria-hidden="true">⌄</span></summary>
-<div class="order-meta"><span><b>Ordered by</b><em><?=e($o['customer'])?></em></span><?php if(trim((string)($o['recipient_name']??''))!==''):?><span><b>For</b><em><?=e($o['recipient_name'])?></em></span><?php endif;?><span><b>Order</b><em><?=e(date('d M Y',strtotime($o['created'])))?></em></span><?php if(trim((string)($o['scheduled_delivery_date']??''))!==''):?><span><b>Planned delivery</b><em><?=e((new DateTimeImmutable($o['scheduled_delivery_date'],$tz))->format('d M Y'))?></em></span><?php endif;?><?php if(!empty($o['activated_at'])):?><span><b>Moved to active</b><em><?=e(date('d M Y',strtotime($o['activated_at'])))?></em></span><?php endif;?><?php if($o['payment_date']):?><span><b>Paid</b><em><?=e(date('d M Y',strtotime($o['payment_date'])))?></em></span><?php endif;?><?php if($o['delivery_date']):?><span><b>Delivered</b><em><?=e(date('d M Y',strtotime($o['delivery_date'])))?></em></span><?php endif;?><?php if($o['payment_method']):?><span><b>Payment</b><em><?=e($o['payment_method'])?></em></span><?php endif;?><?php if($o['delivery_method']):?><span><b>Delivery</b><em><?=e($o['delivery_method'])?></em></span><?php endif;?><?php if($o['assigned_to']):?><span><b>Assigned</b><em><?=e($o['assigned_to'])?></em></span><?php endif;?></div>
-<?php if($o['address']):?><p class="address"><?=nl2br(e($o['address']))?></p><?php endif;?><?php if($o['tracking_reference']):?><p class="note"><strong>Tracking:</strong> <?=e($o['tracking_reference'])?></p><?php endif;?>
-</details>
-<?php $q=$db->prepare('SELECT * FROM items WHERE order_id=?');$q->execute([$o['id']]);foreach($q as $i):?><div class="line" data-ankh-product-name="<?=e($i['name'])?>"><span><?=e($i['quantity'].' × '.$i['name'].(!empty($i['presentation'])?' · '.$i['presentation']:'').((int)($i['discount']??0)>0?' · Family & Friends':'').' @ '.money($i['price']))?></span><strong><?=money($i['price']*$i['quantity'])?></strong></div><?php endforeach;?>
-<?php if((int)$o['delivery_charge']>0):?><div class="line"><span>Postage / delivery charge</span><strong><?=money($o['delivery_charge'])?></strong></div><?php endif;?><?php if($o['notes']):?><p class="note"><?=nl2br(e($o['notes']))?></p><?php endif;?>
-<?php $orderPaid=(int)($o['paid_amount']??0);$orderBalance=max(0,(int)$o['total']-$orderPaid);$pq=$db->prepare('SELECT * FROM payments WHERE order_id=? ORDER BY datetime(created) DESC,id DESC');$pq->execute([(int)$o['id']]);$orderPayments=$pq->fetchAll(PDO::FETCH_ASSOC);?>
-<section class="payment-ledger"><div class="payment-ledger-head"><div><span>Payments received</span><strong><?=money($orderPaid)?></strong></div><div><span>Balance due</span><strong class="<?=$orderBalance>0?'balance-due':''?>"><?=money($orderBalance)?></strong></div></div>
-<?php if($orderPayments):?><div class="payment-history"><?php foreach($orderPayments as $pay):?><div class="payment-history-row"><div><strong><?=money($pay['amount'])?></strong><small><?=e(date('d M Y',strtotime($pay['created'])))?> · <?=e($pay['method']?:'Not recorded')?><?php if($pay['note']):?> · <?=e($pay['note'])?><?php endif;?></small></div><form method="post" onsubmit="return confirm('Remove this payment?');"><?php csrf();?><input type="hidden" name="action" value="payment_delete"><input type="hidden" name="payment_id" value="<?=$pay['id']?>"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><button class="quiet payment-remove" aria-label="Remove payment">×</button></form></div><?php endforeach;?></div><?php endif;?>
-<?php if($orderBalance>0 && $o['status']!=='Cancelled'&&!isBackOrder($o)):?><details class="add-payment"><summary>+ Record payment</summary><form method="post"><?php csrf();?><input type="hidden" name="action" value="payment_add"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><div class="two"><label>Amount (£)<input name="amount" type="number" min=".01" max="<?=e(number_format($orderBalance/100,2,'.',''))?>" step=".01" inputmode="decimal" value="<?=e(number_format($orderBalance/100,2,'.',''))?>" required></label><label>Method<select name="method" required><option value="">Choose…</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>"><?=e($method)?></option><?php endforeach;?></select></label></div><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($now->format('Y-m-d'))?>" required></label><label>Note <span class="muted">(optional)</span><input name="note" maxlength="500" placeholder="Deposit, balance, reference…"></label></div><button>Save payment</button></form></details><?php endif;?>
-</section>
-<details class="order-disclosure order-secondary-actions" data-focus-sheet><summary>More actions <span aria-hidden="true">⌄</span></summary><div class="focus-sheet-content"><div class="order-quick-actions"><a class="quick-action" href="?view=new&amp;repeat_order=<?=$o['id']?>">Repeat</a></div>
-<details class="order-date-editor"><summary>Edit payment / delivery dates</summary><form method="post" class="order-dates-form"><?php csrf();?><input type="hidden" name="action" value="order_dates"><input type="hidden" name="return" value="<?=isBackOrder($o)?'backorders':'orders'?>"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="two"><label>Payment date<input type="date" name="payment_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['payment_date']??'')?>"></label><label>Delivery date<input type="date" name="delivery_date" max="<?=e($now->format('Y-m-d'))?>" value="<?=e($o['delivery_date']??'')?>"></label></div><button>Save dates</button></form></details>
-<form method="post" class="status-form compact-status-form"><?php csrf();?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?=$o['id']?>"><div class="status-fields"><label>Status<select name="status"><?php foreach($statuses as $statusOption):?><option <?=$statusOption===$o['status']?'selected':''?>><?=e($statusOption)?></option><?php endforeach;?></select></label><label>Payment method<select name="payment_method"><option value="">Not set</option><?php foreach($paymentMethods as $method):?><option value="<?=e($method)?>" <?=$o['payment_method']===$method?'selected':''?>><?=e($method)?></option><?php endforeach;?></select></label></div><button>Save</button></form>
-<?php if(!isBackOrder($o)):?><form method="post" class="delete-order-form" onsubmit="return confirm('Delete ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?>? This permanently removes the order and its items.');"><?php csrf();?><input type="hidden" name="action" value="order_delete"><input type="hidden" name="id" value="<?=$o['id']?>"><input type="hidden" name="return" value="orders"><button class="quiet danger-button">Delete order</button></form><?php endif;?></div></details></div></details><?php endforeach;?></div>
+<?php renderOrderDetail($db,$o,['surface'=>'orders','now'=>$now,'payment_methods'=>$paymentMethods,'statuses'=>$statuses]);?></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($listedOrders)?'hidden':''?>>No orders to show.</p>
 <?php endif;?>
 <?php elseif($view==='new'):?>

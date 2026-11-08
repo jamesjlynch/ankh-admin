@@ -1,0 +1,53 @@
+// Authenticated order-detail fixture only; never creates or changes production orders.
+const {chromium}=require('playwright');
+const {mkdtempSync,writeFileSync,rmSync}=require('node:fs');
+const {tmpdir}=require('node:os');
+const {join,resolve}=require('node:path');
+const {spawn,execFileSync}=require('node:child_process');
+const assert=require('node:assert/strict');
+(async()=>{
+ const root=resolve(__dirname,'..'),temp=mkdtempSync(join(tmpdir(),'ankh-order-detail-ui-')),db=join(temp,'fixture.sqlite'),config=join(temp,'config.php');
+ writeFileSync(config,`<?php $_SESSION['admin']=true;$_SESSION['last']=time();return ['password_hash'=>'fixture-only','database_path'=>'${db}'];`);
+ const server=spawn('php',['-d','session.save_path='+temp,'-S','127.0.0.1:18769','-t',root],{env:{...process.env,ANKH_ADMIN_CONFIG:config,ANKH_TEST_ALLOW_HTTP:'1'},stdio:'ignore'});const host='http://127.0.0.1:18769';let browser;
+ const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`],{encoding:'utf8'});
+ try{
+  for(let i=0;i<60;i++){try{if((await fetch(host)).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
+  sql(`$db->exec("INSERT INTO products(id,name,price,cost,stock_tracking,stock_tracking_since,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty) VALUES(99101,'Detail fixture product',5000,1000,1,'',6,6,0,12);INSERT INTO orders(id,customer,phone,address,notes,status,created,assigned_to,delivery_charge,delivery_method) VALUES(99101,'Order detail fixture','07700900000','12 Test Street\\nLondon','Leave with neighbour','New','2026-10-02','James',500,'Local Delivery'),(99102,'Backorder detail fixture','07700900001','','','New','2026-10-01','James',0,'Local Delivery');UPDATE orders SET back_order=1,back_order_since='2026-10-01' WHERE id=99102;INSERT INTO items(order_id,product_id,name,price,base_price,quantity,presentation) VALUES(99101,99101,'Detail fixture product',5000,6000,2,'Vial'),(99102,99101,'Detail fixture product',5000,5000,1,'Vial');");`);
+  browser=await chromium.launch({headless:true,args:['--no-sandbox']});const page=await browser.newPage({viewport:{width:390,height:844}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const activeCard=page.locator('.order-list .order').filter({has:page.getByRole('heading',{name:'Order detail fixture',exact:true})});
+  const waitingCard=page.locator('.order-list .order').filter({has:page.getByRole('heading',{name:'Backorder detail fixture',exact:true})});
+  await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=orders');
+  await activeCard.locator(':scope > summary').click();
+  assert(await activeCard.locator('.od-primary-payment > summary').isVisible(),'Record payment must be a visible primary action');
+  assert(await activeCard.locator('.od-primary-deliver > summary').isVisible(),'Mark delivered must be a visible primary action');
+  assert.equal(await activeCard.locator('.od-backorder-move button').isVisible(),false,'Move to back orders must stay inside More actions');
+  assert(await activeCard.locator('.od-items').getByText('£105.00',{exact:true}).first().isVisible(),'Order total should include delivery');
+  await activeCard.locator('.od-header').scrollIntoViewIfNeeded();
+  await page.screenshot({path:'/tmp/od-390.png'});
+  await activeCard.locator('.od-more > summary').click();
+  assert(await activeCard.getByRole('button',{name:'Move to back orders',exact:true}).isVisible(),'More actions must reveal Move to back orders');
+  await activeCard.locator('.od-more').scrollIntoViewIfNeeded();
+  await page.screenshot({path:'/tmp/od-more-390.png'});
+  for(const width of [375,390,430]){
+   await page.setViewportSize({width,height:844});await page.goto(host+'/?view=orders');
+   await activeCard.locator(':scope > summary').click();
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),width+'px order detail horizontal overflow');
+   if(width===375){await activeCard.locator('.od-header').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/od-375.png'});}
+  }
+  await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=orders&section=backorders');
+  await waitingCard.locator(':scope > summary').click();
+  const banner=waitingCard.locator('.od-backorder-banner');
+  assert(await banner.isVisible(),'A waiting order must show its back-order banner');
+  const bannerText=await banner.innerText();
+  assert(bannerText.includes('Back order ·')&&/day(?:s)? waiting/.test(bannerText),'Banner must show the waiting time');
+  assert(/Stock available|stock count needed|available \/|No products recorded/.test(bannerText),'Banner must show stock availability or issues');
+  assert(await waitingCard.locator('.od-backorder-activate > summary').isVisible(),'Move to active must be visible');
+  assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'390px back-order detail horizontal overflow');
+  await banner.scrollIntoViewIfNeeded();
+  await page.screenshot({path:'/tmp/od-backorder-390.png'});
+  await waitingCard.locator('.od-backorder-activate > summary').click();
+  assert(await page.locator('select[name="activation_assigned_to"]').isVisible(),'Move to active must open the existing location form');
+  assert.deepEqual(errors,[]);
+  console.log('PASS: order detail primary actions, collapsed back-order action, back-order banner, phone widths and real activation form.');
+ }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}
+})().catch(e=>{console.error(e.stdout?.toString()||e);process.exit(1)});
