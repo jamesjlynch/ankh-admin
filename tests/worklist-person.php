@@ -54,7 +54,7 @@ personCheck(array_column($tony['all'],'id')===[2],'Tony worklist must exclude Ja
 
 personCheck(str_contains($source,'$dashboardPerson=worklistPersonView('),'Dashboard must resolve the person filter.');
 personCheck(str_contains($source,'dashboardWorklistsForPerson($awaitingPayment,$awaitingDelivery,$futureDeliveries,$dashboardPerson)'),'Dashboard counts must be built from the chosen person.');
-personCheck(str_contains($source,'ankh-worklist-person'),'The chosen person must persist in localStorage.');
+personCheck(!str_contains($source,"ankh-worklist-person")&&!str_contains($source,"dashboard_who"),"Worklist person must not be remembered; it always opens on All.");
 
 $start=strpos($source,'<section class="todo-board dashboard-action-queue"');
 $end=strpos($source,'<!-- dashboard-worklist-end -->',$start);
