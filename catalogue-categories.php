@@ -98,7 +98,7 @@ function ankhCategoriesAdminUi(PDO $db):void{
      <?php endforeach;?>
     </div>
     <form class="ankh-cat-add" method="post"><?php if(function_exists('csrf'))csrf(); ?>
-      <input type="hidden" name="action" value="catalogue_category_add"><input type="hidden" name="return" value="products">
+      <input type="hidden" name="action" value="catalogue_category_add"><input type="hidden" name="return" value="catalogue">
       <label>New category<input type="text" name="category_name" maxlength="80" required placeholder="e.g. Pipettes &amp; tips"></label>
       <label>Category purpose<select name="category_kind" required><option value="accessory">Laboratory accessory</option><option value="research">Research material</option></select></label>
       <button type="submit">Add category</button>

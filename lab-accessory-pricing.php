@@ -70,7 +70,7 @@ function ankhLabAccessoryPricingPanel(PDO $db):void {
          <form method="post">
            <?php if(function_exists('csrf'))csrf();?>
            <input type="hidden" name="action" value="lab_accessory_price_update">
-           <input type="hidden" name="return" value="products">
+           <input type="hidden" name="return" value="catalogue">
            <input type="hidden" name="lab_sku" value="<?=htmlspecialchars((string)$r['sku'],ENT_QUOTES,'UTF-8')?>">
            <label>Amazon purchase price (£)
             <input type="number" min="0.01" step=".01" max="10000" inputmode="decimal" name="amazon_price" required value="<?=$hasPrice?number_format((int)$r['amazon_reference_pence']/100,2,'.',''):''?>" placeholder="Exact pack's Amazon price"></label>

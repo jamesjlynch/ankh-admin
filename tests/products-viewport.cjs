@@ -1,4 +1,4 @@
-// Real authenticated HTTP fixture for the rebuilt Products list. No live data is used.
+// Real authenticated HTTP fixture for the Products stock grid. No live data is used.
 const {chromium}=require('playwright');
 const {mkdtempSync,writeFileSync,rmSync}=require('node:fs');
 const {tmpdir}=require('node:os');
@@ -15,70 +15,102 @@ const assert=require('node:assert/strict');
  const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`],{encoding:'utf8'});
  try{
   for(let i=0;i<60;i++){try{if((await fetch(host+'/?view=products',{headers:{'X-Ankh-Fixture-Auth':'yes'}})).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
-  sql(`$db->exec("INSERT INTO products(id,name,price,cost,family_friends_price,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty,low_stock_at,supplier_pack_size,active) VALUES(99001,'Alpha Cream 5mg',5000,1000,4000,1,2,1,1,4,5,10,1),(99002,'Beta Serum 10ml',3000,800,2500,1,20,10,5,35,5,10,1),(99003,'Gamma Oil',2000,500,1500,0,0,0,0,NULL,5,10,1),(99004,'Delta Hidden 5mg',1000,200,800,0,0,0,0,NULL,5,10,0),(99005,'UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890',1200,400,900,0,0,0,0,NULL,5,10,1);INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(99001,1,'2026-01-01'),(99002,1,'2026-01-01'),(99003,0,'2026-01-01'),(99004,0,'2026-01-01'),(99005,1,'2026-01-01');");`);
+  sql(`$db->exec("INSERT INTO products(id,name,price,cost,family_friends_price,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty,low_stock_at,supplier_pack_size,active,is_accessory) VALUES(99001,'Alpha Cream 5mg',5000,1000,4000,1,2,1,1,4,5,10,1,0),(99002,'Beta Serum 10ml',3000,800,2500,1,20,10,5,35,5,10,1,0),(99003,'Gamma Oil',2000,500,1500,0,0,0,0,NULL,5,10,1,0),(99004,'Delta Hidden 5mg',1000,200,800,0,0,0,0,NULL,5,10,0,0),(99005,'UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890',1200,400,900,0,0,0,0,NULL,5,10,1,0),(99006,'Epsilon Out 5mg',1500,400,1200,1,0,0,0,0,5,10,1,0),(99007,'Accessory Vial Cap',800,200,600,1,10,0,0,10,5,10,1,1);INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(99001,1,'2026-01-01'),(99002,1,'2026-01-01'),(99003,0,'2026-01-01'),(99004,0,'2026-01-01'),(99005,1,'2026-01-01'),(99006,1,'2026-01-01'),(99007,1,'2026-01-01');");`);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const page=await browser.newPage({viewport:{width:390,height:844},extraHTTPHeaders:{'X-Ankh-Fixture-Auth':'yes'}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  const fixtureNames=['Alpha Cream 5mg','Beta Serum 10ml','Gamma Oil','Delta Hidden 5mg','UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890'];
-  const visibleRows=()=>page.locator('.products-row').evaluateAll(nodes=>nodes.filter(node=>!node.hidden).map(node=>node.querySelector('.products-row-title').textContent.trim()));
-  const visibleFixtures=async()=>{const out=[];for(const name of fixtureNames){const row=page.locator('.products-row',{hasText:name});if(!(await row.evaluate(node=>node.hidden)))out.push(name);}return out;};
+  const fixtureNames=['Beta Serum 10ml','Alpha Cream 5mg','Epsilon Out 5mg','Delta Hidden 5mg','Gamma Oil','UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890'];
+  const visibleNames=()=>page.locator('.products-card').evaluateAll(nodes=>nodes.filter(node=>!node.hidden).map(node=>node.querySelector('.products-card-name').textContent.trim()));
+  const fixtureVisible=async()=>(await visibleNames()).filter(name=>fixtureNames.includes(name));
   await page.goto(host+'/?view=products');
-  for(const name of fixtureNames)assert.equal(await page.locator('.products-row',{hasText:name}).count(),1,'Missing list row for '+name);
-  assert.deepEqual(await visibleFixtures(),fixtureNames,'All chip shows every product');
+  for(const name of fixtureNames)assert.equal(await page.locator('.products-card',{hasText:name}).count(),1,'Missing product card for '+name);
+  assert.deepEqual(await fixtureVisible(),fixtureNames,'Cards are ordered in stock, low, out, then untracked');
+  assert.equal(await page.locator('.products-card[data-status="in"]',{hasText:'Beta Serum 10ml'}).count(),1,'Healthy stock uses the in-stock state');
+  assert.equal(await page.locator('.products-card[data-status="low"]',{hasText:'Alpha Cream 5mg'}).count(),1,'Low stock uses the low state');
+  assert.equal(await page.locator('.products-card[data-status="out"]',{hasText:'Epsilon Out 5mg'}).count(),1,'Zero stock uses the out state');
+  assert.equal(await page.locator('.products-card[data-status="untracked"]',{hasText:'Gamma Oil'}).count(),1,'Untracked stock uses the untracked state');
+  assert.equal(await page.locator('.products-card',{hasText:'Accessory Vial Cap'}).count(),0,'Accessories are absent from the Products grid');
   // Instant client-side name search.
   await page.locator('#products-search').fill('beta serum');
-  assert.deepEqual(await visibleFixtures(),['Beta Serum 10ml'],'Search filters by product name');
+  assert.deepEqual(await visibleNames(),['Beta Serum 10ml'],'Search filters by product name');
   await page.locator('#products-search').fill('cream 5mg');
-  assert.deepEqual(await visibleFixtures(),['Alpha Cream 5mg'],'Search matches words inside longer names');
+  assert.deepEqual(await visibleNames(),['Alpha Cream 5mg'],'Search matches words inside longer names');
   await page.locator('#products-search').fill('nothing-here');
-  assert.equal((await visibleRows()).length,0,'Search can hide every row');
+  assert.equal((await visibleNames()).length,0,'Search can hide every card');
   assert(await page.locator('#products-no-results').isVisible(),'Empty search state is visible');
   await page.locator('#products-search').fill('');
   // Filter chips.
+  await page.locator('[data-products-filter="in"]').click();
+  assert.deepEqual(await fixtureVisible(),['Beta Serum 10ml'],'In stock chip shows healthy tracked products');
+  assert.equal(await page.locator('[data-products-filter="in"]').getAttribute('aria-pressed'),'true','Active chip is announced');
   await page.locator('[data-products-filter="low"]').click();
-  assert.deepEqual(await visibleFixtures(),['Alpha Cream 5mg'],'Low-stock chip shows only products at or below their threshold');
-  assert.equal(await page.locator('[data-products-filter="low"]').getAttribute('aria-pressed'),'true','Active chip is announced');
-  await page.locator('[data-products-filter="hidden"]').click();
-  assert.deepEqual(await visibleFixtures(),['Gamma Oil','Delta Hidden 5mg'],'Hidden chip shows products not published to the website');
+  assert.deepEqual(await fixtureVisible(),['Alpha Cream 5mg'],'Low chip shows products at or below their threshold');
+  await page.locator('[data-products-filter="out"]').click();
+  assert.deepEqual(await fixtureVisible(),['Epsilon Out 5mg'],'Out chip shows products with no available stock');
   await page.locator('[data-products-filter="all"]').click();
-  assert.deepEqual(await visibleFixtures(),fixtureNames,'All chip restores every row');
-  // Row targets, readable text and layout at phone widths.
+  assert.deepEqual(await fixtureVisible(),fixtureNames,'All chip restores every card');
+  // Phone widths use two columns and never overflow.
   for(const width of [375,390,430]){
    await page.setViewportSize({width,height:844});
    await page.goto(host+'/?view=products');
-   for(const name of fixtureNames){
-    const box=await page.locator('.products-row',{hasText:name}).boundingBox();assert(box&&box.height>=44,width+'px product row target under 44px');
-   }
-   const fontSizes=await page.locator('.products-row-title, .products-row-price, .products-row-stock, .products-row-sub').evaluateAll(nodes=>nodes.map(node=>parseFloat(getComputedStyle(node).fontSize)));
-   assert(fontSizes.every(size=>size>=12),width+'px product list text under 12px');
-   assert.equal(await page.locator('.products-toolbar').evaluate(node=>getComputedStyle(node).position),'sticky','Search toolbar must stay sticky');
+   const columns=await page.locator('#products-list').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+   assert.equal(columns,2,width+'px products grid must show two columns');
    const metrics=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
    assert(metrics.scrollWidth<=metrics.width+2,width+'px products horizontal overflow '+JSON.stringify(metrics));
+   const box=await page.locator('.products-card',{hasText:'Beta Serum 10ml'}).boundingBox();assert(box&&box.height>=44,width+'px product card target under 44px');
+   assert.equal(await page.locator('.products-toolbar').evaluate(node=>getComputedStyle(node).position),'sticky','Search toolbar must stay sticky');
   }
-  // Desktop uses two columns.
+  // Desktop uses four columns.
   await page.setViewportSize({width:1366,height:900});
   await page.goto(host+'/?view=products');
-  const columns=await page.locator('#products-list').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
-  assert.equal(columns,2,'Desktop products list must show two columns');
-  // Every existing management action stays reachable in the single Manage sheet.
+  const desktopColumns=await page.locator('#products-list').evaluate(node=>getComputedStyle(node).gridTemplateColumns.split(' ').filter(Boolean).length);
+  assert.equal(desktopColumns,4,'Desktop products grid must show four columns');
+  // Accessories are absent from the New order picker data.
   await page.setViewportSize({width:390,height:844});
+  await page.goto(host+'/?view=new');
+  const pickerNames=await page.evaluate(()=>{try{return JSON.parse(document.querySelector('#ankh-visual-product-data').textContent||'[]').map(item=>item.name);}catch{return [];}});
+  assert(pickerNames.includes('Beta Serum 10ml'),'New order picker keeps ordinary products');
+  assert(!pickerNames.some(name=>name.includes('Accessory Vial Cap')),'Accessories are absent from the New order picker');
+  // A card opens the existing product detail screen.
   await page.goto(host+'/?view=products');
-  await page.locator('.products-add-button').click();
-  assert(await page.locator('#products-manage').evaluate(node=>node.open),'+ Product opens the Manage sheet');
+  await Promise.all([page.waitForNavigation(),page.locator('.products-card',{hasText:'Alpha Cream 5mg'}).click()]);
+  assert.match(page.url(),/view=product\b/,'Product card opens the detail view');
+  assert.match(page.url(),/[?&]id=99001\b/,'Product card passes the product id');
+  assert(await page.getByRole('heading',{name:'Alpha Cream 5mg'}).first().isVisible(),'Detail view shows the selected product');
+  // The product detail edit link opens the catalogue tile.
+  const editHref=await page.locator('.product-v2-edit-link',{hasText:'Edit price & settings'}).getAttribute('href');
+  assert.match(editHref,/view=catalogue\b/,'Edit price & settings points at the catalogue view');
+  assert.match(editHref,/edit_product=99001\b/,'Edit price & settings keeps the product id');
+  await page.goto(host+'/?view=catalogue&edit_product=99001');
+  assert(await page.locator('#product-edit-99001').evaluate(node=>node.open),'Catalogue opens the requested product tile');
+  // The Products header add button opens the catalogue add form.
+  await page.goto(host+'/?view=products');
+  await Promise.all([page.waitForNavigation(),page.locator('.products-add-button').click()]);
+  assert.match(page.url(),/view=catalogue\b/,'+ Product opens the catalogue view');
+  assert(await page.locator('#products-manage-add').evaluate(node=>node.open),'+ Product opens the add form');
   assert(await page.locator('.add-product-form input[name="name"]').isVisible(),'Add product form is reachable');
+  // The catalogue keeps every existing website and product management control.
+  await page.goto(host+'/?view=catalogue');
+  assert(await page.getByRole('heading',{name:'Website & product settings'}).isVisible(),'Catalogue uses the Website & product settings heading');
+  assert(await page.locator('#products-manage').evaluate(node=>node.open),'Catalogue manage sheet is open');
   assert.equal(await page.locator('#ankh-visibility-form').count(),1,'Website visibility controls are kept');
   assert.equal(await page.locator('#hidden-product-list').count(),1,'Hidden product editors are kept');
   assert((await page.locator('.product-stock-count-form').count())>=1,'Fridge count controls are kept');
   assert((await page.locator('.product-delete-button').count())>=1,'Product delete control is kept');
-  assert.equal(await page.getByRole('link',{name:'Stock control →'}).count(),1,'Stock control link is kept in Manage');
-  assert.equal(await page.getByRole('link',{name:'✎ Customer website CMS'}).count(),1,'Website CMS link is kept in Manage');
-  // A row opens the existing product detail/edit screen.
+  assert.equal(await page.getByRole('link',{name:'Stock control →'}).count(),1,'Stock control link is kept in catalogue');
+  assert.equal(await page.getByRole('link',{name:'✎ Customer website CMS'}).count(),1,'Website CMS link is kept in catalogue');
+  assert((await page.locator('input[name="is_accessory"]').count())>=1,'Accessory flag is available on product forms');
+  assert.equal(await page.locator('#products-manage-add input[name="is_accessory"]').count(),1,'Add product form has the accessory flag');
+  // The accessory checkbox saves through the existing product handler and removes the product from the grid.
+  await page.goto(host+'/?view=catalogue');
+  await page.locator('#product-edit-99001').evaluate(node=>{node.open=true;});
+  await page.locator('#product-edit-99001 input[name="is_accessory"]').check();
+  await Promise.all([page.waitForNavigation(),page.locator('#product-edit-99001 form.product-settings-form button').first().click()]);
+  const accessoryFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT is_accessory FROM products WHERE id=99001")->fetchColumn();`],{encoding:'utf8'}).trim();
+  assert.equal(accessoryFlag,'1','Accessory checkbox saves through the product handler');
   await page.goto(host+'/?view=products');
-  await Promise.all([page.waitForNavigation(),page.locator('.products-row',{hasText:'Alpha Cream 5mg'}).click()]);
-  assert.match(page.url(),/view=product\b/,'Product row opens the detail view');
-  assert.match(page.url(),/[?&]id=99001\b/,'Product row passes the product id');
-  assert(await page.getByRole('heading',{name:'Alpha Cream 5mg'}).first().isVisible(),'Detail view shows the selected product');
+  assert.equal(await page.locator('.products-card',{hasText:'Alpha Cream 5mg'}).count(),0,'A newly flagged accessory leaves the Products grid');
   assert.deepEqual(errors,[]);
-  console.log('PASS: Products list searches instantly, filters All/Low stock/Hidden from website, keeps 44px rows and 12px text with no 375-430px overflow, uses two desktop columns, opens product details, and keeps every management action in the Manage sheet.');
+  console.log('PASS: Products is a stock-ordered two/four-column grid with search and All/In/Low/Out chips, no 375-430px overflow, accessories excluded from the grid and New order picker, detail and catalogue edit links working, and all website settings kept in the catalogue view.');
  }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exit(1)});

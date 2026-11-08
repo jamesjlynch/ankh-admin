@@ -159,3 +159,6 @@ a.product-v2-item:hover{background:#ffffff07}
  .ankh-premium-v2 .product-v2-tile{transition:border-color .16s ease,background .16s ease,transform .16s ease}
  .ankh-premium-v2 .product-v2-tile:hover{transform:translateY(-2px)}
 }
+
+.ankh-premium-v2.ankh-catalogue-view:not(.premium-v2-editing) .product-catalog-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important}
+.ankh-premium-v2.ankh-catalogue-view:not(.premium-v2-editing) .product-catalog-grid .product-tile{display:block}

@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
     env=os.environ|{'ANKH_TEST_ALLOW_HTTP':'1','ANKH_ADMIN_CONFIG':str(config_file),'ANKH_PORTAL_CONFIG':str(interaction_config)}
     log=open(temp/'server.log','w+')
     process=subprocess.Popen([args.php,'-S',f'127.0.0.1:{port}','-t',str(repo),str(router)],env=env,stdout=log,stderr=log)
-    base=f'http://127.0.0.1:{port}/index.php?view=products'
+    base=f'http://127.0.0.1:{port}/index.php?view=catalogue'
     def client():return urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     opener=client()
     def request(data=None,connection=None,content_type=None):
@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
             except OSError:time.sleep(.05)
         html=request()
         token=re.search(r'name="csrf" value="([a-f0-9]+)"',html).group(1)
-        html=request({'csrf':token,'action':'login','password':'fixture-password','return':'products'})
+        html=request({'csrf':token,'action':'login','password':'fixture-password','return':'catalogue'})
         with sqlite3.connect(database) as db:
             db.execute("INSERT INTO products(name,price,cost,active) VALUES('Case',2000,700,1),('Reference sample A',1200,300,1)")
         html=request()
@@ -69,28 +69,28 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
             case=db.execute("SELECT id FROM products WHERE name='Case'").fetchone()[0]
             excluded=db.execute("SELECT id FROM products WHERE name='Reference sample A'").fetchone()[0]
         before=snapshot()
-        html=request({'csrf':token,'action':'product_catalogue_visibility','product_id':case,'catalogue_visible':'1','return':'products'})
+        html=request({'csrf':token,'action':'product_catalogue_visibility','product_id':case,'catalogue_visible':'1','return':'catalogue'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(1,)
         assert before==snapshot(),'Visibility changed an existing record'
-        html=request({'csrf':token,'action':'product_catalogue_visibility','product_id':excluded,'catalogue_visible':'1','return':'products'})
+        html=request({'csrf':token,'action':'product_catalogue_visibility','product_id':excluded,'catalogue_visible':'1','return':'catalogue'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(excluded,)).fetchone()==(1,)
-        html=request({'csrf':'bad','action':'product_catalogue_visibility','product_id':case,'return':'products'})
+        html=request({'csrf':'bad','action':'product_catalogue_visibility','product_id':case,'return':'catalogue'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(1,)
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(excluded,)).fetchone()==(1,)
         anonymous=client();anon_html=request(connection=anonymous)
         anon_token=re.search(r'name="csrf" value="([a-f0-9]+)"',anon_html).group(1)
-        request({'csrf':anon_token,'action':'product_catalogue_visibility','product_id':case,'return':'products'},connection=anonymous)
+        request({'csrf':anon_token,'action':'product_catalogue_visibility','product_id':case,'return':'catalogue'},connection=anonymous)
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(1,)
-        request({'csrf':token,'action':'product_catalogue_visibility','product_id':case,'return':'products'})
+        request({'csrf':token,'action':'product_catalogue_visibility','product_id':case,'return':'catalogue'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT visible FROM customer_catalogue_visibility WHERE product_id=?',(case,)).fetchone()==(0,)
         assert before==snapshot()
         image=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
-        fields={'csrf':token,'action':'product_catalogue_content','product_id':str(case),'catalogue_description':'Product description <script>bad()</script>','catalogue_visible':'1','return':'products','catalogue_information[strength]':'Fixture specification','catalogue_information[research]':'Fixture research notes'}
+        fields={'csrf':token,'action':'product_catalogue_content','product_id':str(case),'catalogue_description':'Product description <script>bad()</script>','catalogue_visible':'1','return':'catalogue','catalogue_information[strength]':'Fixture specification','catalogue_information[research]':'Fixture research notes'}
         boundary='ankh-photo-test-boundary'
         body=b''
         for key,value in fields.items():body+=('--'+boundary+'\r\nContent-Disposition: form-data; name="'+key+'"\r\n\r\n'+value+'\r\n').encode()
@@ -109,7 +109,7 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
             client().open(image_url)
             raise AssertionError('Anonymous image access allowed')
         except urllib.error.HTTPError as exc:assert exc.code==401
-        request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_description':'Description retained','remove_catalogue_photo':'1','catalogue_visible':'1','return':'products'})
+        request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_description':'Description retained','remove_catalogue_photo':'1','catalogue_visible':'1','return':'catalogue'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT description,image_data FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==('Description retained',None)
         html=request()
@@ -117,14 +117,14 @@ with tempfile.TemporaryDirectory(prefix='ankh-catalogue-admin-') as directory:
         assert 'data-catalogue-insert' not in html and 'Research &amp; literature' in html
         assert 'Fixture specification' in html and 'Fixture research notes' in html
         unified='Original overview.\n\n## Specifications\n- Quantity: fixture\n\n## Research notes\nNew saved information.'
-        request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'unified','catalogue_description':unified,'catalogue_visible':'1','return':'products'})
+        request({'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'unified','catalogue_description':unified,'catalogue_visible':'1','return':'catalogue'})
         with sqlite3.connect(database) as db:
             assert db.execute('SELECT description FROM customer_catalogue_content WHERE product_id=?',(case,)).fetchone()==(unified,)
             assert json.loads(db.execute('SELECT information FROM customer_catalogue_information WHERE product_id=?',(case,)).fetchone()[0])==[]
         html=request()
         assert 'New saved information.' in html and 'Fixture specification' not in html
         guided={'peptide_type':'Fixture peptide','appearance':'Fixture colour','amino_length':'15 (fixture)','weight':'Fixture molecular weight','formula':'Fixture formula','sequence':'Fixture sequence','half_life':'Fixture conditions and reference','pubchem':'Fixture identifier','research_focus':'Fixture research focus','research':'Fixture research background','references':'Fixture paper https://pubmed.ncbi.nlm.nih.gov/123456/','storage':'Fixture sealed storage','prepared_storage':'Fixture prepared storage','coa_url':'https://example.org/analysis.pdf'}
-        fields={'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'guided','catalogue_description':'Guided product introduction','catalogue_visible':'1','return':'products'}
+        fields={'csrf':token,'action':'product_catalogue_content','product_id':case,'catalogue_editor':'guided','catalogue_description':'Guided product introduction','catalogue_visible':'1','return':'catalogue'}
         fields.update({'catalogue_information['+key+']':value for key,value in guided.items()})
         request(fields)
         with sqlite3.connect(database) as db:

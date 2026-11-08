@@ -19,7 +19,10 @@ verify(str_contains($css,'@media(max-width:760px)')&&str_contains($css,'.product
 if(!extension_loaded('pdo_sqlite'))throw new RuntimeException('PDO SQLite is required for the product page test.');
 function e($value):string{return htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');}
 function money(int $pence):string{return '£'.number_format($pence/100,2);}
+function csrf():void{echo '<input type="hidden" name="csrf" value="fixture">';}
 function ankhCatalogueContent(PDO $db):array{return [7=>['image_bytes'=>3201]];}
+function ankhCatalogueVisibility(PDO $db):array{return [7=>1];}
+function ankhProductCategories(PDO $db):array{return [7=>['name'=>'Research materials','category_id'=>0]];}
 $db=new PDO('sqlite::memory:');
 $db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
 $db->exec('CREATE TABLE orders(id INTEGER,customer TEXT,created TEXT,status TEXT,delivery_date TEXT,assigned_to TEXT,back_order INTEGER);
@@ -35,7 +38,7 @@ $reservationDetailsByProduct=[7=>[['order_id'=>45,'quantity'=>2,'customer'=>'Tes
 $incomingByProduct=[7=>4];
 $_GET['id']='7';
 ob_start();include $root.'/product-v2.php';$output=ob_get_clean();
-foreach(['Test Vial 5mg','?api=catalogue-image&amp;id=7','£30.00','£22.00','£10.00','£20.00','Test customer','Jay’s fridge','Tony’s fridge','Manual adjustment','?view=products&amp;edit_product=7','4</strong><small>Outstanding supplier items','2 × £25.00'] as $expected){
+foreach(['Test Vial 5mg','?api=catalogue-image&amp;id=7','£30.00','£22.00','£10.00','£20.00','Test customer','Jay’s fridge','Tony’s fridge','Manual adjustment','?view=catalogue&amp;edit_product=7','4</strong><small>Outstanding supplier items','2 × £25.00'] as $expected){
  verify(str_contains($output,$expected),'Product workspace missing output: '.$expected);
 }
 $_GET['id']='999';
