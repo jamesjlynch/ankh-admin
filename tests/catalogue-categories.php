@@ -24,6 +24,10 @@ $invalid=false;try{ankhCategoryCreate($db,'<script>alert(1)</script>','accessory
 checkCategories($invalid,'HTML in category name allowed');
 $petriId=(int)$byName['Petri Dishes']['id'];ankhCategoryAssign($db,101,$petriId);
 checkCategories(ankhProductCategories($db)[101]['name']==='Petri Dishes','Category mapping not saved');
+$accessoryIds=ankhAccessoryProductIds($db);
+checkCategories(ankhProductIsAccessory(['id'=>101,'is_accessory'=>0],$accessoryIds),'Products in accessory-kind categories must be treated as accessories');
+checkCategories(!ankhProductIsAccessory(['id'=>100,'is_accessory'=>0],$accessoryIds),'An ordinary product must not be treated as an accessory');
+checkCategories(ankhProductIsAccessory(['id'=>100,'is_accessory'=>1],$accessoryIds),'The explicit accessory flag must be honoured');
 ankhCatalogueInit($db);ankhCatalogueSetVisibility($db,100,true);
 checkCategories(ankhCatalogueProducts($db,1)[0]['name']==='BPC-157 5mg','Existing visible product missing');
 checkCategories(count(ankhCatalogueProducts($db,1))===1,'A new or hidden accessory must never publish itself');

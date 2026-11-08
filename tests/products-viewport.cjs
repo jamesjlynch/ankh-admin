@@ -15,7 +15,7 @@ const assert=require('node:assert/strict');
  const sql=code=>execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');${code}`],{encoding:'utf8'});
  try{
   for(let i=0;i<60;i++){try{if((await fetch(host+'/?view=products',{headers:{'X-Ankh-Fixture-Auth':'yes'}})).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
-  sql(`$db->exec("INSERT INTO products(id,name,price,cost,family_friends_price,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty,low_stock_at,supplier_pack_size,active,is_accessory) VALUES(99001,'Alpha Cream 5mg',5000,1000,4000,1,2,1,1,4,5,10,1,0),(99002,'Beta Serum 10ml',3000,800,2500,1,20,10,5,35,5,10,1,0),(99003,'Gamma Oil',2000,500,1500,0,0,0,0,NULL,5,10,1,0),(99004,'Delta Hidden 5mg',1000,200,800,0,0,0,0,NULL,5,10,0,0),(99005,'UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890',1200,400,900,0,0,0,0,NULL,5,10,1,0),(99006,'Epsilon Out 5mg',1500,400,1200,1,0,0,0,0,5,10,1,0),(99007,'Accessory Vial Cap',800,200,600,1,10,0,0,10,5,10,1,1);INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(99001,1,'2026-01-01'),(99002,1,'2026-01-01'),(99003,0,'2026-01-01'),(99004,0,'2026-01-01'),(99005,1,'2026-01-01'),(99006,1,'2026-01-01'),(99007,1,'2026-01-01');");`);
+  sql(`$db->exec("INSERT INTO products(id,name,price,cost,family_friends_price,stock_tracking,stock_jay_qty,stock_tony_qty,stock_unallocated_qty,stock_qty,low_stock_at,supplier_pack_size,active,is_accessory) VALUES(99001,'Alpha Cream 5mg',5000,1000,4000,1,2,1,1,4,5,10,1,0),(99002,'Beta Serum 10ml',3000,800,2500,1,20,10,5,35,5,10,1,0),(99003,'Gamma Oil',2000,500,1500,0,0,0,0,NULL,5,10,1,0),(99004,'Delta Hidden 5mg',1000,200,800,0,0,0,0,NULL,5,10,0,0),(99005,'UltraLongProductNameWithoutAnySpacesForOverflowTesting1234567890',1200,400,900,0,0,0,0,NULL,5,10,1,0),(99006,'Epsilon Out 5mg',1500,400,1200,1,0,0,0,0,5,10,1,0),(99007,'Accessory Vial Cap',800,200,600,1,10,0,0,10,5,10,1,1),(99008,'Category Beaker',1800,600,1300,0,0,0,0,NULL,5,10,1,0);INSERT INTO customer_catalogue_visibility(product_id,visible,updated_at) VALUES(99001,1,'2026-01-01'),(99002,1,'2026-01-01'),(99003,0,'2026-01-01'),(99004,0,'2026-01-01'),(99005,1,'2026-01-01'),(99006,1,'2026-01-01'),(99007,1,'2026-01-01'),(99008,1,'2026-01-01');INSERT INTO catalogue_product_categories(product_id,category_id,updated_at) SELECT 99008,id,'2026-01-01' FROM catalogue_categories WHERE name='Petri Dishes' AND NOT EXISTS(SELECT 1 FROM catalogue_product_categories WHERE product_id=99008);");`);
   browser=await chromium.launch({headless:true,args:['--no-sandbox']});
   const page=await browser.newPage({viewport:{width:390,height:844},extraHTTPHeaders:{'X-Ankh-Fixture-Auth':'yes'}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
@@ -30,6 +30,7 @@ const assert=require('node:assert/strict');
   assert.equal(await page.locator('.products-card[data-status="out"]',{hasText:'Epsilon Out 5mg'}).count(),1,'Zero stock uses the out state');
   assert.equal(await page.locator('.products-card[data-status="untracked"]',{hasText:'Gamma Oil'}).count(),1,'Untracked stock uses the untracked state');
   assert.equal(await page.locator('.products-card',{hasText:'Accessory Vial Cap'}).count(),0,'Accessories are absent from the Products grid');
+  assert.equal(await page.locator('.products-card',{hasText:'Category Beaker'}).count(),0,'Products in accessory-kind categories are absent from the Products grid');
   // Instant client-side name search.
   await page.locator('#products-search').fill('beta serum');
   assert.deepEqual(await visibleNames(),['Beta Serum 10ml'],'Search filters by product name');
@@ -71,6 +72,7 @@ const assert=require('node:assert/strict');
   const pickerNames=await page.evaluate(()=>{try{return JSON.parse(document.querySelector('#ankh-visual-product-data').textContent||'[]').map(item=>item.name);}catch{return [];}});
   assert(pickerNames.includes('Beta Serum 10ml'),'New order picker keeps ordinary products');
   assert(!pickerNames.some(name=>name.includes('Accessory Vial Cap')),'Accessories are absent from the New order picker');
+  assert(!pickerNames.some(name=>name.includes('Category Beaker')),'Products in accessory-kind categories are absent from the New order picker');
   // A card opens the existing product detail screen.
   await page.goto(host+'/?view=products');
   await Promise.all([page.waitForNavigation(),page.locator('.products-card',{hasText:'Alpha Cream 5mg'}).click()]);
@@ -110,6 +112,24 @@ const assert=require('node:assert/strict');
   assert.equal(accessoryFlag,'1','Accessory checkbox saves through the product handler');
   await page.goto(host+'/?view=products');
   assert.equal(await page.locator('.products-card',{hasText:'Alpha Cream 5mg'}).count(),0,'A newly flagged accessory leaves the Products grid');
+  // A product form that does not post is_accessory_present must not reset the flag.
+  await page.goto(host+'/?view=catalogue');
+  const csrfToken=await page.locator('#product-edit-99001 input[name="csrf"]').first().inputValue();
+  await page.evaluate(async csrf=>{
+   const body=new URLSearchParams({action:'product',return:'catalogue',id:'99001',name:'Alpha Cream 5mg',price:'50',family_friends_price:'40',cost:'10',supplier_pack_size:'10',low_stock_at:'5',active:'1',csrf});
+   await fetch('./?view=catalogue',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body});
+  },csrfToken);
+  const untouchedFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT is_accessory FROM products WHERE id=99001")->fetchColumn();`],{encoding:'utf8'}).trim();
+  assert.equal(untouchedFlag,'1','Forms without is_accessory_present leave the accessory flag untouched');
+  // Unticking the accessory flag restores the product to the grid and New order picker.
+  await page.goto(host+'/?view=catalogue');
+  await page.locator('#product-edit-99001').evaluate(node=>{node.open=true;});
+  await page.locator('#product-edit-99001 input[name="is_accessory"]').uncheck();
+  await Promise.all([page.waitForNavigation(),page.locator('#product-edit-99001 form.product-settings-form button').first().click()]);
+  const clearedFlag=execFileSync('php',['-r',`$db=new PDO('sqlite:${db}');echo $db->query("SELECT is_accessory FROM products WHERE id=99001")->fetchColumn();`],{encoding:'utf8'}).trim();
+  assert.equal(clearedFlag,'0','Unticking the accessory checkbox clears the flag');
+  await page.goto(host+'/?view=products');
+  assert.equal(await page.locator('.products-card',{hasText:'Alpha Cream 5mg'}).count(),1,'A product cleared of accessory status returns to the Products grid');
   assert.deepEqual(errors,[]);
   console.log('PASS: Products is a stock-ordered two/four-column grid with search and All/In/Low/Out chips, no 375-430px overflow, accessories excluded from the grid and New order picker, detail and catalogue edit links working, and all website settings kept in the catalogue view.');
  }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}

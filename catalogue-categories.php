@@ -32,6 +32,15 @@ function ankhProductCategories(PDO $db):array{
     return $db->query("SELECT m.product_id,c.id AS category_id,c.name,c.kind
         FROM catalogue_product_categories m JOIN catalogue_categories c ON c.id=m.category_id")->fetchAll(PDO::FETCH_UNIQUE|PDO::FETCH_ASSOC);
 }
+function ankhAccessoryProductIds(PDO $db):array{
+    $ids=[];
+    foreach(ankhProductCategories($db) as $productId=>$category)
+        if((string)($category['kind']??'')==='accessory')$ids[(int)$productId]=true;
+    return $ids;
+}
+function ankhProductIsAccessory(array $product,array $accessoryIds):bool{
+    return (int)($product['is_accessory']??0)===1 || isset($accessoryIds[(int)($product['id']??0)]);
+}
 function ankhCategoryCreate(PDO $db,string $name,string $kind):int{
     $name=trim(preg_replace('/\s+/u',' ',$name)??'');
     if($name==='' || mb_strlen($name)>80 || preg_match('/[<>\\x00-\\x1F]/u',$name))
