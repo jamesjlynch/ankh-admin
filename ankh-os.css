@@ -853,6 +853,45 @@ body .today-board .operation-counts strong{
 .admin-app-shell > nav.mobile-nav > a .nav-label,
 .admin-app-shell > nav.mobile-nav > a.nav-new .nav-label{font-size:11px}
 .admin-app-shell .focus-layout-switch a{font-size:13px}
+/* Today's worklist person filter: compact segmented control with a 44px tap area. */
+.admin-app-shell .focus-work-toolbar{justify-content:flex-start}
+.admin-app-shell .focus-work-toolbar>.focus-layout-switch{margin-left:auto}
+.admin-app-shell .worklist-person{
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+  flex:0 0 auto;
+  padding:3px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:999px;
+  background:rgba(20,20,22,.72);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.admin-app-shell .worklist-person a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:48px;
+  min-height:44px;
+  padding:0 12px;
+  border-radius:999px;
+  color:var(--ankh-os-muted);
+  font-size:13px;
+  font-weight:700;
+  line-height:1;
+  text-decoration:none;
+  white-space:nowrap;
+}
+.admin-app-shell .worklist-person a[aria-current="true"]{
+  background:rgba(245,166,35,.16);
+  color:var(--ankh-os-gold-bright);
+  box-shadow:inset 0 0 0 1px rgba(245,166,35,.28);
+}
+.admin-app-shell .worklist-person a:focus-visible{outline:2px solid var(--ankh-os-gold);outline-offset:2px}
+@media(max-width:760px){
+  .admin-app-shell .worklist-person a{min-width:44px;padding:0 10px;font-size:12px}
+}
 .admin-app-shell .cycle-preview-card :is(span,small,strong,a){font-size:13px}
 .admin-app-shell .dashboard-insight>summary span{font-size:13px}
 .admin-app-shell .ux-result-count{font-size:13px}

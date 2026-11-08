@@ -26,6 +26,21 @@ async function layout(page,label){
  check(await page.locator('.dashboard-stat-card').count()===6,label+' original metric cards missing');
  check(await page.locator('#dashboard-actions').count()===1,label+' worklist missing');
  check(await page.locator('aside.desktop-today-panel').count()===0,label+' unrequested sidebar returned');
+ if([375,390,430].includes(m.width)){
+  const person=page.locator('.worklist-person');
+  check(await person.count()===1,label+' person filter missing');
+  const personBox=await person.boundingBox();
+  check(personBox&&personBox.x>=-1&&personBox.x+personBox.width<=m.width+2,label+' person filter overflows');
+  const personLinks=person.locator('a');
+  check(await personLinks.count()===3,label+' person filter needs All, Jay and Tony');
+  for(const link of await personLinks.all()){
+   const box=await link.boundingBox();
+   check(box&&box.width>=44&&box.height>=44,label+' person filter tap area below 44px');
+   const size=await link.evaluate(el=>parseFloat(getComputedStyle(el).fontSize));
+   check(size>=12,label+' person filter text below 12px');
+  }
+  check((await person.locator('a[aria-current="true"]').innerText()).trim()==='All',label+' person filter must default to All');
+ }
  await page.goto(host+'/index.php?view=customers');
  check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');
  const w=await page.evaluate(()=>document.documentElement.scrollWidth);
@@ -49,7 +64,7 @@ try{
  // Fresh fixture records test rendering and manual workflow through genuine POST forms.
  const insert='$db=new PDO("sqlite:".getenv("ANKH_TEST_DB"));$db->exec("INSERT INTO orders(customer,phone,address,notes,status,created,scheduled_delivery_date) VALUES (\'Test Customer\',\'\',\'\',\'\',\'New\',\'2026-10-15T09:00:00Z\',\'2026-10-15\'); INSERT INTO items(order_id,name,price,quantity) VALUES (1,\'Test Product\',1000,1);");';
  execFileSync('php',['-r',insert],{env:{...process.env,ANKH_TEST_DB:db},encoding:'utf8'});
- for(const [width,height] of [[390,844],[768,1024],[820,1180],[1024,768],[1180,820],[1440,900]]){
+ for(const [width,height] of [[375,844],[390,844],[430,844],[768,1024],[820,1180],[1024,768],[1180,820],[1440,900]]){
   await page.setViewportSize({width,height});await page.goto(host+'/index.php?view=dashboard');await layout(page,width+'px');
  }
  await page.setViewportSize({width:820,height:1180});
@@ -100,7 +115,7 @@ try{
  await page.goto(host+'/index.php?view=reports&type=personal&range=all');
  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),'Personal-use report overflows on iPhone');
  await context.close();
- console.log('PASS: signed-in access, real one-tap preparation/delivery, audit history and 6 iPhone/iPad/desktop widths.');
+ console.log('PASS: signed-in access, real one-tap preparation/delivery, audit history, person filter and 8 iPhone/iPad/desktop widths.');
 }finally{
  await browser?.close();
  server.kill('SIGTERM');

@@ -4324,6 +4324,26 @@ function dashboardWorklist(array $payment,array $delivery,array $future):array{
  foreach(array_merge($payment,$delivery,$future) as $order)$unique[(int)$order['id']]=$order;
  return array_values($unique);
 }
+function worklistPersonView(string $requested='',string $remembered=''):string{
+ foreach([$requested,$remembered] as $who)if(in_array($who,['all','jay','tony'],true))return $who;
+ return 'all';
+}
+function orderMatchesWorklistPerson(array $order,string $who):bool{
+ if($who==='all')return true;
+ $assignee=strtolower(trim((string)($order['assigned_to']??'')));
+ if($who==='jay')return in_array($assignee,['james','jay'],true);
+ return $who==='tony'&&$assignee==='tony';
+}
+function dashboardWorklistsForPerson(array $payment,array $delivery,array $future,string $who):array{
+ $filter=static fn(array $orders):array=>$who==='all'?$orders:array_values(array_filter($orders,static fn($order)=>orderMatchesWorklistPerson($order,$who)));
+ $payment=$filter($payment);$delivery=$filter($delivery);$future=$filter($future);
+ $all=dashboardWorklist($payment,$delivery,$future);
+ $deliveries=dashboardWorklist([],$delivery,$future);
+ return [
+  'payment'=>$payment,'delivery'=>$delivery,'future'=>$future,'all'=>$all,'deliveries'=>$deliveries,
+  'counts'=>['all'=>count($all),'payment'=>count($payment),'delivery'=>count($deliveries),'future'=>count($future)]
+ ];
+}
 function dashboardWorkGroup(array $order,string $today):string{
  if(orderPreparationState($order)==='closed')return 'Payment follow-up';
  $date=trim((string)($order['scheduled_delivery_date']??''));
@@ -5570,17 +5590,18 @@ if($view==='reportsboard'){
 </div>
 <?php endif;?>
 <?php if($view==='dashboard'):
-if(empty($_SESSION['dashboard_focus_ready'])){unset($_SESSION['dashboard_queue']);$_SESSION['dashboard_focus_ready']=true;}
-$dashboardAll=dashboardWorklist($awaitingPayment,$awaitingDelivery,$futureDeliveries);
-$dashboardDeliveries=dashboardWorklist([],$awaitingDelivery,$futureDeliveries);
-$dashboardQueueCounts=['all'=>count($dashboardAll),'payment'=>count($awaitingPayment),'delivery'=>count($dashboardDeliveries),'future'=>count($futureDeliveries)];
+if(empty($_SESSION['dashboard_focus_ready'])){unset($_SESSION['dashboard_queue'],$_SESSION['dashboard_who']);$_SESSION['dashboard_focus_ready']=true;}
+$dashboardPerson=worklistPersonView(is_string($_GET['who']??null)?(string)$_GET['who']:'',(string)($_SESSION['dashboard_who']??''));
+$_SESSION['dashboard_who']=$dashboardPerson;
+$dashboardWorklists=dashboardWorklistsForPerson($awaitingPayment,$awaitingDelivery,$futureDeliveries,$dashboardPerson);
+$dashboardQueueCounts=$dashboardWorklists['counts'];
 $dashboardQueue=dashboardQueueView($dashboardQueueCounts,is_string($_GET['queue']??null)?$_GET['queue']:'',(string)($_SESSION['dashboard_queue']??''));
 $_SESSION['dashboard_queue']=$dashboardQueue;
 $requestedLayout=is_string($_GET['layout']??null)?$_GET['layout']:'';
 $dashboardLayout=in_array($requestedLayout,['cards','dispatch'],true)?$requestedLayout:(string)($_SESSION['dashboard_layout']??'cards');
 if(!in_array($dashboardLayout,['cards','dispatch'],true))$dashboardLayout='cards';
 $_SESSION['dashboard_layout']=$dashboardLayout;
-$dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$awaitingPayment,'delivery'=>$dashboardDeliveries,'future'=>$futureDeliveries,default=>$dashboardAll},$now->format('Y-m-d'));
+$dashboardWork=dashboardWorklistSort(match($dashboardQueue){'payment'=>$dashboardWorklists['payment'],'delivery'=>$dashboardWorklists['deliveries'],'future'=>$dashboardWorklists['future'],default=>$dashboardWorklists['all']},$now->format('Y-m-d'));
 $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders,$now);
 ?>
@@ -5635,9 +5656,12 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
 <section class="todo-board dashboard-action-queue" id="dashboard-actions">
 <?php $opsNeedsPrep=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)==='pending'));$opsReady=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)==='packaged'));$opsOverdue=count(array_filter($dashboardWork,fn($o)=>orderPreparationState($o)!=='closed' && trim((string)($o['scheduled_delivery_date']??''))!=='' && (string)$o['scheduled_delivery_date']<$now->format('Y-m-d')));?>
 <div class="todo-board-head"><div><h2>Your worklist</h2><p class="muted focus-work-count"><?=count($dashboardWork)?> order<?=count($dashboardWork)===1?'':'s'?> · <?=$opsNeedsPrep?> to prepare · <?=$opsReady?> ready<?=$opsOverdue?' · '.$opsOverdue.' overdue':''?></p></div><?php if($stockShortages):?><a class="queue-stock-warning" href="#dashboard-stock-shortage"><?=$stockShortageUnits?> stock short ↓</a><?php endif;?></div>
-<div class="focus-work-toolbar"><div class="dashboard-queue-tabs" role="navigation" aria-label="Orders needing action">
-<?php foreach(['all'=>'All','payment'=>'Unpaid','delivery'=>'To deliver','future'=>'Future'] as $queueKey=>$queueLabel):?><a href="?view=dashboard&amp;queue=<?=e($queueKey)?>#dashboard-actions" <?=$dashboardQueue===$queueKey?'aria-current="page"':''?>><span><?=e($queueLabel)?></span><b><?=$dashboardQueueCounts[$queueKey]?></b></a><?php endforeach;?>
-</div><div class="focus-layout-switch" role="navigation" aria-label="Worklist layout"><?php foreach(['cards'=>'Cards','dispatch'=>'List'] as $layoutKey=>$layoutLabel):?><a href="?view=dashboard&amp;queue=<?=e($dashboardQueue)?>&amp;layout=<?=e($layoutKey)?>#dashboard-actions" <?=$dashboardLayout===$layoutKey?'aria-current="true"':''?>><?=e($layoutLabel)?></a><?php endforeach;?></div></div>
+<div class="focus-work-toolbar"><div class="worklist-person" role="group" aria-label="Filter worklist by person" data-worklist-person="<?=e($dashboardPerson)?>">
+<?php foreach(['all'=>'All','jay'=>'Jay','tony'=>'Tony'] as $personKey=>$personLabel):?><a href="?view=dashboard&amp;queue=<?=e($dashboardQueue)?>&amp;layout=<?=e($dashboardLayout)?>&amp;who=<?=e($personKey)?>#dashboard-actions" <?=$dashboardPerson===$personKey?'aria-current="true"':''?>><?=e($personLabel)?></a><?php endforeach;?>
+</div><div class="dashboard-queue-tabs" role="navigation" aria-label="Orders needing action">
+<?php foreach(['all'=>'All','payment'=>'Unpaid','delivery'=>'To deliver','future'=>'Future'] as $queueKey=>$queueLabel):?><a href="?view=dashboard&amp;queue=<?=e($queueKey)?>&amp;who=<?=e($dashboardPerson)?>#dashboard-actions" <?=$dashboardQueue===$queueKey?'aria-current="page"':''?>><span><?=e($queueLabel)?></span><b><?=$dashboardQueueCounts[$queueKey]?></b></a><?php endforeach;?>
+</div><div class="focus-layout-switch" role="navigation" aria-label="Worklist layout"><?php foreach(['cards'=>'Cards','dispatch'=>'List'] as $layoutKey=>$layoutLabel):?><a href="?view=dashboard&amp;queue=<?=e($dashboardQueue)?>&amp;layout=<?=e($layoutKey)?>&amp;who=<?=e($dashboardPerson)?>#dashboard-actions" <?=$dashboardLayout===$layoutKey?'aria-current="true"':''?>><?=e($layoutLabel)?></a><?php endforeach;?></div></div>
+<script>(()=>{const control=document.querySelector('[data-worklist-person]');if(!control)return;const key='ankh-worklist-person',valid=new Set(['all','jay','tony']);let url,who='';try{url=new URL(location.href);who=url.searchParams.get('who')||''}catch(_){return}if(valid.has(who)){try{localStorage.setItem(key,who)}catch(_){}return}let stored='';try{stored=localStorage.getItem(key)||''}catch(_){}if(!valid.has(stored))return;const current=control.dataset.worklistPerson||'all';if(stored===current){if(stored==='all'){if(url.searchParams.has('who')){url.searchParams.delete('who');history.replaceState(null,'',url.href)}}else if(!url.searchParams.has('who')){url.searchParams.set('who',stored);history.replaceState(null,'',url.href)}return}url.searchParams.set('who',stored);location.replace(url.href)})();</script>
 <div class="focus-worklist layout-<?=e($dashboardLayout)?>">
 <?php $lastGroup='';foreach($dashboardWork as $todo):$items=$todoItems[(int)$todo['id']]??[];$todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);$workGroup=dashboardWorkGroup($todo,$now->format('Y-m-d'));$delivered=orderPreparationState($todo)==='closed';?>
 <?php if($workGroup!==$lastGroup):?><h3 class="focus-group-heading"><?=e($workGroup)?></h3><?php $lastGroup=$workGroup;endif;?>

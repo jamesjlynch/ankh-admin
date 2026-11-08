@@ -56,6 +56,7 @@ jobs:
           php -l tests/operations-testmode.php
           php -l tests/bank-details.php
           php -l tests/morning-brief.php
+          php -l tests/worklist-person.php
           php -l tests/print-sheets.php
           php -l tests/backup-sqlite.php
       - name: Test individual admin authentication
@@ -78,6 +79,8 @@ jobs:
         run: php tests/today-overview.php
       - name: Test dashboard morning brief
         run: php tests/morning-brief.php
+      - name: Test worklist person filter
+        run: php tests/worklist-person.php
       - name: Test printable packing and delivery sheets
         run: php tests/print-sheets.php
       - name: Render dashboard and customer intelligence with isolated data
