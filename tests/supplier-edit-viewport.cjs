@@ -34,6 +34,8 @@ const {spawn,execFileSync}=require('node:child_process');const assert=require('n
   assert.equal(sql("echo $db->query('SELECT stock_jay_qty FROM products WHERE id=99001')->fetchColumn();"),'5');
   await page.locator('#incoming-by-product > summary').click();
   await page.locator('.incoming-by-product-row').filter({hasText:'Missed fixture 5mg'}).getByRole('link',{name:'Edit incoming order',exact:false}).click();
+  await page.waitForURL(url=>url.searchParams.has('edit_supplier'),{timeout:15000});
+  await page.getByRole('button',{name:'Save incoming changes'}).waitFor({state:'visible',timeout:15000}).catch(()=>{});
   assert(await page.getByRole('button',{name:'Save incoming changes'}).isVisible(),'Grouped product link returns to the same order editor');
   assert.deepEqual(errors,[]);console.log('PASS: incoming editor at mobile/desktop widths, direct links, dynamic product rows, real save, receipts and physical stock preservation.');
  }finally{if(browser)await browser.close();server.kill();rmSync(temp,{recursive:true,force:true});}
