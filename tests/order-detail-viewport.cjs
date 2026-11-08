@@ -57,6 +57,24 @@ const assert=require('node:assert/strict');
    assert(lockedStep.opacity<=.5,width+'px locked quick step must be dimmed');
    if(width===375){await activeCard.locator('.od-header').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/od-375.png'});}
   }
+  // Today opens the same order detail in a bottom sheet outside #ankh-main: the tiles must keep their styling there.
+  for(const width of [375,390,430]){
+   await page.setViewportSize({width,height:844});await page.goto(host+'/?view=dashboard');
+   const card=page.locator('.focus-worklist details.focus-order').first();
+   if(!(await card.count()))throw new Error('Today worklist fixture order missing');
+   await card.locator(':scope > summary').click();
+   const sheet=page.locator('#focus-action-sheet');
+   await sheet.locator('.od-steps').waitFor({state:'visible',timeout:5000});
+   const m=await sheet.evaluate(d=>{const r=d.getBoundingClientRect();return {sheet:{left:r.left,right:r.right},tiles:[...d.querySelectorAll('.od-steps .od-step')].map(t=>{const b=t.getBoundingClientRect(),svg=t.querySelector('svg').getBoundingClientRect(),st=getComputedStyle(t);return {left:b.left,right:b.right,top:b.top,height:b.height,svgW:svg.width,border:st.borderTopStyle}})};});
+   assert.equal(m.tiles.length,4,width+'px sheet needs 4 step tiles');
+   for(const t of m.tiles){
+    assert(t.svgW<=24,width+'px sheet step icon is unstyled ('+t.svgW+'px)');
+    assert.equal(t.border,'solid',width+'px sheet step tile border missing');
+    assert(t.left>=m.sheet.left-.5&&t.right<=m.sheet.right+.5,width+'px sheet step tile leaves the sheet');
+    assert(t.height<=90,width+'px sheet step tile too tall');
+   }
+   assert(m.tiles.every(t=>Math.abs(t.top-m.tiles[0].top)<1),width+'px sheet steps must stay on one row');
+  }
   await page.setViewportSize({width:390,height:844});await page.goto(host+'/?view=orders&section=backorders');
   await waitingCard.locator(':scope > summary').click();
   const banner=waitingCard.locator('.od-backorder-banner');
