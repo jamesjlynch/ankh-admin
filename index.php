@@ -2121,8 +2121,8 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
  <?php if(!$waiting&&!$cancelled):
   $stepsStatic=$delivered;
   $paidStepDone=$balance<=0;
-  $reconstitutedStepDone=(int)($order['reconstituted']??0)===1;
   $packagedStepDone=(int)($order['packaged']??0)===1;
+  $reconstitutedStepDone=$packagedStepDone||(int)($order['reconstituted']??0)===1;
   $packagedStepLocked=!$reconstitutedStepDone&&!$packagedStepDone;
   $stepReturn='<input type="hidden" name="return" value="'.e($return).'">';if($surface==='dashboard')$stepReturn.='<input type="hidden" name="return_queue" value="'.$returnQueue.'">';
  ?>
@@ -2134,7 +2134,9 @@ function renderOrderDetail(PDO $db,array $order,array $options=[]):void{
    <span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Delivered</span></span>
   <?php else:?>
    <?php if($paidStepDone):?><span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Paid</span></span><?php else:?><button type="button" class="od-step" data-open-order-form="od-record-payment"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Paid</span></button><?php endif;?>
-   <?php if($reconstitutedStepDone):?>
+   <?php if($packagedStepDone):?>
+   <span class="od-step done od-step-static"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Reconstituted</span></span>
+   <?php elseif($reconstitutedStepDone):?>
    <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="0"><?=$stepReturn?><button type="submit" class="od-step done"><span class="od-step-mark" aria-hidden="true">✓</span><span class="od-step-label">Reconstituted</span></button></form>
    <?php else:?>
    <form method="post" class="od-step-form"><?php csrf();?><input type="hidden" name="action" value="order_reconstituted"><input type="hidden" name="id" value="<?=$id?>"><input type="hidden" name="reconstituted" value="1"><?=$stepReturn?><button type="submit" class="od-step"><span class="od-step-mark" aria-hidden="true"></span><span class="od-step-label">Reconstituted</span></button></form>
