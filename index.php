@@ -6310,7 +6310,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <?php elseif($view==='catalogue'): ankhCatalogueInit($db);ankhPublicReviewInit($db);$customerCatalogueVisibility=ankhCatalogueVisibility($db);$customerCatalogueContent=ankhCatalogueContent($db);$publicCatalogueReviews=ankhPublicReviewRows($db);
  $allCategories=ankhCategories($db);$assignedCategories=ankhProductCategories($db);?>
 <script src="catalogue-admin.js?v=unified-2" defer></script>
-<?php pageHeader('Website & product settings',['back_href'=>'?view=more','back_label'=>'More']);?>
+<?php pageHeader('Website & products',['back_href'=>'?view=more','back_label'=>'More']);?>
 <style>
 .products-toolbar{position:sticky;top:0;z-index:20;display:grid;gap:10px;margin:0 0 10px;padding:10px 0 12px;background:var(--ankh-os-bg)}
 .products-search{position:relative;display:block;margin:0}
@@ -7982,7 +7982,7 @@ if($runRouteAddresses){
 <section class="more-group">
 <h2 class="more-group-heading">Website</h2>
 <div class="more-grid">
-<a class="more-card" href="?view=catalogue"><span class="more-icon">⚙</span><div><h2>Website &amp; product settings</h2></div><b>›</b></a>
+<a class="more-card" href="?view=catalogue"><span class="more-icon">⚙</span><div><h2>Website &amp; products</h2></div><b>›</b></a>
 <a class="more-card" href="?view=settings&amp;tab=website"><span class="more-icon">✎</span><div><h2>Customer website CMS</h2></div><b>›</b></a>
 </div>
 </section>

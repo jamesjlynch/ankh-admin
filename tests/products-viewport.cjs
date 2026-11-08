@@ -93,7 +93,7 @@ const assert=require('node:assert/strict');
   assert(await page.locator('.add-product-form input[name="name"]').isVisible(),'Add product form is reachable');
   // The catalogue keeps every existing website and product management control.
   await page.goto(host+'/?view=catalogue');
-  assert(await page.getByRole('heading',{name:'Website & product settings'}).isVisible(),'Catalogue uses the Website & product settings heading');
+  assert(await page.getByRole('heading',{name:'Website & products'}).isVisible(),'Catalogue uses the Website & products heading');
   assert(await page.locator('#products-manage').evaluate(node=>node.open),'Catalogue manage sheet is open');
   assert.equal(await page.locator('#ankh-visibility-form').count(),1,'Website visibility controls are kept');
   assert.equal(await page.locator('#hidden-product-list').count(),1,'Hidden product editors are kept');
