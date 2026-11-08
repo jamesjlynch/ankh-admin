@@ -9,7 +9,7 @@ $app=file_get_contents($root.'/index.php');
 $css=file_get_contents($root.'/style.css');
 function uxCheck(bool $ok,string $msg):void{if(!$ok)throw new RuntimeException($msg);}
 uxCheck(substr_count($app,'class="ux-mobile-actions"')===1,'Exactly one dashboard mobile quick-action strip is expected.');
-foreach(['?view=new','?view=orders&amp;scope=to_deliver','?view=stock','?view=supplier&amp;tab=order','?view=reports'] as $route){
+foreach(['?view=new','?view=orders&amp;scope=to_deliver','?view=stock','?view=buying&amp;tab=supplier','?view=reports'] as $route){
  uxCheck(str_contains($app,'href="'.$route.'"'),'The dashboard needs working one-tap quick links: '.$route);
 }
 uxCheck(str_contains($app,'class="ux-mobile-scopes order-view-nav"')&&str_contains($app,'aria-label="Order views"'),'Orders must offer an accessible quick-filter strip.');

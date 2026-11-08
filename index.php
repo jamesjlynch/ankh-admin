@@ -755,7 +755,7 @@ function sc_post(PDO $db,string $action):void{
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='Selected boxes added to your shared supplier basket for review. Nothing has been ordered.';
-  header('Location: ./?view=supplier&tab=order');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=order');exit;
  }
  if($action==='supplier_centre_import'){
   $file=$_FILES['supplier_csv']??null;
@@ -796,7 +796,7 @@ function sc_post(PDO $db,string $action):void{
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']=count($rows).' MJT supplier prices imported; existing product links preserved.';
-  header('Location: ./?view=supplier&tab=profit');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=profit');exit;
  }
  if($action==='supplier_centre_config'){
   $rate=trim((string)($_POST['usd_gbp_rate']??''));
@@ -806,7 +806,7 @@ function sc_post(PDO $db,string $action):void{
   sc_save_setting($db,'supplier_usd_gbp_rate',$rate);
   sc_save_setting($db,'supplier_shipping_order_usd_cents',(string)$shippingUsdCents);
   $_SESSION['flash']='Exchange rate and fixed USD shipping per supplier order saved. Existing purchases are unchanged.';
-  header('Location: ./?view=supplier&tab=profit');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=profit');exit;
  }
  if($action==='supplier_centre_map'){
   $sku=strtoupper(trim((string)($_POST['sku']??'')));
@@ -822,7 +822,7 @@ function sc_post(PDO $db,string $action):void{
   }
   $db->prepare('UPDATE supplier_catalogue SET product_id=? WHERE sku=?')->execute([$id,$sku]);
   $_SESSION['flash']='Supplier product mapping saved.';
-  header('Location: ./?view=supplier&tab=products');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=products');exit;
  }
  if($action==='supplier_centre_price'){
   $sku=strtoupper(trim((string)($_POST['sku']??'')));$box=trim((string)($_POST['box_usd']??''));
@@ -836,7 +836,7 @@ function sc_post(PDO $db,string $action):void{
    $db->prepare('UPDATE supplier_catalogue SET box_usd_cents=?,updated=? WHERE sku=?')->execute([$newCents,gmdate('c'),$sku]);$db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='Supplier USD box price updated. Past orders are unchanged.';
-  header('Location: ./?view=supplier&tab=products');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=products');exit;
  }
  if($action==='supplier_centre_place'){
   $boxes=$_POST['boxes']??[];if(!is_array($boxes))throw new Exception('Choose supplier boxes.');
@@ -864,7 +864,7 @@ function sc_post(PDO $db,string $action):void{
    sc_discount_within_products($discountDraftCents,$draftUsd);
    $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,discount_usd_cents,expected_date,updated) VALUES (1,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,shipping_usd_cents=excluded.shipping_usd_cents,discount_usd_cents=excluded.discount_usd_cents,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$legacyGbp,$shipDraftCents,$discountDraftCents,$expectedDraft,gmdate('c')]);
    $_SESSION['flash']='Shared supplier basket draft saved for James and Tony.';
-   header('Location: ./?view=supplier&tab=order');exit;
+   header('Location: ./?view=buying&tab=supplier&supplier_tab=order');exit;
   }
   if(!$requested||count($requested)>100)throw new Exception('Select at least one mapped supplier product.');
   $fx=sc_fx($db);
@@ -1067,13 +1067,14 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $groupedSmart=['attention'=>[],'covered'=>[]];
  foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
  ?>
-<div class="heading page-header sc-heading"><div class="page-header-main"><h1>Supplier &amp; Profit</h1></div></div>
+<?php if(($_GET['view']??'')!=='buying'):?><div class="heading page-header sc-heading"><div class="page-header-main"><h1>Supplier &amp; Profit</h1></div></div>
+<?php endif;?>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
- <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
- <a href="?view=supplier&amp;tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
- <a href="?view=supplier&amp;tab=order" <?=$tab==='order'?'aria-current="page"':''?>>Build order</a>
- <a href="?view=supplier&amp;tab=products" <?=$tab==='products'?'aria-current="page"':''?>>Prices &amp; matching</a>
- <a href="?view=supplier&amp;tab=incoming" <?=$tab==='incoming'?'aria-current="page"':''?>>Incoming</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=order" <?=$tab==='order'?'aria-current="page"':''?>>Build order</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=products" <?=$tab==='products'?'aria-current="page"':''?>>Prices &amp; matching</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=incoming" <?=$tab==='incoming'?'aria-current="page"':''?>>Incoming</a>
 </div>
 <div class="sc-overview">
  <div><small>Supplier products</small><strong><?=count($rows)?></strong></div>
@@ -1081,7 +1082,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <div><small>Awaiting matching</small><strong><?=count($rows)-$mapped?></strong></div>
 </div>
 <?php if($tab==='profit'):?>
-<?php if(!$catalogue):?><section class="panel sc-empty"><h2>Start with the MJT supplier price import</h2><p>Upload the August 2026 supplier CSV through Prices &amp; matching. Wholesale costs are stored privately in ANKH Admin, never in the public code repository.</p><a class="quick-action" href="?view=supplier&amp;tab=products">Import supplier prices →</a></section><?php else:?>
+<?php if(!$catalogue):?><section class="panel sc-empty"><h2>Start with the MJT supplier price import</h2><p>Upload the August 2026 supplier CSV through Prices &amp; matching. Wholesale costs are stored privately in ANKH Admin, never in the public code repository.</p><a class="quick-action" href="?view=buying&amp;tab=supplier&amp;supplier_tab=products">Import supplier prices →</a></section><?php else:?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge and any saved order discount. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
@@ -1101,7 +1102,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   <div><span>Gross profit / vial</span><strong><?=$item['profit']===null?'—':'£'.number_format($item['profit']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?($item['discount_allocated']?'After shipping and supplier discount':'After estimated supplier shipping'):'Before shipping and overheads'?></small></div>
  </div>
  <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?(!empty($item['discount_allocated'])?'Includes proportional order shipping and discount':'Includes proportional order shipping'):'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
- <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=supplier&amp;tab=products">Match to ANKH product →</a><?php endif;?>
+ <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=buying&amp;tab=supplier&amp;supplier_tab=products">Match to ANKH product →</a><?php endif;?>
 </div></details>
 <?php endforeach;?></div></details>
 <?php endforeach;?></div></section>
@@ -1111,9 +1112,9 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <div class="sc-panel-heading"><div><p class="eyebrow">SMART BUYING ASSISTANT</p><h2>What should we reorder?</h2><p>Checks each fridge, existing reservations, incoming supplier purchases, recent delivered sales and possible upcoming recurring orders.</p></div></div>
  <?php if(!$catalogue):?>
  <div class="sc-notice">Import the MJT price list in Prices &amp; matching before using Smart Buying. Your wholesale costs stay private.</div>
- <a class="quick-action" href="?view=supplier&amp;tab=products">Import &amp; match products →</a>
+ <a class="quick-action" href="?view=buying&amp;tab=supplier&amp;supplier_tab=products">Import &amp; match products →</a>
  <?php else:?>
- <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="supplier"><input type="hidden" name="tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
+ <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="buying"><input type="hidden" name="tab" value="supplier"><input type="hidden" name="supplier_tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
  <div class="sc-smart-stats"><div><small>Products to consider</small><strong><?=count($smartSuggested)?></strong></div><div><small>Suggested boxes</small><strong><?=array_sum(array_column($smartSuggested,'boxes'))?></strong></div><div><small>Product total (USD)</small><strong><?=sc_money_usd(array_sum(array_map(fn($r)=>$r['boxes']*$r['box_usd_cents'],$smartSuggested)))?></strong></div></div>
  <?php if($fx===null):?><p class="sc-notice">Set the GBP-per-USD rate in Prices &amp; matching to use the purchasing budget calculator. You can still review suggested quantities in USD.</p><?php else:?><p class="sc-notice">Budgets include the <strong>one-off <?=sc_money_usd($orderShippingUsdCents)?> USD order shipping charge</strong> (approximately £<?=number_format($orderShippingUsdCents*$fx/100,2)?>), not a fee for every box.</p><?php endif;?>
  <div class="sc-smart-explainer"><span class="sc-smart-info-icon" aria-hidden="true">ⓘ</span><p><strong>How it decides:</strong> Stock available <em>already excludes</em> reserved customer orders. Suggestions use available + incoming, then allow for your low-stock threshold, estimated 7-day sales and possible recurring orders. Spare stock in James’s or Tony’s fridge is counted before recommending more purchases, but transfers must be done manually.</p></div>
@@ -4005,7 +4006,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if($returnView==='fridge_jay'||$returnView==='fridge_tony'){$returnWho=$returnView==='fridge_jay'?'jay':'tony';$returnView='stock';}
  elseif(in_array($returnView,['jay','tony'],true)){$returnWho=$returnView;$returnView='stock';}
  elseif($returnView==='stock'&&$returnWho===''&&in_array((string)($_GET['who']??''),['jay','tony'],true))$returnWho=(string)$_GET['who'];
- if($returnView==='supplies'&&in_array($returnSection,['cupboard','shopping','purchases'],true)){header('Location: ./?view=supplies&section='.$returnSection);exit;}
+ if($returnView==='supplies'&&in_array($returnSection,['cupboard','shopping','purchases'],true)){header('Location: ./?view=buying&tab=supplies&section='.$returnSection);exit;}
  if($action==='stock_fridge_counts'){
   $returnFilter=(($_POST['return_filter']??'')==='low')?'&filter=low':'';
   $returnFridge=in_array($_POST['return_fridge']??'combined',['combined','jay','tony'],true)?(string)($_POST['return_fridge']??'combined'):'combined';
@@ -4341,7 +4342,7 @@ function reportTakingsData(PDO $db,DateTimeImmutable $today,DateTimeZone $tz):ar
  unset($period);
  return $result;
 }
-$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','plan','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$view=in_array($_GET['view']??'', ['enquiries','supplies','activity','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','plan','buying','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
 // Legacy fridge screens now live inside the merged Stock screen.
 if($view==='fridge_jay'||$view==='fridge_tony'){header('Location: ./?view=stock&who='.($view==='fridge_jay'?'jay':'tony'),true,302);exit;}
 // The hidden live board alias keeps working for old bookmarks.
@@ -4371,6 +4372,31 @@ if($isPlan){
  $planTab=in_array((string)($_GET['tab']??''),['reorder','cycles','shipping'],true)?(string)($_GET['tab']??''):'reorder';
  if($planTab==='shipping')$shipTabOverride=(string)($_GET['ship_tab']??'')==='stock'?'stock':'calendar';
  $view=['reorder'=>'reorder','cycles'=>'reta','shipping'=>'shipping'][$planTab];
+}
+// One Buying screen now owns the supplier and supplies views.
+$buyingLegacyTabs=['supplier'=>'supplier','supplies'=>'supplies'];
+if(isset($buyingLegacyTabs[$view])){
+ $legacyBuyingTab=$buyingLegacyTabs[$view];
+ if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
+  $legacyQuery=$_GET;$legacyQuery['view']='buying';
+  if($view==='supplier'&&isset($legacyQuery['tab'])){
+   $legacySupplierTab=(string)$legacyQuery['tab'];unset($legacyQuery['tab']);
+   if(in_array($legacySupplierTab,['profit','smart','order','products','incoming'],true))$legacyQuery['supplier_tab']=$legacySupplierTab;
+  }
+  $legacyQuery['tab']=$legacyBuyingTab;
+  header('Location: ./?'.http_build_query($legacyQuery),true,302);exit;
+ }
+ // A POST has already run its action; render the matching Buying tab without losing it.
+ if($view==='supplier'&&isset($_GET['tab'])&&in_array($_GET['tab'],['profit','smart','order','products','incoming'],true))$_GET['supplier_tab']=$_GET['tab'];
+ $view='buying';$_GET['view']='buying';$_GET['tab']=$legacyBuyingTab;
+}
+$isBuying=$view==='buying';
+$buyingTab='';
+$supplierTabOverride=null;
+if($isBuying){
+ $buyingTab=in_array((string)($_GET['tab']??''),['supplier','supplies'],true)?(string)($_GET['tab']??''):'supplier';
+ if($buyingTab==='supplier')$supplierTabOverride=in_array((string)($_GET['supplier_tab']??''),['profit','smart','order','products','incoming'],true)?(string)$_GET['supplier_tab']:'profit';
+ $view=$buyingTab==='supplier'?'supplier':'supplies';
 }
 $businessSupplies=in_array($view,['supplies','reports'],true)?$db->query('SELECT * FROM business_supplies ORDER BY ordered_date DESC,id DESC')->fetchAll(PDO::FETCH_ASSOC):[];
 // Use committed CSS assets, with a source fallback for older deployment hooks.
@@ -5224,7 +5250,7 @@ if($view==='reportsboard'){
 <a class="<?=in_array($view,['enquiries','supplies','more','run','supplier','reorder','shipping','stock','reta'],true)?'selected':''?>" href="?view=more"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg></span><span class="nav-label">More</span></a>
 </nav>
 <?php if(!$testingNoAuth):?><form method="post" class="sidebar-signout"><?php csrf();?><input type="hidden" name="action" value="logout"><button class="quiet">Sign out</button></form><?php endif;?></aside>
-<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($isPlan?'plan':$view)?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
+<main id="ankh-main" tabindex="-1" class="focus-app" data-view="<?=e($isPlan?'plan':($isBuying?'buying':$view))?>"><header><p class="eyebrow">ANKH PEPTIDES / ADMIN</p><div class="ankh-header-tools"><span class="muted"><?=date('d M Y')?></span><button type="button" class="ankh-search-button" id="ankh-search-button" data-ankh-search-open aria-label="Search orders, clients, products" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></svg></button><button type="button" class="ankh-notification-button" id="ankh-notification-button" data-ankh-notification-toggle aria-label="Notifications" aria-expanded="false" aria-controls="ankh-notifications"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><?php if($notificationCount):?><b><?=$notificationCount>99?'99+':$notificationCount?></b><?php endif;?></button></div></header>
 <?php if($premiumV2Preview):?><div class="premium-v2-preview-banner"><span>Premium V2 · design preview</span><a class="premium-v2-preview-chip" href="?view=dashboard&amp;premium=0">Return to original design <span aria-hidden="true">↗</span></a></div><?php endif;?>
 <section class="ankh-notification-popover" id="ankh-notifications" hidden aria-label="Notifications"><div class="ankh-notification-head"><div><h2>Notifications</h2><small><?=$notificationCount?> active</small></div><button type="button" class="quiet" id="ankh-notification-close">Done</button></div>
 <?php if($visibleNotifications):foreach($visibleNotifications as $notice):?><article class="ankh-notification-item tone-<?=e($notice['tone'])?>"><a href="<?=e($notice['href'])?>"><strong><?=e($notice['title'])?></strong><p><?=e($notice['body'])?></p></a><div class="ankh-notification-actions"><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="1"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Snooze 1 day</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="snooze"><input type="hidden" name="days" value="7"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">7 days</button></form><form method="post"><?php csrf();?><input type="hidden" name="action" value="notification_state"><input type="hidden" name="notification_id" value="<?=e($notice['id'])?>"><input type="hidden" name="state_action" value="dismiss"><input type="hidden" name="return" value="<?=e($view)?>"><?php if($view==='customer'&&$customerAccount):?><input type="hidden" name="customer_id" value="<?=(int)$customerAccount['id']?>"><?php endif;?><button class="quiet">Dismiss</button></form></div></article><?php endforeach;else:?><div class="ankh-notification-empty">You’re all caught up.</div><?php endif;?></section>
@@ -5264,6 +5290,14 @@ if($view==='reportsboard'){
 </nav>
 </div>
 <?php endif;?>
+<?php if($isBuying):?>
+<div class="buying-screen">
+<?php pageHeader('Buying',['class'=>'buying-heading','back_href'=>'?view=more','back_label'=>'More']);?>
+<nav class="buying-switch" aria-label="Buying sections">
+<?php foreach(['supplier'=>'Supplier','supplies'=>'Supplies'] as $buyingKey=>$buyingLabel):?><a href="?view=buying&amp;tab=<?=e($buyingKey)?>" class="<?=$buyingTab===$buyingKey?'selected':''?>" <?=$buyingTab===$buyingKey?'aria-current="page"':''?>><?=e($buyingLabel)?></a><?php endforeach;?>
+</nav>
+</div>
+<?php endif;?>
 <?php if($view==='dashboard'):
 if(empty($_SESSION['dashboard_focus_ready'])){unset($_SESSION['dashboard_queue']);$_SESSION['dashboard_focus_ready']=true;}
 $dashboardAll=dashboardWorklist($awaitingPayment,$awaitingDelivery,$futureDeliveries);
@@ -5290,7 +5324,7 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
  <a class="ux-action-primary" href="?view=new"><span aria-hidden="true">＋</span><strong>New order</strong></a>
  <a href="?view=orders&amp;scope=to_deliver"><span aria-hidden="true">↗</span><strong>Deliveries</strong></a>
  <a href="?view=stock"><span aria-hidden="true">▣</span><strong>Stock</strong></a>
- <a href="?view=supplier&amp;tab=order"><span aria-hidden="true">◎</span><strong>Buy stock</strong></a>
+ <a href="?view=buying&amp;tab=supplier"><span aria-hidden="true">◎</span><strong>Buying</strong></a>
  <a href="?view=reports"><span aria-hidden="true">↗</span><strong>Reports</strong></a>
 </nav>
 <div class="dashboard-stats">
@@ -6900,7 +6934,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 (()=>{document.querySelectorAll('.report-table,.expanded-profit-table').forEach(table=>{const labels=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());table.querySelectorAll('tbody tr').forEach(row=>{[...row.children].forEach((cell,index)=>{if(cell.tagName==='TD'&&!cell.hasAttribute('colspan'))cell.dataset.label=labels[index]||'';});});});})();
 </script>
 <?php elseif($view==='supplier'):?>
-<?php sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
+<?php if($isBuying)$_GET['tab']=$supplierTabOverride;sc_render($db,$stockProducts,$reservedStockByProduct,$incomingByProduct,$recurringForecast30['stock']??[]); ?>
 <?php elseif($view==='activity'):?>
 <?php pageHeader('Order & payment activity',['back_href'=>'?view=more','back_label'=>'More']);?>
 <section class="panel"><div class="activity-list">
@@ -6940,8 +6974,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   if(($_POST['action']??'')==='business_supply_save')foreach(array_keys($supplyForm) as $field)if(isset($_POST[$field])&&is_scalar($_POST[$field]))$supplyForm[$field]=(string)$_POST[$field];
  }
 ?>
-<?php pageHeader('Business Supplies',['class'=>'supplies-heading','action_href'=>'?view=supplies&section='.$supplySection.'&'.($supplySection==='purchases'?'new=1#supply-form':'new_item=1#cupboard-form'),'action_label'=>$supplySection==='purchases'?'+ Add purchase':($supplySection==='shopping'?'+ Add request':'+ Add supply')]);?>
+<?php if(!$isBuying):?><?php pageHeader('Business Supplies',['class'=>'supplies-heading','action_href'=>'?view=supplies&section='.$supplySection.'&'.($supplySection==='purchases'?'new=1#supply-form':'new_item=1#cupboard-form'),'action_label'=>$supplySection==='purchases'?'+ Add purchase':($supplySection==='shopping'?'+ Add request':'+ Add supply')]);?>
 <div class="supply-top-links"><a class="quick-action" href="?view=more">← More</a><a class="quick-action" href="?view=reports&amp;type=outgoings">Outgoings report →</a></div>
+<?php else:?><div class="buying-tab-actions"><a class="quick-action" href="?view=buying&amp;tab=supplies&amp;section=<?=e($supplySection)?>&amp;<?=$supplySection==='purchases'?'new=1#supply-form':'new_item=1#cupboard-form'?>"><?=$supplySection==='purchases'?'+ Add purchase':($supplySection==='shopping'?'+ Add request':'+ Add supply')?></a><a class="quick-action" href="?view=reports&amp;type=outgoings">Outgoings report →</a></div>
+<?php endif;?>
 <div class="supply-section-tabs" role="navigation" aria-label="Business supplies sections"><?php foreach(['cupboard'=>'Supplies cupboard','shopping'=>'Shopping list','purchases'=>'Purchases'] as $key=>$label):?><a class="<?=$key===$supplySection?'selected':''?>" <?=$key===$supplySection?'aria-current="page"':''?> href="?view=supplies&amp;section=<?=$key?>"><?=e($label)?><span><?=$key==='cupboard'?count($cupboardActive):($key==='shopping'?count($cupboardShopping):count($supplyOpen))?></span></a><?php endforeach;?></div>
 <?php if($supplySection!=='purchases'):?>
 <?php if($cupboardFormOpen&&($cupboardFormId>0&&!isset($cupboardById[$cupboardFormId])||$sourcePurchaseId>0&&(!$sourcePurchase||$sourcePurchase['cupboard_id']))):?><p class="error">That supply is unavailable or this purchase already has a cupboard item.</p>
@@ -7164,7 +7200,7 @@ if($runRouteAddresses){
 <h2 class="more-group-heading">Stock</h2>
 <div class="more-grid">
 <a class="more-card" href="?view=products"><span class="more-icon">◫</span><div><h2>Products</h2></div><b>›</b></a>
-<a class="more-card" href="?view=supplier"><span class="more-icon">◎</span><div><h2>Supplier &amp; profit</h2></div><b>›</b></a>
+<a class="more-card" href="?view=buying"><span class="more-icon">◎</span><div><h2>Buying</h2></div><b>›</b></a>
 <a class="more-card" href="?view=stock"><span class="more-icon">▣</span><div><h2>Stock control</h2></div><b>›</b></a>
 </div>
 </section>
@@ -7172,7 +7208,6 @@ if($runRouteAddresses){
 <h2 class="more-group-heading">Money</h2>
 <div class="more-grid">
 <a class="more-card" href="?view=balances"><span class="more-icon">£</span><div><h2>Customer balances</h2></div><b>›</b></a>
-<a class="more-card" href="?view=supplies"><span class="more-icon">▤</span><div><h2>Business supplies</h2></div><b>›</b></a>
 <a class="more-card" href="?view=reports"><span class="more-icon">£</span><div><h2>Profit &amp; reports</h2></div><b>›</b></a>
 </div>
 </section>

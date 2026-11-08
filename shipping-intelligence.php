@@ -407,6 +407,6 @@ $shipTotalAttention=$shipAtRisk+$shipNeedsCount;
 <?php endif;?>
 <?php endif;?>
 <?php if($shipMode==='overview'):?>
-<section class="ship-card ship-tools-panel"><h2>Supplier &amp; shipment tools</h2><p class="ship-sub">Keep purchasing and stock receipts within your existing system — no duplicated order records.</p><p style="display:flex;flex-wrap:wrap;gap:9px;margin-top:15px"><a class="ship-action" href="?view=supplier">Supplier Centre →</a><a class="ship-action ship-secondary" href="?view=stock&amp;section=incoming">Incoming stock →</a><a class="ship-action ship-secondary" href="?view=supplies">Business Supplies →</a></p></section>
+<section class="ship-card ship-tools-panel"><h2>Supplier &amp; shipment tools</h2><p class="ship-sub">Keep purchasing and stock receipts within your existing system — no duplicated order records.</p><p style="display:flex;flex-wrap:wrap;gap:9px;margin-top:15px"><a class="ship-action" href="?view=buying&amp;tab=supplier">Supplier Centre →</a><a class="ship-action ship-secondary" href="?view=stock&amp;section=incoming">Incoming stock →</a><a class="ship-action ship-secondary" href="?view=buying&amp;tab=supplies">Business Supplies →</a></p></section>
 <?php endif;?>
 </div>

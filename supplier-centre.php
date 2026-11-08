@@ -212,7 +212,7 @@ function sc_post(PDO $db,string $action):void{
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='Selected boxes added to your shared supplier basket for review. Nothing has been ordered.';
-  header('Location: ./?view=supplier&tab=order');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=order');exit;
  }
  if($action==='supplier_centre_import'){
   $file=$_FILES['supplier_csv']??null;
@@ -253,7 +253,7 @@ function sc_post(PDO $db,string $action):void{
    $db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']=count($rows).' MJT supplier prices imported; existing product links preserved.';
-  header('Location: ./?view=supplier&tab=profit');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=profit');exit;
  }
  if($action==='supplier_centre_config'){
   $rate=trim((string)($_POST['usd_gbp_rate']??''));
@@ -263,7 +263,7 @@ function sc_post(PDO $db,string $action):void{
   sc_save_setting($db,'supplier_usd_gbp_rate',$rate);
   sc_save_setting($db,'supplier_shipping_order_usd_cents',(string)$shippingUsdCents);
   $_SESSION['flash']='Exchange rate and fixed USD shipping per supplier order saved. Existing purchases are unchanged.';
-  header('Location: ./?view=supplier&tab=profit');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=profit');exit;
  }
  if($action==='supplier_centre_map'){
   $sku=strtoupper(trim((string)($_POST['sku']??'')));
@@ -279,7 +279,7 @@ function sc_post(PDO $db,string $action):void{
   }
   $db->prepare('UPDATE supplier_catalogue SET product_id=? WHERE sku=?')->execute([$id,$sku]);
   $_SESSION['flash']='Supplier product mapping saved.';
-  header('Location: ./?view=supplier&tab=products');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=products');exit;
  }
  if($action==='supplier_centre_price'){
   $sku=strtoupper(trim((string)($_POST['sku']??'')));$box=trim((string)($_POST['box_usd']??''));
@@ -293,7 +293,7 @@ function sc_post(PDO $db,string $action):void{
    $db->prepare('UPDATE supplier_catalogue SET box_usd_cents=?,updated=? WHERE sku=?')->execute([$newCents,gmdate('c'),$sku]);$db->commit();
   }catch(Throwable $err){if($db->inTransaction())$db->rollBack();throw $err;}
   $_SESSION['flash']='Supplier USD box price updated. Past orders are unchanged.';
-  header('Location: ./?view=supplier&tab=products');exit;
+  header('Location: ./?view=buying&tab=supplier&supplier_tab=products');exit;
  }
  if($action==='supplier_centre_place'){
   $boxes=$_POST['boxes']??[];if(!is_array($boxes))throw new Exception('Choose supplier boxes.');
@@ -321,7 +321,7 @@ function sc_post(PDO $db,string $action):void{
    sc_discount_within_products($discountDraftCents,$draftUsd);
    $db->prepare("INSERT INTO supplier_basket_drafts(id,boxes_json,shipping_gbp,shipping_usd_cents,discount_usd_cents,expected_date,updated) VALUES (1,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET boxes_json=excluded.boxes_json,shipping_gbp=excluded.shipping_gbp,shipping_usd_cents=excluded.shipping_usd_cents,discount_usd_cents=excluded.discount_usd_cents,expected_date=excluded.expected_date,updated=excluded.updated")->execute([json_encode($requested,JSON_THROW_ON_ERROR),$legacyGbp,$shipDraftCents,$discountDraftCents,$expectedDraft,gmdate('c')]);
    $_SESSION['flash']='Shared supplier basket draft saved for James and Tony.';
-   header('Location: ./?view=supplier&tab=order');exit;
+   header('Location: ./?view=buying&tab=supplier&supplier_tab=order');exit;
   }
   if(!$requested||count($requested)>100)throw new Exception('Select at least one mapped supplier product.');
   $fx=sc_fx($db);
@@ -524,13 +524,14 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  $groupedSmart=['attention'=>[],'covered'=>[]];
  foreach($smartRows as $row)$groupedSmart[$row['boxes']>0?'attention':'covered'][]=$row;
  ?>
-<div class="heading page-header sc-heading"><div class="page-header-main"><h1>Supplier &amp; Profit</h1></div></div>
+<?php if(($_GET['view']??'')!=='buying'):?><div class="heading page-header sc-heading"><div class="page-header-main"><h1>Supplier &amp; Profit</h1></div></div>
+<?php endif;?>
 <div class="sc-tabs" role="navigation" aria-label="Supplier Centre sections">
- <a href="?view=supplier&amp;tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
- <a href="?view=supplier&amp;tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
- <a href="?view=supplier&amp;tab=order" <?=$tab==='order'?'aria-current="page"':''?>>Build order</a>
- <a href="?view=supplier&amp;tab=products" <?=$tab==='products'?'aria-current="page"':''?>>Prices &amp; matching</a>
- <a href="?view=supplier&amp;tab=incoming" <?=$tab==='incoming'?'aria-current="page"':''?>>Incoming</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=profit" <?=$tab==='profit'?'aria-current="page"':''?>>Profit</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=smart" <?=$tab==='smart'?'aria-current="page"':''?>>Smart buying</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=order" <?=$tab==='order'?'aria-current="page"':''?>>Build order</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=products" <?=$tab==='products'?'aria-current="page"':''?>>Prices &amp; matching</a>
+ <a href="?view=buying&amp;tab=supplier&amp;supplier_tab=incoming" <?=$tab==='incoming'?'aria-current="page"':''?>>Incoming</a>
 </div>
 <div class="sc-overview">
  <div><small>Supplier products</small><strong><?=count($rows)?></strong></div>
@@ -538,7 +539,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <div><small>Awaiting matching</small><strong><?=count($rows)-$mapped?></strong></div>
 </div>
 <?php if($tab==='profit'):?>
-<?php if(!$catalogue):?><section class="panel sc-empty"><h2>Start with the MJT supplier price import</h2><p>Upload the August 2026 supplier CSV through Prices &amp; matching. Wholesale costs are stored privately in ANKH Admin, never in the public code repository.</p><a class="quick-action" href="?view=supplier&amp;tab=products">Import supplier prices →</a></section><?php else:?>
+<?php if(!$catalogue):?><section class="panel sc-empty"><h2>Start with the MJT supplier price import</h2><p>Upload the August 2026 supplier CSV through Prices &amp; matching. Wholesale costs are stored privately in ANKH Admin, never in the public code repository.</p><a class="quick-action" href="?view=buying&amp;tab=supplier&amp;supplier_tab=products">Import supplier prices →</a></section><?php else:?>
 <section class="panel sc-panel"><div class="sc-panel-heading"><div><p class="eyebrow">MARGIN ANALYSIS</p><h2>Profit explorer</h2><p>Estimates use your supplier box prices and saved exchange rate. Products in your shared basket include their allocated share of the entire $<?=number_format($draftShippingUsdCents/100,2)?> order shipping charge and any saved order discount. Products not in the basket show costs and gross profits <strong>before shipping</strong> until you add them to an order.</p></div></div>
 <?php if($fx===null):?><p class="sc-notice">Set your GBP per USD exchange rate in Prices &amp; matching to calculate estimated GBP margins. Supplier USD costs are available now.</p><?php endif;?>
 <div class="sc-filters"><input type="search" id="sc-profit-search" placeholder="Search product or supplier code…" aria-label="Search supplier products"><select id="sc-profit-sort" aria-label="Sort supplier products"><option value="margin">Highest margin %</option><option value="profit">Highest profit / vial</option><option value="sold">Most ordered (30d)</option><option value="stock">Most available</option><option value="name">Product name</option></select></div>
@@ -558,7 +559,7 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
   <div><span>Gross profit / vial</span><strong><?=$item['profit']===null?'—':'£'.number_format($item['profit']/100,2)?></strong><small class="sc-profit-subvalue"><?=$item['shipping_allocated']?($item['discount_allocated']?'After shipping and supplier discount':'After estimated supplier shipping'):'Before shipping and overheads'?></small></div>
  </div>
  <div class="sc-profit-bottom"><span><?=!empty($item['shipping_allocated'])?(!empty($item['discount_allocated'])?'Includes proportional order shipping and discount':'Includes proportional order shipping'):'Before shipping · add to basket for landed cost'?></span><span>Supplier / vial: <?=sc_money_usd((int)round($item['usd']/$item['pack']))?></span><span>F&amp;F: <?=$item['friends']===null?'—':money($item['friends'])?></span><span>Physical: James <?=max(0,$item['jay_physical'])?> · Tony <?=max(0,$item['tony_physical'])?></span><span>Available: James <?=$item['jay_available']?> · Tony <?=$item['tony_available']?></span><span><?=$item['reserved']?> reserved · <?=$item['incoming']?> incoming</span><span><?=$item['sold30']?> units on paid orders (30d)</span></div>
- <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=supplier&amp;tab=products">Match to ANKH product →</a><?php endif;?>
+ <?php if($item['product_id']===null):?><a class="sc-map-link" href="?view=buying&amp;tab=supplier&amp;supplier_tab=products">Match to ANKH product →</a><?php endif;?>
 </div></details>
 <?php endforeach;?></div></details>
 <?php endforeach;?></div></section>
@@ -568,9 +569,9 @@ function sc_render(PDO $db,array $products,array $reservedByProduct,array $incom
  <div class="sc-panel-heading"><div><p class="eyebrow">SMART BUYING ASSISTANT</p><h2>What should we reorder?</h2><p>Checks each fridge, existing reservations, incoming supplier purchases, recent delivered sales and possible upcoming recurring orders.</p></div></div>
  <?php if(!$catalogue):?>
  <div class="sc-notice">Import the MJT price list in Prices &amp; matching before using Smart Buying. Your wholesale costs stay private.</div>
- <a class="quick-action" href="?view=supplier&amp;tab=products">Import &amp; match products →</a>
+ <a class="quick-action" href="?view=buying&amp;tab=supplier&amp;supplier_tab=products">Import &amp; match products →</a>
  <?php else:?>
- <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="supplier"><input type="hidden" name="tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
+ <form method="get" class="sc-smart-period"><input type="hidden" name="view" value="buying"><input type="hidden" name="tab" value="supplier"><input type="hidden" name="supplier_tab" value="smart"><label>Sales lookback<select name="lookback_days" onchange="this.form.submit()"><option value="30" <?=$lookbackDays===30?'selected':''?>>Last 30 days</option><option value="60" <?=$lookbackDays===60?'selected':''?>>Last 60 days</option><option value="90" <?=$lookbackDays===90?'selected':''?>>Last 90 days</option></select></label><small>Average delivered non-recurring demand over <?=$lookbackDays?> days is projected across the usual 7-day supplier lead time. Possible recurring orders over the next 30 days are additional estimates, not confirmed reservations.</small></form>
  <div class="sc-smart-stats"><div><small>Products to consider</small><strong><?=count($smartSuggested)?></strong></div><div><small>Suggested boxes</small><strong><?=array_sum(array_column($smartSuggested,'boxes'))?></strong></div><div><small>Product total (USD)</small><strong><?=sc_money_usd(array_sum(array_map(fn($r)=>$r['boxes']*$r['box_usd_cents'],$smartSuggested)))?></strong></div></div>
  <?php if($fx===null):?><p class="sc-notice">Set the GBP-per-USD rate in Prices &amp; matching to use the purchasing budget calculator. You can still review suggested quantities in USD.</p><?php else:?><p class="sc-notice">Budgets include the <strong>one-off <?=sc_money_usd($orderShippingUsdCents)?> USD order shipping charge</strong> (approximately £<?=number_format($orderShippingUsdCents*$fx/100,2)?>), not a fee for every box.</p><?php endif;?>
  <div class="sc-smart-explainer"><span class="sc-smart-info-icon" aria-hidden="true">ⓘ</span><p><strong>How it decides:</strong> Stock available <em>already excludes</em> reserved customer orders. Suggestions use available + incoming, then allow for your low-stock threshold, estimated 7-day sales and possible recurring orders. Spare stock in James’s or Tony’s fridge is counted before recommending more purchases, but transfers must be done manually.</p></div>
