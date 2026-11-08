@@ -42,6 +42,8 @@ jobs:
         run: node tests/supply-cupboard-viewport.cjs
       - name: Test clickable product reports
         run: node tests/product-order-report-viewport.cjs
+      - name: Test monthly profit by product layout
+        run: node tests/product-profit-viewport.cjs
       - name: Test rebuilt products list
         run: node tests/products-viewport.cjs
       - name: Test light recurring cycles view at phone width

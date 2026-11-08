@@ -61,6 +61,7 @@ jobs:
           php -l tests/backup-sqlite.php
           php -l tests/cycles-light.php
           php -l tests/customer-owes.php
+          php -l tests/product-profit.php
       - name: Test individual admin authentication
         run: php tests/auth-users.php
       - name: Test automated shipping stock forecast
@@ -77,6 +78,8 @@ jobs:
         run: php tests/supply-cupboard.php
       - name: Test product report order drill-down
         run: php tests/product-order-report.php
+      - name: Test monthly profit by product
+        run: php tests/product-profit.php
       - name: Test office today overview
         run: php tests/today-overview.php
       - name: Test dashboard morning brief

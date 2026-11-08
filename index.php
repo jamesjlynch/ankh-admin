@@ -4630,6 +4630,45 @@ function todaySparklineSvg(array $daily):string{
 function statusClass(string $status):string{return preg_replace('/[^a-z0-9]+/','-',strtolower(trim($status)));}
 function assigneeClass(string $name):string{return in_array($name,['James','Tony'],true)?'assignee-'.strtolower($name):'assignee-unassigned';}
 /**
+ * Read-only monthly product profit. Uses the same completed-order rule as the
+ * Reports profit figures: paid/packed/dispatched/delivered, dated by payment
+ * date where present and order date otherwise. Free personal-use orders, back
+ * orders and cancelled lines are excluded. Missing costs stay visible but are
+ * kept out of margin calculations.
+ */
+function reportProductProfitData(PDO $db,string $monthStart,string $monthEnd):array{
+ $paidStatuses=['Paid','Packed','Dispatched','Delivered'];
+ $placeholders=implode(',',array_fill(0,count($paidStatuses),'?'));
+ $sql="SELECT i.name,i.price,i.quantity,i.cost,i.presentation_cost FROM items i JOIN orders o ON o.id=i.order_id WHERE o.status IN ($placeholders) AND COALESCE(o.back_order,0)=0 AND COALESCE(NULLIF(o.pricing_type,''),'standard')<>'free' AND date(COALESCE(NULLIF(o.payment_date,''),o.created))>=date(?) AND date(COALESCE(NULLIF(o.payment_date,''),o.created))<=date(?) ORDER BY i.id";
+ $stmt=$db->prepare($sql);$stmt->execute(array_merge($paidStatuses,[$monthStart,$monthEnd]));
+ $products=[];
+ foreach($stmt->fetchAll(PDO::FETCH_ASSOC) as $row){
+  $name=trim((string)$row['name']);if($name==='')$name='Unnamed product';
+  $key=strtolower($name);$qty=max(0,(int)$row['quantity']);$revenue=max(0,(int)$row['price'])*$qty;
+  if(!isset($products[$key]))$products[$key]=['name'=>$name,'units'=>0,'revenue'=>0,'cost'=>0,'profit'=>0,'missing_cost'=>false,'margin'=>null];
+  $products[$key]['units']+=$qty;$products[$key]['revenue']+=$revenue;
+  if($row['cost']===null){$products[$key]['missing_cost']=true;continue;}
+  $lineCost=((int)$row['cost']+(int)($row['presentation_cost']??0))*$qty;
+  $products[$key]['cost']+=$lineCost;
+ }
+ $totals=['units'=>0,'revenue'=>0,'cost'=>0,'profit'=>0,'margin'=>null,'missing_products'=>0];
+ $completeRevenue=0;$completeProfit=0;
+ foreach($products as &$product){
+  $product['profit']=$product['revenue']-$product['cost'];
+  if($product['missing_cost']){
+   $totals['missing_products']++;
+  }else{
+   $product['margin']=$product['revenue']>0?($product['profit']/$product['revenue']*100):null;
+   $completeRevenue+=$product['revenue'];$completeProfit+=$product['profit'];
+  }
+  $totals['units']+=$product['units'];$totals['revenue']+=$product['revenue'];$totals['cost']+=$product['cost'];$totals['profit']+=$product['profit'];
+ }
+ unset($product);
+ $totals['margin']=$completeRevenue>0?($completeProfit/$completeRevenue*100):null;
+ usort($products,static fn($a,$b)=>$b['profit']<=>$a['profit']?:$b['revenue']<=>$a['revenue']?:strcasecmp($a['name'],$b['name']));
+ return ['products'=>array_values($products),'totals'=>$totals,'month_start'=>$monthStart,'month_end'=>$monthEnd];
+}
+/**
  * Read-only takings model for the Reports hero. Payments are bucketed by the
  * Europe/London date they were received. Profit reuses the saved item costs,
  * presentation costs and postage snapshots from the existing profit report.
@@ -5365,6 +5404,16 @@ $reportRange=in_array($requestedReportRange,$reportRanges,true)?$requestedReport
 if($reportType==='recurring'&&!in_array($reportRange,['next4w','next8w','next12w','custom'],true))$reportRange='next8w';
 if($reportType==='reorder')$reportRange='month';
 $reportToday=$retaToday;
+$productProfitMonthRaw=(string)($_GET['month']??'');
+$productProfitMonth=$reportToday->format('Y-m');
+if(preg_match('/^(\d{4})-(0[1-9]|1[0-2])$/',$productProfitMonthRaw,$productProfitMonthMatch)&&checkdate((int)$productProfitMonthMatch[2],1,(int)$productProfitMonthMatch[1]))$productProfitMonth=$productProfitMonthRaw;
+$productProfitMonthDate=DateTimeImmutable::createFromFormat('!Y-m-d',$productProfitMonth.'-01',$tz)?:$reportToday->modify('first day of this month')->setTime(0,0,0);
+$productProfitMonthStart=$productProfitMonthDate->format('Y-m-d');
+$productProfitMonthEnd=$productProfitMonthDate->modify('last day of this month')->format('Y-m-d');
+$productProfitMonthLabel=$productProfitMonthDate->format('F Y');
+$productProfitPrevMonth=$productProfitMonthDate->modify('-1 month')->format('Y-m');
+$productProfitNextMonth=$productProfitMonthDate->modify('+1 month')->format('Y-m');
+$productProfitMonthData=$view==='reports'?reportProductProfitData($db,$productProfitMonthStart,$productProfitMonthEnd):null;
 $reportFrom=$reportToday->modify('first day of this month')->format('Y-m-d');
 $reportTo=$reportToday->format('Y-m-d');
 if($reportRange==='today')$reportFrom=$reportTo;
@@ -7188,6 +7237,103 @@ document.addEventListener('DOMContentLoaded',()=>{
  });
  close?.addEventListener('click',()=>{preview.hidden=true;status.textContent='Infographic preview closed.'});
 });</script>
+<?php if($view==='reports'&&in_array($reportType,['overview','profit'],true)&&is_array($productProfitMonthData)):?>
+<?php
+$productProfitSectionType=$reportType==='profit'?'profit':'overview';
+$productProfitParams=static fn(string $month):array=>['view'=>'reports','type'=>$productProfitSectionType,'month'=>$month];
+$productProfitPrevUrl='?'.http_build_query($productProfitParams($productProfitPrevMonth));
+$productProfitNextUrl='?'.http_build_query($productProfitParams($productProfitNextMonth));
+$productProfitTotals=$productProfitMonthData['totals'];
+?>
+<section class="panel product-profit-panel" id="product-profit" data-product-profit>
+<style id="product-profit-month-style">
+.product-profit-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.product-profit-head h2{margin:4px 0 5px}
+.product-profit-head p{margin:0;max-width:620px}
+.product-profit-month-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.product-profit-month-arrow{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;min-height:44px;padding:0;border:1px solid #3a3d38;border-radius:12px;background:#151716;color:#e4c273;text-decoration:none;font-size:19px;font-weight:800}
+.product-profit-month-arrow:hover,.product-profit-month-arrow:focus-visible{border-color:#8c7135;background:#1e1c14;color:#ffe0a0}
+.product-profit-month-form{display:flex;align-items:flex-end;gap:7px;margin:0}
+.product-profit-month-form label{margin:0;font-size:10px;color:#9ca097;text-transform:uppercase;letter-spacing:.11em;font-weight:800}
+.product-profit-month-form input{display:block;margin-top:5px;min-height:44px;padding:8px 10px;border:1px solid #3a3d38;border-radius:11px;background:#111312;color:#f5f1e6;font-size:14px}
+.product-profit-month-form button{min-height:44px;padding:0 14px;border-radius:11px}
+.product-profit-table-wrap{border:1px solid #2c2f2a;border-radius:16px;background:#121413}
+.product-profit-table{min-width:640px}
+.product-profit-table th:last-child,.product-profit-table td:last-child{text-align:left;width:24%}
+.product-profit-name{display:block;color:#f0eadc}
+.product-profit-missing{display:inline-flex!important;margin-top:5px;padding:3px 7px;border:1px solid #5f4b24;border-radius:999px;background:#2a2213;color:#e0b45f!important;font-size:9px!important;font-weight:800!important;letter-spacing:.06em;text-transform:uppercase}
+.product-profit-row.is-missing td{background:rgba(216,168,78,.035)}
+.product-profit-bar{display:block;width:100%;max-width:190px;height:8px;border-radius:999px;background:#242720;overflow:hidden}
+.product-profit-bar i{display:block;height:100%;min-width:0;border-radius:inherit;background:linear-gradient(90deg,#80651f,#e5c15d)}
+.product-profit-row.is-missing .product-profit-bar i{background:linear-gradient(90deg,#6b5528,#c59a45)}
+.product-profit-total td{font-weight:800;color:#f6e2a9;border-top:1px solid #45412f;background:#171913}
+.product-profit-note{margin:12px 0 0;color:#9ca097;font-size:12px;line-height:1.5}
+.product-profit-note strong{color:#e0b45f}
+.product-profit-empty{margin:12px 0 0}
+@media(max-width:760px){
+ .product-profit-head{display:grid;gap:12px;align-items:start}
+ .product-profit-month-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;width:100%;gap:7px}
+ .product-profit-month-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;min-width:0}
+ .product-profit-month-form label{min-width:0}
+ .product-profit-month-form input{width:100%;min-width:0;font-size:15px}
+ .product-profit-month-form button{padding:0 12px}
+ .product-profit-table-wrap{overflow:visible;margin:0;padding:0;border:0;background:transparent}
+ .product-profit-table{display:block;min-width:0;width:100%}
+ .product-profit-table thead{display:none}
+ .product-profit-table tbody{display:grid;gap:10px}
+ .product-profit-table tr{display:block;padding:12px 13px;border:1px solid #30332d;border-radius:15px;background:linear-gradient(150deg,#191b18,#111311)}
+ .product-profit-table td{display:grid;grid-template-columns:minmax(92px,.8fr) minmax(0,1.2fr);gap:10px;width:100%;padding:7px 0!important;border:0!important;text-align:right!important;font-size:12px!important;white-space:normal}
+ .product-profit-table td+td{border-top:1px solid rgba(255,255,255,.055)!important}
+ .product-profit-table td::before{content:attr(data-label);color:#858981;font-size:9px;font-weight:800;letter-spacing:.55px;line-height:1.35;text-align:left;text-transform:uppercase}
+ .product-profit-table td:first-child{font-size:14px!important}
+ .product-profit-table td:first-child::before{display:none}
+ .product-profit-table td:last-child{width:100%}
+ .product-profit-bar{max-width:none;width:100%;height:9px}
+ .product-profit-total{margin-top:2px;border-color:#5d4a25!important;background:linear-gradient(150deg,#211c12,#14150f)!important}
+ .product-profit-total td:first-child::before{display:block}
+}
+</style>
+<div class="product-profit-head">
+ <div><p class="eyebrow">MONTHLY PRODUCT PROFIT</p><h2>Profit by product</h2><p class="muted">Completed paid orders dated <strong><?=e($productProfitMonthLabel)?></strong>. Costs use the saved item and presentation costs.</p></div>
+ <div class="product-profit-month-controls">
+  <a class="product-profit-month-arrow" href="<?=e($productProfitPrevUrl)?>" rel="prev" aria-label="Previous month, <?=e($productProfitMonthDate->modify('-1 month')->format('F Y'))?>">←</a>
+  <form class="product-profit-month-form" method="get">
+   <input type="hidden" name="view" value="reports"><input type="hidden" name="type" value="<?=e($productProfitSectionType)?>">
+   <label>Month<input type="month" name="month" value="<?=e($productProfitMonth)?>" aria-label="Choose profit month"></label>
+   <button>View</button>
+  </form>
+  <a class="product-profit-month-arrow" href="<?=e($productProfitNextUrl)?>" rel="next" aria-label="Next month, <?=e($productProfitMonthDate->modify('+1 month')->format('F Y'))?>">→</a>
+ </div>
+</div>
+<?php if($productProfitMonthData['products']):?>
+<div class="profit-table-wrap product-profit-table-wrap"><table class="profit-table report-table product-profit-table" data-product-profit-table>
+<thead><tr><th>Product</th><th>Units sold</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Margin</th><th>Share of profit</th></tr></thead>
+<tbody>
+<?php foreach($productProfitMonthData['products'] as $product):$productShare=$productProfitTotals['profit']>0?max(0,min(100,$product['profit']/$productProfitTotals['profit']*100)):0;?>
+<tr class="product-profit-row<?=$product['missing_cost']?' is-missing':''?>" data-product-profit-row data-product="<?=e($product['name'])?>">
+<td data-label="Product"><strong class="product-profit-name"><?=e($product['name'])?></strong><?php if($product['missing_cost']):?><small class="product-profit-missing">cost missing</small><?php endif;?></td>
+<td data-label="Units sold"><?=$product['units']?></td>
+<td data-label="Revenue"><?=money($product['revenue'])?></td>
+<td data-label="Cost"><?=money($product['cost'])?></td>
+<td data-label="Profit"><?=money($product['profit'])?></td>
+<td data-label="Margin"><?=$product['margin']===null?'—':number_format($product['margin'],1).'%'?></td>
+<td data-label="Share of profit"><span class="product-profit-bar" aria-hidden="true"><i style="width:<?=number_format($productShare,1,'.','')?>%"></i></span></td>
+</tr>
+<?php endforeach;?>
+<tr class="product-profit-total" data-product-profit-total>
+<td data-label="Product">Total</td>
+<td data-label="Units sold"><?=$productProfitTotals['units']?></td>
+<td data-label="Revenue"><?=money($productProfitTotals['revenue'])?></td>
+<td data-label="Cost"><?=money($productProfitTotals['cost'])?></td>
+<td data-label="Profit"><?=money($productProfitTotals['profit'])?></td>
+<td data-label="Margin"><?=$productProfitTotals['margin']===null?'—':number_format($productProfitTotals['margin'],1).'%'?></td>
+<td data-label="Share of profit"><span class="product-profit-bar" aria-hidden="true"><i style="width:<?=$productProfitTotals['profit']>0?'100':'0'?>%"></i></span></td>
+</tr>
+</tbody></table></div>
+<?php if($productProfitTotals['missing_products']):?><p class="product-profit-note"><strong><?=$productProfitTotals['missing_products']?> product<?=$productProfitTotals['missing_products']===1?'':'s'?> cost missing.</strong> These rows are excluded from margin, and profit totals only include known costs.</p><?php endif;?>
+<?php else:?><p class="muted product-profit-empty">No completed product sales in <?=e($productProfitMonthLabel)?>.</p><?php endif;?>
+</section>
+<?php endif;?>
 <?php if(!$reportRangeError||$reportType==='profit'):?>
 <?php if($reportType==='profit'):?>
 <?php $supplyProfitFrom=$reportPeriodKey==='all'?'':date('Y-m-d',$reportPeriods[$reportPeriodKey]['start']);$profitSupplySpend=supplySpending($businessSupplies,$supplyProfitFrom);$allSupplySpend=supplySpending($businessSupplies);?>
@@ -7235,7 +7381,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">COST SETTINGS</p><h2>Pen cost</h2></div></div><p class="muted">This is the cost to you for one pen. New pen orders snapshot this cost so historical profit stays unchanged if the price changes later.</p><form method="post"><?php csrf();?><input type="hidden" name="action" value="profit_settings"><input type="hidden" name="return" value="reports"><label>Pen unit cost (£)<input name="pen_cost" type="number" min="0" max="100000" step=".01" inputmode="decimal" value="<?=e($penUnitCost===''?'':number_format((int)$penUnitCost/100,2,'.',''))?>" placeholder="Enter your actual cost"></label><button>Save pen cost</button></form></section>
 </div>
 
-<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">PRODUCTS</p><h2>Profit by product</h2><p class="muted">Units, actual selling price, discounts, cost, gross profit and margin. Pen price mix uses the final price recorded on each order.</p></div></div>
+<section class="panel"><div class="dashboard-panel-head"><div><p class="eyebrow">PRODUCTS</p><h2>All-time profit by product</h2><p class="muted">Units, actual selling price, discounts, cost, gross profit and margin. Pen price mix uses the final price recorded on each order.</p></div></div>
 <div class="profit-table-wrap"><table class="profit-table expanded-profit-table"><thead><tr><th>Product</th><th>Units</th><th>Avg sold</th><th>Avg discount</th><th>Revenue</th><th>Cost</th><th>Gross profit</th><th>Margin</th></tr></thead><tbody>
 <?php foreach($productProfit as $productName=>$pp):
  $ppProfit=$pp['revenue']-$pp['cogs'];$margin=$pp['revenue']>0?($ppProfit/$pp['revenue']*100):0;$avgSold=$pp['units']?intdiv((int)$pp['revenue'],(int)$pp['units']):0;$avgDiscount=$pp['units']?intdiv((int)($pp['discount_total']??0),(int)$pp['units']):0;
