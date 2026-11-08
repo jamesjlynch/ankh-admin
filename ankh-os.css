@@ -14,6 +14,11 @@
   --ankh-os-muted:#8E8A82;
   --ankh-os-radius:18px;
   --ankh-os-shadow:0 18px 44px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.035);
+  /* Bottom nav height + raised "+" overhang + home-indicator inset. The
+     scrolling <main> already stops at the nav top, so only the overhang is
+     needed above the scrollport. */
+  --ankh-nav-h:calc(80px + env(safe-area-inset-bottom,0px));
+  --ankh-nav-overhang:calc(var(--ankh-nav-h) - 64px - env(safe-area-inset-bottom,0px));
   --gold:var(--ankh-os-gold);
   --gold2:var(--ankh-os-gold-bright);
   --muted:var(--ankh-os-muted);
@@ -257,6 +262,34 @@ body .stockboard .stockboard-card{
   outline:2px solid rgba(245,166,35,.55);
   outline-offset:1px;
   box-shadow:0 0 0 3px rgba(245,166,35,.18);
+}
+
+/* iOS gives native date/time controls an intrinsic width that can spill out
+   of a card. Pin every picker to its field and keep the value left aligned. */
+.admin-app-shell input[type="date"],
+.admin-app-shell input[type="time"],
+.admin-app-shell input[type="datetime-local"],
+.admin-app-shell input[type="month"],
+.admin-app-shell input[type="week"]{
+  display:block;
+  width:100%;
+  max-width:100%;
+  min-width:0;
+  box-sizing:border-box;
+  overflow:hidden;
+  -webkit-appearance:none;
+  appearance:none;
+  text-align:left;
+}
+.admin-app-shell :is(
+  .order-date-field,
+  .edit-order-date-control,
+  .order-date-editor,
+  .order-dates-form,
+  .order-dates-form label
+){
+  min-width:0;
+  max-width:100%;
 }
 
 /* Pills and tab rows: one scrollable row. */
@@ -701,7 +734,7 @@ body .stockboard .stockboard-card{
   }
   .admin-app-shell > #ankh-main,
   .admin-app-shell > main#ankh-main{
-    padding-bottom:24px!important;
+    padding-bottom:var(--ankh-nav-overhang)!important;
     margin-bottom:calc(64px + env(safe-area-inset-bottom,0px))!important;
   }
 }
@@ -2040,7 +2073,7 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
     position:sticky!important;
     left:auto!important;
     right:auto!important;
-    bottom:0!important;
+    bottom:var(--ankh-nav-overhang)!important;
     z-index:20!important;
     width:auto!important;
     margin:18px 0 0!important;
@@ -2054,6 +2087,8 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
   .admin-app-shell .wizard-progress{margin-bottom:0}
   .admin-app-shell .wizard-progress>span>span{font-size:11px;top:36px}
   .admin-app-shell .new-order-head{padding-bottom:26px}
+  /* Edit order keeps its total bar above the same pinned nav. */
+  .admin-app-shell .edit-total{bottom:var(--ankh-nav-overhang)!important}
 }
 
 @media(max-width:760px){
@@ -2062,8 +2097,10 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
      programmatic scroll-to-picker clear of that footer. */
   .admin-app-shell .order-wizard{margin-bottom:0!important;padding-bottom:0!important}
   body .admin-app-shell>main#ankh-main[data-view="new"]{
+    /* The sticky footer itself clears the nav, so no extra scroll padding is
+       needed here; keep scroll-to-picker clear of the footer. */
     padding-bottom:0!important;
-    scroll-padding-bottom:90px;
+    scroll-padding-bottom:calc(var(--ankh-nav-h) + 10px);
   }
 }
 

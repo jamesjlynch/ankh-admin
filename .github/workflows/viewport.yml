@@ -28,6 +28,8 @@ jobs:
         run: node tests/viewport-testmode.mjs
       - name: Test merged Settings and Notifications screens
         run: node tests/settings-viewport.cjs
+      - name: Test New order sticky footer and date inputs
+        run: node tests/neworder-footer-viewport.cjs
       - name: Test back-order mobile workflow against isolated SQLite data
         run: node tests/back-orders-viewport.cjs
       - name: Test Stock All overview on phone widths
