@@ -33,6 +33,7 @@ check($brief['owed']===3000&&$brief['clients']===1,'Outstanding money excludes b
 check($brief['low_stock']===1,'Low stock counts active tracked products across Jay, Tony and holding.');
 check($brief['reorders']===2&&$brief['supplier_orders']===1&&$brief['supplier_units']===20,'Reorders and incoming supplier orders use outstanding counts only.');
 check(array_column($brief['lines'],'key')===['deliveries','money','low-stock','reorders','supplier'],'Brief lines appear in priority order and hide zero counts.');
+check($brief['glance']==='1 to deliver · £30.00 owed · 1 low stock','The collapsed glance summarises deliveries, money owed and low stock.');
 $lines=[];foreach($brief['lines'] as $line)$lines[$line['key']]=$line;
 check($lines['deliveries']['detail']==='1 · Alice Delivery','Deliveries show the count and first names.');
 check(str_contains($lines['money']['detail'],'£30.00')&&str_contains($lines['money']['detail'],'1 client'),'Money line shows the outstanding total and client count.');
@@ -48,6 +49,7 @@ check($backOnly['deliveries']===0&&$backOnly['owed']===0&&$backOnly['clients']==
 
 $empty=morningBriefData([],[],[],[],$now);
 check($empty['lines']===[]&&$empty['all_clear']===true,'An empty day reports all clear.');
+check($empty['glance']==='All clear today','The collapsed glance says all clear on an empty day.');
 
 $many=morningBriefData(array_merge($orders,[
  ['id'=>4,'customer'=>'Dan Delivery','recipient_name'=>'','phone'=>'400','status'=>'Paid','back_order'=>0,'delivery_date'=>'','scheduled_delivery_date'=>$today,'total'=>1000,'paid_amount'=>1000],
@@ -56,4 +58,12 @@ $many=morningBriefData(array_merge($orders,[
 ]),$products,$reorders,$supplierOrders,$now);
 $manyLines=[];foreach($many['lines'] as $line)$manyLines[$line['key']]=$line;
 check(str_contains($manyLines['deliveries']['detail'],'+1 more'),'Delivery names are capped at the first three.');
-echo "PASS: morning brief counts deliveries, excludes back-order money, flags low stock, lists reorders and incoming supplier orders with the right links.\n";
+$markupStart=strpos($source,'<details class="morning-brief"');
+check($markupStart!==false,'The morning brief must use a native details element.');
+$markupTagEnd=strpos($source,'>',$markupStart);
+$markupTag=substr($source,$markupStart,$markupTagEnd-$markupStart+1);
+check(!str_contains($markupTag,'open'),'The morning brief must be collapsed by default.');
+check(str_contains($source,'<summary class="morning-brief-head"'),'The morning brief needs a summary header.');
+check(str_contains($source,'class="morning-brief-glance"'),'The collapsed header needs a one-line glance.');
+check(str_contains($source,'class="morning-brief-body"'),'The expanded brief content stays inside the details body.');
+echo "PASS: morning brief counts deliveries, excludes back-order money, flags low stock, lists reorders and incoming supplier orders with the right links, and renders collapsed by default.\n";

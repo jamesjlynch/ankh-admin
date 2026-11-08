@@ -4379,7 +4379,11 @@ function morningBriefData(array $orders,array $products,array $reorderDueRows,ar
  if($supplierCount>0){
   $lines[]=['key'=>'supplier','label'=>'Supplier orders','detail'=>$supplierCount.' incoming · '.$supplierUnits.' unit'.($supplierUnits===1?'':'s'),'count'=>$supplierCount,'href'=>'?view=buying&tab=supplier&supplier_tab=incoming'];
  }
- return ['today'=>$today,'owed'=>$owed,'clients'=>$clientCount,'deliveries'=>$deliveryCount,'low_stock'=>$lowStock,'reorders'=>$reorderCount,'supplier_orders'=>$supplierCount,'supplier_units'=>$supplierUnits,'lines'=>$lines,'all_clear'=>!$lines];
+ $glance=[];
+ if($deliveryCount>0)$glance[]=$deliveryCount.' to deliver';
+ if($clientCount>0)$glance[]=money($owed).' owed';
+ if($lowStock>0)$glance[]=$lowStock.' low stock';
+ return ['today'=>$today,'owed'=>$owed,'clients'=>$clientCount,'deliveries'=>$deliveryCount,'low_stock'=>$lowStock,'reorders'=>$reorderCount,'supplier_orders'=>$supplierCount,'supplier_units'=>$supplierUnits,'lines'=>$lines,'glance'=>$glance?implode(' · ',$glance):'All clear today','all_clear'=>!$lines];
 }
 function dashboardQueueView(array $counts,string $requested='',string $remembered=''):string{
  foreach([$requested,$remembered] as $queue)if(in_array($queue,['all','payment','delivery','future'],true))return $queue;
@@ -5671,8 +5675,13 @@ $reorderDueRows=dueReorderRows($retaForecastCycles,$retaToday,7);
 $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders,$now);
 ?>
 <?php pageHeader('',['class'=>'dashboard-heading today-heading','title_html'=>'<span class="today-date">'.e($now->format('l j F')).'</span><span class="today-greeting">'.e($greeting).', <span class="today-greeting-name">'.e($adminFirstName).'</span></span>','action_href'=>'?view=new','action_label'=>'+ New order']);?>
-<section class="morning-brief" aria-labelledby="morning-brief-title">
- <div class="morning-brief-head"><p class="eyebrow" id="morning-brief-title">Morning brief</p><span class="morning-brief-date"><?=e($now->format('D j M'))?></span></div>
+<details class="morning-brief" aria-labelledby="morning-brief-title">
+ <summary class="morning-brief-head">
+  <span class="eyebrow" id="morning-brief-title">Morning brief</span>
+  <span class="morning-brief-glance" title="<?=e($morningBrief['glance'])?>"><?=e($morningBrief['glance'])?></span>
+  <span class="morning-brief-chevron" aria-hidden="true"></span>
+ </summary>
+ <div class="morning-brief-body">
  <?php if($morningBrief['lines']):$briefIcons=['deliveries'=>'↗','money'=>'£','low-stock'=>'▣','reorders'=>'↻','supplier'=>'◎'];?>
  <div class="morning-brief-lines">
  <?php foreach($morningBrief['lines'] as $briefLine):?>
@@ -5682,7 +5691,8 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
  <?php else:?>
  <p class="morning-brief-clear"><span aria-hidden="true">✓</span> All clear today</p>
  <?php endif;?>
-</section>
+ </div>
+</details>
 <section class="today-hero" aria-labelledby="today-hero-title">
  <div class="today-hero-head"><p class="today-hero-label" id="today-hero-title">THIS MONTH</p><?php if($lastMonthSales>0):?><span class="today-hero-pill <?=$monthDeltaPercent<0?'is-down':'is-up'?>"><?=$monthDeltaPercent<0?'▼':'▲'?> <?=$monthDeltaPercent<0?'':'+'?><?=$monthDeltaPercent?>% vs <?=e($now->modify('first day of last month')->format('F'))?></span><?php endif;?></div>
  <p class="today-hero-total" data-ankh-count="<?=$monthSales?>" data-ankh-format="money"><?=money($monthSales)?></p>

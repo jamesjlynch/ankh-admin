@@ -56,6 +56,25 @@ async function layout(page,label){
   }
   const tabsOverflow=await page.locator('.dashboard-queue-tabs').evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth}));
   check(tabsOverflow.scrollWidth<=tabsOverflow.clientWidth+2,label+' status tabs overflow horizontally '+JSON.stringify(tabsOverflow));
+  const brief=page.locator('details.morning-brief');
+  check(await brief.count()===1,label+' morning brief missing');
+  check(await brief.evaluate(el=>!el.open),label+' morning brief must start collapsed');
+  const briefSummary=brief.locator('summary.morning-brief-head');
+  check(await briefSummary.count()===1,label+' morning brief summary missing');
+  const briefBox=await briefSummary.boundingBox();
+  check(briefBox&&briefBox.height>=44,label+' morning brief tap target below 44px');
+  const briefMetrics=await briefSummary.evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth}));
+  check(briefMetrics.scrollWidth<=briefMetrics.clientWidth+2,label+' morning brief header overflows '+JSON.stringify(briefMetrics));
+  const glance=brief.locator('.morning-brief-glance');
+  check(await glance.count()===1,label+' morning brief glance missing');
+  check(await glance.evaluate(el=>el.scrollWidth<=el.clientWidth+2),label+' morning brief glance overflows');
+  check(!(await brief.locator('.morning-brief-body').isVisible()),label+' collapsed morning brief content must stay hidden');
+  await briefSummary.click();
+  check(await brief.evaluate(el=>el.open),label+' morning brief did not open on tap');
+  check(await brief.locator('.morning-brief-lines, .morning-brief-clear').first().isVisible(),label+' open morning brief content not visible');
+  const openBriefWidth=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
+  check(openBriefWidth.scrollWidth<=openBriefWidth.width+2,label+' open morning brief horizontal overflow '+JSON.stringify(openBriefWidth));
+  await briefSummary.click();
  }
  await page.goto(host+'/index.php?view=customers');
  check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');

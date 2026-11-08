@@ -1089,35 +1089,72 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
 
 .admin-app-shell .morning-brief{
   margin:0 0 18px;
-  padding:14px 16px;
   border:1px solid var(--ankh-os-border);
   border-radius:var(--ankh-os-radius);
   background:
     radial-gradient(ellipse 90% 120% at 100% 0%,rgba(245,166,35,.1),transparent 62%),
     linear-gradient(145deg,rgba(26,23,19,.86),rgba(14,14,16,.9));
   box-shadow:var(--ankh-os-shadow);
+  overflow:hidden;
 }
 .admin-app-shell .morning-brief-head{
   display:flex;
-  align-items:baseline;
+  align-items:center;
   justify-content:space-between;
   gap:10px;
-  margin:0 0 6px;
+  min-height:52px;
+  margin:0;
+  padding:0 16px;
+  cursor:pointer;
+  list-style:none;
+  color:var(--ankh-os-text);
+  text-decoration:none;
+  -webkit-tap-highlight-color:transparent;
 }
+.admin-app-shell .morning-brief-head::-webkit-details-marker{display:none}
+.admin-app-shell .morning-brief-head::marker{content:""}
+.admin-app-shell .morning-brief-head:focus-visible{outline:2px solid var(--ankh-os-gold);outline-offset:-2px}
 .admin-app-shell .morning-brief-head .eyebrow{
   margin:0;
+  flex:none;
   color:var(--ankh-os-gold);
   font-size:11px;
   font-weight:800;
   letter-spacing:.18em;
   text-transform:uppercase;
 }
-.admin-app-shell .morning-brief-date{
+.admin-app-shell .morning-brief-glance{
+  min-width:0;
+  margin-left:auto;
+  overflow:hidden;
   color:var(--ankh-os-muted);
   font-size:12px;
   line-height:1.3;
+  text-overflow:ellipsis;
   white-space:nowrap;
 }
+.admin-app-shell .morning-brief-chevron{
+  flex:none;
+  width:9px;
+  height:9px;
+  margin-left:4px;
+  border-right:2px solid var(--ankh-os-gold);
+  border-bottom:2px solid var(--ankh-os-gold);
+  transform:rotate(45deg);
+  transition:transform .2s ease;
+}
+.admin-app-shell .morning-brief[open] .morning-brief-chevron{transform:rotate(-135deg)}
+@media(prefers-reduced-motion:reduce){
+  .admin-app-shell .morning-brief-chevron{transition:none}
+}
+@media(prefers-reduced-motion:no-preference){
+  @keyframes morning-brief-open{
+    from{opacity:0;transform:translateY(-4px)}
+    to{opacity:1;transform:none}
+  }
+  .admin-app-shell .morning-brief[open] .morning-brief-body{animation:morning-brief-open .22s ease-out}
+}
+.admin-app-shell .morning-brief-body{padding:0 16px 12px}
 .admin-app-shell .morning-brief-lines{display:grid;gap:0}
 .admin-app-shell .morning-brief-line{
   display:grid;
@@ -1182,7 +1219,8 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
 }
 .admin-app-shell .morning-brief-clear span{color:var(--ankh-os-gold-bright)}
 @media(max-width:430px){
-  .admin-app-shell .morning-brief{padding:12px}
+  .admin-app-shell .morning-brief-head{padding:0 12px}
+  .admin-app-shell .morning-brief-body{padding:0 12px 10px}
   .admin-app-shell .morning-brief-copy span{white-space:normal;overflow-wrap:anywhere;overflow:visible}
 }
 
