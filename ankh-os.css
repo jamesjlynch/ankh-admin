@@ -1749,13 +1749,58 @@ body .admin-app-shell :is(.fridge-value-summary,.stock-value-lines,.combined-sto
   }
 }
 
+/* Launch splash only on first open or immediately after sign-in. */
+.ankh-launch-splash{
+  position:fixed;
+  inset:0;
+  z-index:20000;
+  display:grid;
+  place-items:center;
+  background:var(--ankh-os-bg,#101112);
+  color:var(--ankh-os-gold-bright,#f5a623);
+}
+.ankh-launch-splash[hidden]{display:none!important}
+.ankh-launch-mark{display:grid;justify-items:center;gap:2px;text-align:center}
+.ankh-launch-mark span{font-family:Georgia,"Times New Roman",serif;font-size:76px;line-height:1;color:var(--ankh-os-gold-bright,#f5a623)}
+.ankh-launch-mark strong{font-size:24px;font-weight:600;letter-spacing:.32em;text-indent:.32em}
+.ankh-launch-mark small{font-size:10px;font-weight:600;letter-spacing:.34em;text-indent:.34em;color:var(--ankh-os-muted,#9a9d95)}
+@media(prefers-reduced-motion:no-preference){
+  .ankh-launch-splash{animation:ankh-page-enter .18s ease both}
+  .ankh-launch-splash.is-leaving{animation:ankh-page-exit .24s ease forwards}
+}
+@keyframes ankh-page-exit{to{opacity:0}}
+
+.ankh-nav-progress{
+  position:fixed;
+  top:0;
+  left:0;
+  z-index:21000;
+  width:0;
+  height:2px;
+  background:var(--ankh-os-gold-bright,#f5a623);
+  box-shadow:0 0 10px rgba(245,166,35,.45);
+  pointer-events:none;
+  transition:width .5s cubic-bezier(.2,.7,.2,1),opacity .18s ease;
+}
+.ankh-nav-progress[hidden]{display:none!important}
+.ankh-nav-progress.is-done{opacity:0;transition:width .16s ease,opacity .2s ease .1s}
+
+.order-anchor{display:block;height:0;overflow:hidden;scroll-margin-top:12px}
+
 /* App-wide page enter and chip transitions. */
 @keyframes ankh-page-enter{
   from{opacity:0}
   to{opacity:1}
 }
+@keyframes ankh-quick-fade{
+  from{opacity:.86}
+  to{opacity:1}
+}
 
 @media(prefers-reduced-motion:no-preference){
+  html #ankh-main.ankh-quick-fade{
+    animation:ankh-quick-fade .15s ease both;
+  }
   html.ankh-motion #ankh-main.ankh-page-enter{
     animation:ankh-page-enter .4s cubic-bezier(.2,.7,.2,1) both;
   }
@@ -3960,7 +4005,7 @@ body .admin-app-shell .fridge-overview-grid .combined-stock-head>i{
   align-items:flex-start;
   justify-content:space-between;
   gap:12px;
-  margin:0 0 4px;
+  margin:0 0 8px;
 }
 .admin-app-shell .dashboard-action-queue .todo-board-head-copy{min-width:0}
 .admin-app-shell .dashboard-action-queue .todo-board-head h2{
@@ -4031,9 +4076,12 @@ body .admin-app-shell .fridge-overview-grid .combined-stock-head>i{
 .admin-app-shell .dashboard-action-queue .focus-work-toolbar{
   display:grid;
   grid-template-columns:minmax(0,1fr);
-  gap:10px;
+  gap:14px;
   width:100%;
-  margin:12px 0 0;
+  margin:14px 0 0;
+}
+.admin-app-shell .dashboard-action-queue .focus-worklist{
+  margin-top:16px;
 }
 .admin-app-shell .dashboard-action-queue .worklist-person{
   display:grid;
@@ -4136,7 +4184,7 @@ body .admin-app-shell .fridge-overview-grid .combined-stock-head>i{
   .admin-app-shell .dashboard-action-queue .focus-work-toolbar{
     display:flex;
     align-items:center;
-    gap:14px;
+    gap:16px;
   }
   .admin-app-shell .dashboard-action-queue .worklist-person{
     width:auto;

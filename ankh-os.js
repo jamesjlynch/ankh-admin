@@ -349,13 +349,305 @@
     if (event.key === 'Escape') closeAllCardActions();
   });
 
-  const init = () => {
-    if (reduceMotion) return;
+  const orderActionNames = new Set([
+    'payment_add', 'payment_delete', 'delivery_mark', 'order_preparation',
+    'order_reconstituted', 'order_schedule', 'order_delivery_section',
+    'order_dates', 'status', 'packing_pick', 'order_backorder', 'backorder_cancel',
+    'order_delete'
+  ]);
 
-    document.documentElement.classList.add('ankh-motion');
+  const orderActionName = (form) => form instanceof HTMLFormElement
+    ? String(form.querySelector('input[name="action"]')?.value || '')
+    : '';
 
+  const isInPlaceOrderForm = (form) => form instanceof HTMLFormElement
+    && orderActionNames.has(orderActionName(form))
+    && Boolean(form.closest('[data-order-card]') || form.closest('.focus-sheet-content') || form.closest('.od-detail'));
+
+  let progressBar = null;
+  let progressTimer = 0;
+
+  const startProgress = () => {
+    window.clearTimeout(progressTimer);
+    progressTimer = window.setTimeout(finishProgress, 3000);
+    if (!document.body) return;
+    if (!progressBar || !progressBar.isConnected) {
+      progressBar = document.createElement('div');
+      progressBar.className = 'ankh-nav-progress';
+      progressBar.setAttribute('aria-hidden', 'true');
+      document.body.append(progressBar);
+    }
+    progressBar.hidden = false;
+    progressBar.classList.remove('is-done');
+    progressBar.style.width = '8%';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (progressBar) progressBar.style.width = '72%';
+    }));
+  };
+
+  const finishProgress = () => {
+    window.clearTimeout(progressTimer);
+    if (!progressBar) return;
+    const bar = progressBar;
+    bar.classList.add('is-done');
+    bar.style.width = '100%';
+    window.setTimeout(() => {
+      bar.hidden = true;
+      bar.classList.remove('is-done');
+      bar.style.width = '0';
+    }, 240);
+  };
+
+  const initNavigationProgress = () => {
+    document.addEventListener('click', (event) => {
+      const link = event.target instanceof Element ? event.target.closest('a[href]') : null;
+      if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (link.target && link.target !== '_self') return;
+      if (link.hasAttribute('download')) return;
+      const href = link.getAttribute('href') || '';
+      if (href === '' || href.startsWith('#') || /^(mailto|tel|javascript):/i.test(href)) return;
+      let url = null;
+      try { url = new URL(link.href, window.location.href); } catch { return; }
+      if (url.origin !== window.location.origin) return;
+      if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+      startProgress();
+    });
+
+    document.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement) || event.defaultPrevented || isInPlaceOrderForm(form)) return;
+      startProgress();
+    });
+
+    window.addEventListener('pageshow', finishProgress);
+    window.addEventListener('pagehide', () => {
+      if (progressBar) progressBar.style.width = '100%';
+    });
+  };
+
+  const initLaunch = () => {
+    let launch = false;
+    try {
+      launch = document.documentElement.dataset.ankhLaunch === '1' || !sessionStorage.getItem('ankh-launched');
+      sessionStorage.setItem('ankh-launched', '1');
+    } catch {
+      launch = document.documentElement.dataset.ankhLaunch === '1';
+    }
+    const splash = document.getElementById('ankh-launch-splash');
+    if (!splash) return launch;
+    if (!launch || reduceMotion) {
+      splash.hidden = true;
+      return launch;
+    }
+    splash.hidden = false;
+    const hide = () => {
+      splash.classList.add('is-leaving');
+      window.setTimeout(() => {
+        splash.hidden = true;
+        splash.classList.remove('is-leaving');
+      }, 260);
+    };
+    const timer = window.setTimeout(hide, 520);
+    const dismiss = () => {
+      window.clearTimeout(timer);
+      hide();
+    };
+    window.addEventListener('pointerdown', dismiss, { once: true });
+    window.addEventListener('keydown', dismiss, { once: true });
+    return launch;
+  };
+
+  const orderCardFor = (id) => document.querySelector('[data-order-card][data-order-id="' + id + '"]');
+
+  const returnedOrderCard = (doc, id) => {
+    const dashboard = doc.getElementById('work-order-' + id);
+    if (dashboard) return dashboard;
+    const anchor = doc.getElementById('order-' + id);
+    if (anchor) return anchor.closest('[data-order-card]') || anchor;
+    return doc.querySelector('[data-order-card][data-order-id="' + id + '"]');
+  };
+
+  const applyReturnedOrderCard = (doc, card, id, dialog, crossView = false) => {
+    const fresh = crossView ? null : returnedOrderCard(doc, id);
+    const dialogBody = document.getElementById('focus-sheet-body');
+    const inDialog = Boolean(dialog && dialog.open && dialogBody);
+    const scrollY = window.scrollY;
+    const dialogScroll = inDialog ? dialogBody.scrollTop : 0;
+
+    const restoreScroll = () => {
+      window.scrollTo(0, scrollY);
+      if (inDialog && dialogBody) dialogBody.scrollTop = dialogScroll;
+    };
+    const restoreScrollSoon = () => {
+      restoreScroll();
+      requestAnimationFrame(() => {
+        restoreScroll();
+        requestAnimationFrame(restoreScroll);
+      });
+    };
+
+    if (!card) return;
+
+    if (!fresh) {
+      card.remove();
+      if (inDialog) dialog.close();
+      const list = document.querySelector('.focus-worklist');
+      if (list && !list.querySelector('[data-order-card]') && !list.querySelector('.queue-empty')) {
+        const empty = doc.querySelector('.queue-empty');
+        if (empty) list.append(document.importNode(empty, true));
+      }
+      restoreScrollSoon();
+      return;
+    }
+
+    const wasOpen = card.open;
+    const openDetails = [...card.querySelectorAll('details')]
+      .map((details, index) => details.open ? index : -1)
+      .filter((index) => index >= 0);
+    const imported = document.importNode(fresh, true);
+    [...imported.attributes].forEach((attribute) => {
+      if (attribute.name === 'open' || attribute.name === 'id') return;
+      card.setAttribute(attribute.name, attribute.value);
+    });
+    card.innerHTML = imported.innerHTML;
+    card.open = wasOpen;
+    [...card.querySelectorAll('details')].forEach((details, index) => {
+      if (openDetails.includes(index)) details.open = true;
+    });
+    if (inDialog) {
+      const content = card.querySelector('.focus-sheet-content');
+      if (content && dialogBody) {
+        dialogBody.replaceChildren(content);
+      }
+    }
+    restoreScrollSoon();
+  };
+
+  const submitOrderFormInPlace = async (form, submitter) => {
+    if (form.dataset.ankhSubmitting === '1') return;
+    const card = form.closest('[data-order-card]') || orderCardFor(String(form.querySelector('input[name="id"]')?.value || ''));
+    const id = String(form.querySelector('input[name="id"]')?.value || card?.dataset.orderId || '');
+    if (!id) return;
+    const dialog = document.getElementById('focus-action-sheet');
+    const body = new FormData(form, submitter || undefined);
+    const buttons = [...form.querySelectorAll('button, input[type="submit"]')];
+    form.dataset.ankhSubmitting = '1';
+    buttons.forEach((button) => { button.disabled = true; });
+    form.setAttribute('aria-busy', 'true');
+    startProgress();
+    try {
+      const url = new URL(window.location.href);
+      url.hash = '';
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'fetch',
+          'Accept': 'text/html'
+        },
+        body,
+        credentials: 'same-origin'
+      });
+      const html = await response.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      if (!response.ok) {
+        const error = doc.querySelector('.error[role="alert"], [role="alert"].error, .error');
+        throw new Error(error && error.textContent.trim() ? error.textContent.trim() : 'Could not save. Please try again.');
+      }
+      const finalUrl = new URL(response.url || url.toString());
+      const currentUrl = new URL(window.location.href);
+      const currentView = currentUrl.searchParams.get('view') || 'dashboard';
+      const finalView = finalUrl.searchParams.get('view') || 'dashboard';
+      const crossView = finalView !== currentView
+        || (currentView === 'orders' && (finalUrl.searchParams.get('section') || '') !== (currentUrl.searchParams.get('section') || ''));
+      applyReturnedOrderCard(doc, card, id, dialog, crossView);
+      const toast = doc.querySelector('.ankh-toast[data-ankh-toast]');
+      const message = toast?.querySelector('.ankh-toast-message')?.textContent?.trim()
+        || doc.querySelector('.ankh-toast-message')?.textContent?.trim();
+      if (message) window.ankhToast?.(message, { type: toast?.dataset.type === 'error' ? 'error' : 'ok' });
+      initOrderCards();
+      window.ankhInitFocusSheets?.();
+    } catch (error) {
+      window.ankhToast?.(error && error.message ? error.message : 'Could not save. Please try again.', { type: 'error' });
+    } finally {
+      delete form.dataset.ankhSubmitting;
+      form.removeAttribute('aria-busy');
+      buttons.forEach((button) => { if (button.isConnected) button.disabled = false; });
+      finishProgress();
+    }
+  };
+
+
+  const submitEditOrderInPlace = async (form, submitter) => {
+    if (form.dataset.ankhSubmitting === '1') return;
+    const save = form.querySelector('.save-order');
+    const label = save ? save.textContent : '';
+    const body = new FormData(form, submitter || undefined);
+    form.dataset.ankhSubmitting = '1';
+    form.setAttribute('aria-busy', 'true');
+    if (save) save.disabled = true;
+    startProgress();
+    try {
+      const url = new URL(window.location.href);
+      url.hash = '';
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'fetch',
+          'Accept': 'text/html'
+        },
+        body,
+        credentials: 'same-origin'
+      });
+      const html = await response.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      if (!response.ok) {
+        const error = doc.querySelector('.error[role="alert"], [role="alert"].error, .error');
+        throw new Error(error && error.textContent.trim() ? error.textContent.trim() : 'Could not save. Please try again.');
+      }
+      const toast = doc.querySelector('.ankh-toast[data-ankh-toast]');
+      const message = toast?.querySelector('.ankh-toast-message')?.textContent?.trim()
+        || doc.querySelector('.ankh-toast-message')?.textContent?.trim();
+      if (message) window.ankhToast?.(message, { type: toast?.dataset.type === 'error' ? 'error' : 'ok' });
+    } catch (error) {
+      window.ankhToast?.(error && error.message ? error.message : 'Could not save. Please try again.', { type: 'error' });
+    } finally {
+      delete form.dataset.ankhSubmitting;
+      form.removeAttribute('aria-busy');
+      if (save) {
+        save.disabled = false;
+        if (label) save.textContent = label;
+      }
+      finishProgress();
+    }
+  };
+
+  const initOrderFormsInPlace = () => {
+    document.addEventListener('submit', (event) => {
+      const form = event.target;
+      if (!(form instanceof HTMLFormElement) || event.defaultPrevented) return;
+      if (form.id === 'edit-order-form' && orderActionName(form) === 'order_edit') {
+        event.preventDefault();
+        submitEditOrderInPlace(form, event.submitter);
+        return;
+      }
+      if (!isInPlaceOrderForm(form)) return;
+      if (form.matches('[data-run-deliver]') || form.closest('[data-delivery-run]')) return;
+      event.preventDefault();
+      submitOrderFormInPlace(form, event.submitter);
+    });
+  };
+
+  const init = (launch = false) => {
+    const useMotion = launch && !reduceMotion;
     const mainContent = document.getElementById('ankh-main');
-    if (mainContent) mainContent.classList.add('ankh-page-enter');
+    if (useMotion) {
+      document.documentElement.classList.add('ankh-motion');
+      if (mainContent) mainContent.classList.add('ankh-page-enter');
+    } else if (mainContent) {
+      mainContent.classList.add('ankh-quick-fade');
+    }
+
+    if (useMotion) {
 
     const revealSelector = [
       '#ankh-main > header',
@@ -456,6 +748,8 @@
       if (!element.hasAttribute('data-ankh-delay')) element.setAttribute('data-ankh-delay', String(Math.min(index, 6) * 55));
       countUp(element);
     });
+
+    }
 
     const pressSelector = 'button,a,summary,.dashboard-stat-card,.todo-card,.more-card,.fridge-overview-card';
     let pressed = null;
@@ -1085,15 +1379,18 @@
   };
 
   const start = () => {
+    const launch = initLaunch();
     adoptToasts();
     initOrderCards();
+    initOrderFormsInPlace();
+    initNavigationProgress();
     initDeliveryRun();
     initSearch();
     initBalanceReminders();
     initReportTakings();
     initLowStock();
     initCycleSearch();
-    init();
+    init(launch);
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });

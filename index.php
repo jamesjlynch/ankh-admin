@@ -2958,6 +2958,7 @@ if($_SERVER['REQUEST_METHOD']==='POST' && ($_GET['api']??'')==='passkey-login'){
   if($hasIndividualLogins && empty($passkey['user_id']))throw new Exception('Re-register this passkey from your own ANKH account.');
    $db->prepare('UPDATE passkeys SET sign_count=? WHERE id=?')->execute([$newCount,(int)$passkey['id']]);
   unset($_SESSION['passkey_challenge'],$_SESSION['passkey_kind'],$_SESSION['passkey_created']);session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();if($hasIndividualLogins)$_SESSION['admin_user_id']=(int)$passkey['user_id'];
+  $_SESSION['ankh_show_launch']=true;
   voiceJson(['ok'=>true]);
  }catch(Throwable $ex){voiceJson(['ok'=>false,'error'=>$ex->getMessage()?:'Passkey sign-in failed.'],500);}
 }
@@ -3495,7 +3496,9 @@ if((string)($_GET['view']??'')==='shipping' && $_SERVER['REQUEST_METHOD']==='POS
 if(!empty($_SESSION['admin']) && time()-(int)($_SESSION['last']??0)<=3600){try{ankhCatalogueLinkIdentities($db);}catch(Throwable $linkError){error_log('ANKH identity link update: '.$linkError->getMessage());}}
 
 if ($_SERVER['REQUEST_METHOD']==='POST') {
- $fetchAction=strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH']??''))==='fetch' && in_array((string)($_POST['action']??''),['payment_add','delivery_mark'],true);
+ $fetchRequest=strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH']??''))==='fetch';
+ $wantsJson=str_contains(strtolower((string)($_SERVER['HTTP_ACCEPT']??'')),'application/json');
+ $fetchAction=$fetchRequest && $wantsJson && in_array((string)($_POST['action']??''),['payment_add','delivery_mark'],true);
  try {
  if (!hash_equals($_SESSION['csrf'],(string)($_POST['csrf']??''))) throw new Exception('Please refresh the page and try again.');
  $action=$_POST['action']??'';
@@ -3532,6 +3535,7 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
   $db->prepare('DELETE FROM attempts WHERE ip=?')->execute([$ip]);
   if($hasIndividualLogins)ankhAuthPasswordLogin($db,(string)($_POST['username']??''),(string)($_POST['password']??''),!empty($_POST['remember']));
   else{session_regenerate_id(true);$_SESSION['admin']=true;$_SESSION['last']=time();}
+  $_SESSION['ankh_show_launch']=true;
  } else {
   if(empty($_SESSION['admin']) || time()-($_SESSION['last']??0)>3600) throw new Exception('Please sign in again.');
   if($action==='packing_run_create'){
@@ -4253,6 +4257,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if($returnView==='fridge_jay'||$returnView==='fridge_tony'){$returnWho=$returnView==='fridge_jay'?'jay':'tony';$returnView='stock';}
  elseif(in_array($returnView,['jay','tony'],true)){$returnWho=$returnView;$returnView='stock';}
  elseif($returnView==='stock'&&$returnWho===''&&in_array((string)($_GET['who']??''),['jay','tony','holding'],true))$returnWho=(string)$_GET['who'];
+ $orderActionAnchor='';
+ if($auditOrderId>0 && in_array((string)$action,['payment_add','payment_delete','delivery_mark','order_preparation','order_reconstituted','order_schedule','order_delivery_section','order_dates','status','packing_pick'],true))$orderActionAnchor='#order-'.$auditOrderId;
+ elseif((string)$action==='order_backorder'&&(string)($_POST['back_order']??'')==='0'&&$auditOrderId>0)$orderActionAnchor='#order-'.$auditOrderId;
  if($returnView==='supplies'&&in_array($returnSection,['cupboard','shopping','purchases'],true)){header('Location: ./?view=buying&tab=supplies&section='.$returnSection);exit;}
  if($action==='stock_fridge_counts'){
   $returnFilter=(($_POST['return_filter']??'')==='low')?'&filter=low':'';
@@ -4262,14 +4269,14 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
  if($action==='product_catalogue_content' && in_array($returnView,['website_cms','settings'],true))header('Location: ./?view=settings&tab=website&id='.(int)($_POST['product_id']??0).'#cms-edit');
  else if($returnView==='settings')header('Location: ./?view=settings&tab='.rawurlencode(in_array($_POST['settings_tab']??'',['sheets','website','alerts','payments'],true)?(string)$_POST['settings_tab']:'sheets'));
  else if($returnView==='customer' && (int)($_POST['customer_id']??0)>0)header('Location: ./?view=customer&id='.(int)$_POST['customer_id']);
- else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['all','payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).'#dashboard-actions');
+ else if($returnView==='dashboard'&&in_array($_POST['return_queue']??'',['all','payment','delivery','future'],true))header('Location: ./?view=dashboard&queue='.urlencode((string)$_POST['return_queue']).($orderActionAnchor?:'#dashboard-actions'));
  else if($returnView==='packing' && (int)($_POST['id']??0)>0)header('Location: ./?view=packing&id='.(int)$_POST['id'].'#packing-lines');
- else if($returnView==='backorders')header('Location: ./?view=orders&section=backorders');
+ else if($returnView==='backorders')header('Location: ./?view=orders&section=backorders'.$orderActionAnchor);
  else if($returnView==='recurring')header('Location: ./?view=orders&section=recurring');
  else if($returnView==='stock'){header('Location: ./?view=stock'.(in_array($returnSection,['incoming','forecast','history'],true)?'&section='.urlencode($returnSection):'').($returnWho!==''?'&who='.rawurlencode($returnWho):''));}
- else header('Location: ./?view='.urlencode($returnView));
+ else header('Location: ./?view='.urlencode($returnView).$orderActionAnchor);
  exit;
- }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();if($fetchAction){http_response_code(400);header('Content-Type: application/json; charset=utf-8');echo json_encode(['ok'=>false,'error'=>$error],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}}
+ }catch(Throwable $ex){if($db->inTransaction())$db->rollBack();$error=$ex instanceof PDOException?'Could not save. Please try again.':$ex->getMessage();if($fetchAction){http_response_code(400);header('Content-Type: application/json; charset=utf-8');echo json_encode(['ok'=>false,'error'=>$error],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}if($fetchRequest)http_response_code(400);}
 }
 $passkeyCount=(int)$db->query($hasIndividualLogins?'SELECT COUNT(*) FROM passkeys WHERE user_id IS NOT NULL':'SELECT COUNT(*) FROM passkeys')->fetchColumn();
 $auth=!empty($_SESSION['admin']) && time()-($_SESSION['last']??0)<=3600 && (!$hasIndividualLogins||!empty($_SESSION['admin_user_id']));
@@ -4852,8 +4859,9 @@ if (!empty($auth) && isset($_GET['premium']) && in_array((string)$_GET['premium'
 }
 $premiumV2Preview=!empty($auth) && !empty($_SESSION['ankh_premium_v2_preview']);
 $productV2Editing=$premiumV2Preview && ($view??'')==='products' && (int)($_GET['edit_product']??0)>0;
+$ankhShowLaunch=!empty($_SESSION['ankh_show_launch']);unset($_SESSION['ankh_show_launch']);
 ?>
-<body class="<?=$premiumV2Preview?'ankh-premium-v2':''?><?=$productV2Editing?' premium-v2-editing':''?>">
+<body class="<?=$premiumV2Preview?'ankh-premium-v2':''?><?=$productV2Editing?' premium-v2-editing':''?>" data-ankh-launch="<?=$ankhShowLaunch?'1':'0'?>">
 <?php if($pinSetupAuthorized): ?>
 <main class="login"><div class="mark">☥</div><p class="eyebrow">ANKH / SECURE SETUP</p><h1>Create your 4-digit PIN.</h1><p class="muted">This PIN will protect ANKH Admin. Once saved, this setup link stops working and Voice Order can activate.</p><?php if($error):?><p role="alert" class="error"><?=e($error)?></p><?php endif;?>
 <form method="post" action="?setup_pin=<?=e($pinSetupToken)?>"><?php csrf();?><input type="hidden" name="action" value="create_admin_pin"><input type="hidden" name="setup_pin" value="<?=e($pinSetupToken)?>"><label>New 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><label>Confirm PIN<input type="password" name="confirm_pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required autocomplete="new-password"></label><button>Save PIN &amp; secure app →</button></form></main>
@@ -5589,6 +5597,7 @@ if($view==='reportsboard'){
 }
 ?>
 <div class="admin-app-shell">
+<div class="ankh-launch-splash" id="ankh-launch-splash" hidden aria-hidden="true"><div class="ankh-launch-mark"><span aria-hidden="true">☥</span><strong>ANKH</strong><small>ORDER DESK</small></div></div>
 <a class="ux-skip-link" href="#ankh-main">Skip to main content</a>
 <div class="ios-status-bar" aria-hidden="true"></div>
 <aside><div class="app-brand-row"><a class="brand" href="?view=dashboard"><span>☥</span> ANKH<small>ORDER DESK</small></a><?php if($voiceOrderingEnabled):?><button type="button" id="ankh-assistant-button" class="ankh-assistant-button" aria-label="Talk to ANKH Assistant">
@@ -5741,7 +5750,7 @@ $morningBrief=morningBriefData($orders,$products,$reorderDueRows,$supplierOrders
 <?php $lastGroup='';foreach($dashboardWork as $todo):$items=$todoItems[(int)$todo['id']]??[];$todoPaid=(int)($todo['paid_amount']??0);$todoBalance=max(0,(int)$todo['total']-$todoPaid);$workGroup=dashboardWorkGroup($todo,$now->format('Y-m-d'));$delivered=orderPreparationState($todo)==='closed';?>
 <?php if($workGroup!==$lastGroup):?><h3 class="focus-group-heading"><?=e($workGroup)?></h3><?php $lastGroup=$workGroup;endif;?>
 <details class="todo-card todo-accordion focus-order" id="work-order-<?=(int)$todo['id']?>" data-focus-sheet data-order-card data-order-id="<?=(int)$todo['id']?>" data-order-outstanding="<?=$todoBalance?>" data-order-total="<?=(int)$todo['total']?>" data-order-client="<?=e(orderDisplayName($todo))?>" data-order-payment-method="<?=e($todo['payment_method']??'')?>" data-order-paid="<?=$todoBalance<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($todo)&&(string)($todo['status']??'')!=='Cancelled'&&((string)($todo['status']??'')==='Delivered'||trim((string)($todo['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($todo['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($todo)?'1':'0'?>">
-<summary class="todo-accordion-summary">
+<summary class="todo-accordion-summary"><span class="order-anchor" id="order-<?=(int)$todo['id']?>" aria-hidden="true"></span>
 <div class="focus-card-top"><span class="focus-order-ref">ANK-<?=str_pad((string)$todo['id'],4,'0',STR_PAD_LEFT)?> · <?=e($workGroup)?></span><span class="order-card-due"><strong><?=money($todoBalance)?></strong><small>Due</small></span></div>
 <p class="operations-step-hint"><?=e(dashboardNextActionLabel($todo))?></p>
 <div class="todo-accordion-main"><h3><?=e(orderDisplayName($todo))?></h3><?php orderBuyerCaption($todo);?><div class="todo-accordion-products"><?php foreach($items as $item):?><span data-ankh-product-name="<?=e($item['name'])?>"><?=e($item['quantity'].' × '.$item['name'].(!empty($item['presentation'])?' · '.$item['presentation']:'').((int)($item['discount']??0)>0?' · F&F':''))?></span><?php endforeach;?></div><?php orderFocusStatuses($todo);?></div>
@@ -5946,7 +5955,7 @@ $recurringCreatedCycles=[];foreach($retaCyclesActive as $createdCycle)if(isset($
 <div class="filters ux-order-filters <?=$ordersSection==='backorders'?'backorder-search':''?>"><label><?=$ordersSection==='backorders'?'Search waiting orders':'Search orders'?><input id="search" type="search" placeholder="Name, phone or ANK no." value="<?=e(is_scalar($_GET['search']??null)?(string)$_GET['search']:'')?>"></label><label <?=$ordersSection==='backorders'?'hidden':''?>>Status<select id="filter"><option value="">All statuses</option><?php foreach($statuses as $statusOption):?><option><?=e($statusOption)?></option><?php endforeach;?></select></label></div>
 <p class="ux-result-count" id="ux-order-visible" role="status" aria-live="polite"><?=count($listedOrders)?> orders</p>
 <div class="order-list">
-<?php foreach($listedOrders as $o):?><details class="order compact-order" data-order-card data-order-id="<?=(int)$o['id']?>" data-order-outstanding="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))?>" data-order-total="<?=(int)$o['total']?>" data-order-client="<?=e(orderDisplayName($o))?>" data-order-payment-method="<?=e($o['payment_method']??'')?>" data-order-paid="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($o)&&(string)($o['status']??'')!=='Cancelled'&&((string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($o['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($o)?'1':'0'?>" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><?php if(isBackOrder($o)):$lines=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$lines->execute([(int)$o['id']]);?><p class="backorder-order-products"><?php $parts=[];foreach($lines as $line)$parts[]=(int)$line['quantity'].' × '.$line['name'].($line['presentation']?' · '.$line['presentation']:'');echo e(implode(' / ',$parts));?></p><?php endif;?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><?php orderFocusStatuses($o);$orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><span class="order-card-due"><strong><?=money($orderBalance)?></strong><small>Due</small></span></div></summary><div class="detail">
+<?php foreach($listedOrders as $o):?><details class="order compact-order" id="order-<?=(int)$o['id']?>" data-order-card data-order-id="<?=(int)$o['id']?>" data-order-outstanding="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))?>" data-order-total="<?=(int)$o['total']?>" data-order-client="<?=e(orderDisplayName($o))?>" data-order-payment-method="<?=e($o['payment_method']??'')?>" data-order-paid="<?=max(0,(int)$o['total']-(int)($o['paid_amount']??0))<=0?'1':'0'?>" data-order-delivered="<?=(!isBackOrder($o)&&(string)($o['status']??'')!=='Cancelled'&&((string)($o['status']??'')==='Delivered'||trim((string)($o['delivery_date']??''))!==''))?'1':'0'?>" data-order-cancelled="<?=(string)($o['status']??'')==='Cancelled'?'1':'0'?>" data-order-back-order="<?=isBackOrder($o)?'1':'0'?>" data-search="<?=e(strtolower($o['customer'].' '.($o['recipient_name']??'').' '.$o['phone'].' '.($o['referrer']??'').' '.($o['assigned_to']??'').' ANK-'.$o['id']))?>" data-status="<?=e($o['status'])?>"><summary><div><div class="order-ref-row"><?php if(!empty($o['assigned_to'])):?><span class="delivery-assignee assigned <?=e(assigneeClass($o['assigned_to']))?>"><?=e($o['assigned_to'])?></span><?php else:?><span class="delivery-assignee assignee-unassigned">Unassigned</span><?php endif;?><span class="ref">ANK-<?=str_pad((string)$o['id'],4,'0',STR_PAD_LEFT)?></span></div><h2><?=e(orderDisplayName($o))?></h2><?php orderBuyerCaption($o);?><?php if(isBackOrder($o)):$lines=$db->prepare('SELECT name,quantity,presentation FROM items WHERE order_id=? ORDER BY id');$lines->execute([(int)$o['id']]);?><p class="backorder-order-products"><?php $parts=[];foreach($lines as $line)$parts[]=(int)$line['quantity'].' × '.$line['name'].($line['presentation']?' · '.$line['presentation']:'');echo e(implode(' / ',$parts));?></p><?php endif;?><span class="muted"><?=e(date('d M Y',strtotime($o['created'])))?></span></div><div class="order-right"><?php orderFocusStatuses($o);$orderBalance=max(0,(int)$o['total']-(int)($o['paid_amount']??0));?><span class="order-card-due"><strong><?=money($orderBalance)?></strong><small>Due</small></span></div></summary><div class="detail">
 <?php renderOrderDetail($db,$o,['surface'=>'orders','now'=>$now,'payment_methods'=>$paymentMethods,'statuses'=>$statuses]);?></div></details><?php endforeach;?></div>
 <p id="empty" class="empty" <?=count($listedOrders)?'hidden':''?>>No orders to show.</p>
 <?php endif;?>
@@ -8368,13 +8377,16 @@ document.querySelectorAll('.order-preparation-form').forEach(form=>{
  sheet.addEventListener('close',restore);
  document.getElementById('focus-sheet-close').addEventListener('click',()=>sheet.close());
  sheet.addEventListener('click',event=>{if(event.target===sheet){const rect=sheet.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)sheet.close();}});
- document.querySelectorAll('[data-focus-sheet]').forEach(details=>details.addEventListener('toggle',()=>{
+ const bound=new WeakSet();
+ const bind=(details)=>{if(!details||bound.has(details))return;bound.add(details);details.addEventListener('toggle',()=>{
   if(!details.open||!window.matchMedia('(max-width: 760px)').matches||sheet.open)return;
   const next=details.querySelector(':scope > .focus-sheet-content');if(!next)return;
   source=details;content=next;opener=details.querySelector(':scope > summary');
   title.textContent=details.classList.contains('focus-order')?details.querySelector('h3').textContent:opener.textContent.trim();
   body.append(content);details.open=false;sheet.showModal();document.documentElement.classList.add('focus-sheet-open');
- }));
+ });};
+ const bindAll=()=>document.querySelectorAll('[data-focus-sheet]').forEach(bind);
+ bindAll();window.ankhInitFocusSheets=bindAll;
  window.matchMedia('(max-width: 760px)').addEventListener('change',event=>{if(!event.matches&&sheet.open)sheet.close();});
 })();
 </script>

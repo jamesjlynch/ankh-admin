@@ -56,6 +56,7 @@ async function layout(page,label){
   }
   const tabsOverflow=await page.locator('.dashboard-queue-tabs').evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth}));
   check(tabsOverflow.scrollWidth<=tabsOverflow.clientWidth+2,label+' status tabs overflow horizontally '+JSON.stringify(tabsOverflow));
+<<<<<<< HEAD
   const brief=page.locator('details.morning-brief');
   check(await brief.count()===1,label+' morning brief missing');
   check(await brief.evaluate(el=>!el.open),label+' morning brief must start collapsed');
@@ -75,6 +76,12 @@ async function layout(page,label){
   const openBriefWidth=await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth}));
   check(openBriefWidth.scrollWidth<=openBriefWidth.width+2,label+' open morning brief horizontal overflow '+JSON.stringify(openBriefWidth));
   await briefSummary.click();
+=======
+  const tabsBox=await page.locator('.dashboard-queue-tabs').boundingBox();
+  check(personBox&&tabsBox&&tabsBox.y>=personBox.y+personBox.height+12,label+' needs 12px between person filter and status tabs '+JSON.stringify({personBox,tabsBox}));
+  const worklistBox=await page.locator('.focus-worklist').boundingBox();
+  check(tabsBox&&worklistBox&&worklistBox.y>=tabsBox.y+tabsBox.height+14,label+' needs 14px between status tabs and worklist '+JSON.stringify({tabsBox,worklistBox}));
+>>>>>>> bddcb10 (Keep order actions in place and limit launch splash)
  }
  await page.goto(host+'/index.php?view=customers');
  check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');
@@ -89,6 +96,8 @@ try{
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
  const context=await browser.newContext({viewport:{width:390,height:844}});
  const page=await context.newPage();
+ page.on('pageerror',error=>console.error('PAGEERROR',error.message));
+ let navigations=0;page.on('framenavigated',frame=>{if(frame===page.mainFrame())navigations++;});
  await page.goto(host+'/index.php?view=dashboard');
  await page.locator('form input[name="username"]').fill('fixture-admin');
  await page.locator('form input[name="password"]').fill('fixture-admin-only');
@@ -104,24 +113,35 @@ try{
  }
  await page.setViewportSize({width:820,height:1180});
  await page.goto(host+'/index.php?view=dashboard');
+ const splash=page.locator('#ankh-launch-splash');
+ await Promise.all([page.waitForNavigation(),page.locator('.desktop-nav a[href="?view=orders"]').click()]);
+ check(await splash.isHidden(),'Launch splash must not show after an in-app link tap.');
+ await page.goto(host+'/index.php?view=dashboard');
  check(await page.locator('#work-order-1').count()===1,'Fixture order missing from worklist.');
- await page.locator('#work-order-1 summary').first().click();
- await page.locator('#work-order-1 .od-more > summary').click();
- const reconForm=page.locator('#work-order-1 .order-preparation-form').filter({has:page.locator('input[name="stage"][value="reconstituted"]')});
- check(await reconForm.count()===1,'Next action missing');
- await Promise.all([page.waitForNavigation(),reconForm.locator('input[name="complete"]').check()]);
- await page.locator('#dashboard-actions').waitFor({state:'visible'});
- await page.locator('#work-order-1 summary').first().click();
- await page.locator('#work-order-1 .od-more > summary').click();
- const packForm=page.locator('#work-order-1 .order-preparation-form').filter({has:page.locator('input[name="stage"][value="packaged"]')});
- await Promise.all([page.waitForNavigation(),packForm.locator('input[name="complete"]').check()]);
- await page.locator('#dashboard-actions').waitFor({state:'visible'});
- await page.locator('#work-order-1 summary').first().click();
- await page.locator('#work-order-1 .od-primary-deliver > summary').click();
+ const card=page.locator('#work-order-1');
+ await card.locator('summary').first().click();
+ const reconButton=card.locator('.od-steps form').filter({has:page.locator('input[name="action"][value="order_reconstituted"]')}).locator('button');
+ await reconButton.scrollIntoViewIfNeeded();
+ const startScroll=await page.evaluate(()=>scrollY);
+ const navBefore=navigations;
+ await reconButton.click();
+ await page.waitForSelector('#work-order-1 input[name="reconstituted"][value="0"]',{state:'attached'});
+ await page.waitForFunction(expected=>Math.abs(scrollY-expected)<2,startScroll);
+ const afterScroll=await page.evaluate(()=>scrollY);
+ const urlAfter=page.url();
+ check(navigations===navBefore,'Order quick step must not navigate; got '+navigations+' navigations.');
+ check(afterScroll===startScroll,'Order quick step must keep scrollY at '+startScroll+' but was '+afterScroll+'.');
+ const packForm=card.locator('.od-steps form').filter({has:page.locator('input[name="action"][value="order_preparation"]')});
+ check(await packForm.count()===1,'Packaged quick step missing after reconstituting.');
+ await packForm.locator('button').click();
+ await page.waitForSelector('#work-order-1 .od-steps form input[name="stage"][value="packaged"] + input[name="complete"][value="0"]',{state:'attached'});
+ check(navigations===navBefore,'Packaged quick step must not navigate.');
+ check(page.url()===urlAfter,'Packaged quick step must keep the same page URL.');
  let confirmed=false;page.once('dialog',async d=>{confirmed=true;await d.accept();});
- await page.locator('#work-order-1').getByRole('button',{name:/Confirm delivered/}).click();
- await page.locator('#dashboard-actions').waitFor({state:'visible'});
+ await card.locator('.od-steps form').filter({has:page.locator('input[name="action"][value="delivery_mark"]')}).locator('button').click();
+ await page.waitForSelector('#work-order-1[data-order-delivered="1"]',{state:'attached'});
  check(confirmed,'Manual delivery must require explicit confirmation.');
+ check(navigations===navBefore,'Delivered quick step must not navigate.');
  await page.goto(host+'/index.php?view=notifications');
  const activity=await page.locator('.activity-list').innerText();
  check(activity.includes('Preparation updated'),'Preparation audit history was not recorded.');
