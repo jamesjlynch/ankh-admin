@@ -27,6 +27,11 @@ async function layout(page,label){
  check(await page.locator('#dashboard-actions').count()===1,label+' worklist missing');
  check(await page.locator('aside.desktop-today-panel').count()===0,label+' unrequested sidebar returned');
  if([375,390,430].includes(m.width)){
+  const header=page.locator('.dashboard-action-queue .todo-board-head');
+  check(await header.count()===1,label+' worklist header missing');
+  const headerMetrics=await header.evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth,right:el.getBoundingClientRect().right}));
+  check(headerMetrics.scrollWidth<=headerMetrics.clientWidth+2,label+' worklist header horizontal overflow '+JSON.stringify(headerMetrics));
+  check(headerMetrics.right<=m.width+2,label+' worklist header extends past viewport');
   const person=page.locator('.worklist-person');
   check(await person.count()===1,label+' person filter missing');
   const personBox=await person.boundingBox();
@@ -40,6 +45,17 @@ async function layout(page,label){
    check(size>=12,label+' person filter text below 12px');
   }
   check((await person.locator('a[aria-current="true"]').innerText()).trim()==='All',label+' person filter must default to All');
+  const tabs=page.locator('.dashboard-queue-tabs a');
+  check(await tabs.count()===4,label+' worklist needs 4 status tabs');
+  const headerBox=await header.boundingBox();
+  for(const tab of await tabs.all()){
+   const box=await tab.boundingBox();
+   check(box&&box.x>=-1&&box.x+box.width<=m.width+2,label+' status tab clipped '+JSON.stringify(box));
+   check(box&&box.width>=44&&box.height>=44,label+' status tab tap area below 44px');
+   check(headerBox&&box.y>=headerBox.y-2,label+' status tabs must sit below the worklist header');
+  }
+  const tabsOverflow=await page.locator('.dashboard-queue-tabs').evaluate(el=>({scrollWidth:el.scrollWidth,clientWidth:el.clientWidth}));
+  check(tabsOverflow.scrollWidth<=tabsOverflow.clientWidth+2,label+' status tabs overflow horizontally '+JSON.stringify(tabsOverflow));
  }
  await page.goto(host+'/index.php?view=customers');
  check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');

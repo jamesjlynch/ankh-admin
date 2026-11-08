@@ -3817,3 +3817,199 @@ body .admin-app-shell .fridge-overview-grid .combined-stock-head>i{
   line-height:1.2!important;
   letter-spacing:.04em!important;
 }
+
+/* Today worklist header: title + compact icon layout switch, summary, full-width
+   person segments and four equal status tabs that fit small iPhones. */
+.admin-app-shell .dashboard-action-queue .todo-board-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin:0 0 4px;
+}
+.admin-app-shell .dashboard-action-queue .todo-board-head-copy{min-width:0}
+.admin-app-shell .dashboard-action-queue .todo-board-head h2{
+  margin:0;
+  font-size:21px;
+  line-height:1.15;
+}
+.admin-app-shell .dashboard-action-queue .todo-board-head-tools{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex:0 0 auto;
+}
+.admin-app-shell .dashboard-action-queue .focus-work-count{
+  margin:4px 0 0;
+  font-size:12px;
+  line-height:1.35;
+  color:var(--ankh-os-muted);
+}
+.admin-app-shell .dashboard-action-queue .focus-layout-switch{
+  display:inline-flex;
+  align-items:center;
+  gap:2px;
+  flex:0 0 auto;
+  height:44px;
+  padding:3px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:12px;
+  background:var(--ankh-os-surface);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.admin-app-shell .dashboard-action-queue .focus-layout-switch a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:36px;
+  height:36px;
+  min-width:36px;
+  min-height:36px;
+  padding:0;
+  border-radius:8px;
+  color:var(--ankh-os-muted);
+  font-size:0;
+  line-height:0;
+  text-decoration:none;
+}
+.admin-app-shell .dashboard-action-queue .focus-layout-switch a svg{
+  width:19px;
+  height:19px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.admin-app-shell .dashboard-action-queue .focus-layout-switch a[aria-current="true"]{
+  background:rgba(245,166,35,.16);
+  color:var(--ankh-os-gold-bright);
+  box-shadow:inset 0 0 0 1px rgba(245,166,35,.28);
+}
+.admin-app-shell .dashboard-action-queue .focus-layout-switch a:focus-visible,
+.admin-app-shell .dashboard-action-queue .worklist-person a:focus-visible,
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs a:focus-visible{
+  outline:2px solid var(--ankh-os-gold);
+  outline-offset:2px;
+}
+.admin-app-shell .dashboard-action-queue .focus-work-toolbar{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:10px;
+  width:100%;
+  margin:12px 0 0;
+}
+.admin-app-shell .dashboard-action-queue .worklist-person{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  width:100%;
+  gap:2px;
+  padding:3px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:12px;
+  background:var(--ankh-os-surface);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  backdrop-filter:blur(14px) saturate(150%);
+}
+.admin-app-shell .dashboard-action-queue .worklist-person a{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  min-height:44px;
+  padding:0 8px;
+  border-radius:9px;
+  color:var(--ankh-os-muted);
+  font-size:13px;
+  font-weight:700;
+  line-height:1;
+  text-decoration:none;
+}
+.admin-app-shell .dashboard-action-queue .worklist-person a[aria-current="true"]{
+  background:rgba(245,166,35,.16);
+  color:var(--ankh-os-gold-bright);
+  box-shadow:inset 0 0 0 1px rgba(245,166,35,.28);
+}
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;
+  width:100%;
+  max-width:100%;
+  margin:0;
+  padding:0;
+  border:0;
+  background:transparent;
+  overflow:visible;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs a{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  flex:1 1 auto;
+  min-width:0;
+  min-height:48px;
+  padding:6px 2px;
+  border:1px solid var(--ankh-os-border);
+  border-radius:11px;
+  background:rgba(20,20,22,.5);
+  color:var(--ankh-os-muted);
+  font-size:12px;
+  font-weight:600;
+  line-height:1.15;
+  text-align:center;
+  text-decoration:none;
+  white-space:normal;
+  overflow-wrap:normal;
+  word-break:normal;
+  scroll-snap-align:none;
+  -webkit-backdrop-filter:none;
+  backdrop-filter:none;
+}
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs a span{
+  display:block;
+  max-width:100%;
+}
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs a b{
+  display:block;
+  min-width:0;
+  min-height:0;
+  padding:0;
+  border-radius:0;
+  background:transparent;
+  color:var(--ankh-os-muted);
+  font-size:14px;
+  font-weight:700;
+  line-height:1;
+}
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs a[aria-current="page"]{
+  border-color:rgba(245,166,35,.55);
+  background:rgba(245,166,35,.16);
+  color:var(--ankh-os-gold-bright);
+  box-shadow:inset 0 -2px 0 0 var(--ankh-os-gold),inset 0 0 0 1px rgba(245,166,35,.14);
+}
+.admin-app-shell .dashboard-action-queue .dashboard-queue-tabs a[aria-current="page"] b{
+  background:transparent;
+  color:var(--ankh-os-gold-bright);
+}
+@media (min-width:900px){
+  .admin-app-shell .dashboard-action-queue .focus-work-toolbar{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .admin-app-shell .dashboard-action-queue .worklist-person{
+    width:auto;
+    flex:0 0 auto;
+    min-width:280px;
+  }
+  .admin-app-shell .dashboard-action-queue .dashboard-queue-tabs{
+    flex:1 1 auto;
+    width:auto;
+  }
+}
