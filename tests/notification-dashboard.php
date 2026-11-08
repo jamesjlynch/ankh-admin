@@ -21,7 +21,7 @@ try{
  $db->exec("INSERT INTO admin_users(id,username,password_hash,active,created_at) VALUES(1,'fixture',".$db->quote(password_hash('test-only',PASSWORD_DEFAULT)).',1,'.time().')');
  $db->exec("INSERT INTO customers(name,phone,address,created) VALUES('UX Test','01234','','2026-01-01')");
  $html=renderPage('customers');
- foreach(['data-customer-insight="top"','data-customer-insight="inactive"','data-customer-insight="outstanding"','data-customer-insight="recurring"','UX Test'] as $marker)if(!str_contains($html,$marker))throw new RuntimeException('Missing customer filter: '.$marker);
+ foreach(['data-customer-insight="top"','data-customer-insight="inactive"','data-customer-insight="outstanding"','data-customer-insight="owes"','data-customer-insight="recurring"','UX Test'] as $marker)if(!str_contains($html,$marker))throw new RuntimeException('Missing customer filter: '.$marker);
  $html=renderPage('customer',['id'=>'1']);
  foreach(['Lifetime spend','Gross profit','Outstanding','Last order','Average repeat gap','Most purchased','Next likely order'] as $marker)if(!str_contains($html,$marker))throw new RuntimeException('Missing customer metric: '.$marker);
  $source=file_get_contents($root.'/index.php');

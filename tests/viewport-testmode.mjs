@@ -91,7 +91,7 @@ async function layout(page,label){
   }
  }
  await page.goto(host+'/index.php?view=customers');
- check(await page.locator('[data-customer-insight]').count()===5,label+' customer filters missing');
+ check(await page.locator('[data-customer-insight]').count()===6,label+' customer filters missing');
  const w=await page.evaluate(()=>document.documentElement.scrollWidth);
  check(w<=m.width+2,label+' customer horizontal overflow '+w);
  await page.goto(host+'/index.php?view=dashboard');

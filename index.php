@@ -4574,6 +4574,27 @@ function balanceReminderMessage(string $name,int $outstanding,int $orderCount,ar
  $message='Hi '.$first.', just a reminder '.money($outstanding).' is outstanding for your '.$orderLabel.($dateText!==''?' from '.$dateText:'').'. Thanks, '.$adminFirstName;
  return $message.ankhBankReminderFooter($bankDetails,ankhBankReminderReference($orders));
 }
+function balanceReminderSheetMarkup():string{
+ return <<<'HTML'
+<div class="balance-reminder-sheet" id="balance-reminder-sheet" hidden>
+ <div class="balance-reminder-backdrop" data-balance-reminder-close aria-hidden="true"></div>
+ <section class="balance-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="balance-reminder-title">
+  <div class="balance-reminder-head">
+   <div><p class="eyebrow">REMINDER</p><h2 id="balance-reminder-title">Send reminder</h2><small id="balance-reminder-customer"></small></div>
+   <button type="button" class="balance-reminder-close" data-balance-reminder-close aria-label="Close reminder">×</button>
+  </div>
+  <label class="balance-reminder-field" for="balance-reminder-text">Message <span class="muted">Editable</span></label>
+  <textarea id="balance-reminder-text" rows="6" spellcheck="true"></textarea>
+  <div class="balance-reminder-actions">
+   <a class="balance-reminder-action is-primary" id="balance-reminder-whatsapp" target="_blank" rel="noopener" aria-disabled="true" hidden>Send on WhatsApp</a>
+   <button type="button" class="balance-reminder-action is-secondary" id="balance-reminder-copy">Copy text</button>
+  </div>
+  <p class="balance-reminder-phone-note" id="balance-reminder-phone-note" hidden>No mobile number saved</p>
+  <p class="balance-reminder-note">Nothing is sent automatically. Review the message before sharing.</p>
+ </section>
+</div>
+HTML;
+}
 function todaySparklineSvg(array $daily):string{
  $values=array_values(array_map('floatval',$daily));
  if(!$values)$values=[0.0];
@@ -4713,6 +4734,7 @@ function reportTakingsData(PDO $db,DateTimeImmutable $today,DateTimeZone $tz):ar
  return $result;
 }
 $view=in_array($_GET['view']??'', ['enquiries','supplies','activity','alerts','notifications','settings','dashboard','orders','packing','packing_centre','new','edit','products','product','supplier','website_cms','stock','fridge_jay','fridge_tony','customers','customer','balances','reta','sheets','reports','reorder','shipping','plan','buying','more','run','business_alerts','saved','stockboard','reportsboard'],true)?$_GET['view']:'dashboard';
+$customerInsight=in_array((string)($_GET['insight']??''),['all','top','inactive','outstanding','recurring','owes'],true)?(string)$_GET['insight']:'all';
 // Legacy fridge screens now live inside the merged Stock screen.
 if($view==='fridge_jay'||$view==='fridge_tony'){header('Location: ./?view=stock&who='.($view==='fridge_jay'?'jay':'tony'),true,302);exit;}
 // The hidden live board alias keeps working for old bookmarks.
@@ -4825,6 +4847,9 @@ if($reportDownloadBuffer)ob_start();
 .customer-intelligence-badges span{padding:5px 8px;border:1px solid #343638;border-radius:999px;background:#151716;color:#9fa19b;font-size:9px;font-weight:800;letter-spacing:.2px}
 .customer-intelligence-badges .money{border-color:#64512c;color:#e6c56c;background:#211b10}
 .customer-intelligence-badges .cycle{border-color:#35543d;color:#9ac9a5;background:#132018}
+.customer-owe-amount{color:#e6c56c;font-size:13px;font-weight:800;line-height:1.2;white-space:nowrap}
+.customer-owe-date{color:#b99a58;font-size:11px;line-height:1.3}
+.customer-owe-reminder{min-height:32px;padding:0 10px;font-size:10px;border-radius:9px}
 .ankh-notification-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 2px 12px}
 .ankh-notification-head h2{margin:0;font-size:18px}.ankh-notification-head small{color:#96988f}
 .ankh-notification-item{padding:13px;border:1px solid #30322e;border-radius:14px;background:#1b1d1a;margin-top:9px}
@@ -6620,29 +6645,38 @@ usort($stockExpectedRows,fn($a,$b)=>(($b['risk']?1:0)<=>($a['risk']?1:0))?:($b['
 </section>
 <?php elseif($view==='customers'):?>
 <?php
-$customerSpendByKey=[];$customerOutstandingByKey=[];$customerRecurringKeys=[];
+$customerSpendByKey=[];$customerOutstandingByKey=[];$customerOldestUnpaidByKey=[];$customerRecurringKeys=[];
 foreach($storedCustomers as $rankCustomer){$rankKey=strtolower(trim((string)$rankCustomer['name'])).'|'.trim((string)$rankCustomer['phone']);$rankHistory=$customerOrderHistory[$rankKey]??[];$customerSpendByKey[$rankKey]=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$rankHistory));}
 arsort($customerSpendByKey);$customerTopSpend=array_filter($customerSpendByKey,fn($spent)=>(int)$spent>0);$customerTopKeys=array_fill_keys(array_slice(array_keys($customerTopSpend),0,min(10,count($customerTopSpend))),true);
-foreach($balanceAccounts as $balanceAccount)$customerOutstandingByKey[(string)$balanceAccount['key']]=(int)$balanceAccount['outstanding'];
+$balanceAccountByKey=[];
+foreach($balanceAccounts as $balanceAccount){$oweKey=(string)$balanceAccount['key'];$balanceAccountByKey[$oweKey]=$balanceAccount;$customerOutstandingByKey[$oweKey]=(int)$balanceAccount['outstanding'];$customerOldestUnpaidByKey[$oweKey]=(string)($balanceAccount['oldest']['created']??'');}
 foreach($retaCyclesActive as $customerCycle){$cycleKey=strtolower(trim((string)$customerCycle['customer_name'])).'|'.trim((string)$customerCycle['phone']);$customerRecurringKeys[$cycleKey]=true;}
 $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiveKey=strtolower(trim((string)$inactiveCustomer['name'])).'|'.trim((string)$inactiveCustomer['phone']);$inactiveHistory=$customerOrderHistory[$inactiveKey]??[];$inactiveLast=$inactiveHistory[0]??null;if($inactiveLast && strtotime((string)$inactiveLast['created'])<strtotime('-60 days'))$inactiveCustomerCount++;}
+$bankDetails=ankhBankSettings($db);
+$customerList=$storedCustomers;
+if($customerInsight==='owes')usort($customerList,function($a,$b)use($customerOutstandingByKey){
+ $aKey=strtolower(trim((string)$a['name'])).'|'.trim((string)$a['phone']);$bKey=strtolower(trim((string)$b['name'])).'|'.trim((string)$b['phone']);
+ $byOwed=(int)($customerOutstandingByKey[$bKey]??0)<=>(int)($customerOutstandingByKey[$aKey]??0);
+ return $byOwed?:strcasecmp((string)$a['name'],(string)$b['name']);
+});
 ?>
 <?php pageHeader('Customers',['class'=>'customer-heading','action_html'=>'<button type="button" id="show-add-customer" class="customer-plus" aria-label="Add customer" title="Add customer" aria-expanded="false" aria-controls="add-customer-panel">+</button>']);?><p class="page-inline-link"><a class="quick-action customer-balances-link" href="?view=balances">Balances<?php if($balancesTotalOutstanding>0):?> · <?=money($balancesTotalOutstanding)?><?php endif;?></a></p>
 <div class="customer-page-filters"><label>Search customers<input id="customer-page-search" type="search" placeholder="Name, phone, address or product"></label><label>Show<select id="customer-status-filter"><option value="active">Active</option><option value="archived">Archived</option><option value="all">All</option></select></label></div>
-<div class="customer-intelligence-filters" role="group" aria-label="Customer intelligence filters"><button type="button" class="selected" data-customer-insight="all">All</button><button type="button" data-customer-insight="top">Top customers</button><button type="button" data-customer-insight="inactive">Inactive 60+ days <b><?=$inactiveCustomerCount?></b></button><button type="button" data-customer-insight="outstanding">Outstanding balance <b><?=count($customerOutstandingByKey)?></b></button><button type="button" data-customer-insight="recurring">Recurring <b><?=count($customerRecurringKeys)?></b></button></div>
+<div class="customer-intelligence-filters" role="group" aria-label="Customer intelligence filters"><button type="button"<?=$customerInsight==='all'?' class="selected"':''?> data-customer-insight="all">All</button><button type="button"<?=$customerInsight==='top'?' class="selected"':''?> data-customer-insight="top">Top customers</button><button type="button"<?=$customerInsight==='inactive'?' class="selected"':''?> data-customer-insight="inactive">Inactive 60+ days <b><?=$inactiveCustomerCount?></b></button><button type="button"<?=$customerInsight==='outstanding'?' class="selected"':''?> data-customer-insight="outstanding">Outstanding balance <b><?=count($customerOutstandingByKey)?></b></button><button type="button"<?=$customerInsight==='owes'?' class="selected"':''?> data-customer-insight="owes">Owes money <b><?=count($balanceAccounts)?></b></button><button type="button"<?=$customerInsight==='recurring'?' class="selected"':''?> data-customer-insight="recurring">Recurring <b><?=count($customerRecurringKeys)?></b></button></div>
 <p class="ux-result-count" id="ux-customer-visible" role="status" aria-live="polite"></p>
 <form method="post" class="panel customer-form" id="add-customer-panel" hidden><?php csrf();?><input type="hidden" name="action" value="customer"><input type="hidden" name="return" value="customers"><div class="customer-form-title"><h2>Add customer</h2><button type="button" class="quiet customer-form-close" data-close-customer-form>Cancel</button></div><div class="two"><label>Name<input name="name" maxlength="160" required autocomplete="name" placeholder="Customer name"></label><label>Phone<input name="phone" maxlength="40" type="tel" autocomplete="tel" placeholder="Phone number"></label></div><label>Address<textarea name="address" maxlength="2000" autocomplete="street-address" placeholder="Delivery address"></textarea></label><?php customerPricingSelect();?><button>Save customer</button></form>
 <div id="customer-list" class="customer-intelligence-grid">
-<?php foreach($storedCustomers as $c):
+<?php foreach($customerList as $c):
  $customerKey=strtolower(trim((string)$c['name'])).'|'.trim((string)$c['phone']);$history=$customerOrderHistory[$customerKey]??[];
  $customerSpent=array_sum(array_map(fn($o)=>in_array($o['status'],$paidStatuses,true)?(int)$o['total']:0,$history));
  $lastOrder=$history[0]??null;$usualProducts=array_slice($customerProductCounts[$customerKey]??[],0,3);
  $customerOrderDates=array_values(array_filter(array_map(fn($o)=>(string)$o['status']==='Cancelled'?null:strtotime((string)$o['created']),$history)));$intervals=[];for($ci=1;$ci<count($customerOrderDates);$ci++)$intervals[]=abs($customerOrderDates[$ci-1]-$customerOrderDates[$ci])/86400;$avgOrderDays=$intervals?(int)round(array_sum($intervals)/count($intervals)):null;
- $isTop=!empty($customerTopKeys[$customerKey]);$isInactive=$lastOrder&&strtotime((string)$lastOrder['created'])<strtotime('-60 days');$hasOutstanding=(int)($customerOutstandingByKey[$customerKey]??0)>0;$hasRecurring=!empty($customerRecurringKeys[$customerKey]);
+ $isTop=!empty($customerTopKeys[$customerKey]);$isInactive=$lastOrder&&strtotime((string)$lastOrder['created'])<strtotime('-60 days');$customerOwed=(int)($customerOutstandingByKey[$customerKey]??0);$hasOutstanding=$customerOwed>0;$hasRecurring=!empty($customerRecurringKeys[$customerKey]);
+ $oweOldestCreated=(string)($customerOldestUnpaidByKey[$customerKey]??'');$oweAccount=$balanceAccountByKey[$customerKey]??null;$oweReminder=$oweAccount?balanceReminderMessage((string)$oweAccount['customer'],(int)$oweAccount['outstanding'],(int)$oweAccount['open_orders'],$oweAccount['order_dates'],$adminFirstName,$oweAccount['orders'],$bankDetails):'';
  $searchBits=$c['name'].' '.$c['phone'].' '.$c['address'].' '.implode(' ',array_column($usualProducts,'name'));
 ?>
-<details class="order customer-card<?=$c['archived']?' archived-customer':''?>" data-customer-search="<?=e(strtolower($searchBits))?>" data-customer-archived="<?=$c['archived']?'1':'0'?>" data-customer-top="<?=$isTop?'1':'0'?>" data-customer-inactive="<?=$isInactive?'1':'0'?>" data-customer-outstanding="<?=$hasOutstanding?'1':'0'?>" data-customer-recurring="<?=$hasRecurring?'1':'0'?>">
-<summary><div class="customer-list-identity"><span class="customer-avatar customer-list-avatar" aria-hidden="true"><?=e(customerInitials((string)$c['name']))?></span><div class="customer-list-copy"><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?><?php if($c['pricing_type']==='family_friends'):?><span class="badge">Family &amp; Friends</span><?php elseif($c['pricing_type']==='free'):?><span class="badge">Free</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · <?=e(date('d M y',strtotime($lastOrder['created'])))?><?php endif;?></small></div></summary>
+<details class="order customer-card<?=$c['archived']?' archived-customer':''?>" data-customer-search="<?=e(strtolower($searchBits))?>" data-customer-archived="<?=$c['archived']?'1':'0'?>" data-customer-top="<?=$isTop?'1':'0'?>" data-customer-inactive="<?=$isInactive?'1':'0'?>" data-customer-outstanding="<?=$hasOutstanding?'1':'0'?>" data-customer-owes="<?=$hasOutstanding?'1':'0'?>" data-customer-owe-amount="<?=$customerOwed?>" data-customer-recurring="<?=$hasRecurring?'1':'0'?>">
+<summary><div class="customer-list-identity"><span class="customer-avatar customer-list-avatar" aria-hidden="true"><?=e(customerInitials((string)$c['name']))?></span><div class="customer-list-copy"><div class="customer-name-line"><h2><?=e($c['name'])?></h2><?php if($c['archived']):?><span class="badge customer-archived-badge">Archived</span><?php endif;?><?php if($c['pricing_type']==='family_friends'):?><span class="badge">Family &amp; Friends</span><?php elseif($c['pricing_type']==='free'):?><span class="badge">Free</span><?php endif;?></div><span class="muted"><?=e($c['phone']?:'No phone saved')?></span></div></div><div class="customer-card-summary"><strong><?=money($customerSpent)?></strong><small><?=count($history)?> <?=count($history)===1?'order':'orders'?><?php if($lastOrder):?> · <?=e(date('d M y',strtotime($lastOrder['created'])))?><?php endif;?></small><?php if($hasOutstanding):?><b class="customer-owe-amount"><?=money($customerOwed)?> owed</b><small class="customer-owe-date">Oldest unpaid <?=$oweOldestCreated!==''?e(date('d M Y',strtotime($oweOldestCreated))):'—'?></small><?php if($oweReminder!==''):?><button type="button" class="balance-reminder-trigger customer-owe-reminder" data-balance-reminder data-reminder-customer="<?=e($oweAccount['customer'])?>" data-reminder-message="<?=e($oweReminder)?>" data-reminder-phone="<?=e($oweAccount['phone'])?>">WhatsApp reminder</button><?php endif;?><?php endif;?></div></summary>
 <div class="detail">
 <div class="customer-metrics"><div><span>Spent</span><strong><?=money($customerSpent)?></strong></div><div><span>Orders</span><strong><?=count($history)?></strong></div><div><span>Last order</span><strong><?=$lastOrder?e(date('d M y',strtotime($lastOrder['created']))):'—'?></strong></div><div><span>Avg. gap</span><strong><?=$avgOrderDays!==null?$avgOrderDays.'d':'—'?></strong></div></div>
 <?php if($isTop||$isInactive||$hasOutstanding||$hasRecurring):?><div class="customer-intelligence-badges"><?php if($isTop):?><span>TOP CUSTOMER</span><?php endif;?><?php if($hasRecurring):?><span class="cycle">RECURRING</span><?php endif;?><?php if($hasOutstanding):?><span class="money"><?=money((int)$customerOutstandingByKey[$customerKey])?> DUE</span><?php endif;?><?php if($isInactive):?><span>INACTIVE 60+D</span><?php endif;?></div><?php endif;?>
@@ -6658,6 +6692,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 </div>
 <p id="customer-page-empty" class="empty" hidden>No customers match that search.</p>
 <?php if(!$storedCustomers):?><p class="empty">No customers yet. Tap + to add your first one.</p><?php endif;?>
+<?=balanceReminderSheetMarkup()?>
 
 <?php elseif($view==='balances'):?>
 <?php pageHeader('Customer balances',['class'=>'balances-heading','action_href'=>'?view=customers','action_label'=>'Customers →','action_class'=>'quick-action']);?>
@@ -6702,23 +6737,7 @@ $inactiveCustomerCount=0;foreach($storedCustomers as $inactiveCustomer){$inactiv
 <?php endforeach;?>
 </div>
 <p class="empty" id="balance-filter-empty" <?=count($balanceAccounts)?'hidden':''?>>No outstanding customer balances.</p>
-<div class="balance-reminder-sheet" id="balance-reminder-sheet" hidden>
- <div class="balance-reminder-backdrop" data-balance-reminder-close aria-hidden="true"></div>
- <section class="balance-reminder-panel" role="dialog" aria-modal="true" aria-labelledby="balance-reminder-title">
-  <div class="balance-reminder-head">
-   <div><p class="eyebrow">REMINDER</p><h2 id="balance-reminder-title">Send reminder</h2><small id="balance-reminder-customer"></small></div>
-   <button type="button" class="balance-reminder-close" data-balance-reminder-close aria-label="Close reminder">×</button>
-  </div>
-  <label class="balance-reminder-field" for="balance-reminder-text">Message <span class="muted">Editable</span></label>
-  <textarea id="balance-reminder-text" rows="6" spellcheck="true"></textarea>
-  <div class="balance-reminder-actions">
-   <a class="balance-reminder-action is-primary" id="balance-reminder-whatsapp" target="_blank" rel="noopener" aria-disabled="true" hidden>Send on WhatsApp</a>
-   <button type="button" class="balance-reminder-action is-secondary" id="balance-reminder-copy">Copy text</button>
-  </div>
-  <p class="balance-reminder-phone-note" id="balance-reminder-phone-note" hidden>No mobile number saved</p>
-  <p class="balance-reminder-note">Nothing is sent automatically. Review the message before sharing.</p>
- </section>
-</div>
+<?=balanceReminderSheetMarkup()?>
 <script>
 (()=>{const buttons=[...document.querySelectorAll('[data-balance-filter]')],cards=[...document.querySelectorAll('.balance-account-card')],empty=document.getElementById('balance-filter-empty');if(!buttons.length)return;const apply=type=>{let visible=0;cards.forEach(card=>{const show=type==='all'||card.dataset['balance'+type.charAt(0).toUpperCase()+type.slice(1)]==='1';card.hidden=!show;if(show)visible++;});buttons.forEach(button=>{const on=button.dataset.balanceFilter===type;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',on?'true':'false');});if(empty){empty.hidden=visible>0;empty.textContent=visible?'':'No customers match this balance filter.';}};buttons.forEach(button=>button.addEventListener('click',()=>apply(button.dataset.balanceFilter)));})();
 </script>
@@ -7978,8 +7997,10 @@ addCustomerButton?.addEventListener('click',()=>{const open=addCustomerPanel.hid
 document.querySelectorAll('[data-close-customer-form]').forEach(b=>b.addEventListener('click',()=>{if(addCustomerPanel){addCustomerPanel.hidden=true;addCustomerButton?.setAttribute('aria-expanded','false')}}));
 document.querySelectorAll('[data-edit-customer]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.editCustomer,form=document.querySelector('[data-customer-form="'+id+'"]');if(!form)return;const open=form.hidden;form.hidden=!open;b.setAttribute('aria-expanded',open?'true':'false');b.textContent=open?'Hide edit':'Edit customer';if(open)form.querySelector('input[name="name"]')?.focus()}));
 document.querySelectorAll('[data-cancel-customer-edit]').forEach(b=>b.addEventListener('click',()=>{const id=b.dataset.cancelCustomerEdit,form=document.querySelector('[data-customer-form="'+id+'"]'),toggle=document.querySelector('[data-edit-customer="'+id+'"]');if(form)form.hidden=true;if(toggle){toggle.setAttribute('aria-expanded','false');toggle.textContent='Edit customer'}}));
-const customerPageSearch=document.querySelector('#customer-page-search'),customerStatusFilter=document.querySelector('#customer-status-filter'),customerCards=[...document.querySelectorAll('[data-customer-search]')],customerPageEmpty=document.querySelector('#customer-page-empty'),customerInsightButtons=[...document.querySelectorAll('[data-customer-insight]')];let customerInsight='all';
-function filterCustomerPage(){const term=(customerPageSearch?.value||'').toLowerCase().trim(),mode=customerStatusFilter?.value||'active';let visible=0;customerCards.forEach(card=>{const archived=card.dataset.customerArchived==='1',statusOk=mode==='all'||(mode==='archived'?archived:!archived),searchOk=!term||card.dataset.customerSearch.includes(term),insightOk=customerInsight==='all'||card.dataset['customer'+customerInsight.charAt(0).toUpperCase()+customerInsight.slice(1)]==='1';card.hidden=!(statusOk&&searchOk&&insightOk);if(!card.hidden)visible++});customerInsightButtons.forEach(button=>{const on=button.dataset.customerInsight===customerInsight;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',on?'true':'false')});if(customerPageEmpty)customerPageEmpty.hidden=visible>0;const label=document.querySelector('#ux-customer-visible');if(label)label.textContent=visible+' customer'+(visible===1?'':'s')+' shown'}
+const customerPageSearch=document.querySelector('#customer-page-search'),customerStatusFilter=document.querySelector('#customer-status-filter'),customerCards=[...document.querySelectorAll('[data-customer-search]')],customerPageEmpty=document.querySelector('#customer-page-empty'),customerInsightButtons=[...document.querySelectorAll('[data-customer-insight]')];let customerInsight=<?=json_encode($customerInsight)?>;
+const customerList=document.querySelector('#customer-list'),customerInitialOrder=[...customerCards];
+function orderCustomerCards(){if(!customerList)return;const order=customerInsight==='owes'?[...customerCards].sort((a,b)=>(Number(b.dataset.customerOweAmount)||0)-(Number(a.dataset.customerOweAmount)||0)):customerInitialOrder;order.forEach(card=>customerList.appendChild(card))}
+function filterCustomerPage(){orderCustomerCards();const term=(customerPageSearch?.value||'').toLowerCase().trim(),mode=customerStatusFilter?.value||'active';let visible=0;customerCards.forEach(card=>{const archived=card.dataset.customerArchived==='1',statusOk=mode==='all'||(mode==='archived'?archived:!archived),searchOk=!term||card.dataset.customerSearch.includes(term),insightOk=customerInsight==='all'||card.dataset['customer'+customerInsight.charAt(0).toUpperCase()+customerInsight.slice(1)]==='1';card.hidden=!(statusOk&&searchOk&&insightOk);if(!card.hidden)visible++});customerInsightButtons.forEach(button=>{const on=button.dataset.customerInsight===customerInsight;button.classList.toggle('selected',on);button.setAttribute('aria-pressed',on?'true':'false')});if(customerPageEmpty)customerPageEmpty.hidden=visible>0;const label=document.querySelector('#ux-customer-visible');if(label)label.textContent=visible+' customer'+(visible===1?'':'s')+' shown'}
 customerInsightButtons.forEach(button=>button.addEventListener('click',()=>{customerInsight=button.dataset.customerInsight||'all';filterCustomerPage()}));customerPageSearch?.addEventListener('input',filterCustomerPage);customerStatusFilter?.addEventListener('change',filterCustomerPage);filterCustomerPage();
 
 const wizard=document.querySelector('#order-wizard'),wizardSteps=[...document.querySelectorAll('[data-wizard-step]')],wizardProgress=[...document.querySelectorAll('[data-progress-step]')],clearDraftButton=document.querySelector('#clear-draft');

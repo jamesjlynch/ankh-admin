@@ -60,6 +60,7 @@ jobs:
           php -l tests/print-sheets.php
           php -l tests/backup-sqlite.php
           php -l tests/cycles-light.php
+          php -l tests/customer-owes.php
       - name: Test individual admin authentication
         run: php tests/auth-users.php
       - name: Test automated shipping stock forecast
@@ -86,6 +87,8 @@ jobs:
         run: php tests/print-sheets.php
       - name: Render dashboard and customer intelligence with isolated data
         run: php tests/notification-dashboard.php
+      - name: Test clients who owe money
+        run: php tests/customer-owes.php
       - name: Test future delivery scheduling
         run: php tests/future-delivery.php
       - name: Test fridge stock shortages
