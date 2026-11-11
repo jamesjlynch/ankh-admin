@@ -1,0 +1,40 @@
+name: ANKH public catalogue product audit
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/ankh-approved-catalogue-read.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-products:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read only public catalogue page (no credentials or database)
+        run: |
+          set -euo pipefail
+          curl --retry 2 --max-time 25 --fail --location -A "ANKH public catalogue audit" \
+            -o /tmp/ankh-public-catalogue.html \
+            https://order.ankhpeptides.com/public-catalogue.php
+          python3 - <<'PY'
+          from html.parser import HTMLParser
+          from pathlib import Path
+          class Collector(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.in_h2 = False
+                  self.names = []
+              def handle_starttag(self, tag, attrs):
+                  if tag.lower() == "h2": self.in_h2 = True
+              def handle_endtag(self, tag):
+                  if tag.lower() == "h2": self.in_h2 = False
+              def handle_data(self, data):
+                  if self.in_h2 and data.strip(): self.names.append(data.strip())
+          p=Collector()
+          p.feed(Path('/tmp/ankh-public-catalogue.html').read_text())
+          print("PUBLIC_CATALOGUE_VISIBLE_NAMES")
+          for n in p.names:
+              print(n)
+          print("HEADING_COUNT", len(p.names))
+          PY

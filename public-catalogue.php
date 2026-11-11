@@ -126,7 +126,10 @@ dl{margin:0}dl div{display:flex;align-items:start;justify-content:space-between;
  <?php foreach(['storage'=>'Unprepared laboratory material','prepared_storage'=>'After laboratory preparation','precautions'=>'Precautions'] as $key=>$label):if(empty($info[$key]))continue;?>
  <details class="expand" <?=$key==='precautions'?'open':''?>><summary><?=esc($label)?></summary><div class="inner"><?=ankhCatalogueFormat((string)$info[$key])?></div></details>
  <?php endforeach;?>
- </section><section class="side"><h2>Batch documentation</h2><p style="color:var(--muted);font-size:12px">Batch testing, sterility, concentration and Certificates of Analysis must be independently documented. No verification is implied by this page.</p></section>
+ </section><section class="side"><h2>Product documents</h2><p style="color:var(--muted);font-size:12px">Safety data sheets describe handling and hazards; they do not certify batch purity, sterility, or clinical safety. Product documentation must match the actual ANKH-supplied material.</p>
+<?php $sdsUrl=trim((string)($info['sds_url']??''));$sdsValid=$sdsUrl!=='' && filter_var($sdsUrl,FILTER_VALIDATE_URL) && strtolower((string)parse_url($sdsUrl,PHP_URL_SCHEME))==='https' && parse_url($sdsUrl,PHP_URL_USER)===null && parse_url($sdsUrl,PHP_URL_PASS)===null;?>
+<?php if($sdsValid):?><p><a href="<?=esc($sdsUrl)?>" target="_blank" rel="noopener noreferrer">View safety data sheet (PDF) ↗</a></p><?php endif;?>
+</section>
  </aside></div>
 <?php elseif($id!==false && $id!==null):?>
 <div class="hero"><span class="eyebrow">Not listed</span><h1>Profile not available</h1><p class="lead">This product does not have an approved public research profile.</p><a href="./public-catalogue.php">Return to research index</a></div>
